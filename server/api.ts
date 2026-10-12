@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   assets,
+  jobs,
   plans,
   planVersions,
   queueEntries,
@@ -25,6 +26,8 @@ import {
   sendGift,
 } from './core';
 import { reconcile } from './reconcile';
+import { schedulerTick } from './scheduler';
+import { replayDeadJob } from './jobs';
 
 const seed = loadManifest();
 
@@ -35,7 +38,7 @@ function ok(data: unknown, status = 200) {
 }
 
 function fail(error: unknown) {
-  const message = error instanceof Error ? error.message : 'INTERNAL_ERROR';
+  const message = error instanceof z.ZodError ? 'INVALID_INPUT' : error instanceof Error ? error.message : 'INTERNAL_ERROR';
   const statusMap: Record<string, number> = {
     UNAUTHENTICATED: 401,
     FORBIDDEN: 403,
@@ -51,6 +54,9 @@ function fail(error: unknown) {
     VERSION_CONFLICT: 409,
     INSUFFICIENT_BALANCE: 409,
     CONFIGURATION_INVALID: 503,
+    SCHEDULER_UNAVAILABLE: 503,
+    SCHEDULER_REPLAY: 409,
+    LEASE_LOST: 409,
     FEATURE_DISABLED: 404,
     CYCLE_LIMIT_REACHED: 409,
     DESTINATION_CHANGED: 409,
@@ -99,6 +105,26 @@ function resourceId(request: Request, queryKey: string, publicPath: RegExp) {
 export async function handleApiRequest(method: string, path: string[], request: Request) {
   try {
     const route = `/${path.join('/')}`;
+
+    if (method === 'POST' && route === '/internal/tick') return ok(await schedulerTick(request));
+
+    if (method === 'POST' && route === '/admin/jobs/replay') {
+      const actor=await admin(request);
+      z.object({}).strict().parse(await json(request));
+      const jobId=resourceId(request,'job_id',/^\/api\/v1\/admin\/jobs\/([^/]+)\/replay\/?$/);
+      return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>replayDeadJob(tx,actor.id,jobId,idempotencyKey(request))));
+    }
+
+    if (method === 'GET' && route === '/admin/jobs') {
+      const actor=await admin(request);
+      const data=await withContext({access:'service',actorId:actor.id,requireAdmin:true},async tx=>{
+        const limit=(await readManifest(tx)).pagination_policy.max_size;
+        const counts=await tx.select({status:jobs.status,count:sql<string>`count(*)::text`}).from(jobs).groupBy(jobs.status);
+        const rows=await tx.select({id:jobs.id,status:jobs.status,kind:jobs.kind,attempts:jobs.attempts,last_error_code:jobs.lastErrorCode,due_at:jobs.dueAt}).from(jobs).orderBy(desc(jobs.createdAt),desc(jobs.id)).limit(limit);
+        return {counts,rows,sample_limit:limit};
+      });
+      return ok(data);
+    }
 
     if (method === 'GET' && route === '/manifest') {
       let manifest = seed;

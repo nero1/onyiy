@@ -1,0 +1,26 @@
+name: non-signing-scheduler
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tick:
+    if: vars.ENABLE_SCHEDULER == 'true' && github.repository == 'nero1/onyiy' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 2
+    concurrency:
+      group: non-signing-scheduler-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+      - name: Signed bounded notification tick
+        env:
+          SCHEDULER_ORIGIN: ${{ vars.SCHEDULER_ORIGIN }}
+          SCHEDULER_HMAC_KEY: ${{ secrets.SCHEDULER_HMAC_KEY }}
+        run: node scripts/scheduler-tick.mjs

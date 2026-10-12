@@ -552,3 +552,19 @@ Use:
 - `HOW-IT-WORKS.md` for concise technical explanations,
 - `PROJECT-STATUS_vN.md` for progress, known issues, validation results, blockers, deviations, and the exact next task.
 - `LLM-HANDOVER_vN.md` for the self-contained continuation prompt for the next LLM.
+
+## 13. Enable non-signing notification jobs
+
+Migration 011 adds the transactional outbox, durable jobs and scheduler replay/lease records. Pending work is retained; existing immediate notifications stay unchanged. New financial notifications are delivered by the signed tick, so they can remain pending while scheduling is disabled. No real signer or financial send is enabled here.
+
+After the production simulation deployment works:
+
+1. Generate a cryptographically random key of at least 32 bytes, encoded as unpadded base64url, using your secure password/secret tooling. Store it as server-only `SCHEDULER_HMAC_KEY` in Vercel **Production** and as a matching secret in GitHub's protected `production` environment. Never put the key in GitHub files, chat, logs, public variables or exports.
+2. Set the GitHub `production` environment variable `SCHEDULER_ORIGIN` to the exact production HTTPS origin, without a trailing slash or path. Redeploy Vercel after changing its environment values.
+3. Set repository Actions variable `ENABLE_SCHEDULER=true`, then run **Actions → non-signing-scheduler → Run workflow** on `main`. Check its result and staff `GET /api/v1/admin/jobs` diagnostics. The workflow runs a signed notification tick every five minutes thereafter; it requires no migration credentials or signer material. Leave this flag absent/false until settings are ready. PRs/forks do not run this scheduler.
+
+Protected environments with required reviewers also hold scheduled runs for approval. GitHub scheduled runs can be delayed and consume Actions quota; five minutes is the desired cadence, not guaranteed delivery. Review your plan's budget or use a compatible external scheduler calling the same signed endpoint. New work catches up from database due times. `ENABLE_VERCEL_DEPLOYMENTS` controls deployment separately; both workflows remain opt-in during credential-free iterations.
+
+For key rotation, put the old key in Vercel's optional `SCHEDULER_HMAC_PREVIOUS_KEY`, install a new current key in Vercel, redeploy, then update GitHub's current secret. Retire the previous key after outstanding requests' maximum skew/replay window. Use separate keys/origins if manually exercising an isolated preview; never point preview jobs at production data. Hosted key delivery and scheduling remain unverified until executed.
+
+Staff may explicitly replay a reviewed dead-letter notification through `POST /api/v1/admin/jobs/<id>/replay` with an empty JSON body and UUID `Idempotency-Key`. This preserves the original operation and attempts. Invalid payloads are refused; never edit immutable work or financial history to force a retry. Long-running workers, alerts and retention/recovery orchestration remain later milestones.
