@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { copy, type Locale } from '@/lib/i18n';
 import { api, mutation, ApiError } from '@/lib/api-client';
+import { configurePublicDataBudget,loadPublicCatalog,savePublicCatalog } from '@/lib/public-data-cache';
 import { formatBaseUnits, decimalToBaseUnits } from '@gifters/domain';
 import {
   activateUserScope,
@@ -26,6 +27,7 @@ function remember(key:string,value:string){try{localStorage.setItem(key,value)}c
 function cacheMs(manifest:any,key:string){const seconds=manifest?.cache_policy?.[key];return Number.isSafeInteger(seconds) && seconds>0?seconds*1000:0}
 
 export default function DashboardApp() {
+  const catalogGeneration=useRef(0);
   const [users, setUsers] = useState<User[]>([]);
   const [username, setUsername] = useState('member_01');
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -55,11 +57,17 @@ export default function DashboardApp() {
     setTheme(initialTheme === 'dark' ? 'dark' : 'light');
     const cachedManifest=loadPublicSnapshot<any>('manifest');
     configureSnapshotBudget(cachedManifest?.cache_policy);
+    void configurePublicDataBudget(cachedManifest?.cache_policy);
     setPlans(loadPublicSnapshot<Plan[]>('plans',cacheMs(cachedManifest,'catalog_seconds')) ?? []);
+    let mounted=true;const generation=catalogGeneration.current;
+    void loadPublicCatalog(cacheMs(cachedManifest,'catalog_seconds')).then(value=>{
+      if(mounted && generation===catalogGeneration.current && value)setPlans(value);
+    });
     setManifest(cachedManifest);
     const ttl=cacheMs(cachedManifest,'private_snapshot_seconds');
     setDash(ttl?loadUserSnapshot<Dashboard>(initialUser,'dashboard','simulation',ttl):null);
     setOnline(navigator.onLine);
+    return ()=>{mounted=false;};
   }, []);
 
   useEffect(() => {
@@ -93,14 +101,26 @@ export default function DashboardApp() {
 
   useEffect(() => {
     if (!online) return;
-    api<User[]>('/sim/users', '').then(setUsers).catch(() => undefined);
+    let mounted=true;
+    api<User[]>('/sim/users', '').then(value=>{if(mounted)setUsers(value)}).catch(() => undefined);
     api<any>('/manifest', '').then((value) => {
+      if(!mounted)return;
       configureSnapshotBudget(value.cache_policy);
+      void configurePublicDataBudget(value.cache_policy);
       setManifest(value);
       const ttl=cacheMs(value,'manifest_public_seconds');if(ttl)savePublicSnapshot('manifest',value,ttl);
-      return api<Plan[]>('/plans','').then(plans=>{setPlans(plans);const catalogTtl=cacheMs(value,'catalog_seconds');if(catalogTtl)savePublicSnapshot('plans',plans,catalogTtl)});
+      return refreshCatalog(value);
     }).catch(() => undefined);
+    return ()=>{mounted=false;catalogGeneration.current++;};
   }, [online]);
+
+  async function refreshCatalog(policy=manifest) {
+    const generation=++catalogGeneration.current;
+    const value=await api<Plan[]>('/plans','');
+    if(generation!==catalogGeneration.current)return;
+    setPlans(value);const ttl=cacheMs(policy,'catalog_seconds');
+    if(ttl){savePublicSnapshot('plans',value,ttl);void savePublicCatalog(value,ttl);}
+  }
 
   useEffect(() => {
     const header=headerElement.current;
@@ -157,7 +177,7 @@ export default function DashboardApp() {
     setBusy(true);
     try {
       const result=await fn() as {status?:string;expected_base_units?:string}|undefined;
-      await Promise.all([refresh(), api<Plan[]>('/plans','').then(value=>{setPlans(value);const ttl=cacheMs(manifest,'catalog_seconds');if(ttl)savePublicSnapshot('plans',value,ttl)})]);
+      await Promise.all([refresh(),refreshCatalog()]);
       setNotice({ kind:result?.expected_base_units && ['exception','failed'].includes(result.status??'')?'error':'ok',text:result?.expected_base_units && result.status==='submitted'?t.incomingPending:result?.expected_base_units && result.status==='exception'?t.incomingReview:result?.expected_base_units && result.status==='failed'?t.incomingRejected:t.done });
     } catch (error) {
       setNotice({ kind: 'error', text: error instanceof ApiError ? error.code : String(error) });
