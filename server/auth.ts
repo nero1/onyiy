@@ -1,3 +1,4 @@
+import {expireSuspensions} from './account-expiry';
 import crypto from 'node:crypto';
 import { and,eq,isNull,sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -19,7 +20,7 @@ export function clearCookies(response:Response,request:Request){setCookie(respon
 export const authResponse=(data:unknown,status=200)=>Response.json({data,meta:{request_id:crypto.randomUUID()}},{status,headers:{'Cache-Control':'private, no-store'}});
 export function userDto(user:User){return {id:user.id,username:user.username,email:user.email,role:user.role,status:user.status,locale:user.locale,consent_version:user.consentVersion,age_confirmed:!!user.ageConfirmedAt};}
 export async function databaseNow(tx:DbExecutor){const [row]=await tx.execute<{now:Date}>(sql`select clock_timestamp() as now`);return new Date(row.now);}
-function usable(user:User){return !['banned','deleted','suspended'].includes(user.status);}
+function usable(user:User){return !['banned','deleted'].includes(user.status);}
 async function loadIdentity(request:Request):Promise<Identity>{
  const toolKey=process.env.SIMULATION_TOOL_AUTH_KEY;const provided=request.headers.get('x-simulation-tool-key')??'';
  if(provided){if(process.env.APP_ENV!=='simulation'||process.env.VERCEL==='1'||!toolKey||!/^[A-Za-z0-9_-]{43}$/.test(toolKey)||!equalText(toolKey,provided))throw new Error('UNAUTHENTICATED');
@@ -39,7 +40,7 @@ function accessFor(user:User,session:Session,now:Date,aud:string,preAuth:boolean
 export async function issueSession(request:Request,userId:string){
  const csrfToken=randomToken();const refresh=randomToken();const aud=origin(request);
  const result=await withContext({access:'service',actorId:userId},async tx=>{
-  const [user]=await tx.select().from(users).where(eq(users.id,userId)).limit(1).for('no key update');if(!user||!usable(user))throw new Error('UNAUTHENTICATED');const manifest=await readManifest(tx);const policy=manifest.auth_session_policy;const now=await databaseNow(tx);
+  await expireSuspensions(tx,userId);const [user]=await tx.select().from(users).where(eq(users.id,userId)).limit(1).for('no key update');if(!user||!usable(user))throw new Error('UNAUTHENTICATED');const manifest=await readManifest(tx);const policy=manifest.auth_session_policy;const now=await databaseNow(tx);
   const [factor]=await tx.select({active:authFactors.active}).from(authFactors).where(eq(authFactors.userId,userId)).limit(1);const preAuth=!!factor?.active;const minutes=preAuth?policy.preauth_minutes:policy.access_minutes;
   const absolute=new Date(now.getTime()+policy.absolute_days*86400000);const [session]=await tx.insert(authSessions).values({userId,sessionVersion:user.sessionVersion,accessHash:hash(randomToken()),csrfHash:hash(csrfToken),preAuth,accessExpiresAt:new Date(now.getTime()+minutes*60000),idleExpiresAt:new Date(Math.min(absolute.getTime(),now.getTime()+policy.idle_days*86400000)),absoluteExpiresAt:absolute}).returning();const access=accessFor(user,session,now,aud,preAuth,minutes);
   await tx.update(authSessions).set({accessHash:hash(access)}).where(eq(authSessions.id,session.id));if(!preAuth)await tx.insert(authRefreshTokens).values({tokenHash:hash(refresh),sessionId:session.id,expiresAt:absolute});

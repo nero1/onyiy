@@ -1,15 +1,16 @@
 'use client';
-import {useEffect,useState} from 'react';
+import {useEffect,useState,useRef} from 'react';
 import {api,mutation,ApiError} from '@/lib/api-client';
 import {copy,type Locale} from '@/lib/i18n';
 import type {AuthUser,SessionResult} from '@/lib/auth-client';
-type Props={securityReady?:boolean;locale:Locale;user:AuthUser|null;requiresMfa:boolean;provider:string;accounts:{username:string}[];manifest:any;onSession:(value:SessionResult)=>void};
-export default function AuthPanel({securityReady=true,locale,user,requiresMfa,provider,accounts,manifest,onSession}:Props){
+type Props={scope?:string;securityReady?:boolean;locale:Locale;user:AuthUser|null;requiresMfa:boolean;provider:string;accounts:{username:string}[];manifest:any;onSession:(value:SessionResult)=>void};
+export default function AuthPanel({scope,securityReady=true,locale,user,requiresMfa,provider,accounts,manifest,onSession}:Props){
+ const renderScope=(user?.id??'anonymous')+':'+(scope??'')+':'+requiresMfa;const scopeRef=useRef(renderScope);scopeRef.current=renderScope;const valid=()=>scopeRef.current===renderScope;
  const t=copy[locale];const [username,setUsername]=useState(user?.username??'member_01');const [newName,setNewName]=useState('');const [accepted,setAccepted]=useState(false);const [adult,setAdult]=useState(false);const [referral,setReferral]=useState('');const [code,setCode]=useState('');const [recovery,setRecovery]=useState(false);const [secret,setSecret]=useState<string|null>(null);const [codes,setCodes]=useState<string[]>([]);const [enrolled,setEnrolled]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState('');
  useEffect(()=>{try{const url=new URL(location.href);if(url.searchParams.get('auth_error')==='1'){setError(t.signInFailed);url.searchParams.delete('auth_error');history.replaceState(null,'',url.pathname+url.search+url.hash)}}catch{}},[]);
- useEffect(()=>{setUsername(user?.username??'member_01');setAccepted(false);setAdult(false);setSecret(null);setCodes([]);setCode('');setEnrolled(false);if(user)void api<{enrolled:boolean}>('/auth/2fa/status',user.username).then(value=>setEnrolled(value.enrolled)).catch(()=>{});},[user?.id]);
- async function run(fn:()=>Promise<void>){setBusy(true);setError('');try{await fn()}catch(e){setError(e instanceof ApiError?e.code:t.error)}finally{setBusy(false)}}
- function session(value:SessionResult){if(value.recovery_codes)setCodes(value.recovery_codes);onSession(value);}
+ useEffect(()=>{setBusy(false);setError('');setUsername(user?.username??'member_01');setAccepted(false);setAdult(false);setSecret(null);setCodes([]);setCode('');setEnrolled(false);if(user)void api<{enrolled:boolean}>('/auth/2fa/status',user.username).then(value=>{if(valid())setEnrolled(value.enrolled)}).catch(()=>{});},[user?.id,scope]);
+ async function run(fn:()=>Promise<void>){setBusy(true);setError('');try{await fn()}catch(e){if(valid())setError(e instanceof ApiError?e.code:t.error)}finally{if(valid())setBusy(false)}}
+ function session(value:SessionResult){if(!valid())return;if(value.recovery_codes)setCodes(value.recovery_codes);onSession(value);}
  return <section className="card auth-panel" lang={locale}>
   <h2>{requiresMfa?t.verifyAuthenticator:user?t.accountSecurity:t.signIn}</h2>
   {error&&<p role="alert">{error}</p>}
@@ -26,15 +27,15 @@ export default function AuthPanel({securityReady=true,locale,user,requiresMfa,pr
    {!user.consent_version&&<label>{t.referralCode}<input value={referral} onChange={e=>setReferral(e.target.value)} maxLength={36}/></label>}
    <button className="primary" disabled={busy||codes.length>0||!accepted||!adult||!manifest} onClick={()=>run(async()=>session(await mutation<SessionResult>('/me/consent',user.username,{accepted:true,adult:true,minimum_age:manifest.eligibility_min_age,terms_version:manifest.terms_content.version,username,...(referral?{referral_code:referral}:{})})))}>{t.accept}</button>
   </>}
-  {securityReady&&user&&user.status!=='pending_consent'&&!enrolled&&!secret&&<button disabled={busy} onClick={()=>run(async()=>{const result=await mutation<{secret:string}>('/auth/2fa/setup',user.username,{});setSecret(result.secret)})}>{t.setupAuthenticator}</button>}
+  {securityReady&&user&&user.status!=='pending_consent'&&!enrolled&&!secret&&<button disabled={busy} onClick={()=>run(async()=>{const result=await mutation<{secret:string}>('/auth/2fa/setup',user.username,{});if(valid())setSecret(result.secret)})}>{t.setupAuthenticator}</button>}
   {secret&&<div><p>{t.authenticatorInstructions}</p><code className="setup-secret">{secret}</code></div>}
   {(requiresMfa||enrolled||secret)&&<>
    <label>{recovery?t.recoveryCode:t.authenticatorCode}<input value={code} onChange={e=>setCode(e.target.value)} autoComplete="one-time-code" inputMode={recovery?'text':'numeric'} maxLength={100}/></label>
    {(requiresMfa||enrolled)&&<label className="checkbox-label"><input type="checkbox" checked={recovery} onChange={e=>{setRecovery(e.target.checked);setCode('')}}/>{t.useRecoveryCode}</label>}
-   <button className="primary" disabled={busy||!code||(!requiresMfa&&!securityReady)} onClick={()=>run(async()=>{const value=await mutation<SessionResult>('/auth/2fa/verify',requiresMfa?'':user?.username??'',{code,recovery});setSecret(null);setCode('');setEnrolled(true);session(value)})}>{t.verifyAuthenticator}</button>
+   <button className="primary" disabled={busy||!code||(!requiresMfa&&!securityReady)} onClick={()=>run(async()=>{const value=await mutation<SessionResult>('/auth/2fa/verify',requiresMfa?'':user?.username??'',{code,recovery});if(!valid())return;setSecret(null);setCode('');setEnrolled(true);session(value)})}>{t.verifyAuthenticator}</button>
   </>}
   {codes.length>0&&<div><p>{t.recoveryInstructions}</p><pre>{codes.join('\n')}</pre><button onClick={()=>setCodes([])}>{t.savedRecoveryCodes}</button></div>}
-  {requiresMfa&&<button disabled={busy} onClick={()=>run(async()=>{await mutation('/auth/cancel','',{});onSession({user:null,provider})})}>{t.cancel}</button>}
-  {user&&<button disabled={busy} onClick={()=>run(async()=>{await mutation('/auth/logout-all',user.username,{});onSession({user:null,provider})})}>{t.signOutAll}</button>}
+  {requiresMfa&&<button disabled={busy} onClick={()=>run(async()=>{await mutation('/auth/cancel','',{});if(!valid())return;onSession({user:null,provider})})}>{t.cancel}</button>}
+  {user&&<button disabled={busy} onClick={()=>run(async()=>{await mutation('/auth/logout-all',user.username,{});if(!valid())return;onSession({user:null,provider})})}>{t.signOutAll}</button>}
  </section>;
 }
