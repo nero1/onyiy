@@ -1,9 +1,11 @@
 import { and, eq } from 'drizzle-orm';
-import { assets, closeDb, db, planVersions, plans, seedManifest, seedManifestValue, readManifest, users } from './index';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { assets, migrationClient, schema, planVersions, plans, seedManifest, seedManifestValue, readManifest, users } from './index';
 import { usdToGivBaseUnits, formatBaseUnits } from '@gifters/domain';
 
+const client = migrationClient();
 try {
-  await db().transaction(async (database) => {
+  await drizzle(client,{schema}).transaction(async (database) => {
     await seedManifest(database);
     const manifest = await readManifest(database);
 
@@ -48,4 +50,4 @@ try {
     }
   });
 console.log('Ensured manifest, GIV, 12 plans and simulation accounts; existing state preserved.');
-} finally { await closeDb(); }
+} finally { await client.end({timeout:3}); }

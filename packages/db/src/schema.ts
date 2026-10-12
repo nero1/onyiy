@@ -8,6 +8,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  pgView,
   text,
   timestamp,
   unique,
@@ -33,13 +34,13 @@ export const users = pgTable('users', {
 }, (t) => [
   check('users_role_check', sql`${t.role} in ('member','moderator','admin')`),
   check('users_status_check', sql`${t.status} in ('pending_consent','active','suspended','banned','deactivated','deleted')`),
-]);
+]).enableRLS();
 
 export const referralCodes = pgTable('referral_codes', {
   userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
   code: uuid('code').notNull().defaultRandom().unique(),
   createdAt: createdAt(),
-});
+}).enableRLS();
 
 export const assets = pgTable('assets', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -52,7 +53,7 @@ export const assets = pgTable('assets', {
 }, (t) => [
   unique('assets_symbol_environment_chain_id_unique').on(t.symbol, t.environment, t.chainId),
   check('assets_environment_check', sql`${t.environment} in ('simulation','testnet','mainnet')`),
-]);
+]).enableRLS();
 
 export const plans = pgTable('plans', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -65,7 +66,7 @@ export const plans = pgTable('plans', {
   bootstrapCount: integer('bootstrap_count').notNull().default(10),
   createdAt: createdAt(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [check('plans_status_check', sql`${t.status} in ('disabled','scheduled','active','paused','retired')`)]);
+}, (t) => [check('plans_status_check', sql`${t.status} in ('disabled','scheduled','active','paused','retired')`)]).enableRLS();
 
 export const planVersions = pgTable('plan_versions', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -82,7 +83,7 @@ export const planVersions = pgTable('plan_versions', {
   receiptsRequired: integer('receipts_required').notNull(),
   active: boolean('active').notNull().default(false),
   createdAt: createdAt(),
-}, (t) => [unique('plan_versions_plan_asset_version_unique').on(t.planId, t.assetId, t.version)]);
+}, (t) => [unique('plan_versions_plan_asset_version_unique').on(t.planId, t.assetId, t.version)]).enableRLS();
 
 export const queuePartitions = pgTable('queue_partitions', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -90,7 +91,7 @@ export const queuePartitions = pgTable('queue_partitions', {
   nextTicket: bigint('next_ticket', { mode: 'number' }).notNull().default(1),
   revision: bigint('revision', { mode: 'number' }).notNull().default(0),
   createdAt: createdAt(),
-});
+}).enableRLS();
 
 export const cycles = pgTable('cycles', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -104,7 +105,7 @@ export const cycles = pgTable('cycles', {
 }, (t) => [
   check('cycles_status_check', sql`${t.status} in ('active','completed','exception')`),
   uniqueIndex('uniq_active_cycle_per_user_plan').on(t.userId, t.planVersionId).where(sql`${t.status} in ('active','exception')`),
-]);
+]).enableRLS();
 
 export const queueEntries = pgTable('queue_entries', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -124,7 +125,7 @@ export const queueEntries = pgTable('queue_entries', {
   index('queue_waiting_order_idx').on(t.partitionId, t.priorityTicket, t.ticket).where(sql`${t.status} = 'waiting'`),
   check('queue_entries_kind_check', sql`${t.kind} in ('member','bootstrap')`),
   check('queue_entries_status_check', sql`${t.status} in ('waiting','fully_allocated','fulfilled','removed')`),
-]);
+]).enableRLS();
 
 export const ledgerAccounts = pgTable('ledger_accounts', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -138,7 +139,7 @@ export const ledgerAccounts = pgTable('ledger_accounts', {
   check('ledger_accounts_owner_type_check', sql`${t.ownerType} in ('user','platform','system')`),
   check('ledger_accounts_normal_side_check', sql`${t.normalSide} in ('debit','credit')`),
   uniqueIndex('ledger_accounts_owner_unique').on(t.assetId,t.ownerType,sql`coalesce(${t.ownerId},'00000000-0000-0000-0000-000000000000'::uuid)`,t.purpose),
-]);
+]).enableRLS();
 
 export const ledgerJournals = pgTable('ledger_journals', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -147,7 +148,7 @@ export const ledgerJournals = pgTable('ledger_journals', {
   createdTxid: bigint('created_txid', { mode:'bigint' }).notNull().default(sql`txid_current()`),
   metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
   createdAt: createdAt(),
-});
+}).enableRLS();
 
 export const ledgerPostings = pgTable('ledger_postings', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -159,14 +160,14 @@ export const ledgerPostings = pgTable('ledger_postings', {
 }, (t) => [
   check('ledger_postings_direction_check', sql`${t.direction} in ('debit','credit')`),
   check('ledger_postings_amount_positive', sql`${t.amountBaseUnits} > 0`),
-]);
+]).enableRLS();
 
 export const operationKeys = pgTable('operation_keys', {
   businessKey: text('business_key').primaryKey(),
   requestHash: text('request_hash').notNull(),
   result: jsonb('result').$type<Record<string, unknown> | null>(),
   createdAt: createdAt(),
-});
+}).enableRLS();
 
 export const pointEvents = pgTable('point_events', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -175,7 +176,7 @@ export const pointEvents = pgTable('point_events', {
   awardType: text('award_type').notNull(),
   points: integer('points').notNull(),
   createdAt: createdAt(),
-}, (t) => [unique('point_events_user_source_award_unique').on(t.userId, t.sourceKey, t.awardType)]);
+}, (t) => [unique('point_events_user_source_award_unique').on(t.userId, t.sourceKey, t.awardType)]).enableRLS();
 
 export const walletLinks = pgTable('wallet_links', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -186,7 +187,7 @@ export const walletLinks = pgTable('wallet_links', {
   verifiedAt: timestamp('verified_at', { withTimezone: true }).notNull().defaultNow(),
   coolingUntil: timestamp('cooling_until', { withTimezone: true }),
   createdAt: createdAt(),
-}, (t) => [unique('wallet_links_user_environment_chain_unique').on(t.userId, t.environment, t.chainId)]);
+}, (t) => [unique('wallet_links_user_environment_chain_unique').on(t.userId, t.environment, t.chainId)]).enableRLS();
 
 export const withdrawals = pgTable('withdrawals', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -201,7 +202,7 @@ export const withdrawals = pgTable('withdrawals', {
   settledAt: timestamp('settled_at', { withTimezone: true }),
   requestKey: text('request_key').notNull().unique(),
   createdAt: createdAt(),
-}, (t) => [check('withdrawals_status_check', sql`${t.status} in ('quoted','held','awaiting_requote','approved','sending','settled','cancelled','exception')`)]);
+}, (t) => [check('withdrawals_status_check', sql`${t.status} in ('quoted','held','awaiting_requote','approved','sending','settled','cancelled','exception')`)]).enableRLS();
 
 export const notifications = pgTable('notifications', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -210,7 +211,7 @@ export const notifications = pgTable('notifications', {
   body: text('body').notNull(),
   readAt: timestamp('read_at', { withTimezone: true }),
   createdAt: createdAt(),
-});
+}).enableRLS();
 
 export const xManifest = pgTable('x_manifest', {
   key: text('key').primaryKey(),
@@ -222,7 +223,7 @@ export const xManifest = pgTable('x_manifest', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
   deprecatedAt: timestamp('deprecated_at', { withTimezone: true }),
-}, (t) => [check('x_manifest_scope_check', sql`${t.scope} in ('public','private','staff')`)]);
+}, (t) => [check('x_manifest_scope_check', sql`${t.scope} in ('public','private','staff')`)]).enableRLS();
 
 export const auditEvents = pgTable('audit_events', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -234,9 +235,25 @@ export const auditEvents = pgTable('audit_events', {
   beforeState: jsonb('before_state'),
   afterState: jsonb('after_state'),
   createdAt: createdAt(),
-});
+}).enableRLS();
+
+export const userAccountBalances = pgView('gw_user_account_balances', {
+  userId: uuid('user_id'), assetId: uuid('asset_id'), purpose: text('purpose'),
+  balance: numeric('balance',{precision:78,scale:0}),
+}).existing();
+export const environmentInstances = pgTable('environment_instances', {
+  environment:text('environment').primaryKey(), instanceId:uuid('instance_id').notNull().unique().defaultRandom(), createdAt:createdAt(),
+},(t) => [check('environment_instances_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`)]).enableRLS();
+export const queuePositions = pgView('gw_queue_positions', {
+  entryId: uuid('entry_id'), displayPosition: bigint('display_position',{mode:'number'}),
+}).existing();
+export const simulationAccounts = pgView('gw_sim_accounts', {
+  id: uuid('id'), username: text('username'), role: text('role'), status: text('status'), locale: text('locale'),
+}).existing();
 
 export const schema = {
+  environmentInstances,
+  userAccountBalances, queuePositions, simulationAccounts,
   users,
   referralCodes,
   assets,

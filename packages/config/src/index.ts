@@ -136,6 +136,7 @@ export function validateRuntimeEnv(env = process.env) {
   }
   const databaseUrl = env.DATABASE_URL;
   if (!databaseUrl) throw new Error('DATABASE_URL is required');
+  if (env.VERCEL === '1' && env.DATABASE_MIGRATION_URL) throw new Error('Migration credentials must stay outside the Vercel runtime');
   if (env.MAINNET_ENABLED === "true") throw new Error("Phase One deliberately disables mainnet");
   if ((env.SIGNER_PROVIDER ?? "disabled") !== "disabled" && appEnv === "simulation") {
     throw new Error("simulation must not load a real signer");
