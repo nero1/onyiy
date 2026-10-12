@@ -156,7 +156,7 @@ export const ledgerJournals = pgTable('ledger_journals', {
   createdTxid: bigint('created_txid', { mode:'bigint' }).notNull().default(sql`txid_current()`),
   metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
   createdAt: createdAt(),
-}).enableRLS();
+},(t)=>[uniqueIndex('ledger_giv_uuid_nonce_unique').on(sql`lower(${t.businessKey})`).where(sql`${t.businessKey} ~ '^gift-in:[0-9a-fA-F-]{36}:[0-9a-fA-F-]{36}$|^allocation:gift:[0-9a-fA-F-]{36}:[0-9a-fA-F-]{36}:'`)]).enableRLS();
 
 export const ledgerPostings = pgTable('ledger_postings', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -175,7 +175,7 @@ export const operationKeys = pgTable('operation_keys', {
   requestHash: text('request_hash').notNull(),
   result: jsonb('result').$type<Record<string, unknown> | null>(),
   createdAt: createdAt(),
-}).enableRLS();
+},(t)=>[index('operation_key_case_lookup').on(sql`lower(${t.businessKey})`),uniqueIndex('operation_uuid_nonce_unique').on(sql`lower(${t.businessKey})`).where(sql`${t.businessKey} ~ '^(gift|admin-activate):[0-9a-fA-F-]{36}:[0-9a-fA-F-]{36}$`)]).enableRLS();
 
 export const pointEvents = pgTable('point_events', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -210,7 +210,7 @@ export const withdrawals = pgTable('withdrawals', {
   settledAt: timestamp('settled_at', { withTimezone: true }),
   requestKey: text('request_key').notNull().unique(),
   createdAt: createdAt(),
-}, (t) => [check('withdrawals_status_check', sql`${t.status} in ('quoted','held','awaiting_requote','approved','sending','settled','cancelled','exception')`)]).enableRLS();
+}, (t) => [uniqueIndex('withdrawal_uuid_quote_unique').on(sql`lower(${t.requestKey})`),check('withdrawals_status_check', sql`${t.status} in ('quoted','held','awaiting_requote','approved','sending','settled','cancelled','exception')`)]).enableRLS();
 
 export const notifications = pgTable('notifications', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -260,6 +260,31 @@ export const queueRankNodes = pgTable('queue_rank_nodes', {
   check('queue_rank_nodes_node_index_check',sql`${t.nodeIndex} between 1 and 1099511627776`),
   check('queue_rank_nodes_waiting_count_check',sql`${t.waitingCount} between 0 and 1099511627775`),
 ]).enableRLS();
+export const receiptAllocations = pgTable('receipt_allocations', {
+  id:uuid('id').primaryKey().defaultRandom(),
+  sourceOperationKey:text('source_operation_key').notNull().unique().references(()=>operationKeys.businessKey,{onDelete:'restrict'}),
+  sourceCycleId:uuid('source_cycle_id').notNull().references(()=>cycles.id,{onDelete:'restrict'}),
+  payerUserId:uuid('payer_user_id').notNull().references(()=>users.id,{onDelete:'restrict'}),
+  receiverEntryId:uuid('receiver_entry_id').references(()=>queueEntries.id,{onDelete:'restrict'}),
+  beneficiaryUserId:uuid('beneficiary_user_id').references(()=>users.id,{onDelete:'restrict'}),
+  receiverKind:text('receiver_kind').notNull(),recipientRole:text('recipient_role'),slotIndex:integer('slot_index'),
+  receiverAccountId:uuid('receiver_account_id').notNull().references(()=>ledgerAccounts.id,{onDelete:'restrict'}),
+  creditJournalId:uuid('credit_journal_id').notNull().unique().references(()=>ledgerJournals.id,{onDelete:'restrict'}),
+  assetId:uuid('asset_id').notNull().references(()=>assets.id,{onDelete:'restrict'}),
+  environment:text('environment').notNull(),chainId:text('chain_id').notNull(),
+  amountBaseUnits:numeric('amount_base_units',{precision:78,scale:0}).notNull(),lineageStatus:text('lineage_status').notNull(),
+  creditedAt:timestamp('credited_at',{withTimezone:true}).notNull().defaultNow(),recordedAt:timestamp('recorded_at',{withTimezone:true}).notNull().defaultNow(),
+},(t)=>[
+  uniqueIndex('receipt_receiver_slot_unique').on(t.receiverEntryId,t.slotIndex).where(sql`${t.slotIndex} is not null`),
+  uniqueIndex('receipt_source_cycle_unique').on(t.sourceCycleId),
+  index('receipt_beneficiary_history_idx').on(t.beneficiaryUserId,t.creditedAt,t.id),
+  check('receipt_allocations_receiver_kind_check',sql`${t.receiverKind} in ('member','bootstrap','empty_queue_business')`),
+  check('receipt_allocations_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),
+  check('receipt_allocations_amount_base_units_check',sql`${t.amountBaseUnits}>0`),
+  check('receipt_allocations_lineage_status_check',sql`${t.lineageStatus} in ('captured','legacy_linked')`),
+  check('receipt_slot_shape',sql`(${t.receiverKind}='empty_queue_business' and ${t.receiverEntryId} is null and ${t.slotIndex} is null) or (${t.receiverKind} in ('member','bootstrap') and ${t.receiverEntryId} is not null and ((${t.lineageStatus}='captured' and ${t.slotIndex} is not null and ${t.slotIndex}>0) or (${t.lineageStatus}='legacy_linked' and ${t.slotIndex} is null)))`),
+  check('receipt_beneficiary_shape',sql`(${t.receiverKind}='member' and ${t.beneficiaryUserId} is not null and ${t.beneficiaryUserId}<>${t.payerUserId} and ${t.recipientRole} is null) or (${t.receiverKind} in ('bootstrap','empty_queue_business') and ${t.beneficiaryUserId} is null and ${t.recipientRole} is not null and ${t.recipientRole} in ('developer','marketing','platform','custom_bootstrap'))`),
+]).enableRLS();
 export const queuePositions = pgView('gw_queue_positions', {
   entryId: uuid('entry_id'), displayPosition: bigint('display_position',{mode:'number'}),
 }).existing();
@@ -270,6 +295,7 @@ export const simulationAccounts = pgView('gw_sim_accounts', {
 export const schema = {
   environmentInstances,
   queueRankNodes,
+  receiptAllocations,
   userAccountBalances, queuePositions, simulationAccounts,
   users,
   referralCodes,

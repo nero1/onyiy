@@ -20,6 +20,7 @@ import {
   withdrawals,
   xManifest,
   userAccountBalances,
+  receiptAllocations,
   readManifest,
   type DbExecutor,
 } from '@gifters/db';
@@ -99,12 +100,12 @@ async function postJournal(database: DbExecutor, type: string, businessKey: stri
   const debit = postings.filter((p) => p.direction === 'debit').reduce((n, p) => n + p.amount, 0n);
   const credit = postings.filter((p) => p.direction === 'credit').reduce((n, p) => n + p.amount, 0n);
   if (debit !== credit) throw new Error(`unbalanced journal ${businessKey}: ${debit} != ${credit}`);
-  if (debit === 0n) return false;
+  if (debit === 0n) return null;
 
   const inserted = await database.insert(ledgerJournals).values({ ledgerType: type, businessKey, metadata })
     .onConflictDoNothing({ target: ledgerJournals.businessKey })
     .returning({ id: ledgerJournals.id });
-  if (!inserted[0]) return false;
+  if (!inserted[0]) return null;
 
   const lines = postings.filter((p) => p.amount > 0n).map((p) => ({
     journalId: inserted[0].id,
@@ -113,7 +114,7 @@ async function postJournal(database: DbExecutor, type: string, businessKey: stri
     amountBaseUnits: p.amount.toString(),
   }));
   if (lines.length) await database.insert(ledgerPostings).values(lines);
-  return true;
+  return inserted[0].id;
 }
 
 async function balanceForPurpose(database: DbExecutor, userId: string, assetId: string, purpose: string) {
@@ -180,6 +181,7 @@ export async function consentUser(database: DbExecutor, username: string, referr
 }
 
 export async function activatePlan(database: DbExecutor, planId: string, actorId: string, requestKey: string) {
+  requestKey=requestKey.toLowerCase();
   const manifest = await readManifest(database);
   if (!manifest.feature_admin || !manifest.feature_gifts) throw new Error('FEATURE_DISABLED');
   const actor = await lockUser(database,actorId);
@@ -187,7 +189,7 @@ export async function activatePlan(database: DbExecutor, planId: string, actorId
   await simulationAsset(database,manifest);
   const operationKey = `admin-activate:${actorId}:${requestKey}`;
   const requestHash = crypto.createHash('sha256').update(planId).digest('hex');
-  const prior = (await database.select().from(operationKeys).where(eq(operationKeys.businessKey,operationKey)).limit(1))[0];
+  const prior = (await database.select().from(operationKeys).where(eq(sql<string>`lower(${operationKeys.businessKey})`,operationKey)).limit(1))[0];
   if (prior?.result) {
     if (prior.requestHash !== requestHash) throw new Error('VERSION_CONFLICT');
     return prior.result;
@@ -247,6 +249,7 @@ export async function activatePlan(database: DbExecutor, planId: string, actorId
 }
 
 export async function sendGift(database: DbExecutor, user: UserRow, planId: string, requestKey: string) {
+  requestKey=requestKey.toLowerCase();
   const manifest = await readManifest(database);
   if (!manifest.feature_gifts) throw new Error('FEATURE_DISABLED');
   user = await lockUser(database,user.id);
@@ -255,7 +258,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
   const asset = await simulationAsset(database,manifest);
   const opKey = `gift:${user.id}:${requestKey}`;
   const requestHash = crypto.createHash('sha256').update(planId).digest('hex');
-  const prior = (await database.select().from(operationKeys).where(eq(operationKeys.businessKey, opKey)).limit(1))[0];
+  const prior = (await database.select().from(operationKeys).where(eq(sql<string>`lower(${operationKeys.businessKey})`,opKey)).limit(1))[0];
   if (prior?.result) {
     if (prior.requestHash !== requestHash) throw new Error('VERSION_CONFLICT');
     return prior.result;
@@ -291,7 +294,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
   if (!v || v.planStatus !== 'active') throw new Error('PLAN_UNAVAILABLE');
   if (v.assetId !== asset.id) throw new Error('PLAN_UNAVAILABLE');
 
-  const replayAfterLock = (await database.select().from(operationKeys).where(eq(operationKeys.businessKey, opKey)).limit(1))[0];
+  const replayAfterLock = (await database.select().from(operationKeys).where(eq(sql<string>`lower(${operationKeys.businessKey})`,opKey)).limit(1))[0];
   if (replayAfterLock?.result) {
     if (replayAfterLock.requestHash !== requestHash) throw new Error('VERSION_CONFLICT');
     return replayAfterLock.result;
@@ -347,7 +350,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
   await postJournal(database, 'GIFT_IN', `gift-in:${user.id}:${requestKey}`, [
     { accountId: senderAvail.id, direction: 'debit', amount },
     { accountId: clearing.id, direction: 'credit', amount },
-  ], { sender: user.id, plan_id: planId });
+  ], { sender: user.id, plan_id: v.planId });
 
   let receiverLabel: string = manifest.empty_queue_policy.destination_role;
   let receiverAccount = receiverLabel === 'marketing' ? marketing : developer;
@@ -361,10 +364,12 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
     receiverAccount = await account(database, v.assetId, 'user', recipient.beneficiaryUserId, 'available_payable', 'credit');
     receiverLabel = recipient.beneficiaryUserId;
   }
-  await postJournal(database, 'RECEIVER_ALLOCATE', `allocation:${opKey}:receiver:${receiverLabel}`, [
+  const slotIndex = recipient ? recipient.creditedCount+1 : null;
+  const receiverJournalId = await postJournal(database, 'RECEIVER_ALLOCATE', `allocation:${opKey}:receiver:${receiverLabel}`, [
     { accountId: clearing.id, direction: 'debit', amount: split.receiver },
     { accountId: receiverAccount.id, direction: 'credit', amount: split.receiver },
-  ], { plan_id: planId, receiver: receiverLabel, receiver_kind:recipient?.kind ?? 'empty_queue_business', queue_entry_id:recipient?.id ?? null });
+  ], { plan_id: v.planId, receiver: receiverLabel, receiver_kind:recipient?.kind ?? 'empty_queue_business', queue_entry_id:recipient?.id ?? null,slot_index:slotIndex });
+  if (!receiverJournalId) throw new Error('FINANCIAL_SAFETY_PAUSE');
   await postJournal(database, 'MARKETING_ALLOCATE', `allocation:${opKey}:marketing`, [
     { accountId: clearing.id, direction: 'debit', amount: split.marketing },
     { accountId: marketing.id, direction: 'credit', amount: split.marketing },
@@ -414,6 +419,13 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
     nextTicket: sql`${queuePartitions.nextTicket} + 1`,
     revision: sql`${queuePartitions.revision} + 1`,
   }).where(eq(queuePartitions.id, partition.id));
+  const allocation = (await database.insert(receiptAllocations).values({
+    sourceOperationKey:opKey,sourceCycleId:cycle.id,payerUserId:user.id,
+    receiverEntryId:recipient?.id ?? null,beneficiaryUserId:recipient?.kind==='member' ? recipient.beneficiaryUserId : null,
+    receiverKind:recipient?.kind ?? 'empty_queue_business',recipientRole:recipient?.kind==='member' ? null : receiverLabel,slotIndex,
+    receiverAccountId:receiverAccount.id,creditJournalId:receiverJournalId,assetId:v.assetId,
+    environment:asset.environment,chainId:asset.chainId,amountBaseUnits:split.receiver.toString(),lineageStatus:'captured',
+  }).returning({id:receiptAllocations.id}))[0];
 
   const award = giftPointAward(v.usdReference, manifest.points_rules);
   await awardPoints(database,manifest,[
@@ -424,7 +436,8 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
 
   const result = {
     cycle_id: cycle.id,
-    plan_id: planId,
+    allocation_id:allocation.id,
+    plan_id: v.planId,
     ticket,
     amount_base_units: amount.toString(),
     amount_giv: formatBaseUnits(amount),
@@ -446,6 +459,7 @@ export async function linkSimulationWallet(database: DbExecutor, user: UserRow) 
 }
 
 export async function quoteWithdrawal(database: DbExecutor, user: UserRow, gross: bigint, requestKey: string) {
+  requestKey=requestKey.toLowerCase();
   const manifest = await readManifest(database);
   if (!manifest.feature_wallets) throw new Error('FEATURE_DISABLED');
   user = await lockUser(database,user.id);
@@ -454,7 +468,7 @@ export async function quoteWithdrawal(database: DbExecutor, user: UserRow, gross
   if (gross > usdToGivBaseUnits(manifest.payout_limits.signer_per_tx_usd)) throw new Error('FINANCIAL_SAFETY_PAUSE');
   const asset = await simulationAsset(database,manifest);
   const durableKey = `withdrawal-quote:${user.id}:${requestKey}`;
-  const prior = (await database.select().from(withdrawals).where(eq(withdrawals.requestKey,durableKey)).limit(1))[0];
+  const prior = (await database.select().from(withdrawals).where(eq(sql<string>`lower(${withdrawals.requestKey})`,durableKey)).limit(1))[0];
   if (prior) {
     if (BigInt(prior.grossBaseUnits) !== gross || prior.assetId !== asset.id) throw new Error('VERSION_CONFLICT');
     return prior;
