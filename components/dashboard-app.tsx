@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { copy, type Locale } from '@/lib/i18n';
 import { api, mutation, ApiError } from '@/lib/api-client';
-import { formatBaseUnits } from '@gifters/domain';
+import { formatBaseUnits, decimalToBaseUnits } from '@gifters/domain';
 import {
   activateUserScope,
   loadPublicSnapshot,
@@ -14,8 +14,10 @@ import {
 
 type User = { id: string; username: string; role: string; status: string; locale: string };
 type Plan = { id: string; name: string; slug: string; usd_reference: string; receipts_required: number; status: string; amount_base_units: string; amount_giv: string; expected_giv: string };
-type Dashboard = { user: User; asset: { symbol: string; decimals: number }; balances: { available: string; held: string; withdrawn: string }; points: number; cycles: any[]; notifications: any[]; wallet: any | null };
+type Notification = {id:string;title_key:string;body:string;created_at:string;read_at:string | null};
+type Dashboard = { user: User; asset: { symbol: string; decimals: number }; balances: { available: string; held: string; withdrawn: string }; points: number; cycles: any[]; notifications: Notification[]; wallet: any | null };
 type Notice = { kind: 'error' | 'ok'; text: string } | null;
+type WithdrawalQuote = {id:string;grossBaseUnits:string;feeBaseUnits:string;netBaseUnits:string;destination:string};
 
 export default function DashboardApp() {
   const [users, setUsers] = useState<User[]>([]);
@@ -30,6 +32,9 @@ export default function DashboardApp() {
   const [online, setOnline] = useState(true);
   const [queue, setQueue] = useState<any[] | null>(null);
   const [withdraw, setWithdraw] = useState('10');
+  const [withdrawalQuote,setWithdrawalQuote] = useState<(WithdrawalQuote & {owner:string}) | null>(null);
+  const refreshGeneration = useRef(0);
+  const currentUser = useRef(username);
   const [busy, setBusy] = useState(false);
   const t = copy[locale];
 
@@ -55,9 +60,13 @@ export default function DashboardApp() {
 
   useEffect(() => {
     activateUserScope(username);
+    currentUser.current = username;
+    refreshGeneration.current++;
+    setWithdrawalQuote(null);
     localStorage.setItem('sim_user', username);
     setDash(loadUserSnapshot<Dashboard>(username, 'dashboard'));
   }, [username]);
+  useEffect(() => { if (!online) setWithdrawalQuote(null); },[online]);
 
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
@@ -83,7 +92,8 @@ export default function DashboardApp() {
   }, [online]);
 
   async function refresh() {
-    if (!username) return;
+    if (!username || username !== currentUser.current) return;
+    const generation = ++refreshGeneration.current;
     if (!online) {
       const cached = loadUserSnapshot<Dashboard>(username, 'dashboard');
       if (cached) setDash(cached);
@@ -91,6 +101,7 @@ export default function DashboardApp() {
     }
     try {
       const fresh = await api<Dashboard>('/me/dashboard', username);
+      if (generation !== refreshGeneration.current || username !== currentUser.current || fresh.user.username !== username) return;
       setDash(fresh);
       const safeSnapshot = { ...fresh, wallet: null, notifications: [] } as Dashboard;
       saveUserSnapshot(username, 'dashboard', safeSnapshot, 30 * 60_000);
@@ -133,14 +144,14 @@ export default function DashboardApp() {
 
   async function doWithdraw() {
     if (!dash?.wallet) return;
-    const gross = Math.round(Number(withdraw) * 100).toString();
     await act(async () => {
-      const quote: any = await mutation('/me/withdrawals/quotes', username, { gross_base_units: gross });
-      await mutation(`/me/withdrawals/${quote.id}/confirm`, username, {});
+      const gross = decimalToBaseUnits(withdraw).toString();
+      const quote = await mutation<WithdrawalQuote>('/me/withdrawals/quotes', username, { gross_base_units: gross });
+      if (username === currentUser.current) setWithdrawalQuote({...quote,owner:username});
     });
   }
 
-  if (!dash || !manifest) return <main className="center">{t.loading}</main>;
+  if (!dash || !manifest || dash.user.username !== username) return <main className="center">{t.loading}</main>;
 
   return (
     <div className="app">
@@ -152,8 +163,8 @@ export default function DashboardApp() {
           <select aria-label={t.chooseUser} value={username} onChange={(event) => setUsername(event.target.value)}>
             {users.map((user) => <option key={user.id} value={user.username}>{user.username} · {user.role} · {user.status}</option>)}
           </select>
-          <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? '☾' : '☀'}</button>
-          <button onClick={() => setLocale(locale === 'en' ? 'fr' : 'en')}>{locale.toUpperCase()}</button>
+          <button aria-label={`${t.theme}: ${theme === 'light' ? t.dark : t.light}`} aria-pressed={theme === 'dark'} onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? '☾' : '☀'}</button>
+          <button aria-label={t.language} onClick={() => setLocale(locale === 'en' ? 'fr' : 'en')}>{locale.toUpperCase()}</button>
         </div>
       </header>
 
@@ -198,7 +209,13 @@ export default function DashboardApp() {
           <div className="section-title"><h2>{t.wallet}</h2>{dash.wallet && <span className="ok-chip">{t.linked}</span>}</div>
           {dash.wallet ? <>
             <code>{dash.wallet.address}</code>
-            <div className="withdraw-row"><input aria-label={t.withdrawAmount} type="number" min="0.01" step="0.01" value={withdraw} onChange={(event) => setWithdraw(event.target.value)} /><button className="primary" disabled={busy || !online} onClick={doWithdraw}>{t.withdraw}</button></div>
+            <div className="withdraw-row"><input aria-label={t.withdrawAmount} type="number" min="0.01" step="0.01" value={withdraw} onChange={(event) => {setWithdraw(event.target.value);setWithdrawalQuote(null);}} /><button className="primary" disabled={busy || !online} onClick={doWithdraw}>{t.withdraw}</button></div>
+            {withdrawalQuote?.owner === username && <div role="region" aria-label={t.reviewWithdrawal}>
+              <h3>{t.reviewWithdrawal}</h3>
+              <p>{t.gross}: {formatBaseUnits(withdrawalQuote.grossBaseUnits)} GIV · {t.networkFee}: {formatBaseUnits(withdrawalQuote.feeBaseUnits)} GIV · {t.net}: {formatBaseUnits(withdrawalQuote.netBaseUnits)} GIV</p>
+              <code>{withdrawalQuote.destination}</code>
+              <div className="withdraw-row"><button className="primary" disabled={busy || !online} onClick={() => void act(async () => {await mutation(`/me/withdrawals/${withdrawalQuote.id}/confirm`,username,{});setWithdrawalQuote(null);})}>{t.confirmWithdrawal}</button><button disabled={busy} onClick={() => setWithdrawalQuote(null)}>{t.cancel}</button></div>
+            </div>}
           </> : <button className="primary" disabled={busy || dash.user.status !== 'active' || !online} onClick={() => act(() => mutation('/me/wallets/simulate', username, {}))}>{t.linkWallet}</button>}
         </section>
 

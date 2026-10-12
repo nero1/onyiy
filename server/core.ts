@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, gte, lt, sql } from 'drizzle-orm';
 import {
   assets,
   auditEvents,
@@ -23,9 +23,51 @@ import {
   type DbExecutor,
 } from '@gifters/db';
 import { splitAmount, giftPointAward, formatBaseUnits, usdToGivBaseUnits } from '@gifters/domain';
+import type { Manifest } from '@gifters/config';
 
 type UserRow = typeof users.$inferSelect;
 type Posting = { accountId: string; direction: 'debit' | 'credit'; amount: bigint };
+
+// All debits from a user's available balance take this same lock. NO KEY
+// UPDATE permits unrelated incoming credits/FK checks while serializing spend.
+async function lockUser(database: DbExecutor, id: string) {
+  const user = (await database.select().from(users).where(eq(users.id,id)).limit(1).for('no key update'))[0];
+  if (!user) throw new Error('UNAUTHENTICATED');
+  return user;
+}
+
+function eligibleWithdrawal(user: UserRow) {
+  if (!['active','deactivated'].includes(user.status) || !user.consentedAt) throw new Error('ACCOUNT_RESTRICTED');
+}
+
+async function simulationAsset(database: DbExecutor, manifest: Manifest & Record<string,unknown>) {
+  const asset = (await database.select().from(assets).where(and(eq(assets.symbol,'GIV'),eq(assets.environment,'simulation'),eq(assets.chainId,'giv'))).limit(1))[0];
+  if (!asset?.enabled) throw new Error('PLAN_UNAVAILABLE');
+  const config = manifest[`asset_config_${asset.id}`] as {enabled:boolean;environment:string;chain_id:string;decimals:number} | undefined;
+  if (!config || config.environment !== asset.environment || config.chain_id !== asset.chainId || config.decimals !== asset.decimals) throw new Error('CONFIGURATION_INVALID');
+  if (!config.enabled) throw new Error('PLAN_UNAVAILABLE');
+  return asset;
+}
+
+type PointAward = {userId:string;sourceKey:string;awardType:string;points:number};
+async function awardPoints(database: DbExecutor, manifest: Manifest, awards: PointAward[]) {
+  if (!manifest.feature_points || manifest.points_daily_cap === 0 || !awards.length) return;
+  const [clock] = await database.select({day:sql<string>`(current_timestamp at time zone 'UTC')::date::text`}).from(users).where(eq(users.id,awards[0].userId)).limit(1);
+  // PostgreSQL-specific transaction advisory locks protect durable daily counts.
+  // Sorted keys prevent crossed sender/referrer awards from deadlocking.
+  for (const id of [...new Set(awards.map((award) => award.userId))].sort()) {
+    await database.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`gw:points:${id}:${clock.day}`},0))`);
+  }
+  const start = sql`date_trunc('day', current_timestamp at time zone 'UTC') at time zone 'UTC'`;
+  for (const award of awards) {
+    if (award.points <= 0) continue;
+    const prior = await database.select({id:pointEvents.id}).from(pointEvents).where(and(eq(pointEvents.userId,award.userId),eq(pointEvents.sourceKey,award.sourceKey),eq(pointEvents.awardType,award.awardType))).limit(1);
+    if (prior.length) continue;
+    const [total] = await database.select({points:sql<number>`coalesce(sum(greatest(${pointEvents.points},0)),0)::int`}).from(pointEvents).where(and(eq(pointEvents.userId,award.userId),gte(pointEvents.createdAt,start),lt(pointEvents.createdAt,sql`${start} + interval '1 day'`)));
+    const allowed = Math.min(award.points,Math.max(0,manifest.points_daily_cap - total.points));
+    if (allowed > 0) await database.insert(pointEvents).values({...award,points:allowed}).onConflictDoNothing();
+  }
+}
 
 export async function getUser(database: DbExecutor, username: string) {
   return (await database.select().from(users).where(eq(users.username, username)).limit(1))[0];
@@ -56,6 +98,7 @@ async function postJournal(database: DbExecutor, type: string, businessKey: stri
   const debit = postings.filter((p) => p.direction === 'debit').reduce((n, p) => n + p.amount, 0n);
   const credit = postings.filter((p) => p.direction === 'credit').reduce((n, p) => n + p.amount, 0n);
   if (debit !== credit) throw new Error(`unbalanced journal ${businessKey}: ${debit} != ${credit}`);
+  if (debit === 0n) return false;
 
   const inserted = await database.insert(ledgerJournals).values({ ledgerType: type, businessKey, metadata })
     .onConflictDoNothing({ target: ledgerJournals.businessKey })
@@ -97,10 +140,12 @@ export function heldBalance(database: DbExecutor, userId: string, assetId: strin
 export async function consentUser(database: DbExecutor, username: string, referralCode?: string) {
   const manifest = await readManifest(database);
   // Raw SQL is intentionally limited to lock acquisition; all row reads/writes use Drizzle.
-  await database.execute(sql`select id from users where username=${username} for update`);
-  const user = await getUser(database, username);
+  const user = (await database.select().from(users).where(eq(users.username,username)).limit(1).for('no key update'))[0];
   if (!user) throw new Error('NOT_FOUND');
-  if (user.status === 'active' && user.consentedAt) return user;
+  if (user.status === 'active' && user.consentedAt) {
+    if (user.consentVersion === manifest.terms_content.version) return user;
+    return (await database.update(users).set({consentVersion:manifest.terms_content.version,consentedAt:new Date(),updatedAt:new Date()}).where(eq(users.id,user.id)).returning())[0];
+  }
   if (user.status !== 'pending_consent') throw new Error('ACCOUNT_RESTRICTED');
 
   let referrerId: string | null = null;
@@ -109,7 +154,7 @@ export async function consentUser(database: DbExecutor, username: string, referr
       .from(referralCodes)
       .innerJoin(users, eq(users.id, referralCodes.userId))
       .where(eq(referralCodes.code, referralCode))
-      .limit(1);
+      .limit(1).for('no key update');
     if (refs[0]?.id !== user.id && refs[0]?.status === 'active') referrerId = refs[0].id;
   }
 
@@ -118,9 +163,7 @@ export async function consentUser(database: DbExecutor, username: string, referr
   }).where(eq(users.id, user.id)).returning();
   await database.insert(referralCodes).values({ userId: user.id }).onConflictDoNothing({ target: referralCodes.userId });
 
-  const asset = (await database.select({ id: assets.id }).from(assets)
-    .where(and(eq(assets.symbol, 'GIV'), eq(assets.environment, 'simulation'), eq(assets.enabled, true))).limit(1))[0];
-  if (!asset) throw new Error('PLAN_UNAVAILABLE');
+  const asset = await simulationAsset(database,manifest);
   const grant = usdToGivBaseUnits(manifest.simulation_policy.giv_grant);
   const userAvail = await account(database, asset.id, 'user', user.id, 'available_payable', 'credit');
   const grantExpense = await account(database, asset.id, 'system', null, 'simulation_grant_expense', 'debit');
@@ -129,19 +172,32 @@ export async function consentUser(database: DbExecutor, username: string, referr
     { accountId: userAvail.id, direction: 'credit', amount: grant },
   ], { user_id: user.id });
 
-  if (referrerId) {
-    await database.insert(pointEvents).values({ userId: referrerId, sourceKey: `consent:${user.id}`, awardType: 'signup', points: manifest.points_rules.signup }).onConflictDoNothing();
+  if (referrerId && manifest.feature_referrals) {
+    await awardPoints(database,manifest,[{userId:referrerId,sourceKey:`consent:${user.id}`,awardType:'signup',points:manifest.points_rules.signup}]);
   }
   return updated[0];
 }
 
-export async function activatePlan(database: DbExecutor, planId: string, actorId: string) {
+export async function activatePlan(database: DbExecutor, planId: string, actorId: string, requestKey: string) {
   const manifest = await readManifest(database);
+  if (!manifest.feature_admin || !manifest.feature_gifts) throw new Error('FEATURE_DISABLED');
+  const actor = await lockUser(database,actorId);
+  if (actor.role !== 'admin' || actor.status !== 'active') throw new Error('FORBIDDEN');
+  await simulationAsset(database,manifest);
+  const operationKey = `admin-activate:${actorId}:${requestKey}`;
+  const requestHash = crypto.createHash('sha256').update(planId).digest('hex');
+  const prior = (await database.select().from(operationKeys).where(eq(operationKeys.businessKey,operationKey)).limit(1))[0];
+  if (prior?.result) {
+    if (prior.requestHash !== requestHash) throw new Error('VERSION_CONFLICT');
+    return prior.result;
+  }
+  const result = {plan_id:planId,status:'active'};
+  const save = async () => { await database.insert(operationKeys).values({businessKey:operationKey,requestHash,result}); return result; };
   await database.execute(sql`select id from plans where id=${planId} for update`);
   const plan = (await database.select().from(plans).where(eq(plans.id, planId)).limit(1))[0];
   if (!plan) throw new Error('NOT_FOUND');
 
-  if (plan.status === 'active') return { plan_id:planId, status:'active' };
+  if (plan.status === 'active') return save();
 
   const versionRows = await database.select({ version: planVersions, symbol: assets.symbol })
     .from(planVersions)
@@ -150,6 +206,7 @@ export async function activatePlan(database: DbExecutor, planId: string, actorId
     .orderBy(desc(planVersions.version)).limit(1);
   const v = versionRows[0]?.version;
   if (!v) throw new Error('NOT_FOUND');
+  if (BigInt(v.amountBaseUnits) <= 0n || v.receiptsRequired <= 0 || splitAmount(BigInt(v.amountBaseUnits),{receiver:v.receiverBps,marketing:v.marketingBps,referral:v.referralBps,developer:v.developerBps,reserve:v.reserveBps}).receiver <= 0n) throw new Error('CONFIGURATION_INVALID');
   await database.execute(sql`select id from plan_versions where id=${v.id} for update`);
 
   await database.update(plans).set({ status: 'active', updatedAt: new Date() }).where(eq(plans.id, planId));
@@ -157,18 +214,19 @@ export async function activatePlan(database: DbExecutor, planId: string, actorId
   const configKey = `plan_config_${planId}`;
   const planConfig = manifest[configKey];
   if (!planConfig || typeof planConfig !== 'object' || Array.isArray(planConfig)) throw new Error('CONFIGURATION_INVALID');
-  await database.update(xManifest).set({ value:{...planConfig,status:'active',amount_base_units:v.amountBaseUnits}, version:sql`${xManifest.version} + 1`, updatedBy:actorId, updatedAt:new Date() }).where(eq(xManifest.key,configKey));
+  const bootstrapEnabled = manifest.feature_bootstrap && plan.bootstrapEnabled;
+  await database.update(xManifest).set({ value:{...planConfig,status:'active',amount_base_units:v.amountBaseUnits,bootstrap_enabled:bootstrapEnabled,bootstrap_count:bootstrapEnabled ? plan.bootstrapCount : 0}, version:sql`${xManifest.version} + 1`, updatedBy:actorId, updatedAt:new Date() }).where(eq(xManifest.key,configKey));
 
   await database.execute(sql`select id from queue_partitions where plan_version_id=${v.id} for update`);
   let partition = (await database.select().from(queuePartitions).where(eq(queuePartitions.planVersionId, v.id)).limit(1))[0];
   if (!partition) {
     partition = (await database.insert(queuePartitions).values({ planVersionId: v.id, nextTicket: 1 }).returning())[0];
-    if (plan.bootstrapEnabled && plan.bootstrapCount > 0) {
+    if (manifest.feature_bootstrap && plan.bootstrapEnabled && plan.bootstrapCount > 0) {
       await database.insert(queueEntries).values(Array.from({ length: plan.bootstrapCount }, (_, i) => ({
         partitionId: partition.id,
         ticket: i + 1,
         kind: 'bootstrap',
-        platformRole: 'developer',
+        platformRole: manifest.bootstrap_destination_role,
         requiredCount: v.receiptsRequired,
         status: 'waiting',
       })));
@@ -184,12 +242,16 @@ export async function activatePlan(database: DbExecutor, planId: string, actorId
     reason: 'simulation activation',
     afterState: { status: 'active' },
   });
-  return { plan_id: planId, status: 'active' };
+  return save();
 }
 
 export async function sendGift(database: DbExecutor, user: UserRow, planId: string, requestKey: string) {
   const manifest = await readManifest(database);
+  if (!manifest.feature_gifts) throw new Error('FEATURE_DISABLED');
+  user = await lockUser(database,user.id);
   if (user.status !== 'active') throw new Error(user.status === 'pending_consent' ? 'CONSENT_REQUIRED' : 'ACCOUNT_RESTRICTED');
+  if (user.consentVersion !== manifest.terms_content.version) throw new Error('CONSENT_REQUIRED');
+  const asset = await simulationAsset(database,manifest);
   const opKey = `gift:${user.id}:${requestKey}`;
   const requestHash = crypto.createHash('sha256').update(planId).digest('hex');
   const prior = (await database.select().from(operationKeys).where(eq(operationKeys.businessKey, opKey)).limit(1))[0];
@@ -197,6 +259,10 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
     if (prior.requestHash !== requestHash) throw new Error('VERSION_CONFLICT');
     return prior.result;
   }
+
+  const eligibleReferrer = manifest.feature_referrals && user.referrerUserId
+    ? (await database.select({ id: users.id, status: users.status }).from(users).where(eq(users.id, user.referrerUserId)).limit(1).for('no key update'))[0]
+    : undefined;
 
   await database.execute(sql`select pv.id from plan_versions pv join plans p on p.id=pv.plan_id join assets a on a.id=pv.asset_id where p.id=${planId} and pv.active=true and a.environment='simulation' for update of pv,p`);
   const versions = await database.select({
@@ -212,7 +278,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
     receiptsRequired: planVersions.receiptsRequired,
     name: plans.name,
     slug: plans.slug,
-    usdReference: plans.usdReference,
+    usdReference: planVersions.usdReference,
     planStatus: plans.status,
     symbol: assets.symbol,
   }).from(planVersions)
@@ -222,6 +288,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
     .limit(1);
   const v = versions[0];
   if (!v || v.planStatus !== 'active') throw new Error('PLAN_UNAVAILABLE');
+  if (v.assetId !== asset.id) throw new Error('PLAN_UNAVAILABLE');
 
   const replayAfterLock = (await database.select().from(operationKeys).where(eq(operationKeys.businessKey, opKey)).limit(1))[0];
   if (replayAfterLock?.result) {
@@ -229,11 +296,18 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
     return replayAfterLock.result;
   }
 
+  const samePlanAsset = and(eq(planVersions.planId,v.planId),eq(planVersions.assetId,v.assetId));
   const active = await database.select({ id: cycles.id }).from(cycles)
-    .where(and(eq(cycles.userId, user.id), eq(cycles.planVersionId, v.id), inArray(cycles.status, ['active', 'exception']))).limit(1);
+    .innerJoin(planVersions,eq(planVersions.id,cycles.planVersionId))
+    .where(and(eq(cycles.userId, user.id),samePlanAsset,inArray(cycles.status, ['active', 'exception']))).limit(1);
   if (active[0]) throw new Error('ACTIVE_CYCLE_EXISTS');
+  if (manifest.cycle_max_concurrent > 0) {
+    const [open] = await database.select({count:sql<string>`count(*)::text`}).from(cycles).where(and(eq(cycles.userId,user.id),inArray(cycles.status,['active','exception'])));
+    if (BigInt(open.count) >= BigInt(manifest.cycle_max_concurrent)) throw new Error('CYCLE_LIMIT_REACHED');
+  }
   const recent = await database.select({ completedAt: cycles.completedAt }).from(cycles)
-    .where(and(eq(cycles.userId, user.id), eq(cycles.planVersionId, v.id), eq(cycles.status, 'completed')))
+    .innerJoin(planVersions,eq(planVersions.id,cycles.planVersionId))
+    .where(and(eq(cycles.userId, user.id),samePlanAsset,eq(cycles.status, 'completed')))
     .orderBy(desc(cycles.completedAt)).limit(1);
   if (recent[0]?.completedAt) {
     const elapsed = Date.now() - recent[0].completedAt.getTime();
@@ -241,11 +315,13 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
   }
 
   const amount = BigInt(v.amountBaseUnits);
+  if (amount <= 0n || !Number.isInteger(v.receiptsRequired) || v.receiptsRequired <= 0) throw new Error('CONFIGURATION_INVALID');
   const available = await availableBalance(database, user.id, v.assetId);
   if (available < amount) throw new Error('INSUFFICIENT_BALANCE');
   const split = splitAmount(amount, {
     receiver: v.receiverBps, marketing: v.marketingBps, referral: v.referralBps, developer: v.developerBps, reserve: v.reserveBps,
   });
+  if (split.receiver <= 0n) throw new Error('CONFIGURATION_INVALID');
   const senderAvail = await account(database, v.assetId, 'user', user.id, 'available_payable', 'credit');
   const clearing = await account(database, v.assetId, 'system', null, 'gift_clearing', 'credit');
   const marketing = await account(database, v.assetId, 'platform', null, 'marketing_payable', 'credit');
@@ -261,14 +337,22 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
     .orderBy(sql`${queueEntries.priorityTicket} is null`, asc(queueEntries.priorityTicket), asc(queueEntries.ticket)).limit(1);
   const recipient = recipients[0];
   if (recipient) await database.execute(sql`select id from queue_entries where id=${recipient.id} for update`);
+  if (recipient?.beneficiaryUserId === user.id) throw new Error('NO_RECEIVER_AVAILABLE');
+  if (!recipient && manifest.empty_queue_policy.mode === 'block_checkout') throw new Error('NO_RECEIVER_AVAILABLE');
 
   await postJournal(database, 'GIFT_IN', `gift-in:${user.id}:${requestKey}`, [
     { accountId: senderAvail.id, direction: 'debit', amount },
     { accountId: clearing.id, direction: 'credit', amount },
   ], { sender: user.id, plan_id: planId });
 
-  let receiverLabel = 'developer';
-  let receiverAccount = developer;
+  let receiverLabel: string = manifest.empty_queue_policy.destination_role;
+  let receiverAccount = receiverLabel === 'marketing' ? marketing : developer;
+  if (recipient?.kind === 'bootstrap') {
+    const role = recipient.platformRole ?? 'developer';
+    if (!['developer','marketing','platform','custom_bootstrap'].includes(role)) throw new Error('CONFIGURATION_INVALID');
+    receiverAccount = await account(database,v.assetId,'platform',null,`bootstrap_${role}_payable`,'credit');
+    receiverLabel = role;
+  }
   if (recipient?.kind === 'member' && recipient.beneficiaryUserId) {
     receiverAccount = await account(database, v.assetId, 'user', recipient.beneficiaryUserId, 'available_payable', 'credit');
     receiverLabel = recipient.beneficiaryUserId;
@@ -276,7 +360,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
   await postJournal(database, 'RECEIVER_ALLOCATE', `allocation:${opKey}:receiver:${receiverLabel}`, [
     { accountId: clearing.id, direction: 'debit', amount: split.receiver },
     { accountId: receiverAccount.id, direction: 'credit', amount: split.receiver },
-  ], { plan_id: planId, receiver: receiverLabel });
+  ], { plan_id: planId, receiver: receiverLabel, receiver_kind:recipient?.kind ?? 'empty_queue_business', queue_entry_id:recipient?.id ?? null });
   await postJournal(database, 'MARKETING_ALLOCATE', `allocation:${opKey}:marketing`, [
     { accountId: clearing.id, direction: 'debit', amount: split.marketing },
     { accountId: marketing.id, direction: 'credit', amount: split.marketing },
@@ -286,9 +370,6 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
     { accountId: developer.id, direction: 'credit', amount: split.developer },
   ]);
 
-  const eligibleReferrer = user.referrerUserId
-    ? (await database.select({ id: users.id, status: users.status }).from(users).where(eq(users.id, user.referrerUserId)).limit(1))[0]
-    : undefined;
   if (eligibleReferrer?.status === 'active') {
     const refAvail = await account(database, v.assetId, 'user', eligibleReferrer.id, 'available_payable', 'credit');
     await postJournal(database, 'REFERRAL_ALLOCATE', `allocation:${opKey}:referral:${eligibleReferrer.id}`, [
@@ -331,10 +412,10 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
   }).where(eq(queuePartitions.id, partition.id));
 
   const award = giftPointAward(v.usdReference, manifest.points_rules);
-  await database.insert(pointEvents).values({ userId: user.id, sourceKey: `gift:${cycle.id}`, awardType: 'gift_sender', points: award.sender }).onConflictDoNothing();
-  if (eligibleReferrer?.status === 'active') {
-    await database.insert(pointEvents).values({ userId: eligibleReferrer.id, sourceKey: `gift:${cycle.id}`, awardType: 'gift_referrer', points: award.referrer }).onConflictDoNothing();
-  }
+  await awardPoints(database,manifest,[
+    {userId:user.id,sourceKey:`gift:${cycle.id}`,awardType:'gift_sender',points:award.sender},
+    ...(eligibleReferrer?.status === 'active' ? [{userId:eligibleReferrer.id,sourceKey:`gift:${cycle.id}`,awardType:'gift_referrer',points:award.referrer}] : []),
+  ]);
   await database.insert(notifications).values({ userId: user.id, titleKey: 'gift_sent', body: `${v.name} gift confirmed. You joined the receiver queue.` });
 
   const result = {
@@ -350,26 +431,34 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
 }
 
 export async function linkSimulationWallet(database: DbExecutor, user: UserRow) {
+  const manifest = await readManifest(database);
+  if (!manifest.feature_wallets) throw new Error('FEATURE_DISABLED');
+  user = await lockUser(database,user.id);
   if (user.status !== 'active') throw new Error('ACCOUNT_RESTRICTED');
   const address = `giv:${user.username}`;
   const rows = await database.insert(walletLinks).values({ userId: user.id, environment: 'simulation', chainId: 'giv', address })
-    .onConflictDoUpdate({
-      target: [walletLinks.userId, walletLinks.environment, walletLinks.chainId],
-      set: { address, verifiedAt: new Date() },
-    }).returning();
-  return rows[0];
+    .onConflictDoNothing().returning();
+  return rows[0] ?? (await database.select().from(walletLinks).where(and(eq(walletLinks.userId,user.id),eq(walletLinks.environment,'simulation'),eq(walletLinks.chainId,'giv'))).limit(1))[0];
 }
 
 export async function quoteWithdrawal(database: DbExecutor, user: UserRow, gross: bigint, requestKey: string) {
   const manifest = await readManifest(database);
+  if (!manifest.feature_wallets) throw new Error('FEATURE_DISABLED');
+  user = await lockUser(database,user.id);
+  eligibleWithdrawal(user);
   if (gross <= 0n) throw new Error('INVALID_INPUT');
-  const asset = (await database.select({ id: assets.id }).from(assets).where(and(eq(assets.symbol, 'GIV'), eq(assets.environment, 'simulation'))).limit(1))[0];
-  if (!asset) throw new Error('PLAN_UNAVAILABLE');
+  if (gross > usdToGivBaseUnits(manifest.payout_limits.signer_per_tx_usd)) throw new Error('FINANCIAL_SAFETY_PAUSE');
+  const asset = await simulationAsset(database,manifest);
+  const durableKey = `withdrawal-quote:${user.id}:${requestKey}`;
+  const prior = (await database.select().from(withdrawals).where(eq(withdrawals.requestKey,durableKey)).limit(1))[0];
+  if (prior) {
+    if (BigInt(prior.grossBaseUnits) !== gross || prior.assetId !== asset.id) throw new Error('VERSION_CONFLICT');
+    return prior;
+  }
   const balance = await availableBalance(database, user.id, asset.id);
   if (balance < gross) throw new Error('INSUFFICIENT_BALANCE');
   const wallet = (await database.select().from(walletLinks).where(and(eq(walletLinks.userId, user.id), eq(walletLinks.environment, 'simulation'), eq(walletLinks.chainId, 'giv'))).limit(1))[0];
   if (!wallet) throw new Error('INVALID_ADDRESS');
-  const durableKey = `withdrawal-quote:${user.id}:${requestKey}`;
   const rows = await database.insert(withdrawals).values({
     userId: user.id,
     assetId: asset.id,
@@ -380,20 +469,36 @@ export async function quoteWithdrawal(database: DbExecutor, user: UserRow, gross
     status: 'quoted',
     quoteExpiresAt: new Date(Date.now() + manifest.withdrawal_fee_policy.quote_ttl_minutes * 60_000),
     requestKey: durableKey,
-  }).onConflictDoUpdate({ target: withdrawals.requestKey, set: { requestKey: durableKey } }).returning();
+  }).returning();
   return rows[0];
 }
 
 export async function confirmWithdrawal(database: DbExecutor, user: UserRow, withdrawalId: string) {
-  await database.execute(sql`select id from withdrawals where id=${withdrawalId} and user_id=${user.id} for update`);
-  const w = (await database.select().from(withdrawals).where(and(eq(withdrawals.id, withdrawalId), eq(withdrawals.userId, user.id))).limit(1))[0];
+  const manifest = await readManifest(database);
+  if (!manifest.feature_wallets) throw new Error('FEATURE_DISABLED');
+  user = await lockUser(database,user.id);
+  eligibleWithdrawal(user);
+  const w = (await database.select().from(withdrawals).where(and(eq(withdrawals.id, withdrawalId), eq(withdrawals.userId, user.id))).limit(1).for('update'))[0];
   if (!w) throw new Error('NOT_FOUND');
   if (w.status === 'settled') return w;
+  const asset = await simulationAsset(database,manifest);
+  if (w.assetId !== asset.id) throw new Error('PLAN_UNAVAILABLE');
+  const wallet = (await database.select().from(walletLinks).where(and(eq(walletLinks.userId,user.id),eq(walletLinks.environment,'simulation'),eq(walletLinks.chainId,'giv'))).limit(1))[0];
+  if (!wallet || wallet.address !== w.destination) throw new Error('DESTINATION_CHANGED');
   if (w.status !== 'quoted') throw new Error('VERSION_CONFLICT');
   if (w.quoteExpiresAt.getTime() < Date.now()) throw new Error('QUOTE_EXPIRED');
   const gross = BigInt(w.grossBaseUnits);
+  if (gross > usdToGivBaseUnits(manifest.payout_limits.signer_per_tx_usd)) throw new Error('FINANCIAL_SAFETY_PAUSE');
   const available = await availableBalance(database, user.id, w.assetId);
   if (available < gross) throw new Error('INSUFFICIENT_BALANCE');
+  const [clock] = await database.select({day:sql<string>`(current_timestamp at time zone 'UTC')::date::text`}).from(users).where(eq(users.id,user.id)).limit(1);
+  // GIV settles atomically with zero gas. A per-asset transaction lock serializes
+  // its durable UTC-day totals; real signer reservations are a later adapter.
+  await database.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`gw:giv-spend:${w.assetId}:${clock.day}`},0))`);
+  const [spent] = await database.select({amount:sql<string>`coalesce(sum(${ledgerPostings.amountBaseUnits}),0)::text`}).from(ledgerJournals)
+    .innerJoin(ledgerPostings,eq(ledgerPostings.journalId,ledgerJournals.id)).innerJoin(ledgerAccounts,eq(ledgerAccounts.id,ledgerPostings.accountId))
+    .where(and(eq(ledgerJournals.ledgerType,'PAYOUT_HOLD'),eq(ledgerPostings.direction,'debit'),eq(ledgerAccounts.purpose,'available_payable'),eq(ledgerAccounts.assetId,w.assetId),gte(ledgerJournals.createdAt,sql`date_trunc('day',current_timestamp at time zone 'UTC') at time zone 'UTC'`)));
+  if (BigInt(spent.amount) + gross > usdToGivBaseUnits(manifest.payout_limits.daily_per_asset_usd)) throw new Error('FINANCIAL_SAFETY_PAUSE');
   const avail = await account(database, w.assetId, 'user', user.id, 'available_payable', 'credit');
   const held = await account(database, w.assetId, 'user', user.id, 'held_payable', 'credit');
   const sink = await account(database, w.assetId, 'system', null, 'simulation_settlement_sink', 'credit');
@@ -406,7 +511,7 @@ export async function confirmWithdrawal(database: DbExecutor, user: UserRow, wit
     { accountId: held.id, direction: 'debit', amount: gross },
     { accountId: sink.id, direction: 'credit', amount: gross },
   ], { withdrawal_id: w.id, simulation: true });
-  const settled = await database.update(withdrawals).set({ status: 'settled', settledAt: new Date() }).where(eq(withdrawals.id, w.id)).returning();
+  const settled = await database.update(withdrawals).set({ status: 'settled', settledAt: sql`current_timestamp` }).where(eq(withdrawals.id, w.id)).returning();
   await database.insert(notifications).values({
     userId: user.id,
     titleKey: 'withdrawal_settled',
@@ -442,7 +547,8 @@ export async function dashboard(database: DbExecutor, user: UserRow) {
     .orderBy(desc(cycles.createdAt)).limit(30);
 
   const pointRows = await database.select({ total: sql<number>`coalesce(sum(${pointEvents.points}),0)::int` }).from(pointEvents).where(eq(pointEvents.userId, user.id));
-  const notices = await database.select().from(notifications).where(eq(notifications.userId, user.id)).orderBy(desc(notifications.createdAt)).limit(manifest.notification_page_size);
+  // Retain the original camelCase aliases while adding the documented UI DTO.
+  const notices = await database.select({id:notifications.id,userId:notifications.userId,titleKey:notifications.titleKey,createdAt:notifications.createdAt,readAt:notifications.readAt,title_key:notifications.titleKey,body:notifications.body,created_at:notifications.createdAt,read_at:notifications.readAt}).from(notifications).where(eq(notifications.userId, user.id)).orderBy(desc(notifications.createdAt)).limit(manifest.notification_page_size);
   const wallet = (await database.select().from(walletLinks).where(and(eq(walletLinks.userId, user.id), eq(walletLinks.environment, 'simulation'), eq(walletLinks.chainId, 'giv'))).limit(1))[0];
   const withdrawnRows = await database.select({ total: sql<string>`coalesce(sum(${withdrawals.netBaseUnits}),0)::text` }).from(withdrawals)
     .where(and(eq(withdrawals.userId, user.id), eq(withdrawals.assetId, asset.id), eq(withdrawals.status, 'settled')));
