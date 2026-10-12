@@ -2,6 +2,7 @@ import postgres, { type Sql } from 'postgres';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { loadManifest, parseManifest, manifestDefinition, validateManifestValue, validateSecurityCeilings, validateRuntimeEnv } from '@gifters/config';
 import { schema, xManifest } from './schema';
+import { databaseConnectionOptions } from './connection-options';
 
 export type Database = PostgresJsDatabase<typeof schema>;
 export type DbExecutor = Pick<Database, 'select' | 'insert' | 'update' | 'delete' | 'execute'>;
@@ -9,21 +10,10 @@ export type DbExecutor = Pick<Database, 'select' | 'insert' | 'update' | 'delete
 let runtimeClient: Sql | undefined;
 let runtimeDb: Database | undefined;
 
-function runtimeOptions() {
-  const cfg = validateRuntimeEnv();
-  const serverless = process.env.VERCEL === '1' || cfg.dbProvider === 'supabase';
-  return {
-    max: Number(process.env.DATABASE_POOL_MAX ?? (serverless ? 1 : 10)),
-    idle_timeout: Number(process.env.DATABASE_IDLE_TIMEOUT_SECONDS ?? 20),
-    connect_timeout: Number(process.env.DATABASE_CONNECT_TIMEOUT_SECONDS ?? 10),
-    prepare: cfg.dbProvider === 'supabase' ? false : true,
-  };
-}
-
 export function sqlClient(): Sql {
   if (!runtimeClient) {
     const { databaseUrl } = validateRuntimeEnv();
-    runtimeClient = postgres(databaseUrl, runtimeOptions());
+    runtimeClient = postgres(databaseUrl, databaseConnectionOptions(databaseUrl));
   }
   return runtimeClient;
 }
@@ -46,7 +36,7 @@ export async function withTx<T>(fn: (tx: DbExecutor) => Promise<T>): Promise<T> 
 export function migrationClient(): Sql {
   const cfg = validateRuntimeEnv();
   const url = process.env.DATABASE_MIGRATION_URL ?? cfg.databaseUrl;
-  return postgres(url, { max: 1, idle_timeout: 5, connect_timeout: 10, prepare: false });
+  return postgres(url, { ...databaseConnectionOptions(url), max: 1, idle_timeout: 5, prepare: false });
 }
 
 export async function getManifestValue<T>(key: string): Promise<T | undefined> {
@@ -83,3 +73,5 @@ export async function seedManifestValue(database: DbExecutor, key: string, value
 }
 
 export * from './schema';
+export { databaseConnectionOptions } from './connection-options';
+export { databaseHealthy } from './health';

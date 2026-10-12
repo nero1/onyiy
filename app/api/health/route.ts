@@ -1,4 +1,5 @@
 import { validateRuntimeEnv } from '@gifters/config';
+import { databaseHealthy } from '@gifters/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -6,6 +7,9 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const config = validateRuntimeEnv();
+    if (!await databaseHealthy()) {
+      return Response.json({ status: 'unavailable' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+    }
     return Response.json({
       status: 'ok',
       environment: config.appEnv,

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { validateRuntimeEnv } from '@gifters/config';
+import { databaseConnectionOptions } from '@gifters/db';
 
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
@@ -24,6 +25,8 @@ if (process.argv.includes('--hosted')) {
   // Validate presence/selectors only; never print URLs, tokens or secret values.
   const env = { ...process.env, NODE_ENV: 'production' };
   const config = validateRuntimeEnv(env);
+  databaseConnectionOptions(config.databaseUrl,env);
+  if (env.DATABASE_MIGRATION_URL) databaseConnectionOptions(env.DATABASE_MIGRATION_URL,env);
   let database: URL;
   try { database = new URL(config.databaseUrl); } catch { throw new Error('Invalid DATABASE_URL'); }
   if (!['postgres:', 'postgresql:'].includes(database.protocol)) throw new Error('A PostgreSQL DATABASE_URL is required');
