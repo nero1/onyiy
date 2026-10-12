@@ -6,7 +6,7 @@ import { validateRuntimeEnv } from '@gifters/config';
 import { reconcile } from './reconcile';
 
 export const notificationPayload = z.object({
-  user_id:z.string().uuid(),title_key:z.enum(['gift_sent','gift_received','withdrawal_settled']),body:z.string().min(1).max(2000),
+  user_id:z.string().uuid(),title_key:z.enum(['gift_sent','gift_received','withdrawal_settled','incoming_exception']),body:z.string().min(1).max(2000),
 }).strict();
 
 export async function enqueueNotification(database: DbExecutor, businessKey:string, payload:z.infer<typeof notificationPayload>) {

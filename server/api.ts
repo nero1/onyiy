@@ -32,6 +32,7 @@ import {
 import { reconcile } from './reconcile';
 import { schedulerTick } from './scheduler';
 import { replayDeadJob } from './jobs';
+import {quoteIncoming,submitIncoming,controlIncoming,resolveIncoming,ownInvoices,cancelIncomingQuote} from './incoming';
 
 const seed = loadManifest();
 
@@ -52,6 +53,7 @@ function fail(error: unknown) {
     INVALID_INPUT: 400,
     INVALID_ADDRESS: 400,
     ACTIVE_CYCLE_EXISTS: 409,
+    ACTIVE_INVOICE_EXISTS: 409,
     COOLDOWN_ACTIVE: 409,
     PLAN_UNAVAILABLE: 409,
     QUOTE_EXPIRED: 409,
@@ -129,6 +131,35 @@ export async function handleApiRequest(method: string, path: string[], request: 
       }
       const body=z.object({action:z.enum(['settle','cancel']),reason:z.string().min(5).max(500)}).strict().parse(await json(request));
       return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>resolveSimulationWithdrawal(tx,actor.id,withdrawalId,body.action,body.reason,idempotencyKey(request))));
+    }
+
+    if (method==='POST' && (route==='/admin/simulation/invoices/control' || route==='/admin/simulation/invoices/resolve')) {
+      const actor=await admin(request);
+      const id=resourceId(request,'invoice_id',/^\/api\/v1\/admin\/simulation\/invoices\/([^/]+)\/(?:control|resolve)\/?$/);
+      if(route.endsWith('/control')) {
+        const body=z.object({outcome:z.enum(['reject','under','over','late','delay']),reason:z.string().min(5).max(500),actual_base_units:z.string().max(78).regex(/^(0|[1-9][0-9]*)$/).optional()}).strict().parse(await json(request));
+        return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>controlIncoming(tx,actor.id,id,body.outcome,body.reason,idempotencyKey(request),body.actual_base_units)));
+      }
+      const body=z.object({action:z.enum(['confirm','refund','cancel']),reason:z.string().min(5).max(500)}).strict().parse(await json(request));
+      return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>resolveIncoming(tx,actor.id,id,body.action,body.reason,idempotencyKey(request))));
+    }
+    if(method==='POST' && route==='/gifts/invoices') {
+      const user=await current(request);const body=z.object({plan_id:z.string().uuid()}).strict().parse(await json(request));
+      return ok(await withContext({access:'service',actorId:user.id},tx=>quoteIncoming(tx,user.id,body.plan_id,idempotencyKey(request))));
+    }
+    if(method==='POST' && route==='/gifts/invoices/transaction') {
+      const user=await current(request);z.object({}).strict().parse(await json(request));
+      const id=resourceId(request,'invoice_id',/^\/api\/v1\/gifts\/invoices\/([^/]+)\/transaction\/?$/);
+      // The server-issued GIV invoice ID is a single-use submission identity.
+      return ok(await withContext({access:'service',actorId:user.id},tx=>submitIncoming(tx,user.id,id)));
+    }
+    if(method==='POST' && route==='/gifts/invoices/cancel') {
+      const user=await current(request);z.object({}).strict().parse(await json(request));
+      const id=resourceId(request,'invoice_id',/^\/api\/v1\/gifts\/invoices\/([^/]+)\/cancel\/?$/);
+      return ok(await withContext({access:'service',actorId:user.id},tx=>cancelIncomingQuote(tx,user.id,id)));
+    }
+    if(method==='GET' && route==='/me/gift-invoices') {
+      const user=await current(request);return ok(await withContext({access:'service',actorId:user.id},tx=>ownInvoices(tx,user.id)));
     }
 
     if (method === 'GET' && (route === '/admin/reconcile/reports' || route === '/admin/reconcile/report')) {

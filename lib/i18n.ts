@@ -1,5 +1,6 @@
 export const copy = {
   en: {
+    reviewGift:'Review gift payment',confirmGift:'Confirm GIV payment',expires:'Expires',incoming:'Incoming held',refundable:'Refundable',incomingPending:'Payment submitted — confirmation pending.',incomingReview:'Payment needs review; refundable funds are preserved.',incomingRejected:'Payment rejected; no gift was admitted.',
     reconciliationPassed:'Reconciliation passed',reconciliationReview:'Reconciliation needs review',
     done:'Done',heldWithdrawals:'Held withdrawals',cancelWithdrawal:'Cancel unsent withdrawal',
     brand:'Gifters World', tagline:'Give and you shall receive.', simulation:'GIV Simulation', chooseUser:'Test account', consentTitle:'Finish test onboarding', consentBody:'Accept the draft test terms to activate this simulation account and receive the one-time 5,000 GIV grant.', accept:'Accept and continue',
@@ -7,6 +8,7 @@ export const copy = {
     gifts:'Choose a gift', expected:'Expected', send:'Send this gift', active:'Active cycles', completed:'Completed cycles', position:'Position', credited:'Gifts credited', noCycles:'No cycles yet.', wallet:'Wallet', linkWallet:'Link simulation wallet', linked:'Linked', withdraw:'Request withdrawal quote', reviewWithdrawal:'Review withdrawal', gross:'Gross', networkFee:'Network fee', net:'Net', confirmWithdrawal:'Confirm withdrawal', cancel:'Cancel', withdrawAmount:'Amount in GIV', notifications:'Notifications', admin:'Admin simulator', activate:'Activate', reconcile:'Reconcile journals', balanced:'All journals balanced', queue:'Inspect queue', language:'Language', theme:'Theme', light:'Light', dark:'Dark', offline:'Offline — financial actions are disabled.', loading:'Loading…', error:'Something went wrong', retry:'Retry', status:'Status', backToTop:'Back to gift tiles'
   },
   fr: {
+    reviewGift:'Vérifier le paiement du cadeau',confirmGift:'Confirmer le paiement GIV',expires:'Expiration',incoming:'Paiement entrant bloqué',refundable:'Remboursable',incomingPending:'Paiement soumis — confirmation en attente.',incomingReview:'Le paiement nécessite une vérification ; les fonds remboursables sont conservés.',incomingRejected:'Paiement refusé ; aucun cadeau admis.',
     reconciliationPassed:'Rapprochement validé',reconciliationReview:'Le rapprochement nécessite une vérification',
     done:'Terminé',heldWithdrawals:'Retraits bloqués',cancelWithdrawal:'Annuler le retrait non envoyé',
     brand:'Gifters World', tagline:'Donnez et vous recevrez.', simulation:'Simulation GIV', chooseUser:'Compte test', consentTitle:'Terminer l’inscription test', consentBody:'Acceptez les conditions de test pour activer ce compte de simulation et recevoir l’attribution unique de 5 000 GIV.', accept:'Accepter et continuer',

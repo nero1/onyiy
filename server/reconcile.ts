@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { ledgerAccounts, ledgerJournals, ledgerPostings, operationKeys, queueEntries, receiptAllocations, readManifest, withdrawals, type DbExecutor } from '@gifters/db';
+import { giftInvoices, simulationIncomingRefunds, ledgerAccounts, ledgerJournals, ledgerPostings, operationKeys, queueEntries, receiptAllocations, readManifest, withdrawals, type DbExecutor } from '@gifters/db';
 
 // Staff-only diagnostics. Counts are exact integer strings; examples are capped.
 // Each query observes a shared deadline; failure never becomes a clean result.
@@ -34,7 +34,7 @@ export async function reconcile(database: DbExecutor, budgetMs=8000) {
   const accountNet = sql`coalesce(sum(case when ${ledgerPostings.direction}='credit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)`;
   const negative = await bounded(()=>database.select({account_id:ledgerAccounts.id,asset_id:ledgerAccounts.assetId,balance:sql<string>`${accountNet}::text`})
     .from(ledgerAccounts).leftJoin(ledgerPostings,eq(ledgerPostings.accountId,ledgerAccounts.id))
-    .where(and(eq(ledgerAccounts.ownerType,'user'),inArray(ledgerAccounts.purpose,['available_payable','held_payable'])))
+    .where(and(eq(ledgerAccounts.ownerType,'user'),inArray(ledgerAccounts.purpose,['available_payable','held_payable','incoming_payable','refund_payable'])))
     .groupBy(ledgerAccounts.id,ledgerAccounts.assetId).having(sql`${accountNet}<0`).limit(limit));
   const clearing = await bounded(()=>database.select({account_id:ledgerAccounts.id,asset_id:ledgerAccounts.assetId,balance:sql<string>`${accountNet}::text`})
     .from(ledgerAccounts).leftJoin(ledgerPostings,eq(ledgerPostings.accountId,ledgerAccounts.id))
@@ -54,11 +54,17 @@ export async function reconcile(database: DbExecutor, budgetMs=8000) {
   const outstanding=database.select({userId:withdrawals.userId,assetId:withdrawals.assetId,gross:sql<string>`sum(${withdrawals.grossBaseUnits})`.as('gross')}).from(withdrawals).where(eq(withdrawals.status,'held')).groupBy(withdrawals.userId,withdrawals.assetId).as('outstanding');
   const heldAccounts=database.select({userId:ledgerAccounts.ownerId,assetId:ledgerAccounts.assetId,net:sql<string>`${accountNet}`.as('net')}).from(ledgerAccounts).leftJoin(ledgerPostings,eq(ledgerPostings.accountId,ledgerAccounts.id)).where(and(eq(ledgerAccounts.ownerType,'user'),eq(ledgerAccounts.purpose,'held_payable'))).groupBy(ledgerAccounts.ownerId,ledgerAccounts.assetId).as('held_accounts');
   const heldMismatch=await bounded(()=>database.select({user_id:sql<string>`coalesce(${outstanding.userId},${heldAccounts.userId})`,asset_id:sql<string>`coalesce(${outstanding.assetId},${heldAccounts.assetId})`,held_balance:sql<string>`coalesce(${heldAccounts.net},0)::text`,withdrawal_total:sql<string>`coalesce(${outstanding.gross},0)::text`}).from(outstanding).fullJoin(heldAccounts,and(eq(outstanding.userId,heldAccounts.userId),eq(outstanding.assetId,heldAccounts.assetId))).where(sql`coalesce(${outstanding.gross},0)<>coalesce(${heldAccounts.net},0)`).limit(limit));
+  const incomingExpected=database.select({userId:giftInvoices.userId,assetId:giftInvoices.assetId,total:sql<string>`sum(${giftInvoices.actualBaseUnits})`.as('total')}).from(giftInvoices).where(eq(giftInvoices.status,'submitted')).groupBy(giftInvoices.userId,giftInvoices.assetId).as('incoming_expected');
+  const refundExpected=database.select({userId:giftInvoices.userId,assetId:giftInvoices.assetId,total:sql<string>`sum(${giftInvoices.refundableBaseUnits}-coalesce(${simulationIncomingRefunds.amountBaseUnits},0))`.as('total')}).from(giftInvoices).leftJoin(simulationIncomingRefunds,eq(simulationIncomingRefunds.invoiceId,giftInvoices.id)).where(inArray(giftInvoices.status,['credited','exception'])).groupBy(giftInvoices.userId,giftInvoices.assetId).as('refund_expected');
+  const incomingAccounts=database.select({userId:ledgerAccounts.ownerId,assetId:ledgerAccounts.assetId,net:sql<string>`${accountNet}`.as('net')}).from(ledgerAccounts).leftJoin(ledgerPostings,eq(ledgerPostings.accountId,ledgerAccounts.id)).where(and(eq(ledgerAccounts.ownerType,'user'),eq(ledgerAccounts.purpose,'incoming_payable'))).groupBy(ledgerAccounts.ownerId,ledgerAccounts.assetId).as('incoming_accounts');
+  const refundAccounts=database.select({userId:ledgerAccounts.ownerId,assetId:ledgerAccounts.assetId,net:sql<string>`${accountNet}`.as('net')}).from(ledgerAccounts).leftJoin(ledgerPostings,eq(ledgerPostings.accountId,ledgerAccounts.id)).where(and(eq(ledgerAccounts.ownerType,'user'),eq(ledgerAccounts.purpose,'refund_payable'))).groupBy(ledgerAccounts.ownerId,ledgerAccounts.assetId).as('refund_accounts');
+  const incomingMismatch=await bounded(()=>database.select({user_id:sql<string>`coalesce(${incomingExpected.userId},${incomingAccounts.userId})`,asset_id:sql<string>`coalesce(${incomingExpected.assetId},${incomingAccounts.assetId})`,held_balance:sql<string>`coalesce(${incomingAccounts.net},0)::text`,invoice_total:sql<string>`coalesce(${incomingExpected.total},0)::text`}).from(incomingExpected).fullJoin(incomingAccounts,and(eq(incomingExpected.userId,incomingAccounts.userId),eq(incomingExpected.assetId,incomingAccounts.assetId))).where(sql`coalesce(${incomingExpected.total},0)<>coalesce(${incomingAccounts.net},0)`).limit(limit));
+  const refundMismatch=await bounded(()=>database.select({user_id:sql<string>`coalesce(${refundExpected.userId},${refundAccounts.userId})`,asset_id:sql<string>`coalesce(${refundExpected.assetId},${refundAccounts.assetId})`,refundable_balance:sql<string>`coalesce(${refundAccounts.net},0)::text`,invoice_total:sql<string>`coalesce(${refundExpected.total},0)::text`}).from(refundExpected).fullJoin(refundAccounts,and(eq(refundExpected.userId,refundAccounts.userId),eq(refundExpected.assetId,refundAccounts.assetId))).where(sql`coalesce(${refundExpected.total},0)<>coalesce(${refundAccounts.net},0)`).limit(limit));
   const balanced = bad.length===0;
   return {
-    balanced,consistent:balanced && !heldMismatch.length && !negative.length && !clearing.length && !mismatch.length && missingJournals==='0' && missingOperations==='0',
+    balanced,consistent:balanced && !incomingMismatch.length && !refundMismatch.length && !heldMismatch.length && !negative.length && !clearing.length && !mismatch.length && missingJournals==='0' && missingOperations==='0',
     lineage_complete:missingJournals==='0' && missingOperations==='0' && legacy==='0',
-    imbalanced_journals:bad,held_withdrawal_mismatches:heldMismatch,negative_user_balances:negative,nonzero_gift_clearing:clearing,queue_credit_mismatches:mismatch,
+    incoming_hold_mismatches:incomingMismatch,refundable_mismatches:refundMismatch,imbalanced_journals:bad,held_withdrawal_mismatches:heldMismatch,negative_user_balances:negative,nonzero_gift_clearing:clearing,queue_credit_mismatches:mismatch,
     unlinked_journal_count:missingJournals,unlinked_operation_count:missingOperations,legacy_unsequenced_count:legacy,captured_allocation_count:captured,
     diagnostic_sample_limit:limit,
   };
