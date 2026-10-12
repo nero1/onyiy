@@ -73,4 +73,4 @@ export async function seedManifestValue(database: DbExecutor, key: string, value
 export * from './schema';
 export { databaseConnectionOptions } from './connection-options';
 export { databaseHealthy } from './health';
-export { withContext, scopedTransaction, type DatabaseContext } from './context';
+export { withSessionScope, withContext, scopedTransaction, type DatabaseContext } from './context';

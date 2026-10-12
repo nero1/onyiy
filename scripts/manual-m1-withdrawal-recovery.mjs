@@ -1,3 +1,5 @@
+import {installSimulationToolAuth} from './manual-auth.mjs';
+installSimulationToolAuth();
 // Operator-invoked GIV recovery acceptance, never CI. Uses member_25 after the
 // fresh 21-gift/integrity scenarios; preserves every journal and never resets.
 if (process.env.M1_RECOVERY_CONFIRM!=='isolated-simulation' || !process.env.APP_BASE_URL) throw new Error('APP_BASE_URL and M1_RECOVERY_CONFIRM=isolated-simulation required');

@@ -122,7 +122,7 @@ export function validateRuntimeEnv(env = process.env) {
   const appEnv = env.APP_ENV ?? "simulation";
   if (appEnv !== 'simulation') throw new Error('Only the simulation environment is implemented; testnet/mainnet adapters are not available');
   const simulationSelectors = {
-    AUTH_PROVIDER: 'simulation', PAYMENT_PROVIDER: 'giv_simulation',
+    PAYMENT_PROVIDER: 'giv_simulation',
     WALLET_PROVIDER: 'dummy', SIGNER_PROVIDER: 'disabled', CAPTCHA_PROVIDER: 'dummy',
     REALTIME_PROVIDER: 'none', PRICE_PROVIDER: 'manual_simulation', ALERT_PROVIDER: 'none',
     DEPLOYMENT_PROFILE: 'test_iteration',
@@ -130,6 +130,10 @@ export function validateRuntimeEnv(env = process.env) {
   for (const [name, supported] of Object.entries(simulationSelectors)) {
     if (env[name] !== undefined && env[name] !== supported) throw new Error(`Unsupported ${name} for the current simulation build`);
   }
+  if(!['simulation','google'].includes(env.AUTH_PROVIDER??'simulation'))throw new Error('CONFIGURATION_INVALID');
+  for(const name of ['AUTH_ACCESS_KEY','AUTH_ACCESS_PREVIOUS_KEY','MFA_ENCRYPTION_KEY','SIMULATION_TOOL_AUTH_KEY'])if(env[name]&&(!/^[A-Za-z0-9_-]{43}$/.test(env[name]!)||Buffer.from(env[name]!,'base64url').toString('base64url')!==env[name]))throw new Error('CONFIGURATION_INVALID');
+  if(env.AUTH_ACCESS_PREVIOUS_KEY&&!env.AUTH_ACCESS_KEY)throw new Error('CONFIGURATION_INVALID');
+  if(env.VERCEL==='1'&&env.SIMULATION_TOOL_AUTH_KEY)throw new Error('Simulation tool credentials must stay outside Vercel');
   const dbProvider = env.DB_PROVIDER ?? "supabase";
   if (!['supabase','neon','local','postgres'].includes(dbProvider)) {
     throw new Error(`Unsupported DB_PROVIDER: ${dbProvider}`);

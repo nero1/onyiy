@@ -36,7 +36,7 @@ export async function recoveryInventory(database:DbExecutor) {
   const records:Record<string,{rows:number;sha256:string}>={};
   for(const table of tables) {
     const config=getTableConfig(table);
-    if(config.name==='deployment_binding_challenges') continue; // Ephemeral connection challenges are never transferable proof.
+    if(['deployment_binding_challenges','auth_sessions','auth_refresh_tokens','auth_flows','rate_limits'].includes(config.name)) continue; // Ephemeral connection challenges are never transferable proof.
     const primary=config.primaryKeys.flatMap(key=>key.columns);
     const order=primary.length?primary:config.columns.filter(column=>column.primary);
     if(!order.length) throw new Error('RECOVERY_SCHEMA_UNCLASSIFIED');

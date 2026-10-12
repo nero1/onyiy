@@ -2,11 +2,14 @@
 
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { copy, type Locale } from '@/lib/i18n';
+import AuthPanel from '@/components/auth-panel';
+import type {AuthUser,SessionResult} from '@/lib/auth-client';
 import { api, mutation, ApiError } from '@/lib/api-client';
 import { configurePublicDataBudget,loadPublicCatalog,savePublicCatalog } from '@/lib/public-data-cache';
 import { formatBaseUnits, decimalToBaseUnits } from '@gifters/domain';
 import {
   activateUserScope,
+  clearActiveUserScope,
   configureSnapshotBudget,
   loadPublicSnapshot,
   loadUserSnapshot,
@@ -30,6 +33,11 @@ export default function DashboardApp() {
   const catalogGeneration=useRef(0);
   const [users, setUsers] = useState<User[]>([]);
   const [username, setUsername] = useState('member_01');
+  const [authUser,setAuthUser]=useState<AuthUser|null>(null);
+  const [sessionGeneration,setSessionGeneration]=useState('');
+  const [requiresMfa,setRequiresMfa]=useState(false);
+  const [authProvider,setAuthProvider]=useState('simulation');
+  const [authReady,setAuthReady]=useState(false);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [dash, setDash] = useState<Dashboard | null>(null);
   const [manifest, setManifest] = useState<any>(null);
@@ -64,8 +72,8 @@ export default function DashboardApp() {
       if(mounted && generation===catalogGeneration.current && value)setPlans(value);
     });
     setManifest(cachedManifest);
-    const ttl=cacheMs(cachedManifest,'private_snapshot_seconds');
-    setDash(ttl?loadUserSnapshot<Dashboard>(initialUser,'dashboard','simulation',ttl):null);
+    setDash(null);
+    void api<SessionResult>('/auth/session','').then(async value=>{if(!value.user&&!value.requires_mfa&&value.can_refresh){try{value=await mutation<SessionResult>('/auth/refresh','',{})}catch{/* Expired/revoked families require login. */}}if(mounted)receiveSession(value)}).catch(()=>{if(mounted)setAuthReady(true)});
     setOnline(navigator.onLine);
     return ()=>{mounted=false;};
   }, []);
@@ -78,14 +86,15 @@ export default function DashboardApp() {
   useEffect(() => { remember('locale',locale); }, [locale]);
 
   useEffect(() => {
-    activateUserScope(username);
+    if(!authUser||!sessionGeneration)return;
+    activateUserScope(username,sessionGeneration);
     currentUser.current = username;
     refreshGeneration.current++;
     setWithdrawalQuote(null);setGiftQuote(null);
     remember('sim_user',username);
     const ttl=cacheMs(manifest,'private_snapshot_seconds');
-    setDash(ttl?loadUserSnapshot<Dashboard>(username,'dashboard','simulation',ttl):null);
-  }, [username]);
+    setDash(ttl?loadUserSnapshot<Dashboard>(username,'dashboard',sessionGeneration,ttl):null);
+  }, [username,sessionGeneration,authUser?.id]);
   useEffect(()=>{if(dash?.financial_review){setGiftQuote(null);setWithdrawalQuote(null);}},[dash?.financial_review]);
   useEffect(() => { if (!online){setWithdrawalQuote(null);setGiftQuote(null);} },[online]);
 
@@ -131,12 +140,22 @@ export default function DashboardApp() {
     return ()=>observer.disconnect();
   },[username,dash?.user.username]);
 
+  function receiveSession(value:SessionResult){
+    refreshGeneration.current++;
+    setAuthReady(true);setRequiresMfa(value.requires_mfa??false);if(value.provider)setAuthProvider(value.provider);
+    const same=value.user?.id===authUser?.id&&value.generation===sessionGeneration;
+    if(!same){clearActiveUserScope();setDash(null);setGiftQuote(null);setWithdrawalQuote(null);}
+    setAuthUser(value.user);setSessionGeneration(value.user?value.generation??'':'');
+    if(value.user){currentUser.current=value.user.username;setUsername(value.user.username);activateUserScope(value.user.username,value.generation??'');if(same)void refresh();}
+  }
+  async function switchAccount(next:string){if(busy)return;setBusy(true);try{receiveSession(await mutation<SessionResult>('/auth/simulation/session','',{username:next}));}catch(error){setNotice({kind:'error',text:error instanceof ApiError?error.code:t.error});}finally{setBusy(false)}}
+
   async function refresh() {
-    if (!username || username !== currentUser.current) return;
+    if (!authUser||!sessionGeneration||!username || username !== currentUser.current) return;
     const generation = ++refreshGeneration.current;
     if (!online) {
       const ttl=cacheMs(manifest,'private_snapshot_seconds');
-      const cached=ttl?loadUserSnapshot<Dashboard>(username,'dashboard','simulation',ttl):null;
+      const cached=ttl?loadUserSnapshot<Dashboard>(username,'dashboard',sessionGeneration,ttl):null;
       setDash(cached);
       return;
     }
@@ -145,16 +164,16 @@ export default function DashboardApp() {
       if (generation !== refreshGeneration.current || username !== currentUser.current || fresh.user.username !== username) return;
       setDash(fresh);
       const safeSnapshot = { ...fresh, wallet: null, notifications: [],pending_withdrawals:[],pending_invoices:[] } as Dashboard;
-      const ttl=cacheMs(manifest,'private_snapshot_seconds');if(ttl)saveUserSnapshot(username,'dashboard',safeSnapshot,ttl);
+      const ttl=cacheMs(manifest,'private_snapshot_seconds');if(ttl)saveUserSnapshot(username,'dashboard',safeSnapshot,ttl,sessionGeneration);
       setNotice(null);
     } catch (error) {
       if (generation!==refreshGeneration.current || username!==currentUser.current) return;
-      if (error instanceof ApiError && error.code==='UNAUTHENTICATED') {setDash(null);setGiftQuote(null);}
+      if (error instanceof ApiError && error.code==='UNAUTHENTICATED') {setDash(null);setGiftQuote(null);setAuthUser(null);setSessionGeneration('');}
       setNotice({ kind: 'error', text: error instanceof ApiError ? error.code : String(error) });
     }
   }
 
-  useEffect(() => { void refresh(); }, [username,online,manifest?.cache_policy?.private_snapshot_seconds]);
+  useEffect(() => { void refresh(); }, [username,sessionGeneration,authUser?.id,online,manifest?.cache_policy?.private_snapshot_seconds]);
 
   useEffect(() => {
     if (!manifest?.activity_statements?.length) return;
@@ -215,7 +234,9 @@ export default function DashboardApp() {
     });
   }
 
-  if (!dash || !manifest || dash.user.username!==username) return <main className="center"><div><p role={notice?.kind==='error'?'alert':'status'}>{notice?.text ?? (online?t.loading:t.offline)}</p><select aria-label={t.chooseUser} value={username} onChange={event=>setUsername(event.target.value)}>{users.map(user=><option key={user.id} value={user.username}>{user.username}</option>)}</select><button disabled={!online || busy} onClick={()=>{activateUserScope(username);void refresh()}}>{t.retry}</button></div></main>;
+  if(!authReady)return <main className="center"><p role="status">{t.loading}</p></main>;
+  if(!authUser||requiresMfa||authUser.status==='pending_consent')return <main className="auth-page"><h1>{t.brand}</h1><button aria-label={t.language} onClick={()=>setLocale(locale==='en'?'fr':'en')}>{locale.toUpperCase()}</button><AuthPanel locale={locale} user={authUser} requiresMfa={requiresMfa} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/>{manifest?.feature_gifts&&<section className="plan-list" aria-label={t.gifts}>{plans.map(plan=><article className="card plan" key={plan.id}><div><h3>{plan.name}</h3><p>{plan.amount_giv} GIV · ≈ ${plan.usd_reference}</p><strong>{t.expected}: {plan.expected_giv} GIV</strong><p className="muted">{t.status}: {plan.status}</p></div></article>)}</section>}</main>;
+  if(!dash||!manifest||dash.user.username!==username)return <main className="center"><div><p role="status">{notice?.text??t.loading}</p><button disabled={!online||busy} onClick={()=>void refresh()}>{t.retry}</button><AuthPanel locale={locale} user={authUser} requiresMfa={false} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/></div></main>;
 
   return (
     <div className="app">
@@ -224,9 +245,9 @@ export default function DashboardApp() {
         <div><div className="brand">🎁 {t.brand}</div><div className="tagline">{t.tagline}</div></div>
         <div className="top-actions">
           <span className="env">{t.simulation}</span>
-          <select aria-label={t.chooseUser} value={username} onChange={(event) => setUsername(event.target.value)}>
+          {authProvider==='simulation'&&<select aria-label={t.chooseUser} value={username} disabled={busy} onChange={event=>void switchAccount(event.target.value)}>
             {users.map((user) => <option key={user.id} value={user.username}>{user.username} · {user.role} · {user.status}</option>)}
-          </select>
+          </select>}
           <button aria-label={`${t.theme}: ${theme === 'light' ? t.dark : t.light}`} aria-pressed={theme === 'dark'} onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? '☾' : '☀'}</button>
           <button aria-label={t.language} onClick={() => setLocale(locale === 'en' ? 'fr' : 'en')}>{locale.toUpperCase()}</button>
         </div>
@@ -237,12 +258,7 @@ export default function DashboardApp() {
       {notice && <div role={notice.kind==='error'?'alert':'status'} className={`notice ${notice.kind}`}>{notice.text}</div>}
 
       <main>
-        {dash.user.status === 'pending_consent' && (
-          <section className="card consent">
-            <h2>{t.consentTitle}</h2><p>{t.consentBody}</p>
-            <button className="primary" disabled={busy || !online} onClick={() => act(() => mutation('/me/consent', username, { accepted: true }))}>{t.accept}</button>
-          </section>
-        )}
+        <AuthPanel locale={locale} user={authUser} requiresMfa={false} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/>
 
         <section className="summary-grid">
           <Summary label={t.available} value={`${formatBaseUnits(dash.balances.available)} GIV`} />

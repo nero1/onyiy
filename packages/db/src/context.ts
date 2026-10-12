@@ -1,7 +1,11 @@
-import { sql, eq } from 'drizzle-orm';
+import { sql, eq, and } from 'drizzle-orm';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { validateRuntimeEnv } from '@gifters/config';
-import { db, type Database, type DbExecutor } from './index';
-import { users } from './schema';
+import { db, readManifest, type Database, type DbExecutor } from './index';
+import { users,authSessions,authFactors } from './schema';
+type SessionScope={userId:string;sessionId:string;accessHash:string;version:number;requiresAdult?:boolean;requiresWithdrawalProof?:boolean};
+const sessionScopes=new AsyncLocalStorage<SessionScope>();
+export function withSessionScope<T>(scope:SessionScope,fn:()=>T){return sessionScopes.run(scope,fn);}
 
 export type DatabaseContext = { access: 'public' | 'member' | 'staff' | 'service'; actorId?: string; requireAdmin?: boolean; snapshot?: boolean; reportSnapshot?: boolean };
 
@@ -26,11 +30,29 @@ export async function scopedTransaction<T>(database: Database, context: Database
     if (!role[0]?.safe) throw new Error('CONFIGURATION_INVALID');
     await tx.execute(context.access === 'service' ? sql.raw('SET LOCAL ROLE gw_service') : sql.raw('SET LOCAL ROLE gw_read'));
     await tx.execute(sql`select set_config('gw.actor_id',${context.actorId ?? ''},true), set_config('gw.access',${context.access},true), set_config('gw.environment',${config.appEnv},true)`);
+    const authenticated=sessionScopes.getStore();
+    async function checkFamily(fence=false){
+      if(!authenticated||context.actorId!==authenticated.userId)return;
+      await tx.execute(sql.raw('SET LOCAL ROLE gw_service'));
+      await tx.execute(sql`select set_config('gw.access','service',true)`);
+      const [actor]=await tx.select({version:users.sessionVersion,status:users.status,role:users.role,age:users.ageMinimumAccepted,ageAt:users.ageConfirmedAt}).from(users).where(eq(users.id,authenticated.userId)).limit(1);
+      const query=tx.select({id:authSessions.id,stepUpAt:authSessions.stepUpAt,createdAt:authSessions.createdAt}).from(authSessions).where(and(eq(authSessions.id,authenticated.sessionId),eq(authSessions.userId,authenticated.userId),eq(authSessions.accessHash,authenticated.accessHash),eq(authSessions.sessionVersion,authenticated.version),sql`${authSessions.revokedAt} is null and not ${authSessions.preAuth} and ${authSessions.accessExpiresAt}>clock_timestamp() and ${authSessions.idleExpiresAt}>clock_timestamp() and ${authSessions.absoluteExpiresAt}>clock_timestamp()`)).limit(1);
+      const [family]=fence&&!context.snapshot?await query.for('share'):await query;
+      if(!actor||!family||actor.version!==authenticated.version||['banned','deleted','suspended'].includes(actor.status))throw new Error('UNAUTHENTICATED');
+      if(authenticated.requiresAdult){const policy=await readManifest(tx);if(!actor.ageAt||actor.age===null||actor.age<policy.eligibility_min_age)throw new Error('CONSENT_REQUIRED');}
+      if(authenticated.requiresWithdrawalProof){const policy=await readManifest(tx);const [factor]=await tx.select({active:authFactors.active}).from(authFactors).where(eq(authFactors.userId,authenticated.userId)).limit(1);const [clock]=await tx.execute<{now:Date}>(sql`select clock_timestamp() as now`);const now=new Date(clock.now).getTime(),budget=policy.staff_reauth_minutes*60000;if(factor?.active||['admin','moderator'].includes(actor.role)){if(!factor?.active||!family.stepUpAt||now-family.stepUpAt.getTime()>=budget)throw new Error('STEP_UP_REQUIRED');}else if(now-family.createdAt.getTime()>=budget)throw new Error('STEP_UP_REQUIRED');}
+      if(context.requireAdmin){const policy=await readManifest(tx);const [now]=await tx.execute<{now:Date}>(sql`select clock_timestamp() as now`);if(!family.stepUpAt||new Date(now.now).getTime()-family.stepUpAt.getTime()>=policy.staff_reauth_minutes*60000)throw new Error('STEP_UP_REQUIRED');}
+      await tx.execute(context.access==='service'?sql.raw('SET LOCAL ROLE gw_service'):sql.raw('SET LOCAL ROLE gw_read'));
+      await tx.execute(sql`select set_config('gw.access',${context.access},true)`);
+    }
+    // Do not prelock the sender: financial services acquire sorted participant
+    // locks. The completion fence runs after those locks and before commit.
+    await checkFamily();
     if (context.access === 'staff' || context.requireAdmin) {
       const actor = (await tx.select({role:users.role,status:users.status}).from(users).where(eq(users.id,context.actorId!)).limit(1))[0];
       if (actor?.role !== 'admin' || actor.status !== 'active') throw new Error('FORBIDDEN');
     }
-    return fn(tx);
+    const result=await fn(tx);await checkFamily(true);return result;
   },context.snapshot ? {isolationLevel:'repeatable read',accessMode:'read only'} : context.reportSnapshot ? {isolationLevel:'repeatable read'} : undefined);
 }
 

@@ -27,6 +27,9 @@ export const users = pgTable('users', {
   email: text('email').unique(),
   role: text('role').notNull().default('member'),
   status: text('status').notNull().default('pending_consent'),
+  sessionVersion: integer('session_version').notNull().default(1),
+  ageConfirmedAt: timestamp('age_confirmed_at',{withTimezone:true}),
+  ageMinimumAccepted: integer('age_minimum_accepted'),
   locale: text('locale').notNull().default('en'),
   consentVersion: text('consent_version'),
   consentedAt: timestamp('consented_at', { withTimezone: true }),
@@ -37,6 +40,17 @@ export const users = pgTable('users', {
   check('users_role_check', sql`${t.role} in ('member','moderator','admin')`),
   check('users_status_check', sql`${t.status} in ('pending_consent','active','suspended','banned','deactivated','deleted')`),
 ]).enableRLS();
+
+export const userIdentities=pgTable('user_identities',{id:uuid('id').primaryKey().defaultRandom(),userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'restrict'}),provider:text('provider').notNull(),subject:text('subject').notNull(),createdAt:createdAt()},t=>[unique().on(t.provider,t.subject)]).enableRLS();
+export const authSessions=pgTable('auth_sessions',{
+ id:uuid('id').primaryKey().defaultRandom(),userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'restrict'}),generation:uuid('generation').notNull().defaultRandom(),sessionVersion:integer('session_version').notNull(),accessHash:text('access_hash').notNull().unique(),csrfHash:text('csrf_hash').notNull(),createdAt:createdAt(),lastSeenAt:timestamp('last_seen_at',{withTimezone:true}).notNull().defaultNow(),accessExpiresAt:timestamp('access_expires_at',{withTimezone:true}).notNull(),idleExpiresAt:timestamp('idle_expires_at',{withTimezone:true}).notNull(),absoluteExpiresAt:timestamp('absolute_expires_at',{withTimezone:true}).notNull(),preAuth:boolean('pre_auth').notNull().default(false),revokedAt:timestamp('revoked_at',{withTimezone:true}),stepUpAt:timestamp('step_up_at',{withTimezone:true}),
+},t=>[index('auth_sessions_user_idx').on(t.userId,t.id)]).enableRLS();
+export const authRefreshTokens=pgTable('auth_refresh_tokens',{tokenHash:text('token_hash').primaryKey(),sessionId:uuid('session_id').notNull().references(()=>authSessions.id,{onDelete:'restrict'}),createdAt:createdAt(),expiresAt:timestamp('expires_at',{withTimezone:true}).notNull(),usedAt:timestamp('used_at',{withTimezone:true})},t=>[index('auth_refresh_session_idx').on(t.sessionId)]).enableRLS();
+export const authFactors=pgTable('auth_factors',{userId:uuid('user_id').primaryKey().references(()=>users.id,{onDelete:'restrict'}),id:uuid('id').notNull().defaultRandom().unique(),secretCipher:text('secret_cipher').notNull(),active:boolean('active').notNull().default(false),createdAt:createdAt(),setupExpiresAt:timestamp('setup_expires_at',{withTimezone:true}).notNull(),lastStep:bigint('last_step',{mode:'bigint'}).notNull().default(sql`-1`)}).enableRLS();
+export const authTotpReplays=pgTable('auth_totp_replays',{factorId:uuid('factor_id').notNull().references(()=>authFactors.id,{onDelete:'restrict'}),timeStep:bigint('time_step',{mode:'bigint'}).notNull(),acceptedAt:timestamp('accepted_at',{withTimezone:true}).notNull().defaultNow()},t=>[primaryKey({columns:[t.factorId,t.timeStep]})]).enableRLS();
+export const authRecoveryCodes=pgTable('auth_recovery_codes',{id:uuid('id').primaryKey().defaultRandom(),factorId:uuid('factor_id').notNull().references(()=>authFactors.id,{onDelete:'restrict'}),codeHash:text('code_hash').notNull().unique(),createdAt:createdAt(),usedAt:timestamp('used_at',{withTimezone:true})}).enableRLS();
+export const authFlows=pgTable('auth_flows',{stateHash:text('state_hash').primaryKey(),nonceHash:text('nonce_hash').notNull(),verifierCipher:text('verifier_cipher').notNull(),createdAt:createdAt(),expiresAt:timestamp('expires_at',{withTimezone:true}).notNull(),usedAt:timestamp('used_at',{withTimezone:true})}).enableRLS();
+export const rateLimits=pgTable('rate_limits',{keyHash:text('key_hash').primaryKey(),environment:text('environment').notNull(),windowStart:timestamp('window_start',{withTimezone:true}).notNull(),windowSeconds:integer('window_seconds').notNull(),used:integer('used').notNull(),expiresAt:timestamp('expires_at',{withTimezone:true}).notNull()},t=>[index('rate_limit_expiry_idx').on(t.environment,t.expiresAt,t.keyHash)]).enableRLS();
 
 export const referralCodes = pgTable('referral_codes', {
   userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
@@ -396,6 +410,7 @@ export const cycleFinancialReviews=pgView('gw_cycle_financial_reviews',{
 }).existing();
 
 export const schema = {
+ userIdentities,authSessions,authRefreshTokens,authFactors,authTotpReplays,authRecoveryCodes,authFlows,rateLimits,
   maintenanceResults,
   simulationReorgReviews,simulationReorgResolutions,userFinancialReviews,cycleFinancialReviews,
   giftInvoices,simulationIncomingControls,simulationIncomingEvents,simulationIncomingRefunds,

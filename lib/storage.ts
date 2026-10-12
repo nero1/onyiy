@@ -72,3 +72,5 @@ export function clearActiveUserScope(expectedOwner?:string){
  if(owner)clearUserScope(owner);
  if(!expectedOwner || active===expectedOwner){remove(ACTIVE_USER_KEY);remove(ACTIVE_SESSION_KEY)}
 }
+
+export function activeSessionGeneration(owner:string){return read(ACTIVE_USER_KEY)===owner?read(ACTIVE_SESSION_KEY):null;}

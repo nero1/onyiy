@@ -441,5 +441,32 @@
       "failure_policy": "cached_public_only",
       "disableable": false
     }
+  },
+  "identity_policy": {
+    "username_min": 3,
+    "username_max": 24,
+    "collision_attempts": 8,
+    "reserved": [
+      "admin",
+      "administrator",
+      "moderator",
+      "system",
+      "support",
+      "help",
+      "settings",
+      "login",
+      "logout",
+      "api",
+      "root",
+      "giftersworld",
+      "sim_admin"
+    ],
+    "blocked_words": [
+      "fuck",
+      "shit",
+      "asshole",
+      "connard",
+      "merde"
+    ]
   }
 }

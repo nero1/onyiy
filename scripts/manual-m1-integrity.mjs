@@ -1,3 +1,5 @@
+import {installSimulationToolAuth} from './manual-auth.mjs';
+installSimulationToolAuth();
 import assert from 'node:assert/strict';
 
 const origin = process.env.APP_BASE_URL;
