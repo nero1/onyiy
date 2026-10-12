@@ -10,3 +10,10 @@ dist/
 *.sql.gz
 backups/
 exports/
+# Track only the export endpoint code; generated export artifacts stay ignored.
+!app/api/v1/me/exports/
+app/api/v1/me/exports/*
+!app/api/v1/me/exports/route.ts
+!app/api/v1/me/exports/download/
+app/api/v1/me/exports/download/*
+!app/api/v1/me/exports/download/route.ts
