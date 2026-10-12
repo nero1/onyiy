@@ -391,6 +391,8 @@ Scheduler endpoints shall use a separate signed workload identity, per-window ru
 
 ## §11. Background jobs, queues, and cron
 
+UUID mutation keys shall be case-insensitive identities with payload binding. Chain transaction hashes and addresses shall use adapter-specific canonicalization, never generic case folding.
+
 Use Postgres job/outbox tables, at-least-once delivery, unique business keys, row claims using `FOR UPDATE SKIP LOCKED`, and fencing lease tokens. Commit outbox insertion with domain writes. A worker that loses its lease shall not commit or broadcast new work. Signer shall also enforce a per-chain/treasury lease and spend caps.
 
 | Job class | Trigger / cadence | Retry and completion contract |

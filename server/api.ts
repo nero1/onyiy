@@ -3,8 +3,6 @@ import { and, asc, desc, eq, gt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   assets,
-  ledgerJournals,
-  ledgerPostings,
   plans,
   planVersions,
   queueEntries,
@@ -26,6 +24,7 @@ import {
   quoteWithdrawal,
   sendGift,
 } from './core';
+import { reconcile } from './reconcile';
 
 const seed = loadManifest();
 
@@ -86,7 +85,7 @@ async function json(request: Request) {
 function idempotencyKey(request: Request) {
   const key = request.headers.get('Idempotency-Key');
   if (!key) throw new Error('INVALID_INPUT');
-  return z.string().uuid().parse(key);
+  return z.string().uuid().parse(key).toLowerCase();
 }
 
 // Route Handlers can retain the public URL after a rewrite. Resolve the public
@@ -219,13 +218,7 @@ export async function handleApiRequest(method: string, path: string[], request: 
 
     if (method === 'GET' && route === '/admin/reconcile') {
       const actor = await admin(request);
-      const imbalanceExpr = sql<string>`sum(case when ${ledgerPostings.direction}='debit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end)`;
-      const bad = await withContext({access:'service',actorId:actor.id,requireAdmin:true},(tx) => tx.select({ id: ledgerJournals.id, business_key: ledgerJournals.businessKey, imbalance: sql<string>`${imbalanceExpr}::text` })
-        .from(ledgerJournals)
-        .innerJoin(ledgerPostings, eq(ledgerPostings.journalId, ledgerJournals.id))
-        .groupBy(ledgerJournals.id, ledgerJournals.businessKey)
-        .having(sql`${imbalanceExpr} <> 0`));
-      return ok({ balanced: bad.length === 0, imbalanced_journals: bad });
+      return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true,snapshot:true},reconcile));
     }
 
     throw new Error('NOT_FOUND');

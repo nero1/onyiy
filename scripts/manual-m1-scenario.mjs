@@ -33,4 +33,5 @@ console.log(`- bootstrap rows: ${bootstrap.length} (expected 10)`);
 console.log(`- fulfilled bootstrap rows: ${bootstrap.filter((entry) => entry.status === 'fulfilled').length} (expected 10 after gift 20)`);
 console.log(`- member_01 credited_count: ${memberOne?.credited_count} (expected 1 after gift 21)`);
 console.log(`- journals balanced: ${reconciliation.balanced}`);
-if (bootstrap.length !== 10 || bootstrap.filter((entry) => entry.status === 'fulfilled').length !== 10 || Number(memberOne?.credited_count) !== 1 || !reconciliation.balanced) process.exitCode = 1;
+console.log(`- allocations/clearing/balances consistent: ${reconciliation.consistent}; exact lineage: ${reconciliation.lineage_complete}`);
+if (bootstrap.length !== 10 || bootstrap.filter((entry) => entry.status === 'fulfilled').length !== 10 || Number(memberOne?.credited_count) !== 1 || !reconciliation.balanced || !reconciliation.consistent || !reconciliation.lineage_complete) process.exitCode = 1;

@@ -364,6 +364,8 @@ Migrations 003–006 add immutable USD snapshots and ledger integrity protection
 
 Migration 009 rebuilds only derived queue counters while holding maintenance locks; it preserves financial records and admission tickets. Schedule it while simulation writes are paused if existing queues are large. Out-of-range tickets, duplicate cycle entries or duplicate priority tickets stop migration for review; never renumber rights to make it pass. Normal rank changes then update bounded counters transactionally.
 
+Migration 010 adds immutable allocation links and withdrawal/operation snapshot guards under maintenance locks. Pause simulation writes during legacy backfill. Only verifiable GIV evidence is linked; unknown slot sequence stays unresolved in reconciliation. Historical UUID keys that collide only by letter case stop migration for review; never erase financial records to bypass uniqueness. Use fresh isolated data for complete-lineage acceptance.
+
 After first hosted M1 acceptance, the optional integrity scenario is documented in HOW-IT-WORKS.md. Both scenarios require isolated simulation data and actual deployment evidence; skipped provider configuration does not count as a deployment.
 
 ## 10. Drizzle ORM requirement
