@@ -1,0 +1,96 @@
+name: ci-vercel
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check:all
+      - run: npm run build
+      - run: npm run check:bundle
+      - run: npm run check:secrets
+
+  deploy:
+    needs: checks
+    # Credential-free iterations run checks only. Enable explicitly once the
+    # hosted projects and protected production/preview environments are ready.
+    if: >-
+      vars.ENABLE_VERCEL_DEPLOYMENTS == 'true' &&
+      github.repository == 'nero1/onyiy' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) &&
+      (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/preview')
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && 'production' || 'preview' }}
+    concurrency:
+      group: vercel-${{ github.ref }}
+      cancel-in-progress: false
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Check deployment bindings
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
+        run: |
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID DATABASE_URL DATABASE_MIGRATION_URL; do
+            if [ -z "${!name}" ]; then echo "::error::Missing deployment binding: $name"; exit 1; fi
+          done
+      - name: Retrieve hosted configuration
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ENV: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && 'production' || 'preview' }}
+        run: npx --no-install vercel pull --yes --environment="$VERCEL_ENV" --token="$VERCEL_TOKEN"
+      - name: Validate hosted settings
+        env:
+          VERCEL_ENV: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && 'production' || 'preview' }}
+        run: node --env-file=".vercel/.env.$VERCEL_ENV.local" --import tsx scripts/validate-deployment.ts --hosted
+      - name: Migrate and seed the selected simulation database
+        env:
+          APP_ENV: simulation
+          DB_PROVIDER: supabase
+          MAINNET_ENABLED: "false"
+          SIGNER_PROVIDER: disabled
+          PAYMENT_PROVIDER: giv_simulation
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
+        run: |
+          npm run db:migrate
+          npm run db:seed
+      - name: Build and deploy prebuilt output
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ENV: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && 'production' || 'preview' }}
+        run: |
+          if [ "$VERCEL_ENV" = production ]; then
+            npx --no-install vercel build --prod --token="$VERCEL_TOKEN"
+            npm run check:secrets
+            npx --no-install vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+          else
+            npx --no-install vercel build --token="$VERCEL_TOKEN"
+            npm run check:secrets
+            npx --no-install vercel deploy --prebuilt --token="$VERCEL_TOKEN"
+          fi

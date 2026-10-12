@@ -80,6 +80,14 @@ function idempotencyKey(request: Request) {
   return key;
 }
 
+// Route Handlers can retain the public URL after a rewrite. Resolve the public
+// path first so a caller's query cannot override the ID in that path.
+function resourceId(request: Request, queryKey: string, publicPath: RegExp) {
+  const url = new URL(request.url);
+  const match = publicPath.exec(url.pathname);
+  return z.string().uuid().parse(match?.[1] ?? url.searchParams.get(queryKey));
+}
+
 export async function handleApiRequest(method: string, path: string[], request: Request) {
   try {
     const route = `/${path.join('/')}`;
@@ -147,22 +155,19 @@ export async function handleApiRequest(method: string, path: string[], request: 
 
     if (method === 'POST' && route === '/me/withdrawals/confirm') {
       const user = await current(request);
-      const withdrawalId = new URL(request.url).searchParams.get('withdrawal_id');
-      if (!withdrawalId) throw new Error('INVALID_INPUT');
+      const withdrawalId = resourceId(request, 'withdrawal_id', /^\/api\/v1\/me\/withdrawals\/([^/]+)\/confirm\/?$/);
       return ok(await withTx((tx) => confirmWithdrawal(tx, user, withdrawalId)));
     }
 
     if (method === 'POST' && route === '/admin/plans/activate') {
       const user = await admin(request);
-      const planId = new URL(request.url).searchParams.get('plan_id');
-      if (!planId) throw new Error('INVALID_INPUT');
+      const planId = resourceId(request, 'plan_id', /^\/api\/v1\/admin\/plans\/([^/]+)\/activate\/?$/);
       return ok(await withTx((tx) => activatePlan(tx, planId, user.id)));
     }
 
     if (method === 'GET' && route === '/admin/queue') {
       await admin(request);
-      const planId = new URL(request.url).searchParams.get('plan_id');
-      if (!planId) throw new Error('INVALID_INPUT');
+      const planId = resourceId(request, 'plan_id', /^\/api\/v1\/admin\/queue\/([^/]+)\/?$/);
       const rows = await db().select({
         ticket: queueEntries.ticket,
         kind: queueEntries.kind,
