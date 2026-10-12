@@ -1,5 +1,6 @@
-import fs from 'node:fs';
-const m=JSON.parse(fs.readFileSync(new URL('../xmanifest.json',import.meta.url),'utf8'));
+import { loadManifest, validateSecurityCeilings } from '@gifters/config';
+const m=loadManifest();
+validateSecurityCeilings(m);
 const split=m.payment_split_bps;
 const total=Object.values(split).reduce((a,b)=>a+b,0);
 if(total!==10000) throw new Error(`payment_split_bps totals ${total}, expected 10000`);

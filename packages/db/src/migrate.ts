@@ -7,7 +7,8 @@ const dir = path.join(process.cwd(), 'packages/db/src/migrations');
 try {
   for (const file of fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()) {
     process.stdout.write(`Applying ${file}... `);
-    await client.unsafe(fs.readFileSync(path.join(dir, file), 'utf8'));
+    const statement = fs.readFileSync(path.join(dir, file), 'utf8');
+    await client.begin(async (transaction) => { await transaction.unsafe(statement); });
     console.log('ok');
   }
 } finally {

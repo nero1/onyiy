@@ -1,7 +1,6 @@
 import postgres, { type Sql } from 'postgres';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { eq } from 'drizzle-orm';
-import { loadManifest, validateRuntimeEnv } from '@gifters/config';
+import { loadManifest, parseManifest, manifestDefinition, validateManifestValue, validateSecurityCeilings, validateRuntimeEnv } from '@gifters/config';
 import { schema, xManifest } from './schema';
 
 export type Database = PostgresJsDatabase<typeof schema>;
@@ -51,22 +50,36 @@ export function migrationClient(): Sql {
 }
 
 export async function getManifestValue<T>(key: string): Promise<T | undefined> {
-  const rows = await db().select({ value: xManifest.value }).from(xManifest).where(eq(xManifest.key, key)).limit(1);
-  return rows[0]?.value as T | undefined;
+  return (await readManifest())[key] as T | undefined;
 }
 
-export async function seedManifest() {
+export async function readManifest(database: DbExecutor = db()) {
+  const rows = await database.select({key:xManifest.key,value:xManifest.value,scope:xManifest.scope}).from(xManifest);
+  const values: Record<string,unknown> = {};
+  for (const row of rows) {
+    const definition = manifestDefinition(row.key);
+    if (!definition) continue; // Legacy/unknown rows are quarantined from outputs.
+    if (row.scope !== definition.scope) throw new Error('CONFIGURATION_INVALID');
+    values[row.key] = row.value;
+  }
+  const manifest = parseManifest(values);
+  validateSecurityCeilings(manifest);
+  return manifest;
+}
+
+export async function seedManifest(database: DbExecutor = db()) {
   const manifest = loadManifest();
   for (const [key, value] of Object.entries(manifest)) {
-    const scope = ['activity_statements','mainnet_enabled','default_locale','supported_locales','eligibility_min_age','cycle_max_concurrent','cycle_rejoin_cooldown_hours','payment_split_bps','simulation_policy','ui_show_queue_total','ui_rotation_policy','notification_page_size','pagination_policy','deployment_profile','product_content'].includes(key) || key.startsWith('feature_') ? 'public' : 'private';
-    await db().insert(xManifest).values({
-      key,
-      value,
-      type: Array.isArray(value) ? 'json' : typeof value,
-      scope,
-      description: `seeded ${key}`,
-    }).onConflictDoNothing({ target: xManifest.key });
+    await seedManifestValue(database,key,value);
   }
+}
+
+export async function seedManifestValue(database: DbExecutor, key: string, value: unknown) {
+  const parsed = validateManifestValue(key,value);
+  await database.insert(xManifest).values({
+    key, value:parsed, type:typeof parsed === 'object' ? 'json' : typeof parsed,
+    scope:manifestDefinition(key)!.scope, description:`seeded ${key}`,
+  }).onConflictDoNothing({ target:xManifest.key });
 }
 
 export * from './schema';

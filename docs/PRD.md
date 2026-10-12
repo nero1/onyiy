@@ -556,7 +556,7 @@ This is the Phase One runtime-configurable inventory. Phase Two additions are de
 | `auth_session_policy` | json / private | `{access_minutes:60,absolute_days:30,idle_days:7,preauth_minutes:5,totp_step_seconds:30,totp_window_steps:1,replay_retention_seconds:90}` | Identity; fresh sensitive DB validation still required |
 | `staff_reauth_minutes` | number / staff | 15 | Identity; positive bound |
 | `pending_consent_retention_days` | number / private | 0 | Identity; zero means retain until explicit deletion, as specified |
-| `job_policy` | json / private | `{max_attempts:5,base_delay_seconds:5,max_delay_seconds:300,jitter_fraction:0.2,lease_seconds:120,chunk_size:100}` | Jobs; payout ambiguity overrides generic resend |
+| `job_policy` | json / private | `{max_attempts:6,base_delay_seconds:5,max_delay_seconds:300,jitter_fraction:0.2,lease_seconds:120,chunk_size:100}` | Jobs; payout ambiguity overrides generic resend |
 | `scheduler_auth_policy` | json / private | `{max_clock_skew_seconds:300,replay_ttl_seconds:600}` | Jobs; HMAC key is environment-secret only; nonce unique during accepted window |
 | `worker_shutdown_seconds` | number / private | 20 | Jobs; leases make unfinished jobs recoverable |
 | `health_timeout_ms` | number / private | 2000 | Monitoring; bounded component calls |
@@ -837,7 +837,7 @@ At `payout_limits.interval_minutes=15`, one signer schedule requests 96 runs/day
 4. Treat payout allocation, broadcast, and settlement as separate facts.
 5. Pass each milestone's observable checklist before starting dependent work.
 6. Keep GIV simulation usable without owner credentials; require correct credentials and network configuration only for the selected live adapter.
-7. Finish each implementation iteration with updated status/handover documents, a pull request, and its merge after required checks pass. Record access or check blockers without claiming a merge occurred.
+7. Continue implementation iterations toward all Phase One gates, then diagnose and fix remaining defects. Choose reasonable recommendations for routine unanswered questions; never invent credentials or acceptance evidence. Finish each iteration with updated status/handover documents, a pull request, and its merge after required checks pass. Record concrete blockers without claiming completion.
 
 ### §31.2 Milestones and gates
 

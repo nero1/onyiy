@@ -1,7 +1,21 @@
-import { sql } from 'drizzle-orm';
-import { db, closeDb } from './index';
+import { ne, sql } from 'drizzle-orm';
+import { assets, db, closeDb, readManifest } from './index';
 
-if ((process.env.APP_ENV ?? 'simulation') !== 'simulation') throw new Error('simulation reset refused outside simulation');
-await db().execute(sql.raw(`TRUNCATE TABLE audit_events, notifications, withdrawals, wallet_links, point_events, operation_keys, ledger_postings, ledger_journals, ledger_accounts, queue_entries, cycles, queue_partitions, plan_versions, plans, assets, referral_codes, users, x_manifest RESTART IDENTITY CASCADE`));
-console.log('Simulation database cleared. Run npm run db:seed.');
-await closeDb();
+if (process.env.APP_ENV !== 'simulation') throw new Error('Reset requires explicit APP_ENV=simulation');
+if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') throw new Error('Production reset is prohibited');
+let databaseName: string;
+try { databaseName = decodeURIComponent(new URL(process.env.DATABASE_URL ?? '').pathname.slice(1)); }
+catch { throw new Error('Invalid reset database configuration'); }
+if (!databaseName || process.env.SIMULATION_RESET_CONFIRM !== `reset:${databaseName}`) throw new Error('Explicit confirmation of the isolated target database is required');
+try {
+  await db().transaction(async (transaction) => {
+    // PostgreSQL-specific maintenance locks serialize inspection and truncation.
+    // No reset endpoint or production reset capability is introduced.
+    await transaction.execute(sql.raw('LOCK TABLE x_manifest, assets IN ACCESS EXCLUSIVE MODE'));
+    const manifest = await readManifest(transaction);
+    if (!manifest.simulation_policy.allow_reset) throw new Error('Simulation reset disabled by database policy');
+    if ((await transaction.select({id:assets.id}).from(assets).where(ne(assets.environment,'simulation')).limit(1)).length) throw new Error('Reset refused: non-simulation assets exist');
+    await transaction.execute(sql.raw(`TRUNCATE TABLE audit_events, notifications, withdrawals, wallet_links, point_events, operation_keys, ledger_postings, ledger_journals, ledger_accounts, queue_entries, cycles, queue_partitions, plan_versions, plans, assets, referral_codes, users, x_manifest RESTART IDENTITY CASCADE`));
+  });
+  console.log('Isolated simulation database cleared. Run npm run db:seed.');
+} finally { await closeDb(); }
