@@ -1,0 +1,255 @@
+import { sql } from 'drizzle-orm';
+import {
+  bigint,
+  boolean,
+  check,
+  index,
+  integer,
+  jsonb,
+  numeric,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uniqueIndex,
+  uuid,
+  type AnyPgColumn,
+} from 'drizzle-orm/pg-core';
+
+const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
+
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  username: text('username').notNull().unique(),
+  email: text('email').unique(),
+  role: text('role').notNull().default('member'),
+  status: text('status').notNull().default('pending_consent'),
+  locale: text('locale').notNull().default('en'),
+  consentVersion: text('consent_version'),
+  consentedAt: timestamp('consented_at', { withTimezone: true }),
+  referrerUserId: uuid('referrer_user_id').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
+  createdAt: createdAt(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  check('users_role_check', sql`${t.role} in ('member','moderator','admin')`),
+  check('users_status_check', sql`${t.status} in ('pending_consent','active','suspended','banned','deactivated','deleted')`),
+]);
+
+export const referralCodes = pgTable('referral_codes', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  code: uuid('code').notNull().defaultRandom().unique(),
+  createdAt: createdAt(),
+});
+
+export const assets = pgTable('assets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  symbol: text('symbol').notNull(),
+  environment: text('environment').notNull(),
+  chainId: text('chain_id').notNull(),
+  decimals: integer('decimals').notNull(),
+  enabled: boolean('enabled').notNull().default(false),
+  createdAt: createdAt(),
+}, (t) => [
+  unique('assets_symbol_environment_chain_id_unique').on(t.symbol, t.environment, t.chainId),
+  check('assets_environment_check', sql`${t.environment} in ('simulation','testnet','mainnet')`),
+]);
+
+export const plans = pgTable('plans', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull().unique(),
+  usdReference: numeric('usd_reference', { precision: 18, scale: 2 }).notNull(),
+  receiptsRequired: integer('receipts_required').notNull().default(2),
+  status: text('status').notNull().default('disabled'),
+  bootstrapEnabled: boolean('bootstrap_enabled').notNull().default(true),
+  bootstrapCount: integer('bootstrap_count').notNull().default(10),
+  createdAt: createdAt(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [check('plans_status_check', sql`${t.status} in ('disabled','scheduled','active','paused','retired')`)]);
+
+export const planVersions = pgTable('plan_versions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  planId: uuid('plan_id').notNull().references(() => plans.id, { onDelete: 'restrict' }),
+  assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'restrict' }),
+  version: integer('version').notNull(),
+  amountBaseUnits: numeric('amount_base_units', { precision: 78, scale: 0 }).notNull(),
+  receiverBps: integer('receiver_bps').notNull(),
+  marketingBps: integer('marketing_bps').notNull(),
+  referralBps: integer('referral_bps').notNull(),
+  developerBps: integer('developer_bps').notNull(),
+  reserveBps: integer('reserve_bps').notNull(),
+  receiptsRequired: integer('receipts_required').notNull(),
+  active: boolean('active').notNull().default(false),
+  createdAt: createdAt(),
+}, (t) => [unique('plan_versions_plan_asset_version_unique').on(t.planId, t.assetId, t.version)]);
+
+export const queuePartitions = pgTable('queue_partitions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  planVersionId: uuid('plan_version_id').notNull().unique().references(() => planVersions.id, { onDelete: 'restrict' }),
+  nextTicket: bigint('next_ticket', { mode: 'number' }).notNull().default(1),
+  revision: bigint('revision', { mode: 'number' }).notNull().default(0),
+  createdAt: createdAt(),
+});
+
+export const cycles = pgTable('cycles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  planVersionId: uuid('plan_version_id').notNull().references(() => planVersions.id, { onDelete: 'restrict' }),
+  status: text('status').notNull().default('active'),
+  creditedCount: integer('credited_count').notNull().default(0),
+  receiptsRequired: integer('receipts_required').notNull(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  createdAt: createdAt(),
+}, (t) => [
+  check('cycles_status_check', sql`${t.status} in ('active','completed','exception')`),
+  uniqueIndex('uniq_active_cycle_per_user_plan').on(t.userId, t.planVersionId).where(sql`${t.status} in ('active','exception')`),
+]);
+
+export const queueEntries = pgTable('queue_entries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  partitionId: uuid('partition_id').notNull().references(() => queuePartitions.id, { onDelete: 'restrict' }),
+  ticket: bigint('ticket', { mode: 'number' }).notNull(),
+  kind: text('kind').notNull(),
+  cycleId: uuid('cycle_id').references(() => cycles.id, { onDelete: 'restrict' }),
+  beneficiaryUserId: uuid('beneficiary_user_id').references(() => users.id, { onDelete: 'restrict' }),
+  platformRole: text('platform_role'),
+  priorityTicket: bigint('priority_ticket', { mode: 'number' }),
+  requiredCount: integer('required_count').notNull(),
+  creditedCount: integer('credited_count').notNull().default(0),
+  status: text('status').notNull().default('waiting'),
+  createdAt: createdAt(),
+}, (t) => [
+  unique('queue_entries_partition_ticket_unique').on(t.partitionId, t.ticket),
+  index('queue_waiting_order_idx').on(t.partitionId, t.priorityTicket, t.ticket).where(sql`${t.status} = 'waiting'`),
+  check('queue_entries_kind_check', sql`${t.kind} in ('member','bootstrap')`),
+  check('queue_entries_status_check', sql`${t.status} in ('waiting','fully_allocated','fulfilled','removed')`),
+]);
+
+export const ledgerAccounts = pgTable('ledger_accounts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'restrict' }),
+  ownerType: text('owner_type').notNull(),
+  ownerId: uuid('owner_id'),
+  purpose: text('purpose').notNull(),
+  normalSide: text('normal_side').notNull(),
+  createdAt: createdAt(),
+}, (t) => [
+  check('ledger_accounts_owner_type_check', sql`${t.ownerType} in ('user','platform','system')`),
+  check('ledger_accounts_normal_side_check', sql`${t.normalSide} in ('debit','credit')`),
+]);
+
+export const ledgerJournals = pgTable('ledger_journals', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ledgerType: text('ledger_type').notNull(),
+  businessKey: text('business_key').notNull().unique(),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: createdAt(),
+});
+
+export const ledgerPostings = pgTable('ledger_postings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  journalId: uuid('journal_id').notNull().references(() => ledgerJournals.id, { onDelete: 'restrict' }),
+  accountId: uuid('account_id').notNull().references(() => ledgerAccounts.id, { onDelete: 'restrict' }),
+  direction: text('direction').notNull(),
+  amountBaseUnits: numeric('amount_base_units', { precision: 78, scale: 0 }).notNull(),
+  createdAt: createdAt(),
+}, (t) => [
+  check('ledger_postings_direction_check', sql`${t.direction} in ('debit','credit')`),
+  check('ledger_postings_amount_positive', sql`${t.amountBaseUnits} > 0`),
+]);
+
+export const operationKeys = pgTable('operation_keys', {
+  businessKey: text('business_key').primaryKey(),
+  requestHash: text('request_hash').notNull(),
+  result: jsonb('result').$type<Record<string, unknown> | null>(),
+  createdAt: createdAt(),
+});
+
+export const pointEvents = pgTable('point_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  sourceKey: text('source_key').notNull(),
+  awardType: text('award_type').notNull(),
+  points: integer('points').notNull(),
+  createdAt: createdAt(),
+}, (t) => [unique('point_events_user_source_award_unique').on(t.userId, t.sourceKey, t.awardType)]);
+
+export const walletLinks = pgTable('wallet_links', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  environment: text('environment').notNull(),
+  chainId: text('chain_id').notNull(),
+  address: text('address').notNull(),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }).notNull().defaultNow(),
+  coolingUntil: timestamp('cooling_until', { withTimezone: true }),
+  createdAt: createdAt(),
+}, (t) => [unique('wallet_links_user_environment_chain_unique').on(t.userId, t.environment, t.chainId)]);
+
+export const withdrawals = pgTable('withdrawals', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'restrict' }),
+  grossBaseUnits: numeric('gross_base_units', { precision: 78, scale: 0 }).notNull(),
+  feeBaseUnits: numeric('fee_base_units', { precision: 78, scale: 0 }).notNull().default('0'),
+  netBaseUnits: numeric('net_base_units', { precision: 78, scale: 0 }).notNull(),
+  destination: text('destination').notNull(),
+  status: text('status').notNull(),
+  quoteExpiresAt: timestamp('quote_expires_at', { withTimezone: true }).notNull(),
+  settledAt: timestamp('settled_at', { withTimezone: true }),
+  requestKey: text('request_key').notNull().unique(),
+  createdAt: createdAt(),
+}, (t) => [check('withdrawals_status_check', sql`${t.status} in ('quoted','held','awaiting_requote','approved','sending','settled','cancelled','exception')`)]);
+
+export const notifications = pgTable('notifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  titleKey: text('title_key').notNull(),
+  body: text('body').notNull(),
+  readAt: timestamp('read_at', { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+export const xManifest = pgTable('x_manifest', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').notNull(),
+  type: text('type').notNull(),
+  scope: text('scope').notNull(),
+  description: text('description').notNull().default(''),
+  version: integer('version').notNull().default(1),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+  deprecatedAt: timestamp('deprecated_at', { withTimezone: true }),
+}, (t) => [check('x_manifest_scope_check', sql`${t.scope} in ('public','private','staff')`)]);
+
+export const auditEvents = pgTable('audit_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  actorUserId: uuid('actor_user_id').references(() => users.id, { onDelete: 'set null' }),
+  action: text('action').notNull(),
+  targetType: text('target_type').notNull(),
+  targetId: text('target_id'),
+  reason: text('reason'),
+  beforeState: jsonb('before_state'),
+  afterState: jsonb('after_state'),
+  createdAt: createdAt(),
+});
+
+export const schema = {
+  users,
+  referralCodes,
+  assets,
+  plans,
+  planVersions,
+  queuePartitions,
+  cycles,
+  queueEntries,
+  ledgerAccounts,
+  ledgerJournals,
+  ledgerPostings,
+  operationKeys,
+  pointEvents,
+  walletLinks,
+  withdrawals,
+  notifications,
+  xManifest,
+  auditEvents,
+};

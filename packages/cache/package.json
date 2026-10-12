@@ -1,0 +1,10 @@
+{
+  "name": "@gifters/cache",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "ioredis": "5.4.1"
+  }
+}

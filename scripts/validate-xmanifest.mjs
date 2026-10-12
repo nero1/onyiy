@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+const m=JSON.parse(fs.readFileSync(new URL('../xmanifest.json',import.meta.url),'utf8'));
+const split=m.payment_split_bps;
+const total=Object.values(split).reduce((a,b)=>a+b,0);
+if(total!==10000) throw new Error(`payment_split_bps totals ${total}, expected 10000`);
+if(m.mainnet_enabled!==false) throw new Error('Phase One handoff must keep mainnet disabled');
+if(m.deployment_profile!=='test_iteration') throw new Error('Phase One handoff must use test_iteration');
+if(!Array.isArray(m.activity_statements)||m.activity_statements.length!==50) throw new Error('Expected 50 ordered activity fixtures');
+if(!m.supported_locales.includes('en')||!m.supported_locales.includes('fr')) throw new Error('English and French must be present');
+console.log('xmanifest.json passed Phase One static validation.');

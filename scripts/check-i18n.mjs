@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+const text = fs.readFileSync(new URL('../lib/i18n.ts', import.meta.url), 'utf8');
+const sections = [...text.matchAll(/\n\s*(en|fr):\s*\{([\s\S]*?)\n\s*\},?/g)];
+if (sections.length < 2) throw new Error('Could not locate both language packs');
+const keys = (source) => [...source.matchAll(/\b([a-zA-Z][a-zA-Z0-9]*):/g)].map((match) => match[1]);
+const en = new Set(keys(sections.find((section) => section[1] === 'en')[2]));
+const fr = new Set(keys(sections.find((section) => section[1] === 'fr')[2]));
+const missingFr = [...en].filter((key) => !fr.has(key));
+const missingEn = [...fr].filter((key) => !en.has(key));
+if (missingFr.length || missingEn.length) throw new Error(`i18n mismatch. Missing fr=${missingFr.join(',')} missing en=${missingEn.join(',')}`);
+console.log(`i18n key parity ok (${en.size} keys).`);

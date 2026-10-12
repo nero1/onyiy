@@ -1,0 +1,47 @@
+{
+  "name": "gifters-world-phase1",
+  "version": "0.3.0",
+  "private": true,
+  "engines": { "node": ">=22 <23" },
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "node scripts/lint.mjs",
+    "check:i18n": "node scripts/check-i18n.mjs",
+    "check:manifest": "node scripts/validate-xmanifest.mjs",
+    "check:secrets": "node scripts/secret-scan.mjs",
+    "check:drizzle": "node scripts/check-drizzle-coverage.mjs",
+    "check:supabase-grants": "node scripts/check-supabase-grants.mjs",
+    "check:docs": "node scripts/check-docs-layout.mjs",
+    "check:all": "npm run typecheck && npm run lint && npm run check:i18n && npm run check:manifest && npm run check:drizzle && npm run check:supabase-grants && npm run check:docs && npm run check:secrets",
+    "db:migrate": "tsx packages/db/src/migrate.ts",
+    "db:seed": "tsx packages/db/src/seed.ts",
+    "db:reset:simulation": "tsx packages/db/src/reset-simulation.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:check": "drizzle-kit check",
+    "scenario:m1": "node scripts/manual-m1-scenario.mjs"
+  },
+  "dependencies": {
+    "@gifters/cache": "0.1.0",
+    "@gifters/config": "0.1.0",
+    "@gifters/db": "0.2.0",
+    "@gifters/domain": "0.1.0",
+    "drizzle-orm": "0.44.5",
+    "next": "^16.4.0",
+    "postgres": "3.4.5",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zod": "3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "drizzle-kit": "0.31.4",
+    "tsx": "4.19.2",
+    "typescript": "^5.8.0"
+  }
+}
