@@ -33,6 +33,7 @@
     "scenario:m1:integrity": "node scripts/manual-m1-integrity.mjs",
     "scenario:m1:jobs": "node scripts/manual-m1-jobs.mjs",
     "scenario:m1:recovery": "node scripts/manual-m1-withdrawal-recovery.mjs",
+    "scenario:m1:incoming": "node scripts/manual-m1-incoming.mjs",
     "db:check:binding": "tsx packages/db/src/verify-binding-cli.ts"
   },
   "dependencies": {

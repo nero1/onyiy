@@ -336,7 +336,33 @@ export const deploymentBindingChallenges=pgTable('deployment_binding_challenges'
   id:uuid('id').primaryKey(),environment:text('environment').notNull(),expiresAt:timestamp('expires_at',{withTimezone:true}).notNull(),createdAt:createdAt(),
 },(t)=>[check('deployment_binding_challenges_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),index('binding_challenge_expiry_idx').on(t.expiresAt,t.id)]).enableRLS();
 
+export const giftInvoices=pgTable('gift_invoices',{
+  id:uuid('id').primaryKey().defaultRandom(),userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'restrict'}),
+  planVersionId:uuid('plan_version_id').notNull().references(()=>planVersions.id,{onDelete:'restrict'}),assetId:uuid('asset_id').notNull().references(()=>assets.id,{onDelete:'restrict'}),
+  environment:text('environment').notNull().default('simulation'),chainId:text('chain_id').notNull().default('giv'),requestKey:uuid('request_key').notNull(),
+  expectedBaseUnits:numeric('expected_base_units',{precision:78,scale:0}).notNull(),actualBaseUnits:numeric('actual_base_units',{precision:78,scale:0}),
+  refundableBaseUnits:numeric('refundable_base_units',{precision:78,scale:0}).notNull().default('0'),status:text('status').notNull().default('quoted'),
+  quoteExpiresAt:timestamp('quote_expires_at',{withTimezone:true}).notNull(),submittedAt:timestamp('submitted_at',{withTimezone:true}),createdAt:createdAt(),
+},t=>[unique('gift_invoice_request_key').on(t.userId,t.requestKey),uniqueIndex('gift_invoice_open_unique').on(t.userId,t.planVersionId).where(sql`${t.status} in ('quoted','submitted')`),index('gift_invoice_history_idx').on(t.userId,t.createdAt,t.id),check('gift_invoice_environment_check',sql`${t.environment}='simulation' and ${t.chainId}='giv'`),check('gift_invoice_amount_check',sql`${t.expectedBaseUnits}>0 and ${t.actualBaseUnits}>=0 and ${t.refundableBaseUnits}>=0`),check('gift_invoice_status_check',sql`${t.status} in ('quoted','submitted','credited','exception','failed','expired')`)]).enableRLS();
+export const simulationIncomingControls=pgTable('simulation_incoming_controls',{
+  id:uuid('id').primaryKey().defaultRandom(),invoiceId:uuid('invoice_id').notNull().unique().references(()=>giftInvoices.id,{onDelete:'restrict'}),
+  environment:text('environment').notNull().default('simulation'),outcome:text('outcome').notNull(),actualBaseUnits:numeric('actual_base_units',{precision:78,scale:0}).notNull(),
+  actorUserId:uuid('actor_user_id').notNull().references(()=>users.id,{onDelete:'restrict'}),operationKey:text('operation_key').notNull().unique().references(()=>operationKeys.businessKey,{onDelete:'restrict'}),reason:text('reason').notNull(),createdAt:createdAt(),
+},t=>[check('incoming_control_environment_check',sql`${t.environment}='simulation'`),check('incoming_control_outcome_check',sql`${t.outcome} in ('reject','under','over','late','delay')`),check('incoming_control_amount_check',sql`${t.actualBaseUnits}>=0`),check('incoming_control_reason_check',sql`length(${t.reason}) between 5 and 500`)]).enableRLS();
+export const simulationIncomingEvents=pgTable('simulation_incoming_events',{
+  id:uuid('id').primaryKey().defaultRandom(),invoiceId:uuid('invoice_id').notNull().unique().references(()=>giftInvoices.id,{onDelete:'restrict'}),
+  environment:text('environment').notNull().default('simulation'),outcome:text('outcome').notNull(),giftOperationKey:text('gift_operation_key').unique().references(()=>operationKeys.businessKey,{onDelete:'restrict'}),
+  holdJournalId:uuid('hold_journal_id').references(()=>ledgerJournals.id,{onDelete:'restrict'}),acceptJournalId:uuid('accept_journal_id').references(()=>ledgerJournals.id,{onDelete:'restrict'}),refundJournalId:uuid('refund_journal_id').references(()=>ledgerJournals.id,{onDelete:'restrict'}),
+  createdAt:createdAt(),
+},t=>[check('incoming_event_environment_check',sql`${t.environment}='simulation'`),check('incoming_event_outcome_check',sql`${t.outcome} in ('exact','reject','under','over','late','review_reject')`)]).enableRLS();
+export const simulationIncomingRefunds=pgTable('simulation_incoming_refunds',{
+  id:uuid('id').primaryKey().defaultRandom(),invoiceId:uuid('invoice_id').notNull().unique().references(()=>giftInvoices.id,{onDelete:'restrict'}),environment:text('environment').notNull().default('simulation'),
+  actorUserId:uuid('actor_user_id').notNull().references(()=>users.id,{onDelete:'restrict'}),operationKey:text('operation_key').notNull().unique().references(()=>operationKeys.businessKey,{onDelete:'restrict'}),
+  journalId:uuid('journal_id').notNull().unique().references(()=>ledgerJournals.id,{onDelete:'restrict'}),amountBaseUnits:numeric('amount_base_units',{precision:78,scale:0}).notNull(),reason:text('reason').notNull(),createdAt:createdAt(),
+},t=>[check('incoming_refund_environment_check',sql`${t.environment}='simulation'`),check('incoming_refund_amount_check',sql`${t.amountBaseUnits}>0`),check('incoming_refund_reason_check',sql`length(${t.reason}) between 5 and 500`)]).enableRLS();
+
 export const schema = {
+  giftInvoices,simulationIncomingControls,simulationIncomingEvents,simulationIncomingRefunds,
   deploymentBindingChallenges,
   financialReconciliationResults,
   simulationWithdrawalControls,

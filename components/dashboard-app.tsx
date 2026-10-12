@@ -16,8 +16,9 @@ import {
 type User = { id: string; username: string; role: string; status: string; locale: string };
 type Plan = { id: string; name: string; slug: string; usd_reference: string; receipts_required: number; status: string; amount_base_units: string; amount_giv: string; expected_giv: string };
 type Notification = {id:string;title_key:string;body:string;created_at:string;read_at:string | null};
-type Dashboard = { user: User; asset: { symbol: string; decimals: number }; balances: { available: string; held: string; withdrawn: string }; points: number; cycles: any[]; notifications: Notification[]; pending_withdrawals?:{id:string;status:string;gross_base_units:string}[]; wallet: any | null };
+type Dashboard = { user: User; asset: { symbol: string; decimals: number }; balances: { available: string; held: string; incoming?:string;refundable?:string; withdrawn: string }; points: number; cycles: any[]; notifications: Notification[]; pending_invoices?:(Omit<GiftQuote,'owner'> & {plan_id:string})[];pending_withdrawals?:{id:string;status:string;gross_base_units:string}[]; wallet: any | null };
 type Notice = { kind: 'error' | 'ok'; text: string } | null;
+type GiftQuote={id:string;expected_base_units:string;expires_at:string;status:string;owner:string};
 type WithdrawalQuote = {id:string;grossBaseUnits:string;feeBaseUnits:string;netBaseUnits:string;destination:string};
 
 function preference(key:string){try{return localStorage.getItem(key)}catch{return null}}
@@ -37,6 +38,7 @@ export default function DashboardApp() {
   const [online, setOnline] = useState(true);
   const [queue, setQueue] = useState<any[] | null>(null);
   const [withdraw, setWithdraw] = useState('10');
+  const [giftQuote,setGiftQuote]=useState<GiftQuote|null>(null);
   const [withdrawalQuote,setWithdrawalQuote] = useState<(WithdrawalQuote & {owner:string}) | null>(null);
   const headerElement = useRef<HTMLElement | null>(null);
   const refreshGeneration = useRef(0);
@@ -71,12 +73,12 @@ export default function DashboardApp() {
     activateUserScope(username);
     currentUser.current = username;
     refreshGeneration.current++;
-    setWithdrawalQuote(null);
+    setWithdrawalQuote(null);setGiftQuote(null);
     remember('sim_user',username);
     const ttl=cacheMs(manifest,'private_snapshot_seconds');
     setDash(ttl?loadUserSnapshot<Dashboard>(username,'dashboard','simulation',ttl):null);
   }, [username]);
-  useEffect(() => { if (!online) setWithdrawalQuote(null); },[online]);
+  useEffect(() => { if (!online){setWithdrawalQuote(null);setGiftQuote(null);} },[online]);
 
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
@@ -121,12 +123,12 @@ export default function DashboardApp() {
       const fresh = await api<Dashboard>('/me/dashboard', username);
       if (generation !== refreshGeneration.current || username !== currentUser.current || fresh.user.username !== username) return;
       setDash(fresh);
-      const safeSnapshot = { ...fresh, wallet: null, notifications: [],pending_withdrawals:[] } as Dashboard;
+      const safeSnapshot = { ...fresh, wallet: null, notifications: [],pending_withdrawals:[],pending_invoices:[] } as Dashboard;
       const ttl=cacheMs(manifest,'private_snapshot_seconds');if(ttl)saveUserSnapshot(username,'dashboard',safeSnapshot,ttl);
       setNotice(null);
     } catch (error) {
       if (generation!==refreshGeneration.current || username!==currentUser.current) return;
-      if (error instanceof ApiError && error.code==='UNAUTHENTICATED') setDash(null);
+      if (error instanceof ApiError && error.code==='UNAUTHENTICATED') {setDash(null);setGiftQuote(null);}
       setNotice({ kind: 'error', text: error instanceof ApiError ? error.code : String(error) });
     }
   }
@@ -152,14 +154,21 @@ export default function DashboardApp() {
     }
     setBusy(true);
     try {
-      await fn();
+      const result=await fn() as {status?:string;expected_base_units?:string}|undefined;
       await Promise.all([refresh(), api<Plan[]>('/plans','').then(value=>{setPlans(value);const ttl=cacheMs(manifest,'catalog_seconds');if(ttl)savePublicSnapshot('plans',value,ttl)})]);
-      setNotice({ kind: 'ok', text: t.done });
+      setNotice({ kind:result?.expected_base_units && ['exception','failed'].includes(result.status??'')?'error':'ok',text:result?.expected_base_units && result.status==='submitted'?t.incomingPending:result?.expected_base_units && result.status==='exception'?t.incomingReview:result?.expected_base_units && result.status==='failed'?t.incomingRejected:t.done });
     } catch (error) {
       setNotice({ kind: 'error', text: error instanceof ApiError ? error.code : String(error) });
     } finally {
       setBusy(false);
     }
+  }
+
+  async function requestGift(planId:string){
+    if(!online || busy)return;const existing=dash?.pending_invoices?.find(item=>item.plan_id===planId && item.status==='quoted' && new Date(item.expires_at).getTime()>Date.now());if(existing){setGiftQuote({...existing,owner:username});return}const owner=username;setBusy(true);setGiftQuote(null);
+    try{const quote=await mutation<Omit<GiftQuote,'owner'>>('/gifts/invoices',owner,{plan_id:planId});if(owner===currentUser.current && navigator.onLine)setGiftQuote({...quote,owner});}
+    catch(error){if(owner===currentUser.current)setNotice({kind:'error',text:error instanceof ApiError?error.code:t.error});}
+    finally{setBusy(false);}
   }
 
   async function inspectReconciliation() {
@@ -214,6 +223,8 @@ export default function DashboardApp() {
 
         <section className="summary-grid">
           <Summary label={t.available} value={`${formatBaseUnits(dash.balances.available)} GIV`} />
+          <Summary label={t.incoming} value={`${formatBaseUnits(dash.balances.incoming??'0')} GIV`} />
+          <Summary label={t.refundable} value={`${formatBaseUnits(dash.balances.refundable??'0')} GIV`} />
           <Summary label={t.held} value={`${formatBaseUnits(dash.balances.held)} GIV`} />
           <Summary label={t.withdrawn} value={`${formatBaseUnits(dash.balances.withdrawn)} GIV`} />
           <Summary label={t.points} value={String(dash.points)} />
@@ -228,7 +239,7 @@ export default function DashboardApp() {
         <section className="plan-list">{plans.map((plan) => (
           <article className="card plan" id={`plan-${plan.id}`} key={plan.id}>
             <div><h3>{plan.name}</h3><p>{plan.amount_giv} GIV · ≈ ${plan.usd_reference}</p><strong>{t.expected}: {plan.expected_giv} GIV</strong><p className="muted">{t.status}: {plan.status}</p></div>
-            <button className="primary" disabled={busy || dash.user.status !== 'active' || plan.status !== 'active' || !online} onClick={() => act(() => mutation('/gifts/simulate', username, { plan_id: plan.id }))}>{t.send}</button>
+            <button className="primary" disabled={busy || dash.user.status !== 'active' || plan.status !== 'active' || !online} onClick={() => requestGift(plan.id)}>{t.send}</button>
           </article>
         ))}</section>
 
@@ -253,6 +264,13 @@ export default function DashboardApp() {
         </section>
 
         {!!dash.pending_withdrawals?.length && <section className="card"><h2>{t.heldWithdrawals}</h2><div className="stack">{dash.pending_withdrawals.map(item=><article key={item.id}><p>{formatBaseUnits(item.gross_base_units)} GIV · {t.held}</p><button disabled={busy || !online} onClick={()=>void act(()=>mutation(`/me/withdrawals/${item.id}/cancel`,username,{}))}>{t.cancelWithdrawal}</button></article>)}</div></section>}
+
+        {giftQuote && giftQuote.owner===username && <section className="card" aria-label={t.reviewGift}>
+          <h2>{t.reviewGift}</h2><p>{t.gross}: {formatBaseUnits(giftQuote.expected_base_units)} GIV</p>
+          <p>{t.expires}: {new Date(giftQuote.expires_at).toLocaleString(locale)}</p>
+          <button disabled={busy || !online || new Date(giftQuote.expires_at).getTime()<=Date.now()} onClick={()=>act(async()=>{const quote=giftQuote;const result=await mutation(`/gifts/invoices/${quote.id}/transaction`,username,{});if(quote.owner===currentUser.current)setGiftQuote(null);return result})}>{t.confirmGift}</button>
+          <button disabled={busy || !online} onClick={()=>act(async()=>{const quote=giftQuote;const result=await mutation(`/gifts/invoices/${quote.id}/cancel`,username,{});if(quote.owner===currentUser.current)setGiftQuote(null);return result})}>{t.cancel}</button>
+        </section>}
 
         <section><h2>{t.notifications}</h2><div className="stack">{dash.notifications.map((item) => <article className="card note" key={item.id}><strong>{item.title_key.replaceAll('_', ' ')}</strong><p>{item.body}</p><small>{new Date(item.created_at).toLocaleString(locale)}</small></article>)}</div></section>
 

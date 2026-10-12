@@ -588,3 +588,13 @@ Migration 013 adds immutable staff-only results. The existing signed tick queues
 Read summary history at `GET /api/v1/admin/reconcile/reports`, then a selected result at `GET /api/v1/admin/reconcile/reports/<id>`. Inspect its snapshot/check timestamps, `balanced`, `consistent` and `lineage_complete` separately. A stored daily report describes its snapshot, not every later transaction. The normal admin reconciliation button runs a fresh bounded check.
 
 Migration 014 and the pre-migration binding command protect against backup-cloned IDs. The guarded simulation reset clears old work and reports. These contracts passed in tooling; hosted provider validation, scheduling, larger-dataset capacity and external alerts remain unverified.
+
+## 17. Exercise incoming GIV exceptions
+
+Migration 015 adds server-only invoices and immutable simulation control/event/refund history. It grants no browser/Data API access and requires no chain secret. Normal GIV UI uses invoice review then separate confirmation. Keep real asset/payment/signing selectors disabled.
+
+On an isolated simulation deployment, create a member invoice through `POST /api/v1/gifts/invoices` with `{ "plan_id": "<plan UUID>" }` and a UUID `Idempotency-Key`. Before submission, staff may call `POST /api/v1/admin/simulation/invoices/<id>/control` with outcome `reject`, `under`, `over`, `late` or `delay`, a named `reason`, and an idempotency key. Optional `actual_base_units` must match the chosen outcome; defaults differ by one base unit for under/over. Controls are immutable and cannot be added after submission/expiry.
+
+The member submits `{}` to `POST /api/v1/gifts/invoices/<id>/transaction`; its invoice ID deduplicates retries. A delayed payment keeps funds held. Staff resolves it through `POST /api/v1/admin/simulation/invoices/<id>/resolve` with `{ "action": "confirm", "reason": "<review reason>" }` or `cancel`, and an idempotency key. Valid pre-expiry submissions can confirm after expiry; failed current eligibility preserves the hold for review. Cancellation creates refundable liability, which a separate reviewed `refund` action returns to the original internal GIV sender. Under/late and surplus refunds use the same action. Neither endpoint accepts arbitrary destinations or performs a blockchain send.
+
+For named acceptance, run `M1_INCOMING_CONFIRM=isolated-simulation APP_BASE_URL=<verified origin> npm run scenario:m1:incoming` after the fresh M1/integrity/jobs/recovery order. It changes isolated Silver data and never resets it. Inspect incoming/refundable balances and staff reconciliation; a balanced ledger alone is insufficient. Hosted, restore and reorg acceptance remain separate.

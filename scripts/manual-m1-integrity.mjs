@@ -37,7 +37,7 @@ assert.equal(confirmations.find((r) => r.status === 409).error.code,'INSUFFICIEN
 const settled = confirmations.find((r) => r.status === 200).data;
 await accepted(`/me/withdrawals/${settled.id}/confirm`,'member_22',{});
 const balances = (await accepted('/me/dashboard','member_22')).balances;
-assert.deepEqual(balances,{available:'100000',held:'0',withdrawn:'400000'});
+assert.deepEqual(balances,{available:'100000',held:'0',incoming:'0',refundable:'0',withdrawn:'400000'});
 
 await accepted('/me/consent','member_23',{accepted:true});
 assert.equal((await request(`/me/withdrawals/${settled.id}/confirm`,'member_23',{})).status,404);

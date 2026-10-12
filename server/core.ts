@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { and, asc, desc, eq, inArray, isNull, isNotNull, gte, lt, sql } from 'drizzle-orm';
 import {
   assets,
+  giftInvoices,
   auditEvents,
   cycles,
   ledgerAccounts,
@@ -34,7 +35,7 @@ type Posting = { accountId: string; direction: 'debit' | 'credit'; amount: bigin
 
 // All debits from a user's available balance take this same lock. NO KEY
 // UPDATE permits unrelated incoming credits/FK checks while serializing spend.
-async function lockUser(database: DbExecutor, id: string) {
+export async function lockUser(database: DbExecutor, id: string) {
   const user = (await database.select().from(users).where(eq(users.id,id)).limit(1).for('no key update'))[0];
   if (!user) throw new Error('UNAUTHENTICATED');
   return user;
@@ -44,7 +45,7 @@ function eligibleWithdrawal(user: UserRow) {
   if (!['active','deactivated'].includes(user.status) || !user.consentedAt) throw new Error('ACCOUNT_RESTRICTED');
 }
 
-async function simulationAsset(database: DbExecutor, manifest: Manifest & Record<string,unknown>) {
+export async function simulationAsset(database: DbExecutor, manifest: Manifest & Record<string,unknown>) {
   const asset = (await database.select().from(assets).where(and(eq(assets.symbol,'GIV'),eq(assets.environment,'simulation'),eq(assets.chainId,'giv'))).limit(1))[0];
   if (!asset?.enabled) throw new Error('PLAN_UNAVAILABLE');
   const config = manifest[`asset_config_${asset.id}`] as {enabled:boolean;environment:string;chain_id:string;decimals:number} | undefined;
@@ -77,7 +78,7 @@ export async function getUser(database: DbExecutor, username: string) {
   return (await database.select().from(users).where(eq(users.username, username)).limit(1))[0];
 }
 
-async function account(database: DbExecutor, assetId: string, ownerType: 'user' | 'platform' | 'system', ownerId: string | null, purpose: string, normalSide: 'debit' | 'credit') {
+export async function account(database: DbExecutor, assetId: string, ownerType: 'user' | 'platform' | 'system', ownerId: string | null, purpose: string, normalSide: 'debit' | 'credit') {
   const ownerFilter = ownerId ? eq(ledgerAccounts.ownerId, ownerId) : isNull(ledgerAccounts.ownerId);
   const existing = await database.select({ id: ledgerAccounts.id, normalSide: ledgerAccounts.normalSide })
     .from(ledgerAccounts)
@@ -98,7 +99,7 @@ async function account(database: DbExecutor, assetId: string, ownerType: 'user' 
   return retry[0];
 }
 
-async function postJournal(database: DbExecutor, type: string, businessKey: string, postings: Posting[], metadata: Record<string, unknown> = {}) {
+export async function postJournal(database: DbExecutor, type: string, businessKey: string, postings: Posting[], metadata: Record<string, unknown> = {}) {
   const debit = postings.filter((p) => p.direction === 'debit').reduce((n, p) => n + p.amount, 0n);
   const credit = postings.filter((p) => p.direction === 'credit').reduce((n, p) => n + p.amount, 0n);
   if (debit !== credit) throw new Error(`unbalanced journal ${businessKey}: ${debit} != ${credit}`);
@@ -250,7 +251,7 @@ export async function activatePlan(database: DbExecutor, planId: string, actorId
   return save();
 }
 
-export async function sendGift(database: DbExecutor, user: UserRow, planId: string, requestKey: string) {
+export async function sendGift(database: DbExecutor, user: UserRow, planId: string, requestKey: string, expectedVersionId?: string) {
   requestKey=requestKey.toLowerCase();
   const manifest = await readManifest(database);
   if (!manifest.feature_gifts) throw new Error('FEATURE_DISABLED');
@@ -259,7 +260,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
   if (user.consentVersion !== manifest.terms_content.version) throw new Error('CONSENT_REQUIRED');
   const asset = await simulationAsset(database,manifest);
   const opKey = `gift:${user.id}:${requestKey}`;
-  const requestHash = crypto.createHash('sha256').update(planId).digest('hex');
+  const requestHash = crypto.createHash('sha256').update(expectedVersionId?JSON.stringify({planId,invoiceVersion:expectedVersionId}):planId).digest('hex');
   const prior = (await database.select().from(operationKeys).where(eq(sql<string>`lower(${operationKeys.businessKey})`,opKey)).limit(1))[0];
   if (prior?.result) {
     if (prior.requestHash !== requestHash) throw new Error('VERSION_CONFLICT');
@@ -293,7 +294,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
     .where(and(eq(plans.id, planId), eq(planVersions.active, true), eq(assets.environment, 'simulation')))
     .limit(1);
   const v = versions[0];
-  if (!v || v.planStatus !== 'active') throw new Error('PLAN_UNAVAILABLE');
+  if (!v || v.planStatus !== 'active' || (expectedVersionId && v.id!==expectedVersionId)) throw new Error('PLAN_UNAVAILABLE');
   if (v.assetId !== asset.id) throw new Error('PLAN_UNAVAILABLE');
 
   const replayAfterLock = (await database.select().from(operationKeys).where(eq(sql<string>`lower(${operationKeys.businessKey})`,opKey)).limit(1))[0];
@@ -645,6 +646,7 @@ export async function dashboard(database: DbExecutor, user: UserRow, manifest: M
     .where(eq(cycles.userId, user.id))
     .orderBy(desc(cycles.createdAt)).limit(30);
 
+  const pendingInvoices=await database.select({id:giftInvoices.id,plan_id:planVersions.planId,expected_base_units:giftInvoices.expectedBaseUnits,expires_at:giftInvoices.quoteExpiresAt,status:giftInvoices.status}).from(giftInvoices).innerJoin(planVersions,eq(planVersions.id,giftInvoices.planVersionId)).where(and(eq(giftInvoices.userId,user.id),inArray(giftInvoices.status,['quoted','submitted']))).orderBy(desc(giftInvoices.createdAt),desc(giftInvoices.id)).limit(manifest.pagination_policy.max_size);
   const pointRows = await database.select({ total: sql<number>`coalesce(sum(${pointEvents.points}),0)::int` }).from(pointEvents).where(eq(pointEvents.userId, user.id));
   // Retain the original camelCase aliases while adding the documented UI DTO.
   const pendingWithdrawals=await database.select({id:withdrawals.id,status:withdrawals.status,gross_base_units:withdrawals.grossBaseUnits}).from(withdrawals).where(and(eq(withdrawals.userId,user.id),eq(withdrawals.assetId,asset.id),eq(withdrawals.status,'held'))).orderBy(desc(withdrawals.createdAt),desc(withdrawals.id)).limit(manifest.pagination_policy.max_size);
@@ -656,10 +658,11 @@ export async function dashboard(database: DbExecutor, user: UserRow, manifest: M
   return {
     user: { id: user.id, username: user.username, role: user.role, status: user.status, locale: user.locale },
     asset: { symbol: 'GIV', decimals: 2 },
-    balances: { available: available.toString(), held: held.toString(), withdrawn: withdrawnRows[0]?.total ?? '0' },
+    balances: { available: available.toString(), held: held.toString(), incoming:balances.find(row=>row.purpose==='incoming_payable')?.balance??'0',refundable:balances.find(row=>row.purpose==='refund_payable')?.balance??'0', withdrawn: withdrawnRows[0]?.total ?? '0' },
     points: pointRows[0]?.total ?? 0,
     cycles: userCycles,
     notifications: notices,
+    pending_invoices:pendingInvoices,
     pending_withdrawals:pendingWithdrawals,
     wallet: wallet ?? null,
   };
