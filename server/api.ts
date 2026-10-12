@@ -17,6 +17,9 @@ import { loadManifest, publicManifest } from '@gifters/config';
 import { formatBaseUnits } from '@gifters/domain';
 import {
   activatePlan,
+  cancelWithdrawal,
+  controlSimulationWithdrawal,
+  resolveSimulationWithdrawal,
   confirmWithdrawal,
   consentUser,
   dashboard,
@@ -115,6 +118,17 @@ export async function handleApiRequest(method: string, path: string[], request: 
       return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>replayDeadJob(tx,actor.id,jobId,idempotencyKey(request))));
     }
 
+    if (method === 'POST' && (route === '/admin/simulation/withdrawals/control' || route === '/admin/simulation/withdrawals/resolve')) {
+      const actor=await admin(request);
+      const withdrawalId=resourceId(request,'withdrawal_id',/^\/api\/v1\/admin\/simulation\/withdrawals\/([^/]+)\/(?:control|resolve)\/?$/);
+      if (route.endsWith('/control')) {
+        const body=z.object({outcome:z.enum(['hold','reject']),reason:z.string().min(5).max(500)}).strict().parse(await json(request));
+        return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>controlSimulationWithdrawal(tx,actor.id,withdrawalId,body.outcome,body.reason,idempotencyKey(request))));
+      }
+      const body=z.object({action:z.enum(['settle','cancel']),reason:z.string().min(5).max(500)}).strict().parse(await json(request));
+      return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>resolveSimulationWithdrawal(tx,actor.id,withdrawalId,body.action,body.reason,idempotencyKey(request))));
+    }
+
     if (method === 'GET' && route === '/admin/jobs') {
       const actor=await admin(request);
       const data=await withContext({access:'service',actorId:actor.id,requireAdmin:true},async tx=>{
@@ -195,6 +209,13 @@ export async function handleApiRequest(method: string, path: string[], request: 
       const user = await current(request);
       const body = z.object({ gross_base_units: z.string().max(78).regex(/^[1-9][0-9]*$/) }).strict().parse(await json(request));
       return ok(await withContext({access:'service',actorId:user.id},(tx) => quoteWithdrawal(tx, user, BigInt(body.gross_base_units), idempotencyKey(request))));
+    }
+
+    if (method === 'POST' && route === '/me/withdrawals/cancel') {
+      const user=await current(request);
+      z.object({}).strict().parse(await json(request));
+      const withdrawalId=resourceId(request,'withdrawal_id',/^\/api\/v1\/me\/withdrawals\/([^/]+)\/cancel\/?$/);
+      return ok(await withContext({access:'service',actorId:user.id},tx=>cancelWithdrawal(tx,user,withdrawalId)));
     }
 
     if (method === 'POST' && route === '/me/withdrawals/confirm') {

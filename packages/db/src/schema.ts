@@ -175,7 +175,7 @@ export const operationKeys = pgTable('operation_keys', {
   requestHash: text('request_hash').notNull(),
   result: jsonb('result').$type<Record<string, unknown> | null>(),
   createdAt: createdAt(),
-},(t)=>[index('operation_key_case_lookup').on(sql`lower(${t.businessKey})`),uniqueIndex('operation_uuid_nonce_unique').on(sql`lower(${t.businessKey})`).where(sql`${t.businessKey} ~ '^(gift|admin-activate):[0-9a-fA-F-]{36}:[0-9a-fA-F-]{36}$`)]).enableRLS();
+},(t)=>[uniqueIndex('operation_staff_uuid_nonce_unique').on(sql`lower(${t.businessKey})`).where(sql`${t.businessKey} ~ '^admin-(job-replay|sim-withdrawal|resolve-withdrawal):[0-9a-fA-F-]{36}:[0-9a-fA-F-]{36}$`),index('operation_key_case_lookup').on(sql`lower(${t.businessKey})`),uniqueIndex('operation_uuid_nonce_unique').on(sql`lower(${t.businessKey})`).where(sql`${t.businessKey} ~ '^(gift|admin-activate):[0-9a-fA-F-]{36}:[0-9a-fA-F-]{36}$`)]).enableRLS();
 
 export const pointEvents = pgTable('point_events', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -208,9 +208,10 @@ export const withdrawals = pgTable('withdrawals', {
   status: text('status').notNull(),
   quoteExpiresAt: timestamp('quote_expires_at', { withTimezone: true }).notNull(),
   settledAt: timestamp('settled_at', { withTimezone: true }),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
   requestKey: text('request_key').notNull().unique(),
   createdAt: createdAt(),
-}, (t) => [uniqueIndex('withdrawal_uuid_quote_unique').on(sql`lower(${t.requestKey})`),check('withdrawals_status_check', sql`${t.status} in ('quoted','held','awaiting_requote','approved','sending','settled','cancelled','exception')`)]).enableRLS();
+}, (t) => [index('withdrawals_user_history_idx').on(t.userId,t.createdAt,t.id),uniqueIndex('withdrawal_uuid_quote_unique').on(sql`lower(${t.requestKey})`),check('withdrawals_status_check', sql`${t.status} in ('quoted','held','awaiting_requote','approved','sending','settled','cancelled','exception')`)]).enableRLS();
 
 export const notifications = pgTable('notifications', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -318,7 +319,14 @@ export const schedulerRuns = pgTable('scheduler_runs', {
   completedAt:timestamp('completed_at',{withTimezone:true}),createdAt:createdAt(),
 },(t)=>[check('scheduler_runs_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),check('scheduler_runs_lease_generation_check',sql`${t.leaseGeneration} between 1 and 1000000`),unique('scheduler_runs_environment_run_key_key').on(t.environment,t.runKey),index('scheduler_runs_lease_idx').on(t.environment,t.leaseUntil,t.id).where(sql`${t.completedAt} is null`)]).enableRLS();
 
+export const simulationWithdrawalControls=pgTable('simulation_withdrawal_controls',{
+  id:uuid('id').primaryKey().defaultRandom(),withdrawalId:uuid('withdrawal_id').notNull().unique().references(()=>withdrawals.id,{onDelete:'restrict'}),
+  environment:text('environment').notNull().default('simulation'),outcome:text('outcome').notNull(),actorUserId:uuid('actor_user_id').notNull().references(()=>users.id,{onDelete:'restrict'}),
+  operationKey:text('operation_key').notNull().unique().references(()=>operationKeys.businessKey,{onDelete:'restrict'}),reason:text('reason').notNull(),createdAt:createdAt(),
+},(t)=>[check('simulation_withdrawal_controls_environment_check',sql`${t.environment}='simulation'`),check('simulation_withdrawal_controls_outcome_check',sql`${t.outcome} in ('hold','reject')`),check('simulation_withdrawal_controls_reason_check',sql`length(${t.reason}) between 5 and 500`)]).enableRLS();
+
 export const schema = {
+  simulationWithdrawalControls,
   outbox,jobs,schedulerNonces,schedulerRuns,
   environmentInstances,
   queueRankNodes,

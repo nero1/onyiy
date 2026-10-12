@@ -15,7 +15,7 @@ import {
 type User = { id: string; username: string; role: string; status: string; locale: string };
 type Plan = { id: string; name: string; slug: string; usd_reference: string; receipts_required: number; status: string; amount_base_units: string; amount_giv: string; expected_giv: string };
 type Notification = {id:string;title_key:string;body:string;created_at:string;read_at:string | null};
-type Dashboard = { user: User; asset: { symbol: string; decimals: number }; balances: { available: string; held: string; withdrawn: string }; points: number; cycles: any[]; notifications: Notification[]; wallet: any | null };
+type Dashboard = { user: User; asset: { symbol: string; decimals: number }; balances: { available: string; held: string; withdrawn: string }; points: number; cycles: any[]; notifications: Notification[]; pending_withdrawals?:{id:string;status:string;gross_base_units:string}[]; wallet: any | null };
 type Notice = { kind: 'error' | 'ok'; text: string } | null;
 type WithdrawalQuote = {id:string;grossBaseUnits:string;feeBaseUnits:string;netBaseUnits:string;destination:string};
 
@@ -103,7 +103,7 @@ export default function DashboardApp() {
       const fresh = await api<Dashboard>('/me/dashboard', username);
       if (generation !== refreshGeneration.current || username !== currentUser.current || fresh.user.username !== username) return;
       setDash(fresh);
-      const safeSnapshot = { ...fresh, wallet: null, notifications: [] } as Dashboard;
+      const safeSnapshot = { ...fresh, wallet: null, notifications: [],pending_withdrawals:[] } as Dashboard;
       saveUserSnapshot(username, 'dashboard', safeSnapshot, 30 * 60_000);
       setNotice(null);
     } catch (error) {
@@ -134,7 +134,7 @@ export default function DashboardApp() {
     try {
       await fn();
       await Promise.all([refresh(), api<Plan[]>('/plans', '').then(setPlans)]);
-      setNotice({ kind: 'ok', text: 'Done' });
+      setNotice({ kind: 'ok', text: t.done });
     } catch (error) {
       setNotice({ kind: 'error', text: error instanceof ApiError ? error.code : String(error) });
     } finally {
@@ -218,6 +218,8 @@ export default function DashboardApp() {
             </div>}
           </> : <button className="primary" disabled={busy || dash.user.status !== 'active' || !online} onClick={() => act(() => mutation('/me/wallets/simulate', username, {}))}>{t.linkWallet}</button>}
         </section>
+
+        {!!dash.pending_withdrawals?.length && <section className="card"><h2>{t.heldWithdrawals}</h2><div className="stack">{dash.pending_withdrawals.map(item=><article key={item.id}><p>{formatBaseUnits(item.gross_base_units)} GIV · {t.held}</p><button disabled={busy || !online} onClick={()=>void act(()=>mutation(`/me/withdrawals/${item.id}/cancel`,username,{}))}>{t.cancelWithdrawal}</button></article>)}</div></section>}
 
         <section><h2>{t.notifications}</h2><div className="stack">{dash.notifications.map((item) => <article className="card note" key={item.id}><strong>{item.title_key.replaceAll('_', ' ')}</strong><p>{item.body}</p><small>{new Date(item.created_at).toLocaleString(locale)}</small></article>)}</div></section>
 
