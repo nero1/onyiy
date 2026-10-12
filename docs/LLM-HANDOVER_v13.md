@@ -1,16 +1,16 @@
 # Continue Gifters World — Phase One
 
-Before code changes read, in order: `docs/PRD.md`, `docs/PROJECT-STATUS_v12.md`, `docs/SETUP.md`, `docs/HOW-IT-WORKS.md`, then this prompt and actual repository/agent instructions. Documentation alone proves no feature.
+Before code changes read, in order: `docs/PRD.md`, `docs/PROJECT-STATUS_v13.md`, `docs/SETUP.md`, `docs/HOW-IT-WORKS.md`, then this prompt and actual repository/agent instructions. Documentation alone proves no feature.
 
 ## Owner instructions
 
 Continue iterating toward Phase One, then fix bugs; choose sensible recommendations without routine questions. Keep communications/docs concise. Hosted Supabase, Upstash and Vercel remain unconfigured by the owner's choice; keep building and credential-free CI running. Never invent credentials, hosted evidence or automatic usage-reset resumption.
 
-**Every completed iteration must create a pull request and merge it after the final head checks pass.** This is authorized. Do not substitute a direct main push. Record blocked access/checks accurately and complete independent work. PRs #1–#10 are merged; finish any outstanding current PR before the next pass.
+**Every completed iteration must create a pull request and merge it after the final head checks pass.** This is authorized. Do not substitute a direct main push. Record blocked access/checks accurately and complete independent work. PRs #1–#11 are merged; finish any outstanding current PR before the next pass.
 
 ## Verified state
 
-Phase One is **33.85% complete / 66.15% remaining**, with no new full milestone gate. Node 22.23.3, lockfile v3, Next.js 16 and Vercel CLI 63.1.2 are pinned. Static/build/bundle/secret checks pass; 53 EN/FR keys, 28/28 current Drizzle tables and 176.52 KiB gzip homepage. This is current-table coverage, not proof every future PRD resource exists.
+Phase One is **33.85% complete / 66.15% remaining**, with no new full milestone gate. Node 22.23.3, lockfile v3, Next.js 16 and Vercel CLI 63.1.2 are pinned. Static/build/bundle/secret checks pass; 53 EN/FR keys, 28/28 current Drizzle tables and 176.99 KiB gzip homepage. This is current-table coverage, not proof every future PRD resource exists.
 
 Configuration is typed/scoped; DB is transaction-time authority, seed preserves edits and public projection is safe. GIV spending uses shared user locks, hash-bound replay, eligibility/flag/asset/cycle/spend checks, immutable USD snapshots and UTC point caps. Append-only/sealed/balanced ledger and owner guards protect history. Quote review requires explicit approval; notification/identity response bugs are fixed. Simulation authentication still trusts x-sim-user and is not production identity.
 
@@ -28,12 +28,14 @@ GIV withdrawal recovery now has immutable staff rejection/delay controls, member
 
 Daily reconciliation now uses signed ticks, one UTC-day key, repeatable-read result/completion, immutable capped reports and eight-second/one-second query budgets. Timeout/retry recovery, coherent concurrent-gift snapshots, negative-discrepancy persistence and staff privacy passed in tooling. EN/FR review UI handles inconsistent/timeout results; mobile notice overlap is fixed. No automatic repair, external alert, large-dataset or hosted scheduler acceptance exists.
 
-M0 is now 90% after fixing the reproduced clone-ID binding and reset-work cleanup defects. Proof bootstrap uses owner-only migration 014 before application DDL; runtime cannot write it. Canonical schema paths defeat temporary shadows. Populated isolated reset clears all work/reports/scheduler/proof resources. Browser v2 caches consume configured TTLs, reject overlong age, isolate old authentication responses and tolerate blocked storage; current 401 clears private state and retains retry/account selection. Contracts and final fresh M1 scenarios passed in tooling. Overall is 33.85%; hosted gates remain unaccepted.
+M0 is now 90% after fixing the reproduced clone-ID binding and reset-work cleanup defects. Proof bootstrap uses owner-only migration 014 before application DDL; runtime cannot write it. Canonical schema paths defeat temporary shadows. Populated isolated reset clears all work/reports/scheduler/proof resources. Browser v3 caches consume configured TTLs, reject overlong age, isolate old authentication responses and tolerate blocked storage; current 401 clears private state and retains retry/account selection. Contracts and final fresh M1 scenarios passed in tooling. Overall is 33.85%; hosted gates remain unaccepted.
+
+Browser v3 compact snapshots enforce manifest entry/byte budgets with expiry/malformed pruning, LRU eviction, oversize rejection and session-generation cleanup. Memory fallback is bounded and synchronous increments preserve fixed expiry. Redis adapters use atomic Lua increment/expiry, repair legacy missing expiry, reject HTTP-200 command errors and unknown/missing selected provider configuration. Named isolated Chromium and disposable Redis/local REST bridge observations passed, including 200 simultaneous increments per adapter and outages. This is not hosted Upstash, durable rate-limit or provider quota acceptance. No financial database was reset or financial scenarios rerun this pass; prior evidence remains intact. Overall weighted completion stays 33.85%, with no new full gate.
 
 ## Exact next pass
 
 1. Finish the current verified PR/merge, then continue unresolved M0/M1 incoming GIV exception/reorg and isolated restore/provider contracts. Preserve permanent evidence/history and never infer live-chain nonbroadcast from GIV controls.
-2. Finish necessary bounded maintenance/retention and cache-budget contracts, retaining pending work and liabilities. Business/digest aggregation, external alerts, full restore and long-worker heartbeat remain incomplete. Use named manual acceptance and reconciliation, not a broad automated suite.
+2. Finish necessary bounded maintenance/retention and larger public/help cache-budget contracts, retaining pending work and liabilities. Business/digest aggregation, external alerts, full restore and long-worker heartbeat remain incomplete. Use named manual acceptance and reconciliation, not a broad automated suite.
 
 3. Complete M2 OAuth or isolated dummy sessions/authorization/CSRF/TOTP/replay/status/rate limits after prerequisite gates, then M3 real testnet integration. Real signer, approval/business orchestration, native gas and external alerts remain unimplemented; never skip their gates.
 4. When owner settings arrive, follow SETUP for separate namespaces/protected preview/production, ENABLE_VERCEL_DEPLOYMENTS=true and hosted migration/deployment/M1 evidence. Forks receive checks only. Provider absence must not be disguised as acceptance.
@@ -50,6 +52,6 @@ All new public tables require migration-local least-privilege grant/revoke class
 
 Run applicable npm ci/check:all/build/bundle/secret/Drizzle/grant/docs checks and manual scenarios; distinguish passed/failed/blocked/unrun. scenario:m1 followed by scenario:m1:integrity, scenario:m1:jobs and scenario:m1:recovery requires fresh isolated simulation data (APP_BASE_URL, M1_INTEGRITY_CONFIRM/M1_JOBS_CONFIRM/M1_RECOVERY_CONFIRM=isolated-simulation and secure scheduler keys for the jobs scenario). Never reset shared/real-money data.
 
-Update HOW for behavior and SETUP for hosted procedures; change the living PRD only for actual requirements. Recompute weighted M0–M8 completion/remaining from verified gates. Replace this prompt, advance the pair to PROJECT-STATUS_v13.md and LLM-HANDOVER_v13.md, remove the superseded pair, update references/markers, run docs checks, then create/merge the PR. Extra Markdown/version mismatches may warn, never fail alone. At verified 100%, issue a completion handover; fix known bugs under the current authorization and await owner instruction for additional scope.
+Update HOW for behavior and SETUP for hosted procedures; change the living PRD only for actual requirements. Recompute weighted M0–M8 completion/remaining from verified gates. Replace this prompt, advance the pair to PROJECT-STATUS_v14.md and LLM-HANDOVER_v14.md, remove the superseded pair, update references/markers, run docs checks, then create/merge the PR. Extra Markdown/version mismatches may warn, never fail alone. At verified 100%, issue a completion handover; fix known bugs under the current authorization and await owner instruction for additional scope.
 
-v12
+v13

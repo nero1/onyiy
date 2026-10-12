@@ -181,7 +181,7 @@ UPSTASH_REDIS_REST_URL=<your Upstash REST URL>
 UPSTASH_REDIS_REST_TOKEN=<your Upstash REST token>
 ```
 
-The cache adapter also supports `ioredis`/compatible Redis providers through `REDIS_URL`, but Upstash is the deployment default.
+The cache adapter also supports `ioredis`/compatible Redis providers through `REDIS_URL`, but Upstash is the deployment default. Selecting that adapter without its configuration fails; unknown cache selectors fail rather than silently substituting memory. Increment/expiry requires Redis Lua (`EVAL`) permission. Run the named cache provider contract in HOW-IT-WORKS against isolated keys before accepting the selected hosted adapter; include an HTTP-success/command-error response and outage. Do not use cache counters as durable rate limits. Browser v3 upgrades discard previous snapshot envelopes and apply public `cache_policy` entry/byte limits; this needs no credential or financial migration.
 
 ## 5. Create the Vercel project
 
