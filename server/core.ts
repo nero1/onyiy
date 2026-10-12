@@ -194,7 +194,7 @@ export async function consentUser(database: DbExecutor, username: string, referr
   return updated[0];
 }
 
-export async function activatePlan(database: DbExecutor, planId: string, actorId: string, requestKey: string) {
+export async function activatePlan(database: DbExecutor, planId: string, actorId: string, requestKey: string,scheduledVersion?:number) {
   requestKey=requestKey.toLowerCase();
   const manifest = await readManifest(database);
   if (!manifest.feature_admin || !manifest.feature_gifts) throw new Error('FEATURE_DISABLED');
@@ -214,6 +214,8 @@ export async function activatePlan(database: DbExecutor, planId: string, actorId
   const plan = (await database.select().from(plans).where(eq(plans.id, planId)).limit(1))[0];
   if (!plan) throw new Error('NOT_FOUND');
 
+  if(plan.status==='retired')throw new Error('PLAN_UNAVAILABLE');
+  if(scheduledVersion!==undefined){const [config]=await database.select().from(xManifest).where(eq(xManifest.key,`plan_config_${plan.id}`)).for('update');const value=config?.value as {launch_at?:string;status?:string}|undefined;const [clock]=await database.execute<{now:Date}>(sql`select clock_timestamp() as now`);if(plan.status!=='scheduled'||config?.version!==scheduledVersion||value?.status!=='scheduled'||!value.launch_at||new Date(value.launch_at)>new Date(clock.now))throw new Error('VERSION_CONFLICT');}
   if (plan.status === 'active') return save();
 
   const versionRows = await database.select({ version: planVersions, symbol: assets.symbol })
@@ -226,7 +228,7 @@ export async function activatePlan(database: DbExecutor, planId: string, actorId
   if (BigInt(v.amountBaseUnits) <= 0n || v.receiptsRequired <= 0 || splitAmount(BigInt(v.amountBaseUnits),{receiver:v.receiverBps,marketing:v.marketingBps,referral:v.referralBps,developer:v.developerBps,reserve:v.reserveBps}).receiver <= 0n) throw new Error('CONFIGURATION_INVALID');
   await database.execute(sql`select id from plan_versions where id=${v.id} for update`);
 
-  await database.update(plans).set({ status: 'active', updatedAt: new Date() }).where(eq(plans.id, planId));
+  await database.update(plans).set({ status: 'active',revision:sql`${plans.revision}+1`, updatedAt: new Date() }).where(eq(plans.id, planId));
   await database.update(planVersions).set({ active: true }).where(eq(planVersions.id, v.id));
   const configKey = `plan_config_${planId}`;
   const planConfig = manifest[configKey];
@@ -278,6 +280,8 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
     return prior.result;
   }
 
+  // Shared lifecycle lock fences new admission against price/pause/retire edits.
+  await database.select({id:plans.id}).from(plans).where(eq(plans.id,planId)).for('share');
   const eligibleReferrer = manifest.feature_referrals && user.referrerUserId
     ? participants.get(user.referrerUserId)
     : undefined;

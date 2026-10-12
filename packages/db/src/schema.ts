@@ -81,6 +81,7 @@ export const plans = pgTable('plans', {
   usdReference: numeric('usd_reference', { precision: 18, scale: 2 }).notNull(),
   receiptsRequired: integer('receipts_required').notNull().default(2),
   status: text('status').notNull().default('disabled'),
+  revision:integer('revision').notNull().default(1),
   bootstrapEnabled: boolean('bootstrap_enabled').notNull().default(true),
   bootstrapCount: integer('bootstrap_count').notNull().default(10),
   createdAt: createdAt(),
@@ -102,7 +103,7 @@ export const planVersions = pgTable('plan_versions', {
   receiptsRequired: integer('receipts_required').notNull(),
   active: boolean('active').notNull().default(false),
   createdAt: createdAt(),
-}, (t) => [unique('plan_versions_plan_asset_version_unique').on(t.planId, t.assetId, t.version)]).enableRLS();
+}, (t) => [unique('plan_versions_plan_asset_version_unique').on(t.planId, t.assetId, t.version),uniqueIndex('plan_asset_active_unique').on(t.planId,t.assetId).where(sql`${t.active}`)]).enableRLS();
 
 export const queuePartitions = pgTable('queue_partitions', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -166,6 +167,7 @@ export const ledgerAccounts = pgTable('ledger_accounts', {
 }, (t) => [
   check('ledger_accounts_owner_type_check', sql`${t.ownerType} in ('user','platform','system')`),
   check('ledger_accounts_normal_side_check', sql`${t.normalSide} in ('debit','credit')`),
+  index('ledger_user_page_idx').on(t.ownerId,t.assetId,t.id).where(sql`${t.ownerType}='user'`),
   uniqueIndex('ledger_accounts_owner_unique').on(t.assetId,t.ownerType,sql`coalesce(${t.ownerId},'00000000-0000-0000-0000-000000000000'::uuid)`,t.purpose),
 ]).enableRLS();
 
@@ -186,6 +188,7 @@ export const ledgerPostings = pgTable('ledger_postings', {
   amountBaseUnits: numeric('amount_base_units', { precision: 78, scale: 0 }).notNull(),
   createdAt: createdAt(),
 }, (t) => [
+  index('ledger_account_page_idx').on(t.accountId,t.id),
   check('ledger_postings_direction_check', sql`${t.direction} in ('debit','credit')`),
   check('ledger_postings_amount_positive', sql`${t.amountBaseUnits} > 0`),
 ]).enableRLS();
@@ -204,7 +207,7 @@ export const pointEvents = pgTable('point_events', {
   awardType: text('award_type').notNull(),
   points: integer('points').notNull(),
   createdAt: createdAt(),
-}, (t) => [index('point_source_idx').on(t.sourceKey,t.userId),unique('point_events_user_source_award_unique').on(t.userId, t.sourceKey, t.awardType)]).enableRLS();
+}, (t) => [index('point_user_page_idx').on(t.userId,t.id),index('point_source_idx').on(t.sourceKey,t.userId),unique('point_events_user_source_award_unique').on(t.userId, t.sourceKey, t.awardType)]).enableRLS();
 
 export const walletLinks = pgTable('wallet_links', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -241,7 +244,7 @@ export const notifications = pgTable('notifications', {
   body: text('body').notNull(),
   readAt: timestamp('read_at', { withTimezone: true }),
   createdAt: createdAt(),
-},(t)=>[uniqueIndex('notifications_delivery_key_unique').on(t.deliveryKey)]).enableRLS();
+},(t)=>[index('notification_user_page_idx').on(t.userId,t.id),uniqueIndex('notifications_delivery_key_unique').on(t.deliveryKey)]).enableRLS();
 
 export const helpArticles=pgTable('help_articles',{id:uuid('id').primaryKey().defaultRandom(),locale:text('locale').notNull(),slug:text('slug').notNull(),title:text('title').notNull(),body:text('body').notNull(),published:boolean('published').notNull().default(false),version:integer('version').notNull().default(1),createdAt:createdAt(),updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),editedBy:uuid('edited_by').references(()=>users.id,{onDelete:'restrict'})},t=>[unique().on(t.locale,t.slug),index('help_public_locale_idx').on(t.locale,t.published,t.slug)]).enableRLS();
 export const slugRedirects=pgTable('slug_redirects',{locale:text('locale').notNull(),oldSlug:text('old_slug').notNull(),articleId:uuid('article_id').notNull().references(()=>helpArticles.id,{onDelete:'restrict'}),createdAt:createdAt()},t=>[primaryKey({columns:[t.locale,t.oldSlug]})]).enableRLS();
@@ -322,14 +325,14 @@ export const outbox = pgTable('outbox', {
   id:uuid('id').primaryKey().defaultRandom(),businessKey:text('business_key').notNull().unique(),
   environment:text('environment').notNull(),kind:text('kind').notNull(),payload:jsonb('payload').notNull(),
   dispatchedAt:timestamp('dispatched_at',{withTimezone:true}),createdAt:createdAt(),
-},(t)=>[check('outbox_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),check('outbox_kind_check',sql`${t.kind} in ('notification','financial_reconciliation','operational_cleanup')`),check('outbox_payload_check',sql`jsonb_typeof(${t.payload})='object' and octet_length(${t.payload}::text)<=8192`),index('outbox_pending_idx').on(t.environment,t.createdAt,t.id).where(sql`${t.dispatchedAt} is null`)]).enableRLS();
+},(t)=>[check('outbox_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),check('outbox_kind_check',sql`${t.kind} in ('notification','financial_reconciliation','operational_cleanup','own_export')`),check('outbox_payload_check',sql`jsonb_typeof(${t.payload})='object' and octet_length(${t.payload}::text)<=8192`),index('outbox_pending_idx').on(t.environment,t.createdAt,t.id).where(sql`${t.dispatchedAt} is null`)]).enableRLS();
 export const jobs = pgTable('jobs', {
   id:uuid('id').primaryKey().defaultRandom(),outboxId:uuid('outbox_id').notNull().unique().references(()=>outbox.id,{onDelete:'restrict'}),
   businessKey:text('business_key').notNull().unique(),environment:text('environment').notNull(),kind:text('kind').notNull(),payload:jsonb('payload').notNull(),
   status:text('status').notNull().default('pending'),attempts:integer('attempts').notNull().default(0),retryLimit:integer('retry_limit').notNull(),
   dueAt:timestamp('due_at',{withTimezone:true}).notNull().defaultNow(),leaseGeneration:integer('lease_generation').notNull().default(0),leaseToken:uuid('lease_token'),leaseUntil:timestamp('lease_until',{withTimezone:true}),
   lastErrorCode:text('last_error_code'),completedAt:timestamp('completed_at',{withTimezone:true}),createdAt:createdAt(),updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
-},(t)=>[check('jobs_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),check('jobs_kind_check',sql`${t.kind} in ('notification','financial_reconciliation','operational_cleanup')`),check('jobs_payload_check',sql`jsonb_typeof(${t.payload})='object' and octet_length(${t.payload}::text)<=8192`),check('jobs_status_check',sql`${t.status} in ('pending','running','done','retry_wait','dead_letter')`),check('jobs_attempts_check',sql`${t.attempts}>=0`),check('jobs_retry_limit_check',sql`${t.retryLimit} between 1 and 1000000`),check('jobs_lease_generation_check',sql`${t.leaseGeneration} between 0 and 1000000`),check('jobs_last_error_code_check',sql`${t.lastErrorCode} in ('TRANSIENT_FAILURE','INVALID_JOB','LEASE_EXPIRED','PERMANENT_FAILURE')`),index('jobs_due_idx').on(t.environment,t.status,t.dueAt,t.id),index('jobs_expired_lease_idx').on(t.environment,t.leaseUntil,t.id).where(sql`${t.status}='running'`),
+},(t)=>[check('jobs_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),check('jobs_kind_check',sql`${t.kind} in ('notification','financial_reconciliation','operational_cleanup','own_export')`),check('jobs_payload_check',sql`jsonb_typeof(${t.payload})='object' and octet_length(${t.payload}::text)<=8192`),check('jobs_status_check',sql`${t.status} in ('pending','running','done','retry_wait','dead_letter')`),check('jobs_attempts_check',sql`${t.attempts}>=0`),check('jobs_retry_limit_check',sql`${t.retryLimit} between 1 and 1000000`),check('jobs_lease_generation_check',sql`${t.leaseGeneration} between 0 and 1000000`),check('jobs_last_error_code_check',sql`${t.lastErrorCode} in ('TRANSIENT_FAILURE','INVALID_JOB','LEASE_EXPIRED','PERMANENT_FAILURE')`),index('jobs_due_idx').on(t.environment,t.status,t.dueAt,t.id),index('jobs_expired_lease_idx').on(t.environment,t.leaseUntil,t.id).where(sql`${t.status}='running'`),
   check('jobs_lease_shape',sql`(${t.status}='running' and ${t.leaseToken} is not null and ${t.leaseUntil} is not null) or (${t.status}<>'running' and ${t.leaseToken} is null and ${t.leaseUntil} is null)`),
   check('jobs_completion_shape',sql`(${t.status} in ('done','dead_letter') and ${t.completedAt} is not null) or (${t.status} not in ('done','dead_letter') and ${t.completedAt} is null)`),
 ]).enableRLS();
@@ -420,7 +423,11 @@ export const cycleFinancialReviews=pgView('gw_cycle_financial_reviews',{
 export const reports=pgTable('reports',{id:uuid('id').primaryKey().defaultRandom(),actorId:uuid('actor_id').notNull().references(()=>users.id,{onDelete:'restrict'}),targetId:uuid('target_id').notNull().references(()=>users.id,{onDelete:'restrict'}),reasonHash:text('reason_hash').notNull(),body:text('body').notNull(),status:text('status').notNull().default('open'),revision:integer('revision').notNull().default(1),caseTokenHash:text('case_token_hash'),caseTokenExpiresAt:timestamp('case_token_expires_at',{withTimezone:true}),createdAt:createdAt(),updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow()},t=>[index('reports_dedupe_idx').on(t.actorId,t.targetId,t.reasonHash,t.createdAt),index('reports_status_idx').on(t.status,t.createdAt,t.id)]).enableRLS();
 export const appeals=pgTable('appeals',{id:uuid('id').primaryKey().defaultRandom(),reportId:uuid('report_id').notNull().references(()=>reports.id,{onDelete:'restrict'}),actorId:uuid('actor_id').notNull().references(()=>users.id,{onDelete:'restrict'}),body:text('body').notNull(),status:text('status').notNull().default('open'),revision:integer('revision').notNull().default(1),createdAt:createdAt(),updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow()},t=>[uniqueIndex('appeal_open_case_unique').on(t.reportId).where(sql`${t.status}='open'`)]).enableRLS();
 
+export const migrationHistory=pgTable('schema_migrations',{name:text('name').primaryKey(),sha256:text('sha256').notNull(),appliedAt:timestamp('applied_at',{withTimezone:true}).notNull().defaultNow()}).enableRLS();
+export const dataExports=pgTable('data_exports',{id:uuid('id').primaryKey().defaultRandom(),userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'restrict'}),status:text('status').notNull().default('building'),section:integer('section').notNull().default(0),page:integer('page').notNull().default(0),afterId:uuid('after_id'),totalBytes:integer('total_bytes').notNull().default(0),createdAt:createdAt(),expiresAt:timestamp('expires_at',{withTimezone:true}).notNull(),completedAt:timestamp('completed_at',{withTimezone:true}),errorCode:text('error_code')},t=>[index('data_export_owned_idx').on(t.userId,t.createdAt,t.id),index('data_export_expiry_idx').on(t.expiresAt,t.id)]).enableRLS();
+export const exportChunks=pgTable('export_chunks',{exportId:uuid('export_id').notNull().references(()=>dataExports.id,{onDelete:'restrict'}),part:integer('part').notNull(),section:text('section').notNull(),cipher:text('cipher').notNull(),sha256:text('sha256').notNull(),rowCount:integer('row_count').notNull(),byteCount:integer('byte_count').notNull(),createdAt:createdAt()},t=>[primaryKey({columns:[t.exportId,t.part]})]).enableRLS();
 export const schema = {
+ migrationHistory,dataExports,exportChunks,
  reports,appeals,
  userIdentities,authSessions,authRefreshTokens,authFactors,authTotpReplays,authRecoveryCodes,authFlows,rateLimits,
   maintenanceResults,

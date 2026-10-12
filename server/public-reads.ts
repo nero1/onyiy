@@ -1,4 +1,4 @@
-import { asc,eq,sql } from 'drizzle-orm';
+import { and,asc,eq,sql } from 'drizzle-orm';
 import { MemoryCache } from '@gifters/cache';
 import { loadManifest,publicManifest,validateRuntimeEnv,type Manifest } from '@gifters/config';
 import { assets,plans,planVersions,helpArticles,slugRedirects,readManifest,withContext } from '@gifters/db';
@@ -37,7 +37,7 @@ async function catalogLoader():Promise<Loaded> {
    receipts_required:planVersions.receiptsRequired,receiver_bps:planVersions.receiverBps,status:plans.status,
    bootstrap_enabled:plans.bootstrapEnabled,bootstrap_count:plans.bootstrapCount,amount_base_units:planVersions.amountBaseUnits,
    plan_version_id:planVersions.id,symbol:assets.symbol}).from(plans).innerJoin(planVersions,eq(planVersions.planId,plans.id))
-   .innerJoin(assets,eq(assets.id,planVersions.assetId)).where(eq(assets.environment,'simulation')).orderBy(asc(plans.usdReference)).limit(1001);
+   .innerJoin(assets,eq(assets.id,planVersions.assetId)).where(and(eq(assets.environment,'simulation'),eq(planVersions.version,sql`(select max(latest.version) from public.plan_versions latest where latest.plan_id=${planVersions.planId} and latest.asset_id=${planVersions.assetId})`))).orderBy(asc(plans.usdReference)).limit(1001);
  });
  // Fail closed rather than silently truncating a future larger catalog.
  if(rows.length>1000)throw new Error('CONFIGURATION_INVALID');
