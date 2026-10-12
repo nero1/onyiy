@@ -60,7 +60,8 @@ export class UpstashRestCache implements CacheProvider {
 /** Structural adapter so an ioredis-compatible client can be injected without coupling domain code to ioredis. */
 export interface IORedisLike {
   get(key: string): Promise<string | null>;
-  set(key: string, value: string, ...args: Array<string | number>): Promise<unknown>;
+  set(key: string, value: string): Promise<unknown>;
+  set(key: string, value: string, expiryMode: 'EX', seconds: number): Promise<unknown>;
   del(key: string): Promise<number>;
   incr(key: string): Promise<number>;
   expire(key: string, seconds: number): Promise<number>;

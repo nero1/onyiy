@@ -48,6 +48,12 @@ Use `main` as the production branch unless you intentionally change the workflow
 
 Do not upload real secrets, `.env` files, database dumps, private keys, wallet seed phrases, RPC credentials, Supabase passwords, Upstash tokens, or Vercel tokens.
 
+### 2.1 Run CI before hosted accounts are configured
+
+The committed `.github/workflows/ci-vercel.yml` runs on pushes, pull requests, and manual **Actions → ci-vercel → Run workflow** requests. The `checks` job installs the committed lockfile with `npm ci`, runs `check:all`, builds Next.js, measures homepage JavaScript, and scans source/client bundles. These checks need no Supabase, Upstash, or Vercel settings.
+
+Deployment is deliberately skipped until the repository Actions variable `ENABLE_VERCEL_DEPLOYMENTS` equals the exact string `true`. Leave it absent or `false` while building without provider settings. A skipped deployment does not mean the CI checks failed. Enable GitHub Actions in repository settings if workflows are disabled.
+
 ## 3. Create the Supabase PostgreSQL database
 
 ### 3.1 Create the project
@@ -260,7 +266,14 @@ In GitHub, open:
 
 **Repository → Settings → Secrets and variables → Actions**
 
-Add repository secrets:
+Create two GitHub environments at **Repository → Settings → Environments**:
+
+- `preview` for trusted same-repository PRs and the `preview` branch,
+- `production` for pushes/manual runs on `main`.
+
+Use required reviewers where your GitHub plan supports them. Review the changed code before approving a preview because that code executes with preview credentials. Fork PRs run checks only; never use `pull_request_target` to build untrusted PR code with secrets. Restrict the production environment to `main`, protect that branch, and require the `checks` job before merging.
+
+In **each environment**, add secrets:
 
 ```text
 VERCEL_TOKEN
@@ -274,14 +287,16 @@ The workflow uses these to run `vercel pull`, `vercel build`, and `vercel deploy
 
 Vercel runtime environment variables do not automatically become GitHub Actions secrets for arbitrary commands such as `npm run db:migrate`.
 
-Create a protected GitHub **production environment** and add:
+In **both** GitHub environments (`production` and `preview`), add:
 
 ```text
 DATABASE_URL=<Supabase Transaction pooler URL>
 DATABASE_MIGRATION_URL=<Supabase Direct or approved Session pooler URL>
 ```
 
-The production database setup/migration job should run with:
+Give `preview` a separate simulation Supabase database; PR migrations and seeds can change its state. Configure the corresponding Vercel **Preview** environment with that same database and Upstash bindings. Multiple PR previews share the selected preview database unless you provision isolated projects; do not reset it while another preview uses it. Keep all preview data separate from future real-money data.
+
+The workflow requires `DATABASE_MIGRATION_URL` explicitly before deployment and migrates/seeds the selected environment before building. The database setup/migration step runs with:
 
 ```text
 APP_ENV=simulation
@@ -335,20 +350,22 @@ Raw SQL should be limited to PostgreSQL-specific operations that are clearer or 
 
 Do not introduce Supabase client-library calls into domain logic merely because Supabase hosts PostgreSQL.
 
-## 11. Deploy the first live Phase One site
+## 11. Enable deployments and deploy from PRs
 
-After all secrets and environment variables are configured:
+Complete these prerequisites first:
 
-1. Push the repository to `main`.
-2. Open the repository's **Actions** tab.
-3. Open the `ci-vercel` workflow run.
-4. Confirm the checks job passes.
-5. Confirm the production job migrates/seeds Supabase successfully.
-6. Confirm `vercel build --prod` succeeds.
-7. Confirm `vercel deploy --prebuilt --prod` succeeds.
-8. Open the production URL shown by Vercel.
+1. Link the repository to a Vercel project using Node 22 and the root application directory; keep Vercel native Git deployment disabled.
+2. Fill the Vercel **Preview** and **Production** environment settings from section 6, including the corresponding Supabase and Upstash values. No signer credentials belong here.
+3. Fill **both** GitHub `preview` and `production` environments with `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `DATABASE_URL`, and `DATABASE_MIGRATION_URL`. Apply the reviewer and branch controls from section 7.
+4. At **Repository → Settings → Secrets and variables → Actions → Variables**, create the **repository variable** `ENABLE_VERCEL_DEPLOYMENTS` with value `true`. This is a non-secret switch, not a credential.
+5. Open or update a same-repository pull request. If the PR was already open before enabling the variable, push a new commit or rerun its workflow after saving the settings.
+6. In **Actions → ci-vercel**, confirm `checks` passes. Approve the protected `preview` environment when prompted. The `deploy` job retrieves Vercel Preview configuration, validates required bindings, migrates/seeds the preview database, runs `vercel build`, and runs `vercel deploy --prebuilt`. The CLI prints the preview deployment URL in the job log; this workflow does not post a PR comment.
+7. Verify the preview using section 12 and the manual M1 procedure in `HOW-IT-WORKS.md` before accepting its behavior. Merge the approved PR into `main`.
+8. The resulting `main` push runs checks again and targets the protected `production` environment. After approval, it migrates/seeds that database, runs `vercel build --prod`, and runs `vercel deploy --prebuilt --prod`. Verify the production URL and record acceptance in the current project status.
 
-The GitHub workflow is the deployment authority. Do not manually deploy a different copy of the source after CI succeeds.
+Fork PRs always run checks without deployment credentials. Other branch pushes run checks only, except the designated `preview` branch. Manual workflow runs use the same branch and enablement rules. Setting the variable back to `false` stops future deployment jobs while preserving CI checks.
+
+Missing/invalid hosted bindings fail the deployment preflight; they are never replaced with invented credentials or a successful mock deployment. Workflow files being present does not prove a hosted run succeeded. GitHub Actions remains the sole deployment authority.
 
 ## 12. Verify the live site
 
@@ -398,20 +415,27 @@ When ready:
 5. Redeploy production.
 6. Update any future Google OAuth callback URLs to the same production origin when M2 authentication is implemented.
 
-## 14. Package-lock note
+## 14. Reproducible dependencies and build checks
 
-This handoff currently uses `npm install --no-audit --no-fund` in CI because the environment that created the repository could not reach npm long enough to generate `package-lock.json`.
+`package-lock.json` is committed. CI and Vercel both use `npm ci --no-audit --no-fund`; `actions/setup-node` caches npm downloads using the lockfile. Use the pinned Node version in `.nvmrc` (Node 22.23.3; Vercel runtime major 22). The Vercel CLI is also pinned in the development dependencies.
 
-The first development environment with normal npm registry access should:
+For a deliberate dependency update, edit the manifest, regenerate the lockfile with Node 22, then run:
 
-1. generate `package-lock.json`,
-2. commit it,
-3. replace CI/Vercel install commands with `npm ci`,
-4. enable normal npm dependency caching in `actions/setup-node`.
+```bash
+npm ci --no-audit --no-fund
+npm run check:all
+npm run build
+npm run check:bundle
+npm run check:secrets
+```
 
-Do not switch the workflow to `npm ci` before the lockfile is committed or CI will fail immediately.
+Commit the manifest and matching lockfile together. `check:deployment` validates runtime, lockfile consistency, Vercel install/deployment settings, and upload-safe application paths without hosted credentials. During deployment, its `--hosted` mode also checks selected simulation providers and credential presence; it does not prove provider connectivity. The current application accepts only simulation, the `test_iteration` profile, and a disabled real signer; testnet/mainnet integration is future work.
 
 ## 15. Troubleshooting
+
+### A PR passes checks but deployment is skipped
+
+Check that the repository variable `ENABLE_VERCEL_DEPLOYMENTS` is exactly `true`, the PR originates in this same repository, and the `preview` environment exists. A run waiting for a required reviewer must be approved before secrets are released. Fork PRs deliberately do not deploy. Ensure Actions is enabled and the PR contains the workflow file.
 
 ### Vercel deploys the same commit twice
 
@@ -471,7 +495,7 @@ Check, in order:
 
 ### CI fails on `npm ci`
 
-A lockfile must exist first. Until `package-lock.json` is committed, use the repository's current `npm install --no-audit --no-fund` command.
+Use Node 22 and verify `package.json` and `package-lock.json` match. Regenerate the lockfile only for an intentional dependency change, then rerun `npm ci`. Do not replace `npm ci` in CI to hide a mismatch.
 
 ## 16. Documentation rule
 

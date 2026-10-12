@@ -1,0 +1,12 @@
+node_modules/
+.next/
+.vercel/
+dist/
+*.tsbuildinfo
+.env*
+!.env.example
+*.pem
+*.key
+*.sql.gz
+backups/
+exports/

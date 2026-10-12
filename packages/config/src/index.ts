@@ -48,15 +48,22 @@ export function loadManifest(root = process.cwd()): Manifest {
 
 export function validateRuntimeEnv(env = process.env) {
   const appEnv = env.APP_ENV ?? "simulation";
+  if (appEnv !== 'simulation') throw new Error('Only the simulation environment is implemented; testnet/mainnet adapters are not available');
+  const simulationSelectors = {
+    AUTH_PROVIDER: 'simulation', PAYMENT_PROVIDER: 'giv_simulation',
+    WALLET_PROVIDER: 'dummy', SIGNER_PROVIDER: 'disabled', CAPTCHA_PROVIDER: 'dummy',
+    REALTIME_PROVIDER: 'none', PRICE_PROVIDER: 'manual_simulation', ALERT_PROVIDER: 'none',
+    DEPLOYMENT_PROFILE: 'test_iteration',
+  };
+  for (const [name, supported] of Object.entries(simulationSelectors)) {
+    if (env[name] !== undefined && env[name] !== supported) throw new Error(`Unsupported ${name} for the current simulation build`);
+  }
   const dbProvider = env.DB_PROVIDER ?? "supabase";
   if (!['supabase','neon','local','postgres'].includes(dbProvider)) {
     throw new Error(`Unsupported DB_PROVIDER: ${dbProvider}`);
   }
   const databaseUrl = env.DATABASE_URL;
   if (!databaseUrl) throw new Error('DATABASE_URL is required');
-  if (appEnv !== "simulation" && env.MAINNET_ENABLED === "false" && env.PAYMENT_PROVIDER === "giv_simulation") {
-    throw new Error("GIV simulation provider is only valid in simulation environment");
-  }
   if (env.MAINNET_ENABLED === "true") throw new Error("Phase One deliberately disables mainnet");
   if ((env.SIGNER_PROVIDER ?? "disabled") !== "disabled" && appEnv === "simulation") {
     throw new Error("simulation must not load a real signer");

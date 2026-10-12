@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["dom", "dom.iterable", "es2022"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "es2022"
+    ],
     "allowJs": false,
     "skipLibCheck": true,
     "strict": true,
@@ -11,16 +15,30 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "incremental": true,
-    "plugins": [{ "name": "next" }],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
-      "@gifters/domain": ["packages/domain/src/index.ts"],
-      "@gifters/config": ["packages/config/src/index.ts"],
-      "@gifters/db": ["packages/db/src/index.ts"],
-      "@gifters/cache": ["packages/cache/src/index.ts"]
+      "@/*": [
+        "./*"
+      ],
+      "@gifters/domain": [
+        "packages/domain/src/index.ts"
+      ],
+      "@gifters/config": [
+        "packages/config/src/index.ts"
+      ],
+      "@gifters/db": [
+        "packages/db/src/index.ts"
+      ],
+      "@gifters/cache": [
+        "packages/cache/src/index.ts"
+      ]
     }
   },
   "include": [
@@ -33,7 +51,10 @@
     "lib/**/*.ts",
     "server/**/*.ts",
     "packages/**/*.ts",
-    "drizzle.config.ts"
+    "drizzle.config.ts",
+    ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules"
+  ]
 }
