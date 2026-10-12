@@ -35,7 +35,10 @@
     "scenario:m1:recovery": "node scripts/manual-m1-withdrawal-recovery.mjs",
     "scenario:m1:reorg": "node scripts/manual-m1-reorg.mjs",
     "scenario:m1:incoming": "node scripts/manual-m1-incoming.mjs",
-    "db:check:binding": "tsx packages/db/src/verify-binding-cli.ts"
+    "db:check:binding": "tsx packages/db/src/verify-binding-cli.ts",
+    "db:backup:simulation": "tsx packages/db/src/recovery-cli.ts backup",
+    "db:restore:simulation": "tsx packages/db/src/recovery-cli.ts restore",
+    "db:verify:restore": "tsx packages/db/src/recovery-cli.ts verify"
   },
   "dependencies": {
     "@gifters/cache": "0.1.0",

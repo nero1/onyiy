@@ -18,9 +18,15 @@ Provider boundaries remain portable: compatible PostgreSQL databases and compati
 
 Supabase is used primarily as PostgreSQL. Runtime Vercel Functions use the Supabase transaction pooler; migrations/admin work use an appropriate migration connection.
 
-Application table access is Drizzle-first, targeting effectively 100% coverage. Raw SQL is reserved for PostgreSQL-specific operations such as DDL, GRANT/RLS, explicit locking, transaction-local security context, bounded PostgreSQL rank counters/functions, and specialized reconciliation/recovery.
+Application table access is Drizzle-first, targeting effectively 100% coverage. Raw SQL is reserved for PostgreSQL-specific operations such as DDL, GRANT/RLS, explicit locking, transaction-local security context, bounded PostgreSQL rank counters/functions, and specialized reconciliation/recovery. Native backup infrastructure additionally uses catalog fingerprints and an exported snapshot; application row inventories use Drizzle keyset pages.
 
 Every migration that creates a new `public` table must include an explicit Supabase GRANT classification. Sensitive financial, identity, ledger, admin, queue, payout, and audit tables must not be broadly exposed to `anon` or `authenticated` merely to satisfy the Data API.
+
+## Isolated simulation recovery
+
+An operator-only CLI streams an application-public-schema native dump into AES-256-GCM, with a separately HMAC-signed counts/hash inventory. Drizzle row hashes and the dump share one read-only repeatable snapshot. All current financial/work/history/counter tables are retained; fresh binding challenges and unrelated provider schemas are excluded. Unknown tables/settings and non-simulation assets fail closed. No plaintext archive or secret is logged; the maintenance key and owner connection stay outside Vercel.
+
+Restore requires explicit simulation/target confirmations, disabled signing, absent scheduler keys, an empty dedicated target and fresh owner/runtime binding. Full authentication/version checks precede bootstrap; a private ciphertext copy prevents input swapping. Only the signed pgcrypto dependency is provisioned separately. Native import preserves the existing public schema and ACLs, runs in one transaction and never cleans, merges or publishes. Exact rows, schema/RLS/grants, extension version and runtime configuration are verified afterward. Failed staging remains quarantined; there is no automatic repair or job resumption. SETUP section 20 describes private files, native tools, role/TLS provisioning and named acceptance. The verified GIV round trip preserves liabilities, pending work and open review; hosted/live-chain recovery and product portability remain incomplete.
 
 ## Manifest authority and safety
 
