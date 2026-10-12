@@ -124,6 +124,16 @@ The signed `/api/v1/internal/tick` endpoint has a separate workload identity. HM
 
 Staff job diagnostics expose capped rows and status counts without payloads or lease tokens. Notifications may appear after a later tick; they do not authorize financial transitions. Scheduler setup lives in SETUP.md; no Redis commands are used for delivery or replay protection.
 
+## Bounded operational retention
+
+The signed tick enqueues one UTC-day `operational_cleanup` root. Each claimed page removes at most `min(job_policy.chunk_size,100)` expired nonces and old completed scheduler runs in its environment, using indexed reads and `SKIP LOCKED`. Nonces retain at least the full ten-minute timestamp/skew window. Runs must have an expired lease, an old creation/completion time and a numeric five-minute window older than `retention_policy.http_replay_days`; unfinished runs are retained. PostgreSQL guards reject early deletion and identity changes, including attempts to reopen completed windows.
+
+Deletion, an immutable `maintenance_results` record and fenced job completion commit together. Remaining eligible rows, including skipped locks, enqueue a permanent next-page key for a later tick. There is no request-time drain loop. Invalid work goes to DLQ; timeouts roll back deletions and use normal retry. `OPERATIONAL_RETENTION_HOLD=true` suppresses both daily and request-time nonce pruning; invalid values fail closed. Staff-only `GET /api/v1/admin/maintenance/reports` returns capped counts/hold/backlog observations without payloads or leases.
+
+This retains all jobs/outbox/delivery keys, reconciliation reports, audit history, notifications and financial records regardless of age. It implements no financial archive, export expiry, notification deletion or terminal-job payload compaction. A report with `more_possible=true` describes a bounded page, not completed cleanup. Held pages resume through a later daily root when the deployment hold is removed.
+
+Named operator procedure: on fresh isolated simulation data, run the existing M1 → integrity → jobs → recovery → incoming → reorg sequence. Then create isolated old/recent/unfinished/other-environment scheduler fixtures. Observe page limits, continuation, concurrent skipped locks, hold, duplicate job identity, timeout rollback/retry, early-delete/identity/immutable-report rejection and member/browser privacy. Compare financial history and pending/DLQ work before/after, then reconcile. Never age or reset shared records to manufacture acceptance.
+
 ## Deployment flow
 
 GitHub Actions is the deployment authority for the Next.js application:

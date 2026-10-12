@@ -1,7 +1,9 @@
 ALTER TABLE public.outbox DROP CONSTRAINT IF EXISTS outbox_kind_check;
-ALTER TABLE public.outbox ADD CONSTRAINT outbox_kind_check CHECK (kind IN ('notification','financial_reconciliation'));
+-- The runner replays files on populated databases. Preserve the later cleanup
+-- kind so replay cannot narrow an already-upgraded durable-work constraint.
+ALTER TABLE public.outbox ADD CONSTRAINT outbox_kind_check CHECK (kind IN ('notification','financial_reconciliation','operational_cleanup'));
 ALTER TABLE public.jobs DROP CONSTRAINT IF EXISTS jobs_kind_check;
-ALTER TABLE public.jobs ADD CONSTRAINT jobs_kind_check CHECK (kind IN ('notification','financial_reconciliation'));
+ALTER TABLE public.jobs ADD CONSTRAINT jobs_kind_check CHECK (kind IN ('notification','financial_reconciliation','operational_cleanup'));
 CREATE TABLE IF NOT EXISTS public.financial_reconciliation_results (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   source_job_id uuid NOT NULL UNIQUE REFERENCES public.jobs(id) ON DELETE RESTRICT,

@@ -1,9 +1,10 @@
 import crypto from 'node:crypto';
 import { and, asc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { auditEvents, financialReconciliationResults, jobs, notifications, operationKeys, outbox, readManifest, schedulerRuns, users, withContext, type DbExecutor } from '@gifters/db';
+import { auditEvents, financialReconciliationResults, maintenanceResults, jobs, notifications, operationKeys, outbox, readManifest, schedulerRuns, users, withContext, type DbExecutor } from '@gifters/db';
 import { validateRuntimeEnv } from '@gifters/config';
 import { reconcile } from './reconcile';
+import { cleanupSchedulerRecords } from './maintenance';
 
 export const notificationPayload = z.object({
   user_id:z.string().uuid(),title_key:z.enum(['gift_sent','gift_received','withdrawal_settled','incoming_exception','financial_review']),body:z.string().min(1).max(2000),
@@ -27,6 +28,7 @@ export async function enqueueDailyReconciliation(database:DbExecutor) {
   await database.insert(outbox).values({businessKey,environment,kind:'financial_reconciliation',payload:{anchor:clock.anchor}}).onConflictDoNothing({target:outbox.businessKey});
 }
 const reconciliationPayload=z.object({anchor:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value=>{const date=new Date(value+'T00:00:00Z');return !Number.isNaN(date.getTime()) && date.toISOString().slice(0,10)===value;})}).strict();
+const maintenancePayload=reconciliationPayload.extend({page:z.number().int().min(0).max(1000000)}).strict();
 
 export type RunFence={id:string;token:string;generation:number};
 async function fence(database:DbExecutor,run?:RunFence) {
@@ -90,6 +92,21 @@ export async function executeJob(id:string,token:string,generation:number,run?:R
       const result=await reconcile(database);
       if (Buffer.byteLength(JSON.stringify(result),'utf8')>131072) throw new Error('INVALID_JOB');
       await database.insert(financialReconciliationResults).values({sourceJobId:row.id,environment:row.environment,runDate:payload.data.anchor,balanced:result.balanced,consistent:result.consistent,lineageComplete:result.lineage_complete,result}).onConflictDoNothing({target:financialReconciliationResults.sourceJobId});
+    } else if (row.kind==='operational_cleanup') {
+      const payload=maintenancePayload.safeParse(row.payload);
+      if (!payload.success) throw new Error('INVALID_JOB');
+      const result=await cleanupSchedulerRecords(database);
+      await database.insert(maintenanceResults).values({sourceJobId:row.id,environment:row.environment,runDate:payload.data.anchor,pageNumber:payload.data.page,leaseGeneration:generation,
+        noncesDeleted:result.nonces_deleted,runsDeleted:result.runs_deleted,batchLimit:result.batch_limit,held:result.held,morePossible:result.more_possible,
+      });
+      // Dispatch happens only at the next tick. A backlog cannot turn this job
+      // into an unbounded loop or discard work after a capped page.
+      if(result.more_possible && !result.held) {
+        if(payload.data.page===1000000) throw new Error('INVALID_JOB');
+        const nextPage=payload.data.page+1;
+        await database.insert(outbox).values({businessKey:`maintenance:${row.environment}:${payload.data.anchor}:${nextPage}`,
+          environment:row.environment,kind:'operational_cleanup',payload:{anchor:payload.data.anchor,page:nextPage}}).onConflictDoNothing({target:outbox.businessKey});
+      }
     } else throw new Error('INVALID_JOB');
     await fence(database,run);
     const done=await database.update(jobs).set({status:'done',leaseToken:null,leaseUntil:null,completedAt:sql`clock_timestamp()`,lastErrorCode:null,updatedAt:sql`clock_timestamp()`})
