@@ -1,3 +1,4 @@
+import {accountAction,accountChange,reportInput,createReport,caseList,caseToken,appealInput,createAppeal,resolveCaseInput,resolveCase,changeOwnStatus,messageInput,sendAdminMessage} from './moderation';
 import {editSetting,editPriority,editHelp,settings,settingInput,priorityInput,helpInput} from './administration';
 import {notificationPage,seeNotifications,readNotification} from './notifications';
 import crypto from 'node:crypto';
@@ -11,6 +12,7 @@ import {
   queueEntries,
   queuePartitions,
   users,
+  userAccountBalances,
   withContext,
   withSessionScope,
   authSessions,
@@ -97,6 +99,8 @@ function fail(error: unknown) {
 
 async function current(request:Request){return (await authenticate(request)).user;}
 async function admin(request:Request){const identity=await authenticate(request);if(identity.user.role!=='admin'||identity.user.status!=='active')throw new Error('FORBIDDEN');await requireStepUp(identity);const policy=await readManifest();if(!policy.feature_admin&&request.method!=='GET')throw new Error('FEATURE_DISABLED');return identity.user;}
+
+async function moderator(request:Request){const identity=await authenticate(request);if(!['admin','moderator'].includes(identity.user.role)||identity.user.status!=='active')throw new Error('FORBIDDEN');await requireStepUp(identity);return identity.user;}
 
 async function json(request: Request) {
   try { return await request.json(); } catch { throw new Error('INVALID_INPUT'); }
@@ -246,6 +250,18 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
       return ok(rows);
     }
 
+    if(method==='POST'&&route==='/admin/messages'){const actor=await admin(request),input=messageInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>sendAdminMessage(tx,actor.id,input,idempotencyKey(request))));}
+    if(method==='GET'&&route==='/me/account'){const actor=await current(request);return ok(await withContext({access:'member',actorId:actor.id},async tx=>{const [user]=await tx.select({id:users.id,username:users.username,status:users.status,role:users.role,revision:users.accountRevision,suspension_until:users.suspensionUntil}).from(users).where(eq(users.id,actor.id)).limit(1);const balances=await tx.select({asset_id:userAccountBalances.assetId,purpose:userAccountBalances.purpose,balance:userAccountBalances.balance}).from(userAccountBalances).where(eq(userAccountBalances.userId,actor.id));return {...user,balances}}));}
+    if(method==='POST'&&route==='/me/account'){const identity=await authenticate(request),input=z.object({action:z.enum(['deactivate','reactivate']),revision:z.number().int().positive()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},tx=>changeOwnStatus(tx,identity,input,idempotencyKey(request))));}
+    if(route==='/me/reports'&&method==='GET'){const actor=await current(request);return ok(await withContext({access:'service',actorId:actor.id},tx=>caseList(tx,actor.id)));}
+    if(route==='/me/reports'&&method==='POST'){const actor=await current(request),input=reportInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id},tx=>createReport(tx,actor.id,input,idempotencyKey(request))));}
+    if(route==='/me/appeals/token'&&method==='POST'){const identity=await authenticate(request),actor=identity.user,input=z.object({report_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id},tx=>caseToken(tx,actor.id,input.report_id,identity.session?.generation??'isolated-tool')));}
+    if(route==='/me/appeals'&&method==='POST'){const identity=await authenticate(request),actor=identity.user,input=appealInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id},tx=>createAppeal(tx,actor.id,input,idempotencyKey(request),identity.session?.generation??'isolated-tool')));}
+    if(route==='/moderation/cases'&&method==='GET'){const actor=await moderator(request);return ok(await withContext({access:'service',actorId:actor.id,requireModerator:true},tx=>caseList(tx,actor.id,true)));}
+    if(route==='/moderation/cases'&&method==='POST'){const actor=await moderator(request),input=resolveCaseInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireModerator:true},tx=>resolveCase(tx,actor.id,input,idempotencyKey(request))));}
+    if(route==='/moderation/users'&&method==='GET'){const actor=await moderator(request);return ok(await withContext({access:'service',actorId:actor.id,requireModerator:true},async tx=>{const policy=await readManifest(tx);if(!policy.feature_moderation)throw new Error('FEATURE_DISABLED');if(actor.role==='moderator'&&!policy.moderator_permissions.review)throw new Error('FORBIDDEN');return tx.select({id:users.id,username:users.username,role:users.role,status:users.status,revision:users.accountRevision,suspension_until:users.suspensionUntil}).from(users).orderBy(asc(users.username),asc(users.id)).limit(Math.min(policy.pagination_policy.max_size,100))}));}
+    if(route==='/moderation/users'&&method==='POST'){const actor=await moderator(request),input=accountAction.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireModerator:true},tx=>accountChange(tx,actor.id,input,idempotencyKey(request))));}
+
     if(method==='POST'&&route==='/me/consent'){
       const identity=await authenticate(request);const user=identity.user;
       const input=z.object({accepted:z.literal(true),referral_code:z.string().uuid().optional(),terms_version:z.string().max(100).optional(),adult:z.literal(true).optional(),minimum_age:z.number().int().positive().optional(),username:z.string().max(64).optional()}).strict().parse(await json(request));
@@ -370,9 +386,11 @@ export async function handleApiRequest(method:string,path:string[],request:Reque
   const identity=await authenticate(request);
   const account=request.headers.get('x-client-account');const generation=request.headers.get('x-client-session');if(!identity.tool&&((account&&account!==identity.user.username)||(generation&&generation!==identity.session!.generation)))throw new Error('VERSION_CONFLICT');
   if(identity.user.status==='pending_consent'&&route!=='/me/consent')throw new Error('CONSENT_REQUIRED');
+  const restricted=['/me/account','/me/reports','/me/appeals','/me/appeals/token'].includes(route);
+  if(identity.user.status==='suspended'&&(!restricted||(method!=='GET'&&route==='/me/account')))throw new Error('ACCOUNT_RESTRICTED');
   if(method!=='GET')csrf(request,identity);
-  if(!identity.tool){const family=route.startsWith('/admin/')?'staff':route==='/me/consent'?'consent':route.startsWith('/gifts/')?(route.endsWith('/transaction')?'payment_proof':'invoice'):route.includes('/notifications')?'notifications':route.includes('/wallets')?'wallet':route.includes('/withdrawals')?'withdrawal':method==='GET'?'reads':'mutation';await enforceRate(request,family,identity.user.id);}
-  if(identity.tool||route==='/me/consent')return await dispatchApiRequest(method,path,request);
-  return await withSessionScope({userId:identity.user.id,sessionId:identity.session!.id,accessHash:identity.accessHash!,version:identity.user.sessionVersion,requiresAdult:route.startsWith('/gifts/'),requiresWithdrawalProof:route==='/me/withdrawals/confirm'},()=>dispatchApiRequest(method,path,request));
+  if(!identity.tool){const family=(route.startsWith('/admin/')||route.startsWith('/moderation/'))?'staff':route.includes('/reports')||route.includes('/appeals')?'reports':route==='/me/consent'?'consent':route.startsWith('/gifts/')?(route.endsWith('/transaction')?'payment_proof':'invoice'):route.includes('/notifications')?'notifications':route.includes('/wallets')?'wallet':route.includes('/withdrawals')?'withdrawal':method==='GET'?'reads':'mutation';await enforceRate(request,family,identity.user.id);}
+  if(identity.tool||route==='/me/consent'||(route==='/me/account'&&method==='POST'))return await dispatchApiRequest(method,path,request);
+  return await withSessionScope({userId:identity.user.id,sessionId:identity.session!.id,accessHash:identity.accessHash!,version:identity.user.sessionVersion,allowSuspended:restricted,requiresAdult:route.startsWith('/gifts/'),requiresWithdrawalProof:route==='/me/withdrawals/confirm'},()=>dispatchApiRequest(method,path,request));
  }catch(error){return fail(error);}
 }

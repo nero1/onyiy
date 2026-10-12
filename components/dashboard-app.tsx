@@ -250,11 +250,12 @@ export default function DashboardApp() {
     });
   }
 
-  const publicNavigation=<nav className="product-nav" aria-label={t.navigation}><a href="/">{t.home}</a>{manifest?.feature_gifts&&<a href="/#gift-tiles">{t.gifts}</a>}{manifest?.feature_wallets&&authUser&&<a href="/#wallet">{t.wallet}</a>}{manifest?.feature_points&&authUser&&<a href="/#points">{t.points}</a>}{manifest?.feature_help&&<a href="/help">{t.help}</a>}{manifest&&<PwaControls enabled={!!manifest.feature_pwa} locale={locale} busy={busy}/>}</nav>;
+  const publicNavigation=<nav className="product-nav" aria-label={t.navigation}><a href="/">{t.home}</a>{manifest?.feature_gifts&&<a href="/#gift-tiles">{t.gifts}</a>}{manifest?.feature_wallets&&authUser&&<a href="/#wallet">{t.wallet}</a>}{manifest?.feature_points&&authUser&&<a href="/#points">{t.points}</a>}{authUser&&<a href="/settings/account">{locale==='fr'?'Compte':'Account'}</a>}{manifest?.feature_moderation&&['admin','moderator'].includes(authUser?.role??'')&&<a href="/moderation">{locale==='fr'?'Modération':'Moderation'}</a>}{manifest?.feature_help&&<a href="/help">{t.help}</a>}{manifest&&<PwaControls enabled={!!manifest.feature_pwa} locale={locale} busy={busy}/>}</nav>;
 
   if(!authReady)return <main className="center"><p role="status">{t.loading}</p></main>;
-  if(!authUser||requiresMfa||authUser.status==='pending_consent')return <main className="auth-page">{publicNavigation}<h1>{t.brand}</h1><button aria-label={t.language} onClick={()=>setLocale(locale==='en'?'fr':'en')}>{locale.toUpperCase()}</button><AuthPanel locale={locale} user={authUser} requiresMfa={requiresMfa} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/>{manifest?.feature_gifts&&<section className="plan-list" aria-label={t.gifts}>{plans.map(plan=><article className="card plan" key={plan.id}><div><h3>{plan.name}</h3><p>{plan.amount_giv} GIV · ≈ ${plan.usd_reference}</p><strong>{t.expected}: {plan.expected_giv} GIV</strong><p className="muted">{t.status}: {plan.status}</p></div></article>)}</section>}</main>;
-  if(!dash||!manifest||dash.user.username!==username)return <main className="center"><div><p role="status">{notice?.text??t.loading}</p><button disabled={!online||busy} onClick={()=>void refresh()}>{t.retry}</button><AuthPanel securityReady={false} locale={locale} user={authUser} requiresMfa={false} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/></div></main>;
+  if(!authUser||requiresMfa||authUser.status==='pending_consent')return <main className="auth-page">{publicNavigation}<h1>{t.brand}</h1><button aria-label={t.language} onClick={()=>setLocale(locale==='en'?'fr':'en')}>{locale.toUpperCase()}</button><AuthPanel scope={sessionGeneration} locale={locale} user={authUser} requiresMfa={requiresMfa} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/>{manifest?.feature_gifts&&<section className="plan-list" aria-label={t.gifts}>{plans.map(plan=><article className="card plan" key={plan.id}><div><h3>{plan.name}</h3><p>{plan.amount_giv} GIV · ≈ ${plan.usd_reference}</p><strong>{t.expected}: {plan.expected_giv} GIV</strong><p className="muted">{t.status}: {plan.status}</p></div></article>)}</section>}</main>;
+  if(authUser.status==='suspended')return <main className="auth-page">{publicNavigation}<a href="/settings/account">{locale==='fr'?'Compte et recours':'Account and appeals'}</a><AuthPanel scope={sessionGeneration} locale={locale} user={authUser} requiresMfa={false} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/></main>;
+  if(!dash||!manifest||dash.user.username!==username)return <main className="center"><div><p role="status">{notice?.text??t.loading}</p><button disabled={!online||busy} onClick={()=>void refresh()}>{t.retry}</button><AuthPanel scope={sessionGeneration} securityReady={false} locale={locale} user={authUser} requiresMfa={false} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/></div></main>;
 
   return (
     <div className="app">
@@ -278,7 +279,7 @@ export default function DashboardApp() {
       {notice && <div role={notice.kind==='error'?'alert':'status'} className={`notice ${notice.kind}`}>{notice.text}</div>}
 
       <main>
-        <AuthPanel locale={locale} user={authUser} requiresMfa={false} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/>
+        <AuthPanel scope={sessionGeneration} locale={locale} user={authUser} requiresMfa={false} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/>
 
         <section className="summary-grid">
           <Summary label={t.available} value={`${formatBaseUnits(dash.balances.available)} GIV`} />

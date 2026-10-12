@@ -27,6 +27,9 @@ export const users = pgTable('users', {
   email: text('email').unique(),
   role: text('role').notNull().default('member'),
   status: text('status').notNull().default('pending_consent'),
+  accountRevision:integer('account_revision').notNull().default(1),
+  suspensionPreviousStatus:text('suspension_previous_status'),
+  suspensionUntil:timestamp('suspension_until',{withTimezone:true}),
   sessionVersion: integer('session_version').notNull().default(1),
   ageConfirmedAt: timestamp('age_confirmed_at',{withTimezone:true}),
   ageMinimumAccepted: integer('age_minimum_accepted'),
@@ -414,7 +417,11 @@ export const cycleFinancialReviews=pgView('gw_cycle_financial_reviews',{
  cycleId:uuid('cycle_id').notNull(),underReview:boolean('under_review').notNull(),invalidCreditCount:integer('invalid_credit_count').notNull(),queuePaused:boolean('queue_paused').notNull(),
 }).existing();
 
+export const reports=pgTable('reports',{id:uuid('id').primaryKey().defaultRandom(),actorId:uuid('actor_id').notNull().references(()=>users.id,{onDelete:'restrict'}),targetId:uuid('target_id').notNull().references(()=>users.id,{onDelete:'restrict'}),reasonHash:text('reason_hash').notNull(),body:text('body').notNull(),status:text('status').notNull().default('open'),revision:integer('revision').notNull().default(1),caseTokenHash:text('case_token_hash'),caseTokenExpiresAt:timestamp('case_token_expires_at',{withTimezone:true}),createdAt:createdAt(),updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow()},t=>[index('reports_dedupe_idx').on(t.actorId,t.targetId,t.reasonHash,t.createdAt),index('reports_status_idx').on(t.status,t.createdAt,t.id)]).enableRLS();
+export const appeals=pgTable('appeals',{id:uuid('id').primaryKey().defaultRandom(),reportId:uuid('report_id').notNull().references(()=>reports.id,{onDelete:'restrict'}),actorId:uuid('actor_id').notNull().references(()=>users.id,{onDelete:'restrict'}),body:text('body').notNull(),status:text('status').notNull().default('open'),revision:integer('revision').notNull().default(1),createdAt:createdAt(),updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow()},t=>[uniqueIndex('appeal_open_case_unique').on(t.reportId).where(sql`${t.status}='open'`)]).enableRLS();
+
 export const schema = {
+ reports,appeals,
  userIdentities,authSessions,authRefreshTokens,authFactors,authTotpReplays,authRecoveryCodes,authFlows,rateLimits,
   maintenanceResults,
   simulationReorgReviews,simulationReorgResolutions,userFinancialReviews,cycleFinancialReviews,

@@ -1,3 +1,4 @@
+import {expireSuspensions} from './account-expiry';
 import crypto from 'node:crypto';
 import { and, asc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -70,7 +71,7 @@ export async function schedulerTick(request:Request) {
     return reclaimed[0]?{id:prior.id,token,generation:reclaimed[0].generation}:null;
   });
   if (!run) return {status:'already_claimed'};
-  await withContext({access:'service'},async tx=>{await enqueueDailyReconciliation(tx);await enqueueDailyMaintenance(tx);});
+  await withContext({access:'service'},async tx=>{await expireSuspensions(tx);await enqueueDailyReconciliation(tx);await enqueueDailyMaintenance(tx);});
   const result=await runNonSigningJobs(run,request.signal);
   await completeRun(run);
   return {status:'done',...result};
