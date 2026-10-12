@@ -30,7 +30,8 @@
     "scenario:m1": "node scripts/manual-m1-scenario.mjs",
     "check:deployment": "tsx scripts/validate-deployment.ts",
     "check:bundle": "node scripts/report-bundle.mjs",
-    "scenario:m1:integrity": "node scripts/manual-m1-integrity.mjs"
+    "scenario:m1:integrity": "node scripts/manual-m1-integrity.mjs",
+    "scenario:m1:jobs": "node scripts/manual-m1-jobs.mjs"
   },
   "dependencies": {
     "@gifters/cache": "0.1.0",

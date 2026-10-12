@@ -90,6 +90,14 @@ Migration 010 links only verifiable legacy GIV evidence. Unknown historical slot
 
 The UI requests a quote, shows gross/fee/net/destination, then requires a separate confirmation. Quote state stays in memory and is discarded on edits, offline state or account changes. Stale responses cannot replace the current identity's dashboard. Notification DTOs expose snake-case UI fields while retaining legacy aliases.
 
+## Durable notification work
+
+Gift and GIV withdrawal transactions insert bounded notification payloads into an immutable outbox. Dispatch creates one job per permanent business key; pending work remains in PostgreSQL. Claims use `FOR UPDATE SKIP LOCKED`, database time, a random lease token and monotonic generation. Effect insertion and completion commit together, with a unique notification delivery key and fresh lease checks. Stale workers cannot commit; expired claims resume under a newer generation. Transient database failures use configured exponential backoff/jitter; permanent/schema failures enter the dead-letter queue. Explicit staff replay preserves job identity and cumulative attempts, adds an audited retry budget and is idempotent; malformed payloads cannot be replayed unchanged.
+
+The signed `/api/v1/internal/tick` endpoint has a separate workload identity. HMAC covers method, path, environment, key ID, timestamp, UUID nonce and body hash. Accepted nonces and five-minute run windows are durable PostgreSQL records; stale/replayed/changed requests are rejected. Current/previous keys support rotation. One tick processes at most 100 jobs within a 15-second claim budget, with bounded statement timeouts; no work continues after its response. These short notification jobs do not require a long-worker heartbeat. A cancelled request stops new claims; unfinished claims recover by lease. This implements no signer, payment confirmation, daily reconciliation/settlement, backup or long-running worker.
+
+Staff job diagnostics expose capped rows and status counts without payloads or lease tokens. Notifications may appear after a later tick; they do not authorize financial transitions. Scheduler setup lives in SETUP.md; no Redis commands are used for delivery or replay protection.
+
 ## Deployment flow
 
 GitHub Actions is the deployment authority for the Next.js application:
@@ -119,3 +127,5 @@ Provider contract acceptance additionally requires documented observations of Up
 Implementation state and completion percentages live in the current `docs/PROJECT-STATUS_vN.md`. The self-contained prompt for the next implementation LLM lives in the current `docs/LLM-HANDOVER_vN.md`. The `_vN` filename suffix is the visible iteration version. The baseline pair is `_v0`; each completed iteration normally renames/replaces the pair with `_v1`, `_v2`, and so on.
 
 For additional manual M1 acceptance, immediately after the 21-gift scenario on fresh isolated simulation data, run `APP_BASE_URL=<verified origin> M1_INTEGRITY_CONFIRM=isolated-simulation npm run scenario:m1:integrity`. It exercises grant/wallet replay, changed quote inputs, simultaneous spending and admission, ownership, no-wallet completion, exact small amounts and reconciliation. It changes data, does not reset it, and is never part of CI.
+
+After fresh 21-gift/integrity acceptance, an operator may run `M1_JOBS_CONFIRM=isolated-simulation APP_BASE_URL=<verified origin> npm run scenario:m1:jobs` with both scheduler keys securely bound. It delivers pending notifications and checks signed/rotated-key requests, replay/skew/body/environment rejection, duplicate-run fencing and reconciliation. It is not CI and does not reset data.

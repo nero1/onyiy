@@ -36,6 +36,12 @@ if (process.argv.includes('--hosted')) {
     try { cache = new URL(env.UPSTASH_REDIS_REST_URL!); } catch { throw new Error('Invalid Upstash REST URL'); }
     if (cache.protocol !== 'https:' || cache.username || cache.password) throw new Error('Upstash requires an HTTPS REST URL without embedded credentials');
   }
+  for (const name of ['SCHEDULER_HMAC_KEY','SCHEDULER_HMAC_PREVIOUS_KEY']) {
+    const key=env[name];
+    if (!key) continue; // Scheduler remains disabled until securely provisioned.
+    if (!/^[A-Za-z0-9_-]{43,128}$/.test(key) || Buffer.from(key,'base64url').length<32 || Buffer.from(key,'base64url').toString('base64url')!==key) throw new Error('Invalid scheduler key binding');
+  }
+  if (env.SCHEDULER_HMAC_PREVIOUS_KEY && !env.SCHEDULER_HMAC_KEY) throw new Error('Scheduler rotation requires a current key');
   console.log('Hosted configuration preflight passed; provider connectivity still requires live verification.');
 } else {
   console.log('Runtime, lockfile, Vercel configuration and upload-safe app paths passed; no hosted credentials required.');

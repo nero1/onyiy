@@ -26,6 +26,7 @@ import {
 } from '@gifters/db';
 import { splitAmount, giftPointAward, formatBaseUnits, usdToGivBaseUnits, QUEUE_TICKET_CEILING } from '@gifters/domain';
 import type { Manifest } from '@gifters/config';
+import { enqueueNotification } from './jobs';
 
 type UserRow = typeof users.$inferSelect;
 type Posting = { accountId: string; direction: 'debit' | 'credit'; amount: bigint };
@@ -402,9 +403,9 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
     await database.update(queueEntries).set({ creditedCount: newCount, status: fulfilled ? 'fulfilled' : 'waiting' }).where(eq(queueEntries.id, recipient.id));
     if (recipient.kind === 'member' && recipient.cycleId && recipient.beneficiaryUserId) {
       await database.update(cycles).set({ creditedCount: newCount, status: fulfilled ? 'completed' : 'active', completedAt: fulfilled ? new Date() : null }).where(eq(cycles.id, recipient.cycleId));
-      await database.insert(notifications).values({
-        userId: recipient.beneficiaryUserId,
-        titleKey: 'gift_received',
+      await enqueueNotification(database, `notice:${opKey}:received`, {
+        user_id: recipient.beneficiaryUserId,
+        title_key: 'gift_received',
         body: `You received ${formatBaseUnits(split.receiver)} GIV from a subsequent gift.${fulfilled ? ' Your cycle is complete.' : ''}`,
       });
     }
@@ -432,7 +433,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
     {userId:user.id,sourceKey:`gift:${cycle.id}`,awardType:'gift_sender',points:award.sender},
     ...(eligibleReferrer?.status === 'active' ? [{userId:eligibleReferrer.id,sourceKey:`gift:${cycle.id}`,awardType:'gift_referrer',points:award.referrer}] : []),
   ]);
-  await database.insert(notifications).values({ userId: user.id, titleKey: 'gift_sent', body: `${v.name} gift confirmed. You joined the receiver queue.` });
+  await enqueueNotification(database, `notice:${opKey}:sent`, { user_id: user.id, title_key: 'gift_sent', body: `${v.name} gift confirmed. You joined the receiver queue.` });
 
   const result = {
     cycle_id: cycle.id,
@@ -530,9 +531,9 @@ export async function confirmWithdrawal(database: DbExecutor, user: UserRow, wit
     { accountId: sink.id, direction: 'credit', amount: gross },
   ], { withdrawal_id: w.id, simulation: true });
   const settled = await database.update(withdrawals).set({ status: 'settled', settledAt: sql`current_timestamp` }).where(eq(withdrawals.id, w.id)).returning();
-  await database.insert(notifications).values({
-    userId: user.id,
-    titleKey: 'withdrawal_settled',
+  await enqueueNotification(database, `notice:withdrawal:${w.id}:settled`, {
+    user_id: user.id,
+    title_key: 'withdrawal_settled',
     body: `Simulation withdrawal settled for ${formatBaseUnits(gross)} GIV. No on-chain export occurred.`,
   });
   return settled[0];
