@@ -11,6 +11,7 @@ export async function scopedTransaction<T>(database: Database, context: Database
   if (context.reportSnapshot && context.access!=='service') throw new Error('FORBIDDEN');
   const config = validateRuntimeEnv();
   return database.transaction(async (tx) => {
+    await tx.execute(sql.raw('SET LOCAL search_path=pg_catalog,public,pg_temp'));
     // PostgreSQL metadata and transaction-local security context are deliberate
     // infrastructure exceptions. Domain queries continue to use Drizzle.
     const role = await tx.execute<{safe:boolean}>(sql`

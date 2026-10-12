@@ -80,6 +80,7 @@ jobs:
           DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
           DATABASE_TLS_CA_PEM: ${{ secrets.DATABASE_TLS_CA_PEM }}
         run: |
+          npm run db:check:binding
           npm run db:migrate
           npm run db:seed
           npm run db:check:runtime

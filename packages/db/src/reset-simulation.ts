@@ -17,7 +17,7 @@ try {
     const manifest = await readManifest(transaction);
     if (!manifest.simulation_policy.allow_reset) throw new Error('Simulation reset disabled by database policy');
     if ((await transaction.select({id:assets.id}).from(assets).where(ne(assets.environment,'simulation')).limit(1)).length) throw new Error('Reset refused: non-simulation assets exist');
-    await transaction.execute(sql.raw(`TRUNCATE TABLE audit_events, notifications, withdrawals, wallet_links, point_events, operation_keys, ledger_postings, ledger_journals, ledger_accounts, queue_entries, cycles, queue_partitions, plan_versions, plans, assets, referral_codes, users, x_manifest RESTART IDENTITY CASCADE`));
+    await transaction.execute(sql.raw(`TRUNCATE TABLE deployment_binding_challenges, financial_reconciliation_results, jobs, outbox, scheduler_nonces, scheduler_runs, simulation_withdrawal_controls, receipt_allocations, queue_rank_nodes, audit_events, notifications, withdrawals, wallet_links, point_events, operation_keys, ledger_postings, ledger_journals, ledger_accounts, queue_entries, cycles, queue_partitions, plan_versions, plans, assets, referral_codes, users, x_manifest RESTART IDENTITY CASCADE`));
   });
   console.log('Isolated simulation database cleared. Run npm run db:seed.');
 } finally { await client.end({timeout:3}); }
