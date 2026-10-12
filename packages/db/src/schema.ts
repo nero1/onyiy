@@ -133,6 +133,7 @@ export const queueEntries = pgTable('queue_entries', {
   cycleId: uuid('cycle_id').references(() => cycles.id, { onDelete: 'restrict' }),
   beneficiaryUserId: uuid('beneficiary_user_id').references(() => users.id, { onDelete: 'restrict' }),
   platformRole: text('platform_role'),
+  priorityRevision:integer('priority_revision').notNull().default(1),
   priorityTicket: bigint('priority_ticket', { mode: 'number' }),
   requiredCount: integer('required_count').notNull(),
   creditedCount: integer('credited_count').notNull().default(0),
@@ -238,6 +239,10 @@ export const notifications = pgTable('notifications', {
   readAt: timestamp('read_at', { withTimezone: true }),
   createdAt: createdAt(),
 },(t)=>[uniqueIndex('notifications_delivery_key_unique').on(t.deliveryKey)]).enableRLS();
+
+export const helpArticles=pgTable('help_articles',{id:uuid('id').primaryKey().defaultRandom(),locale:text('locale').notNull(),slug:text('slug').notNull(),title:text('title').notNull(),body:text('body').notNull(),published:boolean('published').notNull().default(false),version:integer('version').notNull().default(1),createdAt:createdAt(),updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),editedBy:uuid('edited_by').references(()=>users.id,{onDelete:'restrict'})},t=>[unique().on(t.locale,t.slug),index('help_public_locale_idx').on(t.locale,t.published,t.slug)]).enableRLS();
+export const slugRedirects=pgTable('slug_redirects',{locale:text('locale').notNull(),oldSlug:text('old_slug').notNull(),articleId:uuid('article_id').notNull().references(()=>helpArticles.id,{onDelete:'restrict'}),createdAt:createdAt()},t=>[primaryKey({columns:[t.locale,t.oldSlug]})]).enableRLS();
+export const notificationViews=pgTable('notification_views',{userId:uuid('user_id').primaryKey().references(()=>users.id,{onDelete:'cascade'}),seenAt:timestamp('seen_at',{withTimezone:true}).notNull(),seenId:uuid('seen_id').notNull(),updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow()}).enableRLS();
 
 export const xManifest = pgTable('x_manifest', {
   key: text('key').primaryKey(),
@@ -438,6 +443,7 @@ export const schema = {
   walletLinks,
   withdrawals,
   notifications,
+  notificationViews,helpArticles,slugRedirects,
   xManifest,
   auditEvents,
 };

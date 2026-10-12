@@ -7,8 +7,10 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/*': ['./xmanifest.json'],
   },
+  async headers(){return [{source:'/sw.js',headers:[{key:'Cache-Control',value:'no-cache'},{key:'Service-Worker-Allowed',value:'/'},{key:'X-Content-Type-Options',value:'nosniff'}]},{source:'/offline.html',headers:[{key:'Cache-Control',value:'public, max-age=0, must-revalidate'},{key:'Content-Security-Policy',value:"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"}]}] },
   async rewrites() {
     return [
+      {source:'/help/:slug',destination:'/help?article=:slug'},
       { source: '/api/v1/admin/simulation/allocations/:id/reorg', destination: '/api/v1/admin/simulation/allocations/reorg?allocation_id=:id' },
       { source: '/api/v1/admin/simulation/reorgs/:id/reconfirm', destination: '/api/v1/admin/simulation/reorgs/reconfirm?review_id=:id' },
       { source: '/api/v1/gifts/invoices/:id/cancel', destination: '/api/v1/gifts/invoices/cancel?invoice_id=:id' },

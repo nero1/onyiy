@@ -1,3 +1,4 @@
+import {notificationBadge} from './notifications';
 import crypto from 'node:crypto';
 import { and, asc, desc, eq, inArray, isNull, isNotNull, gte, lt, sql } from 'drizzle-orm';
 import {
@@ -161,7 +162,7 @@ export async function consentUser(database: DbExecutor, username: string, referr
     if (user.consentVersion === manifest.terms_content.version) return user;
     return (await database.update(users).set({consentVersion:manifest.terms_content.version,consentedAt:new Date(),updatedAt:new Date()}).where(eq(users.id,user.id)).returning())[0];
   }
-  if (user.status !== 'pending_consent') throw new Error('ACCOUNT_RESTRICTED');
+  if (!['pending_consent','active'].includes(user.status)) throw new Error('ACCOUNT_RESTRICTED');
 
   let referrerId: string | null = null;
   if (referralCode) {
@@ -264,7 +265,7 @@ export async function activatePlan(database: DbExecutor, planId: string, actorId
 export async function sendGift(database: DbExecutor, user: UserRow, planId: string, requestKey: string, expectedVersionId?: string) {
   requestKey=requestKey.toLowerCase();
   const manifest = await readManifest(database);
-  if (!manifest.feature_gifts) throw new Error('FEATURE_DISABLED');
+  if (!manifest.feature_gifts||!manifest.entitlements_member.send_enabled_gifts) throw new Error('FEATURE_DISABLED');
   const locked=await lockGiftParticipants(database,user.id,manifest);user=locked.user;const participants=locked.participants;
   if (user.status !== 'active') throw new Error(user.status === 'pending_consent' ? 'CONSENT_REQUIRED' : 'ACCOUNT_RESTRICTED');
   if (user.consentVersion !== manifest.terms_content.version) throw new Error('CONSENT_REQUIRED');
@@ -467,6 +468,7 @@ export async function linkSimulationWallet(database: DbExecutor, user: UserRow) 
   if (!manifest.feature_wallets) throw new Error('FEATURE_DISABLED');
   user = await lockUser(database,user.id);
   if (user.status !== 'active') throw new Error('ACCOUNT_RESTRICTED');
+  if(!manifest.entitlements_member.wallet_link)throw new Error('FEATURE_DISABLED');
   const address = `giv:${user.username}`;
   const rows = await database.insert(walletLinks).values({ userId: user.id, environment: 'simulation', chainId: 'giv', address })
     .onConflictDoNothing().returning();
@@ -670,19 +672,21 @@ export async function dashboard(database: DbExecutor, user: UserRow, manifest: M
   const pointRows = await database.select({ total: sql<number>`coalesce(sum(${pointEvents.points}),0)::int` }).from(pointEvents).where(eq(pointEvents.userId, user.id));
   // Retain the original camelCase aliases while adding the documented UI DTO.
   const pendingWithdrawals=await database.select({id:withdrawals.id,status:withdrawals.status,gross_base_units:withdrawals.grossBaseUnits}).from(withdrawals).where(and(eq(withdrawals.userId,user.id),eq(withdrawals.assetId,asset.id),eq(withdrawals.status,'held'))).orderBy(desc(withdrawals.createdAt),desc(withdrawals.id)).limit(manifest.pagination_policy.max_size);
-  const notices = await database.select({id:notifications.id,userId:notifications.userId,titleKey:notifications.titleKey,createdAt:notifications.createdAt,readAt:notifications.readAt,title_key:notifications.titleKey,body:notifications.body,created_at:notifications.createdAt,read_at:notifications.readAt}).from(notifications).where(eq(notifications.userId, user.id)).orderBy(desc(notifications.createdAt)).limit(manifest.notification_page_size);
+  const notices = manifest.feature_notifications?await database.select({id:notifications.id,userId:notifications.userId,titleKey:notifications.titleKey,createdAt:notifications.createdAt,readAt:notifications.readAt,title_key:notifications.titleKey,body:notifications.body,created_at:notifications.createdAt,read_at:notifications.readAt}).from(notifications).where(eq(notifications.userId, user.id)).orderBy(desc(notifications.createdAt),desc(notifications.id)).limit(manifest.notification_page_size):[];
   const wallet = (await database.select().from(walletLinks).where(and(eq(walletLinks.userId, user.id), eq(walletLinks.environment, 'simulation'), eq(walletLinks.chainId, 'giv'))).limit(1))[0];
   const withdrawnRows = await database.select({ total: sql<string>`coalesce(sum(${withdrawals.netBaseUnits}),0)::text` }).from(withdrawals)
     .where(and(eq(withdrawals.userId, user.id), eq(withdrawals.assetId, asset.id), eq(withdrawals.status, 'settled')));
 
   return {
-    user: { id: user.id, username: user.username, role: user.role, status: user.status, locale: user.locale },
+    user: { id: user.id, username: user.username, role: user.role, status: user.status, locale: user.locale,consent_version:user.consentVersion,age_confirmed:!!user.ageConfirmedAt },
+    consent:{required:user.consentVersion!==manifest.terms_content.version||!user.ageConfirmedAt||user.ageMinimumAccepted===null||user.ageMinimumAccepted<manifest.eligibility_min_age,terms_content:manifest.terms_content,minimum_age:manifest.eligibility_min_age},
     asset: { symbol: 'GIV', decimals: 2 },
     balances: { available: available.toString(), held: held.toString(), incoming:balances.find(row=>row.purpose==='incoming_payable')?.balance??'0',refundable:balances.find(row=>row.purpose==='refund_payable')?.balance??'0', withdrawn: withdrawnRows[0]?.total ?? '0' },
     points: pointRows[0]?.total ?? 0,
     financial_review:!!financialReview,
     cycles: userCycles.map(cycle=>({...cycle,status:cycle.financial_review?'exception':cycle.status})),
     notifications: notices,
+    notification_badge:manifest.feature_notifications?await notificationBadge(database,user.id):{has_new:false,seen_at:null},
     pending_invoices:pendingInvoices,
     pending_withdrawals:pendingWithdrawals,
     wallet: wallet ?? null,

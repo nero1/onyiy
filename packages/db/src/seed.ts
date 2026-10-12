@@ -1,6 +1,7 @@
+import {helpSeed} from './help-seed';
 import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { assets, migrationClient, schema, planVersions, plans, seedManifest, seedManifestValue, readManifest, users } from './index';
+import { assets, migrationClient, schema, planVersions, plans, seedManifest, seedManifestValue, readManifest, helpArticles, users } from './index';
 import { usdToGivBaseUnits, formatBaseUnits } from '@gifters/domain';
 
 const client = migrationClient();
@@ -43,6 +44,7 @@ try {
       await seedManifestValue(database,`plan_config_${plan.id}`,{status:plan.status,price_usd:plan.usdReference,pricing_mode:'usd_at_activation',receipts_required:plan.receiptsRequired,icon:'gift',countdown:true,countdown_lead_days:7,bootstrap_enabled:plan.bootstrapEnabled,bootstrap_count:plan.bootstrapCount});
     }
 
+    for(const article of helpSeed)for(const locale of ['en','fr'] as const)await database.insert(helpArticles).values({locale,slug:article.slug,title:article.title[locale],body:article.body[locale],published:true}).onConflictDoNothing();
     await database.insert(users).values({ username: 'sim_admin', email: 'admin@example.invalid', role: 'admin', status: 'active', locale: 'en' }).onConflictDoNothing({ target: users.username });
     for (let i = 1; i <= 25; i++) {
       const username = `member_${String(i).padStart(2, '0')}`;

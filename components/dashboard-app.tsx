@@ -2,13 +2,18 @@
 
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { copy, type Locale } from '@/lib/i18n';
+import dynamic from 'next/dynamic';
+import PwaControls from '@/components/pwa-controls';
+import NotificationInbox from '@/components/notification-inbox';
+const AdminPanel=dynamic(()=>import('@/components/admin-panel'),{ssr:false});
 import AuthPanel from '@/components/auth-panel';
 import type {AuthUser,SessionResult} from '@/lib/auth-client';
-import { api, mutation, ApiError } from '@/lib/api-client';
+import { api, mutation, ApiError, setClientSession } from '@/lib/api-client';
 import { configurePublicDataBudget,loadPublicCatalog,savePublicCatalog } from '@/lib/public-data-cache';
 import { formatBaseUnits, decimalToBaseUnits } from '@gifters/domain';
 import {
   activateUserScope,
+  activeSessionGeneration,
   clearActiveUserScope,
   configureSnapshotBudget,
   loadPublicSnapshot,
@@ -20,7 +25,7 @@ import {
 type User = { id: string; username: string; role: string; status: string; locale: string };
 type Plan = { id: string; name: string; slug: string; usd_reference: string; receipts_required: number; status: string; amount_base_units: string; amount_giv: string; expected_giv: string };
 type Notification = {id:string;title_key:string;body:string;created_at:string;read_at:string | null};
-type Dashboard = { user: User; asset: { symbol: string; decimals: number }; balances: { available: string; held: string; incoming?:string;refundable?:string; withdrawn: string }; points: number; cycles: any[]; notifications: Notification[]; financial_review?:boolean;pending_invoices?:(Omit<GiftQuote,'owner'> & {plan_id:string})[];pending_withdrawals?:{id:string;status:string;gross_base_units:string}[]; wallet: any | null };
+type Dashboard = { user: User;consent?:{required:boolean;terms_content:any;minimum_age:number}; asset: { symbol: string; decimals: number }; balances: { available: string; held: string; incoming?:string;refundable?:string; withdrawn: string }; points: number; cycles: any[]; notifications: Notification[];notification_badge?:{has_new:boolean}; financial_review?:boolean;pending_invoices?:(Omit<GiftQuote,'owner'> & {plan_id:string})[];pending_withdrawals?:{id:string;status:string;gross_base_units:string}[]; wallet: any | null };
 type Notice = { kind: 'error' | 'ok'; text: string } | null;
 type GiftQuote={id:string;expected_base_units:string;expires_at:string;status:string;owner:string};
 type WithdrawalQuote = {id:string;grossBaseUnits:string;feeBaseUnits:string;netBaseUnits:string;destination:string};
@@ -31,6 +36,7 @@ function cacheMs(manifest:any,key:string){const seconds=manifest?.cache_policy?.
 
 export default function DashboardApp() {
   const catalogGeneration=useRef(0);
+  const tabId=useRef(crypto.randomUUID());
   const [users, setUsers] = useState<User[]>([]);
   const [username, setUsername] = useState('member_01');
   const [authUser,setAuthUser]=useState<AuthUser|null>(null);
@@ -83,7 +89,7 @@ export default function DashboardApp() {
     remember('theme',theme);
   }, [theme]);
 
-  useEffect(() => { remember('locale',locale); }, [locale]);
+  useEffect(() => {document.documentElement.lang=locale; remember('locale',locale); }, [locale]);
 
   useEffect(() => {
     if(!authUser||!sessionGeneration)return;
@@ -140,11 +146,20 @@ export default function DashboardApp() {
     return ()=>observer.disconnect();
   },[username,dash?.user.username]);
 
+  useEffect(()=>{if(!authUser||!sessionGeneration)return;
+    function purge(){setClientSession('','');refreshGeneration.current++;currentUser.current='';clearActiveUserScope(username);setAuthUser(null);setSessionGeneration('');setDash(null);setGiftQuote(null);setWithdrawalQuote(null);setQueue(null);setRequiresMfa(false);}
+    const storage=(event:StorageEvent)=>{if((event.key===null||event.key==='gw:v3:active-user'||event.key==='gw:v3:active-session')&&activeSessionGeneration(username)!==sessionGeneration)purge();};
+    let channel:BroadcastChannel|null=null;try{channel=new BroadcastChannel('gw-session-scope-v1');channel.onmessage=event=>{const value=event.data;if(value?.type==='GW_SCOPE'&&value.tab!==tabId.current&&(value.owner!==username||value.generation!==sessionGeneration))purge();};}catch{}
+    addEventListener('storage',storage);return()=>{removeEventListener('storage',storage);channel?.close();};
+  },[authUser?.id,sessionGeneration,username]);
+
   function receiveSession(value:SessionResult){
+    setClientSession(value.user?.username??'',value.user?value.generation??'':'');
     refreshGeneration.current++;
+    try{const channel=new BroadcastChannel('gw-session-scope-v1');channel.postMessage({type:'GW_SCOPE',tab:tabId.current,owner:value.user?.username??'',generation:value.user?value.generation??'':''});channel.close()}catch{}
     setAuthReady(true);setRequiresMfa(value.requires_mfa??false);if(value.provider)setAuthProvider(value.provider);
     const same=value.user?.id===authUser?.id&&value.generation===sessionGeneration;
-    if(!same){clearActiveUserScope();setDash(null);setGiftQuote(null);setWithdrawalQuote(null);}
+    if(!same){if(!value.user||activeSessionGeneration(value.user.username)!==value.generation)clearActiveUserScope();setDash(null);setGiftQuote(null);setWithdrawalQuote(null);}
     setAuthUser(value.user);setSessionGeneration(value.user?value.generation??'':'');
     if(value.user){currentUser.current=value.user.username;setUsername(value.user.username);activateUserScope(value.user.username,value.generation??'');if(same)void refresh();}
   }
@@ -163,6 +178,7 @@ export default function DashboardApp() {
       const fresh = await api<Dashboard>('/me/dashboard', username);
       if (generation !== refreshGeneration.current || username !== currentUser.current || fresh.user.username !== username) return;
       setDash(fresh);
+      if(fresh.consent?.required)setManifest((old:any)=>({...old,terms_content:fresh.consent!.terms_content,eligibility_min_age:fresh.consent!.minimum_age}));
       const safeSnapshot = { ...fresh, wallet: null, notifications: [],pending_withdrawals:[],pending_invoices:[] } as Dashboard;
       const ttl=cacheMs(manifest,'private_snapshot_seconds');if(ttl)saveUserSnapshot(username,'dashboard',safeSnapshot,ttl,sessionGeneration);
       setNotice(null);
@@ -234,9 +250,11 @@ export default function DashboardApp() {
     });
   }
 
+  const publicNavigation=<nav className="product-nav" aria-label={t.navigation}><a href="/">{t.home}</a>{manifest?.feature_gifts&&<a href="/#gift-tiles">{t.gifts}</a>}{manifest?.feature_wallets&&authUser&&<a href="/#wallet">{t.wallet}</a>}{manifest?.feature_points&&authUser&&<a href="/#points">{t.points}</a>}{manifest?.feature_help&&<a href="/help">{t.help}</a>}{manifest&&<PwaControls enabled={!!manifest.feature_pwa} locale={locale} busy={busy}/>}</nav>;
+
   if(!authReady)return <main className="center"><p role="status">{t.loading}</p></main>;
-  if(!authUser||requiresMfa||authUser.status==='pending_consent')return <main className="auth-page"><h1>{t.brand}</h1><button aria-label={t.language} onClick={()=>setLocale(locale==='en'?'fr':'en')}>{locale.toUpperCase()}</button><AuthPanel locale={locale} user={authUser} requiresMfa={requiresMfa} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/>{manifest?.feature_gifts&&<section className="plan-list" aria-label={t.gifts}>{plans.map(plan=><article className="card plan" key={plan.id}><div><h3>{plan.name}</h3><p>{plan.amount_giv} GIV · ≈ ${plan.usd_reference}</p><strong>{t.expected}: {plan.expected_giv} GIV</strong><p className="muted">{t.status}: {plan.status}</p></div></article>)}</section>}</main>;
-  if(!dash||!manifest||dash.user.username!==username)return <main className="center"><div><p role="status">{notice?.text??t.loading}</p><button disabled={!online||busy} onClick={()=>void refresh()}>{t.retry}</button><AuthPanel locale={locale} user={authUser} requiresMfa={false} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/></div></main>;
+  if(!authUser||requiresMfa||authUser.status==='pending_consent')return <main className="auth-page">{publicNavigation}<h1>{t.brand}</h1><button aria-label={t.language} onClick={()=>setLocale(locale==='en'?'fr':'en')}>{locale.toUpperCase()}</button><AuthPanel locale={locale} user={authUser} requiresMfa={requiresMfa} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/>{manifest?.feature_gifts&&<section className="plan-list" aria-label={t.gifts}>{plans.map(plan=><article className="card plan" key={plan.id}><div><h3>{plan.name}</h3><p>{plan.amount_giv} GIV · ≈ ${plan.usd_reference}</p><strong>{t.expected}: {plan.expected_giv} GIV</strong><p className="muted">{t.status}: {plan.status}</p></div></article>)}</section>}</main>;
+  if(!dash||!manifest||dash.user.username!==username)return <main className="center"><div><p role="status">{notice?.text??t.loading}</p><button disabled={!online||busy} onClick={()=>void refresh()}>{t.retry}</button><AuthPanel securityReady={false} locale={locale} user={authUser} requiresMfa={false} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/></div></main>;
 
   return (
     <div className="app">
@@ -244,6 +262,7 @@ export default function DashboardApp() {
       <header className="topbar" ref={headerElement}>
         <div><div className="brand">🎁 {t.brand}</div><div className="tagline">{t.tagline}</div></div>
         <div className="top-actions">
+          {manifest.feature_notifications&&<NotificationInbox user={username} locale={locale} initial={dash.notifications} badge={!!dash.notification_badge?.has_new} onChange={()=>void refresh()}/>}
           <span className="env">{t.simulation}</span>
           {authProvider==='simulation'&&<select aria-label={t.chooseUser} value={username} disabled={busy} onChange={event=>void switchAccount(event.target.value)}>
             {users.map((user) => <option key={user.id} value={user.username}>{user.username} · {user.role} · {user.status}</option>)}
@@ -253,6 +272,7 @@ export default function DashboardApp() {
         </div>
       </header>
 
+      {publicNavigation}
       {manifest.activity_statements?.length > 0 && <div className="ticker" aria-live="polite">{manifest.activity_statements[ticker]}</div>}
       {dash.financial_review && <section className="card" role="alert"><p>{t.financialReview}</p></section>}
       {notice && <div role={notice.kind==='error'?'alert':'status'} className={`notice ${notice.kind}`}>{notice.text}</div>}
@@ -278,7 +298,7 @@ export default function DashboardApp() {
         <section className="plan-list">{plans.map((plan) => (
           <article className="card plan" id={`plan-${plan.id}`} key={plan.id}>
             <div><h3>{plan.name}</h3><p>{plan.amount_giv} GIV · ≈ ${plan.usd_reference}</p><strong>{t.expected}: {plan.expected_giv} GIV</strong><p className="muted">{t.status}: {plan.status}</p></div>
-            <button className="primary" disabled={busy || dash.user.status !== 'active' || plan.status !== 'active' || dash.financial_review || dash.cycles.some(cycle=>cycle.plan_id===plan.id && cycle.queue_paused) || !online} onClick={() => requestGift(plan.id)}>{t.send}</button>
+            <button className="primary" disabled={busy || dash.user.status !== 'active' || plan.status !== 'active' || dash.financial_review || dash.cycles.some(cycle=>cycle.plan_id===plan.id && cycle.queue_paused) || manifest.entitlements_member?.send_enabled_gifts===false || !!dash.consent?.required || !online} onClick={() => requestGift(plan.id)}>{t.send}</button>
           </article>
         ))}</section>
 
@@ -290,7 +310,7 @@ export default function DashboardApp() {
 
         {!!reviewed.length && <section className="card"><h2>{t.reviewCycles}</h2>{reviewed.map(cycle=><Cycle key={cycle.id} c={cycle} t={t} />)}</section>}
 
-        <section className="card">
+        {manifest.feature_wallets&&<section className="card" id="wallet">
           <div className="section-title"><h2>{t.wallet}</h2>{dash.wallet && <span className="ok-chip">{t.linked}</span>}</div>
           {dash.wallet ? <>
             <code>{dash.wallet.address}</code>
@@ -301,8 +321,8 @@ export default function DashboardApp() {
               <code>{withdrawalQuote.destination}</code>
               <div className="withdraw-row"><button className="primary" disabled={busy || !online} onClick={() => void act(async () => {await mutation(`/me/withdrawals/${withdrawalQuote.id}/confirm`,username,{});setWithdrawalQuote(null);})}>{t.confirmWithdrawal}</button><button disabled={busy} onClick={() => setWithdrawalQuote(null)}>{t.cancel}</button></div>
             </div>}
-          </> : <button className="primary" disabled={busy || dash.user.status !== 'active' || !online} onClick={() => act(() => mutation('/me/wallets/simulate', username, {}))}>{t.linkWallet}</button>}
-        </section>
+          </> : <button className="primary" disabled={busy || dash.user.status !== 'active' || manifest.entitlements_member?.wallet_link===false || !online} onClick={() => act(() => mutation('/me/wallets/simulate', username, {}))}>{t.linkWallet}</button>}
+        </section>}
 
         {!!dash.pending_withdrawals?.length && <section className="card"><h2>{t.heldWithdrawals}</h2><div className="stack">{dash.pending_withdrawals.map(item=><article key={item.id}><p>{formatBaseUnits(item.gross_base_units)} GIV · {t.held}</p><button disabled={busy || !online} onClick={()=>void act(()=>mutation(`/me/withdrawals/${item.id}/cancel`,username,{}))}>{t.cancelWithdrawal}</button></article>)}</div></section>}
 
@@ -313,8 +333,9 @@ export default function DashboardApp() {
           <button disabled={busy || !online} onClick={()=>act(async()=>{const quote=giftQuote;const result=await mutation(`/gifts/invoices/${quote.id}/cancel`,username,{});if(quote.owner===currentUser.current)setGiftQuote(null);return result})}>{t.cancel}</button>
         </section>}
 
-        <section><h2>{t.notifications}</h2><div className="stack">{dash.notifications.map((item) => <article className="card note" key={item.id}><strong>{item.title_key.replaceAll('_', ' ')}</strong><p>{item.body}</p><small>{new Date(item.created_at).toLocaleString(locale)}</small></article>)}</div></section>
+        {manifest.feature_notifications&&<section><h2>{t.notifications}</h2><div className="stack">{dash.notifications.map((item) => <article className="card note" key={item.id}><strong>{item.title_key.replaceAll('_', ' ')}</strong><p>{item.body}</p><small>{new Date(item.created_at).toLocaleString(locale)}</small></article>)}</div></section>}
 
+        {dash.user.role==='admin'&&<AdminPanel user={username} locale={locale} plans={plans} enabled={manifest.feature_admin} priorityEnabled={manifest.feature_priority} helpEnabled={manifest.feature_help}/>}
         {dash.user.role === 'admin' && <section><h2>{t.admin}</h2><div className="card admin-grid">
           <div><h3>Plans</h3>{plans.map((plan) => <div className="admin-row" key={plan.id}><span>{plan.name} · {plan.status}</span><div><button disabled={busy || plan.status === 'active'} onClick={() => act(() => mutation(`/admin/plans/${plan.id}/activate`, username, {}))}>{t.activate}</button><button onClick={async () => setQueue(await api(`/admin/queue/${plan.id}`, username))}>{t.queue}</button></div></div>)}</div>
           <div><h3>Ledger</h3><button disabled={busy || !online} onClick={()=>void inspectReconciliation()}>{t.reconcile}</button>{queue && <pre className="queue">{JSON.stringify(queue, null, 2)}</pre>}</div>
