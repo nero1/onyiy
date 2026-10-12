@@ -18,11 +18,11 @@ The owner wants continued coding without hosted credentials for now and will tes
 
 The current estimate is **25% complete / 75% remaining**. No M0/M1 gate is newly complete. The v2 iteration verified a dependency-resolved build and credential-free CI prerequisites; hosted deployment and hosted M1 acceptance remain unrun.
 
-Node 22.23.3, npm lockfile v3 and Vercel CLI 63.1.2 are pinned. `npm ci`, `check:all`, `build`, secret/client canary scans and the 200 KiB homepage JS check passed (175.23 KiB gzip). Workflow `actionlint` passed; GitHub-hosted Actions execution has not been observed. Drizzle coverage is 18/18 current tables. `db:check` was a config-only check, not an applied hosted migration. See status for exact evidence.
+Node 22.23.3, npm lockfile v3 and Vercel CLI 63.1.2 are pinned. `npm ci`, `check:all`, `build`, secret/client canary scans and the 200 KiB homepage JS check passed (175.23 KiB gzip). Workflow `actionlint` and GitHub Actions push/PR checks passed for code commit `255c5ba`; deployment skipped as designed. Drizzle coverage is 18/18 current tables. `db:check` was a config-only check, not an applied hosted migration. See status for exact evidence.
 
 The Redis adapter type mismatch is fixed without bypassing TypeScript. Bracket-free parameterized Route Handlers resolve/validate the original path ID before query parameters, addressing the earlier rewritten URL failure; the hosted scenario still needs verification. Runtime rejects testnet/mainnet and unsupported provider selectors because only simulation is implemented.
 
-GitHub Git reads work. API calls currently encounter a proxy CONNECT 403 for `api.github.com`; a cloud draft domain allowance does not prove runtime access. Use available injected authentication, never request a token merely because a CLI prompts, and do not print credentials. Recheck access after a meaningful runtime change. Do not claim a PR, merge, CI run or deployment occurred without evidence.
+The iteration is delivered through [PR #1](https://github.com/nero1/onyiy/pull/1). Initial API requests returned a proxy CONNECT 403, but later PR creation and Actions inspection succeeded using existing authentication. Verify the final PR/merge and current checks from GitHub. Never print credentials or request a token merely because a CLI prompts; do not claim an unverified deployment.
 
 ## Next work, in order
 
