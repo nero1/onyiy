@@ -30,6 +30,10 @@ The Phase One registry validates 67 static settings and typed plan/asset/risk ke
 
 `/manifest` projects only registered public fields, uses a weak ETag and bounded CDN TTL, and may serve validated public seed defaults during database failure. This fallback never authorizes a mutation. Simulation, finance, auth and operational policies do not enter the public DTO.
 
+Runtime, migration and health connections enforce verified certificate trust and hostname for remote PostgreSQL. URL SSL options cannot weaken verification; bounded connection/pool settings reject invalid values. Optional deployment CA certificates remain server-only. Plaintext is limited to loopback simulation tooling outside Vercel.
+
+Health coalesces simultaneous requests into one separate database probe, reads validated database configuration, and closes timed-out work without cancelling application transactions. The bootstrap `health_timeout_ms` is its cold-start ceiling; database policy may tighten successful readiness. Outages return a redacted 503; no Redis command, treasury diagnostic or secret is exposed. Health alone does not prove financial acceptance.
+
 Migration files each execute in a PostgreSQL transaction. Seeds also execute atomically. The reset CLI requires an explicit simulation environment, database-name confirmation and an enabled database policy; production or non-simulation assets are rejected. Locks serialize its inspection and truncation. No public reset endpoint exists.
 
 Authoritative conversion parses decimal strings into integer base units; it does not multiply JavaScript floating-point money. Queue economics retain immutable plan-version snapshots. New seed versions and point rules read database settings without rewriting used economics.

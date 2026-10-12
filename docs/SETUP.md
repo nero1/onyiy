@@ -81,7 +81,9 @@ postgresql://postgres.<project-ref>:<password>@<pooler-host>:6543/postgres
 
 Do not invent the hostname. Copy the actual value from Supabase's Connect screen.
 
-The application disables prepared statements for the Supabase runtime connection and keeps the serverless connection pool small. The database code runs only in the Next.js Node.js runtime, never in browser components.
+The application disables prepared statements for the Supabase runtime connection and keeps the serverless connection pool small. Runtime, migration and health connections require trusted certificates and matching hostnames for hosted PostgreSQL, including URLs with `sslmode=require`. Never use `sslmode=disable`, `NODE_TLS_REJECT_UNAUTHORIZED=0` or a verification bypass to unblock deployment.
+
+Use the provider hostname and its documented trust chain. If the provider requires a custom CA, put the exact provider-issued public PEM certificate chain in the server-only `DATABASE_TLS_CA_PEM` environment value in Vercel and the matching GitHub environment. It contains certificates only, never private keys. Standard system trust works without this variable. URL options are limited to `sslmode` and `sslrootcert=system`; remove unsupported query settings. Optional pool/idle/connect settings are positive bounded integers; the default serverless pool is one connection. The database code runs only in the Next.js Node.js runtime, never in browser components.
 
 Set:
 
@@ -400,7 +402,7 @@ Open the main site and confirm that:
 - simulation users can be retrieved,
 - dashboard/API-backed pages do not return database errors.
 
-This is more meaningful than `/api/health` alone because the current health route does not prove every database query succeeds.
+`/api/health` now probes database configuration readiness within the configured bootstrap time budget and returns a redacted 503 on failure. It does not verify every financial route, Redis connectivity, signing or treasury readiness; still inspect the dashboard and run the applicable manual acceptance.
 
 ### Supabase
 
