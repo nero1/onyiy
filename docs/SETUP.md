@@ -123,7 +123,8 @@ Run each creation only if that role does not already exist. Set a strong generat
 
 Migration 007 installs explicit privileges and RLS: member reads use own rows; financial services receive only their required server permissions; public catalog data is served by native handlers. No browser or Data API key receives application tables/views, including ledger/audit/configuration. Migration/seed/reset tooling uses the separate owner connection. A migration user without permission to create the groups must have them provisioned by the provider owner beforehand.
 
-After migrations and seeds, `npm run db:check:runtime` validates the restricted login, seeded configuration and stored namespace-ID equality through both URLs. **Current blocker:** backup-cloned IDs can falsely match different databases; the next pass must add a fresh challenge before relying on this check for deployment. Keep deployments disabled. It fails closed on mismatched projects or unsafe roles. The deployment workflow runs this automatically before building. No namespace ID or credential is exported to the browser. Simulation authentication is still a test-only account chooser; RLS does not replace the pending OAuth/session/MFA milestone.
+Before application migrations, `npm run db:check:binding` bootstraps only migration 014's server-only proof table and verifies a fresh owner-write/runtime-read challenge. Provision the groups above first. Different projects fail even when backups copied their stored namespace IDs; failure prevents financial migrations. The proof is removed after checking. After migrations/seed, `npm run db:check:runtime` repeats binding and validates roles/configuration. No proof or credential reaches the browser. Simulation's account chooser still does not replace OAuth/session/MFA acceptance.
+
 
 ### 3.5 Supabase GRANT requirement
 
@@ -316,7 +317,7 @@ DATABASE_MIGRATION_URL=<Supabase Direct or approved Session pooler URL>
 
 Give `preview` a separate simulation Supabase database; PR migrations and seeds can change its state. Configure the corresponding Vercel **Preview** environment with that same database and Upstash bindings. Multiple PR previews share the selected preview database unless you provision isolated projects; do not reset it while another preview uses it. Keep all preview data separate from future real-money data.
 
-The workflow requires `DATABASE_MIGRATION_URL` explicitly before deployment and migrates/seeds the selected environment before building. It checks that Vercel and GitHub have the exact same restricted runtime URL, then verifies the runtime/owner namespace and privileges. The migration URL is prohibited in Vercel runtime settings. If your provider needs a custom CA, add the same public certificate chain as GitHub environment secret `DATABASE_TLS_CA_PEM` as well as the Vercel server variable. The database setup/migration step runs with:
+The workflow requires `DATABASE_MIGRATION_URL` explicitly before deployment and migrates/seeds the selected environment before building. It checks that Vercel and GitHub have the exact same restricted runtime URL, verifies the fresh owner/runtime binding before financial migrations, then validates seeds and privileges afterward. The migration URL is prohibited in Vercel runtime settings. If your provider needs a custom CA, add the same public certificate chain as GitHub environment secret `DATABASE_TLS_CA_PEM` as well as the Vercel server variable. The database setup/migration step runs with:
 
 ```text
 APP_ENV=simulation
@@ -333,6 +334,7 @@ For a fresh Supabase project, the database must be migrated and seeded before th
 The production GitHub Actions job should run these commands after dependencies are installed and before the Vercel production build/deploy:
 
 ```bash
+npm run db:check:binding
 npm run db:migrate
 npm run db:seed
 npm run db:check:runtime
@@ -358,7 +360,7 @@ For later real-money releases, migration/seed policy must be reviewed again befo
 
 Migrations execute each file atomically. Repeated seeds insert missing defaults and preserve configured values, disabled assets and existing plans. Apply migration `002_manifest_metadata.sql` before the updated seed; it corrects the legacy simulation-policy scope without changing its value. Invalid stored settings stop financial work rather than silently replacing them with file defaults.
 
-Use a fresh, isolated Supabase simulation project for milestone acceptance. Never reset a shared preview or a real-money database. If an isolated reset is deliberately required, stop its writes, set `APP_ENV=simulation`, confirm the actual owner/migration target database name through `SIMULATION_RESET_CONFIRM=reset:<database-name>`, and run `npm run db:reset:simulation` followed by `npm run db:seed`. Reset refuses production runtime/deployment context, a disabled database reset policy, or any non-simulation asset. Supabase projects often share the database name `postgres`; independently verify the selected project/connection before confirming it. No reset is part of ordinary CI/deployment.
+Use a fresh, isolated Supabase simulation project for milestone acceptance. Never reset a shared preview or a real-money database. If an isolated reset is deliberately required, stop its writes, set `APP_ENV=simulation`, confirm the actual owner/migration target database name through `SIMULATION_RESET_CONFIRM=reset:<database-name>`, and run `npm run db:reset:simulation` followed by `npm run db:seed`. Reset refuses production runtime/deployment context, a disabled database reset policy, or any non-simulation asset. Supabase projects often share the database name `postgres`; independently verify the selected project/connection before confirming it. Reset clears all simulation financial and durable work/report/scheduler/proof records before reseeding; old jobs cannot target new accounts. No reset is part of ordinary CI/deployment.
 
 Migrations 003–006 add immutable USD snapshots and ledger integrity protections. Migration 003 derives only the known historical GIV conversion; unsupported legacy plan assets require review rather than an invented rate. Orphaned financial owners also stop the owner-FK migration. Resolve such records through an authorized repair/restore process; do not delete obligations or disable ledger guards to make deployment pass.
 
@@ -585,4 +587,4 @@ Migration 013 adds immutable staff-only results. The existing signed tick queues
 
 Read summary history at `GET /api/v1/admin/reconcile/reports`, then a selected result at `GET /api/v1/admin/reconcile/reports/<id>`. Inspect its snapshot/check timestamps, `balanced`, `consistent` and `lineage_complete` separately. A stored daily report describes its snapshot, not every later transaction. The normal admin reconciliation button runs a fresh bounded check.
 
-Two reproduced M0 issues remain before hosted enablement: the stored-ID binding check can accept cloned databases, and the simulation reset currently leaves old outbox/jobs/report/scheduler records. Avoid reset until its cleanup is fixed; no reset is part of deployment. Fix these in the next pass and rerun the namespace/reset contracts. Hosted scheduling, larger-dataset capacity and external alerts remain unverified.
+Migration 014 and the pre-migration binding command protect against backup-cloned IDs. The guarded simulation reset clears old work and reports. These contracts passed in tooling; hosted provider validation, scheduling, larger-dataset capacity and external alerts remain unverified.

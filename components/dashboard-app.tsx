@@ -19,6 +19,10 @@ type Dashboard = { user: User; asset: { symbol: string; decimals: number }; bala
 type Notice = { kind: 'error' | 'ok'; text: string } | null;
 type WithdrawalQuote = {id:string;grossBaseUnits:string;feeBaseUnits:string;netBaseUnits:string;destination:string};
 
+function preference(key:string){try{return localStorage.getItem(key)}catch{return null}}
+function remember(key:string,value:string){try{localStorage.setItem(key,value)}catch{/* Display preference persistence is optional. */}}
+function cacheMs(manifest:any,key:string){const seconds=manifest?.cache_policy?.[key];return Number.isSafeInteger(seconds) && seconds>0?seconds*1000:0}
+
 export default function DashboardApp() {
   const [users, setUsers] = useState<User[]>([]);
   const [username, setUsername] = useState('member_01');
@@ -40,32 +44,35 @@ export default function DashboardApp() {
   const t = copy[locale];
 
   useEffect(() => {
-    const initialUser = localStorage.getItem('sim_user') ?? 'member_01';
-    const initialLocale = (localStorage.getItem('locale') as Locale | null) ?? 'en';
-    const initialTheme = localStorage.getItem('theme') ?? 'light';
+    const initialUser = preference('sim_user') ?? 'member_01';
+    const initialLocale = (preference('locale') as Locale | null) ?? 'en';
+    const initialTheme = preference('theme') ?? 'light';
     setUsername(initialUser);
     setLocale(initialLocale === 'fr' ? 'fr' : 'en');
     setTheme(initialTheme === 'dark' ? 'dark' : 'light');
-    setPlans(loadPublicSnapshot<Plan[]>('plans') ?? []);
-    setManifest(loadPublicSnapshot<any>('manifest'));
-    setDash(loadUserSnapshot<Dashboard>(initialUser, 'dashboard'));
+    const cachedManifest=loadPublicSnapshot<any>('manifest');
+    setPlans(loadPublicSnapshot<Plan[]>('plans',cacheMs(cachedManifest,'catalog_seconds')) ?? []);
+    setManifest(cachedManifest);
+    const ttl=cacheMs(cachedManifest,'private_snapshot_seconds');
+    setDash(ttl?loadUserSnapshot<Dashboard>(initialUser,'dashboard','simulation',ttl):null);
     setOnline(navigator.onLine);
   }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem('theme', theme);
+    remember('theme',theme);
   }, [theme]);
 
-  useEffect(() => { localStorage.setItem('locale', locale); }, [locale]);
+  useEffect(() => { remember('locale',locale); }, [locale]);
 
   useEffect(() => {
     activateUserScope(username);
     currentUser.current = username;
     refreshGeneration.current++;
     setWithdrawalQuote(null);
-    localStorage.setItem('sim_user', username);
-    setDash(loadUserSnapshot<Dashboard>(username, 'dashboard'));
+    remember('sim_user',username);
+    const ttl=cacheMs(manifest,'private_snapshot_seconds');
+    setDash(ttl?loadUserSnapshot<Dashboard>(username,'dashboard','simulation',ttl):null);
   }, [username]);
   useEffect(() => { if (!online) setWithdrawalQuote(null); },[online]);
 
@@ -82,13 +89,10 @@ export default function DashboardApp() {
   useEffect(() => {
     if (!online) return;
     api<User[]>('/sim/users', '').then(setUsers).catch(() => undefined);
-    api<Plan[]>('/plans', '').then((value) => {
-      setPlans(value);
-      savePublicSnapshot('plans', value, 5 * 60_000);
-    }).catch(() => undefined);
     api<any>('/manifest', '').then((value) => {
       setManifest(value);
-      savePublicSnapshot('manifest', value, 5 * 60_000);
+      const ttl=cacheMs(value,'manifest_public_seconds');if(ttl)savePublicSnapshot('manifest',value,ttl);
+      return api<Plan[]>('/plans','').then(plans=>{setPlans(plans);const catalogTtl=cacheMs(value,'catalog_seconds');if(catalogTtl)savePublicSnapshot('plans',plans,catalogTtl)});
     }).catch(() => undefined);
   }, [online]);
 
@@ -105,8 +109,9 @@ export default function DashboardApp() {
     if (!username || username !== currentUser.current) return;
     const generation = ++refreshGeneration.current;
     if (!online) {
-      const cached = loadUserSnapshot<Dashboard>(username, 'dashboard');
-      if (cached) setDash(cached);
+      const ttl=cacheMs(manifest,'private_snapshot_seconds');
+      const cached=ttl?loadUserSnapshot<Dashboard>(username,'dashboard','simulation',ttl):null;
+      setDash(cached);
       return;
     }
     try {
@@ -114,14 +119,16 @@ export default function DashboardApp() {
       if (generation !== refreshGeneration.current || username !== currentUser.current || fresh.user.username !== username) return;
       setDash(fresh);
       const safeSnapshot = { ...fresh, wallet: null, notifications: [],pending_withdrawals:[] } as Dashboard;
-      saveUserSnapshot(username, 'dashboard', safeSnapshot, 30 * 60_000);
+      const ttl=cacheMs(manifest,'private_snapshot_seconds');if(ttl)saveUserSnapshot(username,'dashboard',safeSnapshot,ttl);
       setNotice(null);
     } catch (error) {
+      if (generation!==refreshGeneration.current || username!==currentUser.current) return;
+      if (error instanceof ApiError && error.code==='UNAUTHENTICATED') setDash(null);
       setNotice({ kind: 'error', text: error instanceof ApiError ? error.code : String(error) });
     }
   }
 
-  useEffect(() => { void refresh(); }, [username, online]);
+  useEffect(() => { void refresh(); }, [username,online,manifest?.cache_policy?.private_snapshot_seconds]);
 
   useEffect(() => {
     if (!manifest?.activity_statements?.length) return;
@@ -143,7 +150,7 @@ export default function DashboardApp() {
     setBusy(true);
     try {
       await fn();
-      await Promise.all([refresh(), api<Plan[]>('/plans', '').then(setPlans)]);
+      await Promise.all([refresh(), api<Plan[]>('/plans','').then(value=>{setPlans(value);const ttl=cacheMs(manifest,'catalog_seconds');if(ttl)savePublicSnapshot('plans',value,ttl)})]);
       setNotice({ kind: 'ok', text: t.done });
     } catch (error) {
       setNotice({ kind: 'error', text: error instanceof ApiError ? error.code : String(error) });
@@ -174,7 +181,7 @@ export default function DashboardApp() {
     });
   }
 
-  if (!dash || !manifest || dash.user.username !== username) return <main className="center">{t.loading}</main>;
+  if (!dash || !manifest || dash.user.username!==username) return <main className="center"><div><p role={notice?.kind==='error'?'alert':'status'}>{notice?.text ?? (online?t.loading:t.offline)}</p><select aria-label={t.chooseUser} value={username} onChange={event=>setUsername(event.target.value)}>{users.map(user=><option key={user.id} value={user.username}>{user.username}</option>)}</select><button disabled={!online || busy} onClick={()=>{activateUserScope(username);void refresh()}}>{t.retry}</button></div></main>;
 
   return (
     <div className="app">

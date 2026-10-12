@@ -332,7 +332,12 @@ export const financialReconciliationResults=pgTable('financial_reconciliation_re
   result:jsonb('result').notNull(),snapshotStartedAt:timestamp('snapshot_started_at',{withTimezone:true}).notNull().defaultNow(),checkedAt:timestamp('checked_at',{withTimezone:true}).notNull().default(sql`clock_timestamp()`),
 },(t)=>[index('reconciliation_history_idx').on(t.environment,t.checkedAt,t.id),check('financial_reconciliation_results_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),check('financial_reconciliation_results_result_check',sql`jsonb_typeof(${t.result})='object' and octet_length(${t.result}::text)<=131072`)]).enableRLS();
 
+export const deploymentBindingChallenges=pgTable('deployment_binding_challenges',{
+  id:uuid('id').primaryKey(),environment:text('environment').notNull(),expiresAt:timestamp('expires_at',{withTimezone:true}).notNull(),createdAt:createdAt(),
+},(t)=>[check('deployment_binding_challenges_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),index('binding_challenge_expiry_idx').on(t.expiresAt,t.id)]).enableRLS();
+
 export const schema = {
+  deploymentBindingChallenges,
   financialReconciliationResults,
   simulationWithdrawalControls,
   outbox,jobs,schedulerNonces,schedulerRuns,

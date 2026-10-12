@@ -14,11 +14,10 @@ export async function api<T>(path: string, username: string, init: RequestInit =
   if (username) headers.set('x-sim-user', username);
 
   const response = await fetch(`${BASE}${path}`, { ...init, headers, cache: 'no-store' });
-  const body = await response.json();
-  if (!response.ok) {
-    if (response.status === 401) clearActiveUserScope();
-    throw new ApiError(body?.error?.code ?? 'INTERNAL_ERROR');
-  }
+  if (response.status===401 && username) clearActiveUserScope(username);
+  const body=await response.json().catch(()=>null);
+  if (!response.ok) throw new ApiError(body?.error?.code ?? (response.status===401?'UNAUTHENTICATED':'INTERNAL_ERROR'));
+  if (!body) throw new ApiError('INTERNAL_ERROR');
   return body.data as T;
 }
 
