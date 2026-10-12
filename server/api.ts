@@ -2,11 +2,9 @@ import crypto from 'node:crypto';
 import { and, asc, desc, eq, gt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
-  assets,
   financialReconciliationResults,
   maintenanceResults,
   jobs,
-  plans,
   planVersions,
   queueEntries,
   queuePartitions,
@@ -15,8 +13,6 @@ import {
   simulationAccounts,
   readManifest,
 } from '@gifters/db';
-import { loadManifest, publicManifest } from '@gifters/config';
-import { formatBaseUnits } from '@gifters/domain';
 import {
   activatePlan,
   cancelWithdrawal,
@@ -36,7 +32,7 @@ import { replayDeadJob } from './jobs';
 import {recordReorg,reconfirmReorg,reorgHistory} from './reorg';
 import {quoteIncoming,submitIncoming,controlIncoming,resolveIncoming,ownInvoices,cancelIncomingQuote} from './incoming';
 
-const seed = loadManifest();
+import { getPublicManifest,getPublicCatalog,invalidatePublicReads } from './public-reads';
 
 function requestId() { return crypto.randomUUID(); }
 
@@ -47,7 +43,8 @@ function ok(data: unknown, status = 200) {
 function publicOk(data:unknown,ttlSeconds:number,request:Request) {
   const etag=`W/"${crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex')}"`;
   const headers={'ETag':etag,'Cache-Control':`public, max-age=0, s-maxage=${ttlSeconds}`};
-  if(request.headers.get('if-none-match')===etag)return new Response(null,{status:304,headers});
+  const candidates=(request.headers.get('if-none-match')??'').split(',').map(value=>value.trim());
+  if(candidates.some(value=>value==='*'||value.replace(/^W\//,'')===etag.replace(/^W\//,'')))return new Response(null,{status:304,headers});
   return Response.json({data,meta:{request_id:requestId()}},{headers});
 }
 
@@ -222,10 +219,7 @@ export async function handleApiRequest(method: string, path: string[], request: 
     }
 
     if (method === 'GET' && route === '/manifest') {
-      let manifest = seed;
-      try { manifest = await readManifest(); } catch { /* Public seed fallback never authorizes a mutation. */ }
-      const data = publicManifest(manifest);
-      return publicOk(data,manifest.cache_policy.manifest_public_seconds,request);
+      const value=await getPublicManifest();return publicOk(value.data,value.ttlSeconds,request);
     }
 
     if (method === 'GET' && route === '/sim/users') {
@@ -246,30 +240,7 @@ export async function handleApiRequest(method: string, path: string[], request: 
     }
 
     if (method === 'GET' && route === '/plans') {
-      const ttl=(await readManifest()).cache_policy.catalog_seconds;
-      const rows = await withContext({access:'public'},(tx) => tx.select({
-        id: plans.id,
-        name: plans.name,
-        slug: plans.slug,
-        usd_reference: planVersions.usdReference,
-        receipts_required: planVersions.receiptsRequired,
-        receiver_bps: planVersions.receiverBps,
-        status: plans.status,
-        bootstrap_enabled: plans.bootstrapEnabled,
-        bootstrap_count: plans.bootstrapCount,
-        amount_base_units: planVersions.amountBaseUnits,
-        plan_version_id: planVersions.id,
-        symbol: assets.symbol,
-      }).from(plans)
-        .innerJoin(planVersions, eq(planVersions.planId, plans.id))
-        .innerJoin(assets, eq(assets.id, planVersions.assetId))
-        .where(eq(assets.environment, 'simulation'))
-        .orderBy(asc(plans.usdReference)));
-      return publicOk(rows.map((row) => ({
-        ...row,
-        amount_giv: formatBaseUnits(BigInt(row.amount_base_units)),
-        expected_giv: formatBaseUnits((BigInt(row.amount_base_units) * BigInt(row.receiver_bps) / 10000n) * BigInt(row.receipts_required)),
-      })),ttl,request);
+      const value=await getPublicCatalog();return publicOk(value.data,value.ttlSeconds,request);
     }
 
     if (method === 'POST' && route === '/gifts/simulate') {
@@ -308,7 +279,8 @@ export async function handleApiRequest(method: string, path: string[], request: 
       const user = await admin(request);
       z.object({}).strict().parse(await json(request));
       const planId = resourceId(request, 'plan_id', /^\/api\/v1\/admin\/plans\/([^/]+)\/activate\/?$/);
-      return ok(await withContext({access:'service',actorId:user.id,requireAdmin:true},(tx) => activatePlan(tx, planId, user.id, idempotencyKey(request))));
+      const result=await withContext({access:'service',actorId:user.id,requireAdmin:true},tx=>activatePlan(tx,planId,user.id,idempotencyKey(request)));
+      invalidatePublicReads();return ok(result);
     }
 
     if (method === 'GET' && route === '/admin/queue') {
