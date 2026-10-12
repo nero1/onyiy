@@ -123,7 +123,7 @@ Run each creation only if that role does not already exist. Set a strong generat
 
 Migration 007 installs explicit privileges and RLS: member reads use own rows; financial services receive only their required server permissions; public catalog data is served by native handlers. No browser or Data API key receives application tables/views, including ledger/audit/configuration. Migration/seed/reset tooling uses the separate owner connection. A migration user without permission to create the groups must have them provisioned by the provider owner beforehand.
 
-After migrations and seeds, `npm run db:check:runtime` validates the restricted login, seeded configuration and a matching internal namespace ID through both runtime and owner URLs. It fails closed on mismatched projects or unsafe roles. The deployment workflow runs this automatically before building. No namespace ID or credential is exported to the browser. Simulation authentication is still a test-only account chooser; RLS does not replace the pending OAuth/session/MFA milestone.
+After migrations and seeds, `npm run db:check:runtime` validates the restricted login, seeded configuration and stored namespace-ID equality through both URLs. **Current blocker:** backup-cloned IDs can falsely match different databases; the next pass must add a fresh challenge before relying on this check for deployment. Keep deployments disabled. It fails closed on mismatched projects or unsafe roles. The deployment workflow runs this automatically before building. No namespace ID or credential is exported to the browser. Simulation authentication is still a test-only account chooser; RLS does not replace the pending OAuth/session/MFA milestone.
 
 ### 3.5 Supabase GRANT requirement
 
@@ -578,3 +578,11 @@ Use only an isolated simulation deployment. Create a normal user quote, then as 
 The user confirms the quote normally. A `hold` reserves funds without settlement; the wallet shows a cancellable held withdrawal. A `reject` records a balanced release and cancellation. The user can call `POST /api/v1/me/withdrawals/<id>/cancel` with `{}`; the withdrawal ID is its single-use state identity. This moves no money for an unused quote and releases an unsent GIV hold once.
 
 For a reviewed delayed hold, admin calls `POST /api/v1/admin/simulation/withdrawals/<id>/resolve` with `{ "action": "settle", "reason": "Your review reason" }` or action `cancel`, plus a UUID `Idempotency-Key`. Inspect the returned state and staff reconciliation; duplicate requests preserve the original result. No mode permits reopening settlement or exporting GIV. The named recovery procedure is in HOW-IT-WORKS.md. Real-chain cancellation/signing and reorg handling remain separate, unimplemented gates.
+
+## 15. Inspect scheduled reconciliation
+
+Migration 013 adds immutable staff-only results. The existing signed tick queues one named reconciliation per UTC day; no additional credential or Redis operation is needed. Successful job completion stores a coherent snapshot and capped diagnostics. A timeout stores no success report and leaves retryable work; a recorded discrepancy is not repaired automatically.
+
+Read summary history at `GET /api/v1/admin/reconcile/reports`, then a selected result at `GET /api/v1/admin/reconcile/reports/<id>`. Inspect its snapshot/check timestamps, `balanced`, `consistent` and `lineage_complete` separately. A stored daily report describes its snapshot, not every later transaction. The normal admin reconciliation button runs a fresh bounded check.
+
+Two reproduced M0 issues remain before hosted enablement: the stored-ID binding check can accept cloned databases, and the simulation reset currently leaves old outbox/jobs/report/scheduler records. Avoid reset until its cleanup is fixed; no reset is part of deployment. Fix these in the next pass and rerun the namespace/reset contracts. Hosted scheduling, larger-dataset capacity and external alerts remain unverified.

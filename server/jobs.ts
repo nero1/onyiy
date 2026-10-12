@@ -1,8 +1,9 @@
 import crypto from 'node:crypto';
 import { and, asc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { auditEvents, jobs, notifications, operationKeys, outbox, readManifest, schedulerRuns, users, withContext, type DbExecutor } from '@gifters/db';
+import { auditEvents, financialReconciliationResults, jobs, notifications, operationKeys, outbox, readManifest, schedulerRuns, users, withContext, type DbExecutor } from '@gifters/db';
 import { validateRuntimeEnv } from '@gifters/config';
+import { reconcile } from './reconcile';
 
 export const notificationPayload = z.object({
   user_id:z.string().uuid(),title_key:z.enum(['gift_sent','gift_received','withdrawal_settled']),body:z.string().min(1).max(2000),
@@ -18,6 +19,14 @@ export async function enqueueNotification(database: DbExecutor, businessKey:stri
     if (prior?.environment!==environment || prior.kind!=='notification' || !original.success || JSON.stringify(original.data)!==JSON.stringify(parsed)) throw new Error('VERSION_CONFLICT');
   }
 }
+
+export async function enqueueDailyReconciliation(database:DbExecutor) {
+  const environment=validateRuntimeEnv().appEnv;
+  const [clock]=await database.execute<{anchor:string}>(sql`select (clock_timestamp() at time zone 'UTC')::date::text as anchor`);
+  const businessKey=`reconcile:${environment}:${clock.anchor}`;
+  await database.insert(outbox).values({businessKey,environment,kind:'financial_reconciliation',payload:{anchor:clock.anchor}}).onConflictDoNothing({target:outbox.businessKey});
+}
+const reconciliationPayload=z.object({anchor:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value=>{const date=new Date(value+'T00:00:00Z');return !Number.isNaN(date.getTime()) && date.toISOString().slice(0,10)===value;})}).strict();
 
 export type RunFence={id:string;token:string;generation:number};
 async function fence(database:DbExecutor,run?:RunFence) {
@@ -65,17 +74,23 @@ export async function claimJob(run?:RunFence) {
 }
 
 export async function executeJob(id:string,token:string,generation:number,run?:RunFence) {
-  return withContext({access:'service'},async database=>{
+  return withContext({access:'service',reportSnapshot:true},async database=>{
     await database.execute(sql`set local statement_timeout='2000ms'`);
     await fence(database,run);
     const [row]=await database.select().from(jobs).where(and(eq(jobs.id,id),eq(jobs.status,'running'),eq(jobs.leaseToken,token),eq(jobs.leaseGeneration,generation),sql`${jobs.leaseUntil}>clock_timestamp()`)).limit(1).for('update');
     if (!row) throw new Error('LEASE_LOST');
-    const payload=notificationPayload.safeParse(row.payload);
-    if (row.kind!=='notification' || !payload.success) throw new Error('INVALID_JOB');
-    // Effect and completion commit together. A retry uses the permanent delivery
-    // key even if a notification was already materialized before interruption.
-    await database.insert(notifications).values({deliveryKey:row.businessKey,userId:payload.data.user_id,titleKey:payload.data.title_key,body:payload.data.body})
-      .onConflictDoNothing({target:notifications.deliveryKey});
+    if (row.kind==='notification') {
+      const payload=notificationPayload.safeParse(row.payload);
+      if (!payload.success) throw new Error('INVALID_JOB');
+      await database.insert(notifications).values({deliveryKey:row.businessKey,userId:payload.data.user_id,titleKey:payload.data.title_key,body:payload.data.body})
+        .onConflictDoNothing({target:notifications.deliveryKey});
+    } else if (row.kind==='financial_reconciliation') {
+      const payload=reconciliationPayload.safeParse(row.payload);
+      if (!payload.success) throw new Error('INVALID_JOB');
+      const result=await reconcile(database);
+      if (Buffer.byteLength(JSON.stringify(result),'utf8')>131072) throw new Error('INVALID_JOB');
+      await database.insert(financialReconciliationResults).values({sourceJobId:row.id,environment:row.environment,runDate:payload.data.anchor,balanced:result.balanced,consistent:result.consistent,lineageComplete:result.lineage_complete,result}).onConflictDoNothing({target:financialReconciliationResults.sourceJobId});
+    } else throw new Error('INVALID_JOB');
     await fence(database,run);
     const done=await database.update(jobs).set({status:'done',leaseToken:null,leaseUntil:null,completedAt:sql`clock_timestamp()`,lastErrorCode:null,updatedAt:sql`clock_timestamp()`})
       .where(and(eq(jobs.id,id),eq(jobs.leaseToken,token),eq(jobs.leaseGeneration,generation),sql`${jobs.leaseUntil}>clock_timestamp()`)).returning({id:jobs.id});
@@ -110,7 +125,7 @@ export async function failJob(id:string,token:string,generation:number,error:unk
   });
 }
 
-export async function runNotificationJobs(run?:RunFence,signal?:AbortSignal) {
+export async function runNonSigningJobs(run?:RunFence,signal?:AbortSignal) {
   const started=performance.now();
   const policy=(await readManifest()).job_policy;
   const max=Math.min(policy.chunk_size,100);

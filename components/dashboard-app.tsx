@@ -33,6 +33,7 @@ export default function DashboardApp() {
   const [queue, setQueue] = useState<any[] | null>(null);
   const [withdraw, setWithdraw] = useState('10');
   const [withdrawalQuote,setWithdrawalQuote] = useState<(WithdrawalQuote & {owner:string}) | null>(null);
+  const headerElement = useRef<HTMLElement | null>(null);
   const refreshGeneration = useRef(0);
   const currentUser = useRef(username);
   const [busy, setBusy] = useState(false);
@@ -91,6 +92,15 @@ export default function DashboardApp() {
     }).catch(() => undefined);
   }, [online]);
 
+  useEffect(() => {
+    const header=headerElement.current;
+    if (!header) return;
+    const update=()=>document.documentElement.style.setProperty('--header-height',`${header.getBoundingClientRect().height}px`);
+    update();
+    const observer=new ResizeObserver(update);observer.observe(header);
+    return ()=>observer.disconnect();
+  },[username,dash?.user.username]);
+
   async function refresh() {
     if (!username || username !== currentUser.current) return;
     const generation = ++refreshGeneration.current;
@@ -142,6 +152,19 @@ export default function DashboardApp() {
     }
   }
 
+  async function inspectReconciliation() {
+    if (!online || busy) return;
+    const actor=username;setBusy(true);
+    try {
+      const result=await api<{balanced:boolean;consistent:boolean;lineage_complete:boolean}>('/admin/reconcile',actor);
+      if (actor!==currentUser.current) return;
+      const passed=result.balanced && result.consistent && result.lineage_complete;
+      setNotice({kind:passed?'ok':'error',text:passed?t.reconciliationPassed:t.reconciliationReview});
+    } catch {
+      if (actor===currentUser.current) setNotice({kind:'error',text:t.reconciliationReview});
+    } finally {setBusy(false);}
+  }
+
   async function doWithdraw() {
     if (!dash?.wallet) return;
     await act(async () => {
@@ -156,7 +179,7 @@ export default function DashboardApp() {
   return (
     <div className="app">
       {!online && <div className="offline" role="status">{t.offline}</div>}
-      <header className="topbar">
+      <header className="topbar" ref={headerElement}>
         <div><div className="brand">🎁 {t.brand}</div><div className="tagline">{t.tagline}</div></div>
         <div className="top-actions">
           <span className="env">{t.simulation}</span>
@@ -169,7 +192,7 @@ export default function DashboardApp() {
       </header>
 
       {manifest.activity_statements?.length > 0 && <div className="ticker" aria-live="polite">{manifest.activity_statements[ticker]}</div>}
-      {notice && <div className={`notice ${notice.kind}`}>{notice.text}</div>}
+      {notice && <div role={notice.kind==='error'?'alert':'status'} className={`notice ${notice.kind}`}>{notice.text}</div>}
 
       <main>
         {dash.user.status === 'pending_consent' && (
@@ -225,7 +248,7 @@ export default function DashboardApp() {
 
         {dash.user.role === 'admin' && <section><h2>{t.admin}</h2><div className="card admin-grid">
           <div><h3>Plans</h3>{plans.map((plan) => <div className="admin-row" key={plan.id}><span>{plan.name} · {plan.status}</span><div><button disabled={busy || plan.status === 'active'} onClick={() => act(() => mutation(`/admin/plans/${plan.id}/activate`, username, {}))}>{t.activate}</button><button onClick={async () => setQueue(await api(`/admin/queue/${plan.id}`, username))}>{t.queue}</button></div></div>)}</div>
-          <div><h3>Ledger</h3><button onClick={async () => { const result: any = await api('/admin/reconcile', username); setNotice({ kind: result.balanced ? 'ok' : 'error', text: result.balanced ? t.balanced : `${result.imbalanced_journals.length} imbalanced` }); }}>{t.reconcile}</button>{queue && <pre className="queue">{JSON.stringify(queue, null, 2)}</pre>}</div>
+          <div><h3>Ledger</h3><button disabled={busy || !online} onClick={()=>void inspectReconciliation()}>{t.reconcile}</button>{queue && <pre className="queue">{JSON.stringify(queue, null, 2)}</pre>}</div>
         </div></section>}
       </main>
 

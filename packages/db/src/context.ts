@@ -3,11 +3,12 @@ import { validateRuntimeEnv } from '@gifters/config';
 import { db, type Database, type DbExecutor } from './index';
 import { users } from './schema';
 
-export type DatabaseContext = { access: 'public' | 'member' | 'staff' | 'service'; actorId?: string; requireAdmin?: boolean; snapshot?: boolean };
+export type DatabaseContext = { access: 'public' | 'member' | 'staff' | 'service'; actorId?: string; requireAdmin?: boolean; snapshot?: boolean; reportSnapshot?: boolean };
 
 export async function scopedTransaction<T>(database: Database, context: DatabaseContext, fn: (tx: DbExecutor) => Promise<T>) {
   if (context.actorId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(context.actorId)) throw new Error('INVALID_INPUT');
   if ((['member','staff'].includes(context.access) || context.requireAdmin) && !context.actorId) throw new Error('UNAUTHENTICATED');
+  if (context.reportSnapshot && context.access!=='service') throw new Error('FORBIDDEN');
   const config = validateRuntimeEnv();
   return database.transaction(async (tx) => {
     // PostgreSQL metadata and transaction-local security context are deliberate
@@ -29,7 +30,7 @@ export async function scopedTransaction<T>(database: Database, context: Database
       if (actor?.role !== 'admin' || actor.status !== 'active') throw new Error('FORBIDDEN');
     }
     return fn(tx);
-  },context.snapshot ? {isolationLevel:'repeatable read',accessMode:'read only'} : undefined);
+  },context.snapshot ? {isolationLevel:'repeatable read',accessMode:'read only'} : context.reportSnapshot ? {isolationLevel:'repeatable read'} : undefined);
 }
 
 export function withContext<T>(context: DatabaseContext, fn: (tx: DbExecutor) => Promise<T>) {

@@ -40,4 +40,12 @@ if (!dashboard.notifications.some(item=>item.title_key==='gift_sent') || !dashbo
 const rec=await fetch(origin+'/api/v1/admin/reconcile',{headers:{'x-sim-user':'sim_admin'}});
 const reconciled=(await rec.json()).data;
 if (!reconciled.balanced || !reconciled.consistent || !reconciled.lineage_complete) throw new Error('Financial reconciliation failed');
-console.log('Passed signed/rotated-key tick, timestamp/body/environment/replay rejection, duplicate-run fencing, staff privacy, delivered notices and financial reconciliation.');
+const historyResponse=await fetch(origin+'/api/v1/admin/reconcile/reports',{headers:{'x-sim-user':'sim_admin'}});
+if (!historyResponse.ok) throw new Error('Reconciliation history unavailable');
+const reports=(await historyResponse.json()).data;
+if (reports.length!==1 || !reports[0].balanced || !reports[0].consistent || !reports[0].lineage_complete) throw new Error('Daily snapshot was not committed exactly once');
+const reportResponse=await fetch(origin+'/api/v1/admin/reconcile/reports/'+reports[0].id,{headers:{'x-sim-user':'sim_admin'}});
+if (!reportResponse.ok || !(await reportResponse.json()).data.result.consistent) throw new Error('Daily snapshot detail unavailable');
+const deniedReport=await fetch(origin+'/api/v1/admin/reconcile/reports/'+reports[0].id,{headers:{'x-sim-user':'member_01'}});
+if (deniedReport.status!==403) throw new Error('Member read staff report');
+console.log('Passed signed/rotated-key tick, timestamp/body/environment/replay rejection, duplicate-run fencing, staff privacy, delivered notices and one durable daily reconciliation snapshot.');
