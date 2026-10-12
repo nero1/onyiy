@@ -1,5 +1,6 @@
 export const copy = {
   en: {
+    financialReview:'Financial review: affected GIV activity is paused. Existing balances, holds and withdrawals are preserved.',reviewCycles:'Cycles under financial review',
     reviewGift:'Review gift payment',confirmGift:'Confirm GIV payment',expires:'Expires',incoming:'Incoming held',refundable:'Refundable',incomingPending:'Payment submitted — confirmation pending.',incomingReview:'Payment needs review; refundable funds are preserved.',incomingRejected:'Payment rejected; no gift was admitted.',
     reconciliationPassed:'Reconciliation passed',reconciliationReview:'Reconciliation needs review',
     done:'Done',heldWithdrawals:'Held withdrawals',cancelWithdrawal:'Cancel unsent withdrawal',
@@ -8,6 +9,7 @@ export const copy = {
     gifts:'Choose a gift', expected:'Expected', send:'Send this gift', active:'Active cycles', completed:'Completed cycles', position:'Position', credited:'Gifts credited', noCycles:'No cycles yet.', wallet:'Wallet', linkWallet:'Link simulation wallet', linked:'Linked', withdraw:'Request withdrawal quote', reviewWithdrawal:'Review withdrawal', gross:'Gross', networkFee:'Network fee', net:'Net', confirmWithdrawal:'Confirm withdrawal', cancel:'Cancel', withdrawAmount:'Amount in GIV', notifications:'Notifications', admin:'Admin simulator', activate:'Activate', reconcile:'Reconcile journals', balanced:'All journals balanced', queue:'Inspect queue', language:'Language', theme:'Theme', light:'Light', dark:'Dark', offline:'Offline — financial actions are disabled.', loading:'Loading…', error:'Something went wrong', retry:'Retry', status:'Status', backToTop:'Back to gift tiles'
   },
   fr: {
+    financialReview:'Vérification financière : les opérations GIV concernées sont suspendues. Les soldes, réservations et retraits existants sont conservés.',reviewCycles:'Cycles en vérification financière',
     reviewGift:'Vérifier le paiement du cadeau',confirmGift:'Confirmer le paiement GIV',expires:'Expiration',incoming:'Paiement entrant bloqué',refundable:'Remboursable',incomingPending:'Paiement soumis — confirmation en attente.',incomingReview:'Le paiement nécessite une vérification ; les fonds remboursables sont conservés.',incomingRejected:'Paiement refusé ; aucun cadeau admis.',
     reconciliationPassed:'Rapprochement validé',reconciliationReview:'Le rapprochement nécessite une vérification',
     done:'Terminé',heldWithdrawals:'Retraits bloqués',cancelWithdrawal:'Annuler le retrait non envoyé',

@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
+      { source: '/api/v1/admin/simulation/allocations/:id/reorg', destination: '/api/v1/admin/simulation/allocations/reorg?allocation_id=:id' },
+      { source: '/api/v1/admin/simulation/reorgs/:id/reconfirm', destination: '/api/v1/admin/simulation/reorgs/reconfirm?review_id=:id' },
       { source: '/api/v1/gifts/invoices/:id/cancel', destination: '/api/v1/gifts/invoices/cancel?invoice_id=:id' },
       { source: '/api/v1/gifts/invoices/:id/transaction', destination: '/api/v1/gifts/invoices/transaction?invoice_id=:id' },
       { source: '/api/v1/admin/simulation/invoices/:id/control', destination: '/api/v1/admin/simulation/invoices/control?invoice_id=:id' },
