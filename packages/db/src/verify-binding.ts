@@ -9,10 +9,10 @@ import { deploymentBindingChallenges, migrationClient, schema, withContext } fro
 // Stored namespace IDs can be cloned in backups. Only a newly committed owner
 // challenge observed through the restricted runtime proves this deployment's
 // connection binding. No credential or challenge value is printed/exported.
-export async function verifyDatabaseBinding(bootstrap=false) {
+export async function verifyDatabaseBinding(bootstrap=false,quiet=false) {
   if (!process.env.DATABASE_MIGRATION_URL) throw new Error('DATABASE_MIGRATION_URL_REQUIRED');
   const config=validateRuntimeEnv();
-  const owner=migrationClient();const id=crypto.randomUUID();
+  const owner=migrationClient({quiet});const id=crypto.randomUUID();
   const database=drizzle(owner,{schema});
   try {
     if (bootstrap) {

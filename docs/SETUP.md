@@ -386,7 +386,7 @@ Raw SQL should be limited to PostgreSQL-specific operations that are clearer or 
 - DDL migrations,
 - `GRANT` and RLS policy statements,
 - explicit row/advisory locking where required,
-- specialized recovery/reconciliation operations.
+- specialized recovery/reconciliation operations, exported snapshots and PostgreSQL catalog fingerprints for native backup/restore.
 
 Do not introduce Supabase client-library calls into domain logic merely because Supabase hosts PostgreSQL.
 
@@ -618,3 +618,31 @@ Migration 017 adds server-only immutable maintenance reports and protects schedu
 For an operational/legal preservation hold, set server-only `OPERATIONAL_RETENTION_HOLD=true` on the affected deployment and redeploy. The exact values are `true` and `false`; other values fail closed. This suppresses daily cleanup and routine nonce pruning. Reports record held pages with zero deletion; they are not a claim of empty backlog. Review the hold before setting `false` and redeploying. The next daily root resumes cleanup. A hold increases coordination storage; monitor backlog and database quota. No financial deletion is enabled when the hold is removed.
 
 Before hosted acceptance, perform the named isolated procedure in HOW-IT-WORKS.md, check fresh reconciliation, and verify the restricted runtime cannot delete a current nonce/run or change completed-window identity. Never bypass these guards, remove pending jobs, or infer live-chain nonbroadcast from a scheduler record.
+
+
+## 20. Verify an isolated simulation backup and restore
+
+These operator-only commands preserve the current GIV application database, including unpaid liabilities, ledger/receipt history, queue tickets/counters, retained reports and pending/retry/running/DLQ work. They implement neither member/site portability exports nor hosted/live-chain recovery. Hosted acceptance remains deferred. Do not run them in Vercel or schedule them automatically.
+
+Use an owner maintenance host with Node 22.23.3 and compatible native `pg_dump`/`pg_restore` on PATH (PG17.5 was observed). Use a direct/session owner connection, never a transaction pooler for native tools or the shared snapshot. Provision the same restricted runtime groups and closed browser roles from section 3 separately on the target. Set owner/runtime URLs to one dedicated simulation namespace; fresh binding is required even if copied namespace IDs match. Native remote connections require hostname/certificate verification with system trust or the exact `DATABASE_TLS_CA_PEM`; no weakening URL option is accepted. Loopback plaintext remains limited to disposable simulation tooling. Native remote TLS/provider acceptance was not run in this pass.
+
+Create a private operator environment file and archive directory outside source control (file mode 600, directory mode 700). Keep `DATABASE_MIGRATION_URL` and a cryptographically generated 32-byte `EXPORT_ENCRYPTION_KEY` (canonical 43-character base64url) in the maintenance secret store, outside Vercel, browser, manifest and logs. Store the key separately from the archives; losing it prevents recovery. Restore and verify require the same key. This command does not rotate keys or manage backup retention. Never paste credentials or command environment contents into chat.
+
+Require `APP_ENV=simulation`, `MAINNET_ENABLED=false`, `SIGNER_PROVIDER=disabled`, `RECOVERY_CONFIRM=isolated-simulation` and unset both scheduler HMAC keys. Choose an absolute, new file path with an allowlisted basename ending `.gwbackup`. The CLI refuses existing archive/inventory paths. For example, after loading the private maintenance environment into the process:
+
+```sh
+npm run db:backup:simulation -- /secure/backups/simulation-snapshot.gwbackup
+```
+
+It streams an application-`public`-schema native dump through AES-256-GCM without saving plaintext. Provider auth/storage/vault and unrelated schemas are excluded. The paired `.gwbackup.json` contains only counts/hashes, extension/version metadata and an HMAC signature. Retain both files together. Ephemeral binding challenges are excluded and must be freshly proved. Drizzle keyset hashes and native dump share a repeatable-read snapshot; unknown public tables, unknown manifest keys and non-simulation assets stop backup. Current proof covers 34 retained tables of 35 implemented tables, not future PRD resources.
+
+Create an empty, unpublished staging database with no other clients. Set its owner and restricted runtime URLs in the private environment and `RECOVERY_RESTORE_CONFIRM=restore:<exact database name>`. Keep the scheduler and signer off. Database names must be literal ASCII names, not libpq connection strings. Then:
+
+```sh
+npm run db:restore:simulation -- /secure/backups/simulation-snapshot.gwbackup
+npm run db:verify:restore -- /secure/backups/simulation-snapshot.gwbackup
+```
+
+Restore verifies signed metadata, migration fingerprint, ciphertext checksum and full AEAD authentication before target bootstrap. It uses a private ciphertext copy to prevent input replacement. It provisions only the signed pgcrypto dependency, preserves the existing public schema/fresh proof and imports application objects/data/ACLs in one native transaction. It does not use `--clean`, merge into populated tables, erase evidence, run a job or publish staging. Row hashes, constraints/functions/triggers/RLS/grants/schema privileges, extension version, counters and fresh owner/runtime/configuration binding must match exactly afterward. Failure prints a fixed redacted category; keep the archive, inventory, failure observations and quarantined staging intact. A content mismatch after native commit still requires explicit review; never promote it or edit history to pass.
+
+For named acceptance, retain submitted incoming holds, refundable amounts, unsent withdrawal holds, pending/retry/running/DLQ jobs and an open financial review; take a backup and restore to a separate empty namespace. Compare own dashboards and staff reconciliation, confirming liabilities/review survive, unauthorized staff access fails and unsigned ticks remain rejected. Verify bad keys, metadata/version/ciphertext tamper, active/populated targets, unknown source resources and output overwrite rejection. Use a separately signed disposable corrupt-FK archive to observe a real import rollback; preserve that target and do not alter the source ledger. This pass verified these GIV contracts in PG17.5. Before any future scheduler resumption, reconcile, inspect stale leases/due work, unresolved obligations and reviews, and explicitly authorize publication/resumption. No live signer, sessions/TOTP, chain finality, failover, large-dataset capacity or hosted-provider restore is accepted by this procedure.

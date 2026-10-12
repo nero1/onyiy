@@ -30,10 +30,10 @@ export async function closeDb() {
   runtimeDb = undefined;
 }
 
-export function migrationClient(): Sql {
+export function migrationClient(options:{quiet?:boolean}={}): Sql {
   const cfg = validateRuntimeEnv();
   const url = process.env.DATABASE_MIGRATION_URL ?? cfg.databaseUrl;
-  return postgres(url, { ...databaseConnectionOptions(url), max: 1, idle_timeout: 5, prepare: false });
+  return postgres(url, { ...databaseConnectionOptions(url), max: 1, idle_timeout: 5, prepare: false, ...(options.quiet?{onnotice:()=>{}}:{}) });
 }
 
 export async function getManifestValue<T>(key: string): Promise<T | undefined> {
