@@ -15,7 +15,7 @@
     "typecheck": "next typegen && tsc -p tsconfig.json --noEmit",
     "lint": "node scripts/lint.mjs",
     "check:i18n": "node scripts/check-i18n.mjs",
-    "check:manifest": "node scripts/validate-xmanifest.mjs",
+    "check:manifest": "tsx scripts/validate-xmanifest.ts",
     "check:secrets": "node scripts/secret-scan.mjs",
     "check:drizzle": "node scripts/check-drizzle-coverage.mjs",
     "check:supabase-grants": "node scripts/check-supabase-grants.mjs",

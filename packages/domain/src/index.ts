@@ -61,23 +61,30 @@ export function splitAmount(amount: bigint, split: PaymentSplitBps) {
 }
 
 export function usdToGivBaseUnits(usd: number): bigint {
-  if (!Number.isFinite(usd) || usd <= 0) throw new Error("invalid usd amount");
-  return BigInt(Math.round(usd * Number(GIV_FACTOR)));
+  return decimalToBaseUnits(String(usd), GIV_DECIMALS);
+}
+
+export function decimalToBaseUnits(value: string, decimals = GIV_DECIMALS): bigint {
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 78 || !/^(0|[1-9][0-9]*)(\.[0-9]+)?$/.test(value)) throw new Error('INVALID_INPUT');
+  const [whole,fraction = ''] = value.split('.');
+  if (fraction.length > decimals) throw new Error('INVALID_INPUT');
+  const units = BigInt(whole) * 10n ** BigInt(decimals) + BigInt(fraction.padEnd(decimals,'0') || '0');
+  if (units <= 0n || units.toString().length > 78) throw new Error('INVALID_INPUT');
+  return units;
 }
 
 export function formatBaseUnits(value: bigint | string, decimals = GIV_DECIMALS): string {
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 78) throw new Error('INVALID_INPUT');
   const amount = typeof value === "bigint" ? value : BigInt(value);
+  const magnitude = amount < 0n ? -amount : amount;
   const factor = 10n ** BigInt(decimals);
-  const whole = amount / factor;
-  const fraction = (amount % factor).toString().padStart(decimals, "0").replace(/0+$/, "");
-  return fraction ? `${whole}.${fraction}` : whole.toString();
+  const whole = magnitude / factor;
+  const fraction = (magnitude % factor).toString().padStart(decimals, "0").replace(/0+$/, "");
+  return (amount < 0n ? '-' : '') + (fraction ? `${whole}.${fraction}` : whole.toString());
 }
 
-export const planTemplates = [
-  ["Bronze", 5], ["Silver", 10], ["Gold", 20], ["Diamond", 30], ["Platinum", 50], ["Super", 70],
-  ["Mega", 100], ["Giga", 150], ["Ultra", 250], ["Stellar", 500], ["Royal", 1000], ["Mythic", 2500]
-] as const;
-
-export function giftPointAward(usdReference: number) {
-  return usdReference >= 100 ? { sender: 50, referrer: 10 } : { sender: 25, referrer: 5 };
+export function giftPointAward(usdReference: string, rules: { usd_threshold:number; sender_low:number; sender_high:number; referrer_low:number; referrer_high:number }) {
+  return decimalToBaseUnits(usdReference) >= decimalToBaseUnits(String(rules.usd_threshold))
+    ? { sender: rules.sender_high, referrer: rules.referrer_high }
+    : { sender: rules.sender_low, referrer: rules.referrer_low };
 }

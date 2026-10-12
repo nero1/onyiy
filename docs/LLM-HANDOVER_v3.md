@@ -3,7 +3,7 @@
 Work directly in the current repository. Before changing code, read in order:
 
 1. `docs/PRD.md` — living product/engineering authority.
-2. `docs/PROJECT-STATUS_v2.md` — verified progress, limitations and exact next pass.
+2. `docs/PROJECT-STATUS_v3.md` — verified progress, limitations and exact next pass.
 3. `docs/SETUP.md` — sole hosted setup guide.
 4. `docs/HOW-IT-WORKS.md` — architecture and manual acceptance procedures.
 5. This prompt, then actual repository files and applicable agent instructions.
@@ -16,20 +16,18 @@ The owner wants continued coding without hosted credentials for now and will tes
 
 **At the end of each completed iteration, create a pull request and merge it after required checks pass.** This is explicitly authorized. Do not push directly to `main` as a substitute. Report an access/check blocker truthfully and complete independent work first.
 
-The current estimate is **25% complete / 75% remaining**. No M0/M1 gate is newly complete. The v2 iteration verified a dependency-resolved build and credential-free CI prerequisites; hosted deployment and hosted M1 acceptance remain unrun.
+The current estimate is **26.25% complete / 73.75% remaining**. No M0/M1 gate is newly complete. The v2 iteration verified a dependency-resolved build and credential-free CI prerequisites; hosted deployment and hosted M1 acceptance remain unrun.
 
-Node 22.23.3, npm lockfile v3 and Vercel CLI 63.1.2 are pinned. `npm ci`, `check:all`, `build`, secret/client canary scans and the 200 KiB homepage JS check passed (175.23 KiB gzip). Workflow `actionlint` and GitHub Actions push/PR checks passed for code commit `255c5ba`; deployment skipped as designed. Drizzle coverage is 18/18 current tables. `db:check` was a config-only check, not an applied hosted migration. See status for exact evidence.
+Node 22.23.3, npm lockfile v3 and Vercel CLI 63.1.2 remain pinned. This iteration adds 67 closed static manifest schemas plus dynamic plan/asset/risk schemas, canonical scopes, public projection/ETags, transaction-bound DB configuration, atomic preservation-only seeds/migrations, reset guards and exact integer decimal conversion. DB validation, rollback, preservation, reset refusal, public manifest/ETag and the original 21-gift public-route scenario passed in a separate disposable tooling database. Build/checks pass; homepage is 175.30 KiB gzip. This is not hosted acceptance. The v2 PR #1 is merged; inspect GitHub for this iteration’s final delivery and current checks.
 
-The Redis adapter type mismatch is fixed without bypassing TypeScript. Bracket-free parameterized Route Handlers resolve/validate the original path ID before query parameters, addressing the earlier rewritten URL failure; the hosted scenario still needs verification. Runtime rejects testnet/mainnet and unsupported provider selectors because only simulation is implemented.
-
-The iteration is delivered through [PR #1](https://github.com/nero1/onyiy/pull/1). Initial API requests returned a proxy CONNECT 403, but later PR creation and Actions inspection succeeded using existing authentication. Verify the final PR/merge and current checks from GitHub. Never print credentials or request a token merely because a CLI prompts; do not claim an unverified deployment.
+The owner asks you to keep iterating toward all Phase One gates, then fix remaining defects; make routine decisions using your best recommendation without waiting for replies. Do not pretend a stopped session or exhausted usage resumes automatically. Record the exact next work here so a later session can resume.
 
 ## Next work, in order
 
-1. Inspect repository/remote state and finish any outstanding PR/merge; verify Actions checks when access permits.
-2. Follow the exact status next pass: credential-free M0 manifest authority/public projection, seed preservation, security ceilings and rollback hardening. Preserve earlier gates; do not jump to attractive later features.
-3. Hosted setup is deferred, not waived. Once provided, follow `SETUP.md`: protected `preview`/`production` environments and the repository variable `ENABLE_VERCEL_DEPLOYMENTS=true`. Same-repository PRs can deploy previews after checks/environment review; forks get checks only. `main` pushes deploy production. Vercel native Git deployment remains disabled.
-4. Record a real hosted migration/seed and deployment, then run `scenario:m1` on a fresh isolated hosted simulation database. Finish replay/concurrency and failure acceptance before M2 identity/security; M3 testnet follows M2.
+1. Finish any outstanding verified PR/merge, then harden M1. Current bugs: different withdrawal quotes can spend the same user balance concurrently; quote request-key reuse does not validate changed input; user/status/asset checks must occur inside the money transaction; cycle limits and disabled features need server enforcement.
+2. Use named manual replay/concurrency/withdrawal acceptance and reconciliation in a fresh disposable simulation namespace; no new Docker/service/local-first setup is authorized. Do not reset shared databases. Existing tooling validation is separate from the owner’s deferred Supabase/Vercel tests.
+3. Finish remaining M0/M1 gates before M2 identity/security and M3 live testnet integration. Typed policies for future services do not imply implementation. Real hosted settings remain prerequisites; never invent them.
+4. Once settings arrive, use only SETUP.md: protected preview/production environments and ENABLE_VERCEL_DEPLOYMENTS=true. PR previews and main production deployments remain opt-in; forks get checks only. Run and record real hosted migration/seed, first deployment and hosted M1 acceptance.
 
 ## Preserve these contracts
 
@@ -44,6 +42,6 @@ The iteration is delivered through [PR #1](https://github.com/nero1/onyiy/pull/1
 
 Run applicable `npm ci`, `npm run check:all`, `npm run build`, `npm run check:bundle`, secret/client checks, Drizzle coverage and grant checks. Execute hosted migrations/scenarios only with real authorized settings; distinguish passed, failed, blocked and unrun results. Do not invent credentials, mock a successful deployment, reset shared databases or weaken assertions/type checking. The PRD forbids broad automated test suites; use existing manual simulator/provider contracts and reconciliation.
 
-Keep the five core docs primary. Update HOW-IT-WORKS for implemented behavior and SETUP for hosted procedure changes. Always recompute the weighted M0–M8 table (weights total 100%), show complete/remaining, and avoid awarding scaffold-only gates. Replace this prompt with a self-contained next prompt, rename the pair to `PROJECT-STATUS_v3.md` and `LLM-HANDOVER_v3.md`, update references/markers, remove the superseded pair, run the docs check, then create/merge the PR. Extra Markdown/version mismatch may warn but must not alone fail CI. At verified 100%, stop Phase One and request the owner's next instruction.
+Keep the five core docs primary. Update HOW-IT-WORKS for implemented behavior and SETUP for hosted procedure changes. Always recompute the weighted M0–M8 table (weights total 100%), show complete/remaining, and avoid awarding scaffold-only gates. Replace this prompt with a self-contained next prompt, rename the pair to `PROJECT-STATUS_v4.md` and `LLM-HANDOVER_v4.md`, update references/markers, remove the superseded pair, run the docs check, then create/merge the PR. Extra Markdown/version mismatch may warn but must not alone fail CI. At verified 100%, stop Phase One and request the owner's next instruction.
 
-v2
+v3

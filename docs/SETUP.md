@@ -332,6 +332,12 @@ env:
 
 For later real-money releases, migration/seed policy must be reviewed again before deployment.
 
+### 9.1 Safe refresh and simulation reset
+
+Migrations execute each file atomically. Repeated seeds insert missing defaults and preserve configured values, disabled assets and existing plans. Apply migration `002_manifest_metadata.sql` before the updated seed; it corrects the legacy simulation-policy scope without changing its value. Invalid stored settings stop financial work rather than silently replacing them with file defaults.
+
+Use a fresh, isolated Supabase simulation project for milestone acceptance. Never reset a shared preview or a real-money database. If an isolated reset is deliberately required, stop its writes, set `APP_ENV=simulation`, confirm the actual database name through `SIMULATION_RESET_CONFIRM=reset:<database-name>`, and run `npm run db:reset:simulation` followed by `npm run db:seed`. Reset refuses production runtime/deployment context, a disabled database reset policy, or any non-simulation asset. Supabase projects often share the database name `postgres`; independently verify the selected project/connection before confirming it. No reset is part of ordinary CI/deployment.
+
 ## 10. Drizzle ORM requirement
 
 Application database access should use Drizzle ORM wherever practical, targeting effectively 100% application-table coverage.

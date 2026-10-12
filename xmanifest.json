@@ -16,21 +16,49 @@
   "feature_simulation": true,
   "mainnet_enabled": false,
   "default_locale": "en",
-  "supported_locales": ["en", "fr"],
+  "supported_locales": [
+    "en",
+    "fr"
+  ],
   "eligibility_min_age": 18,
   "cycle_max_concurrent": 0,
   "cycle_rejoin_cooldown_hours": 24,
-  "payment_split_bps": {"receiver":8500,"marketing":400,"referral":400,"developer":600,"reserve":100},
-  "simulation_policy": {"giv_grant":5000,"giv_decimals":2,"max_seed_batch":100,"allow_reset":true},
+  "payment_split_bps": {
+    "receiver": 8500,
+    "marketing": 400,
+    "referral": 400,
+    "developer": 600,
+    "reserve": 100
+  },
+  "simulation_policy": {
+    "giv_grant": 5000,
+    "giv_decimals": 2,
+    "max_seed_batch": 100,
+    "allow_reset": true
+  },
   "ui_show_queue_total": true,
-  "ui_rotation_policy": {"activity_seconds":10,"currency_seconds":10,"launch_reshow_days":3,"launch_dismiss_hours":24},
+  "ui_rotation_policy": {
+    "activity_seconds": 10,
+    "currency_seconds": 10,
+    "launch_reshow_days": 3,
+    "launch_dismiss_hours": 24
+  },
   "notification_page_size": 15,
-  "pagination_policy": {"default_size":20,"max_size":100},
+  "pagination_policy": {
+    "default_size": 20,
+    "max_size": 100
+  },
   "deployment_profile": "test_iteration",
   "product_content": {
     "domain": "https://giftersworld.org",
-    "tagline": {"en":"Give and you shall receive.","fr":"Donnez et vous recevrez."},
-    "short_description": {"en":"Give and you shall receive almost double what you gave.","fr":"Donnez et recevez presque le double de ce que vous avez donné."}
+    "tagline": {
+      "en": "Give and you shall receive.",
+      "fr": "Donnez et vous recevrez."
+    },
+    "short_description": {
+      "en": "Give and you shall receive almost double what you gave.",
+      "fr": "Donnez et recevez presque le double de ce que vous avez donné."
+    }
   },
   "activity_statements": [
     "ra*********lt just referred a new member",
@@ -83,5 +111,335 @@
     "bm***9j just received a gift worth $140",
     "dn**********k6 just sent a gift worth $65",
     "uj*****p3 just received $9.5 referral commission"
-  ]
+  ],
+  "terms_content": {
+    "version": "draft-1",
+    "body": {
+      "en": "I accept the current terms for this simulation. GIV has no cash value or on-chain redemption.",
+      "fr": "J’accepte les conditions de cette simulation. GIV n’a aucune valeur monétaire ni conversion sur une chaîne."
+    }
+  },
+  "admin_timezone": "Africa/Lagos",
+  "entitlements_member": {
+    "dashboard": true,
+    "history": true,
+    "wallet_link": true,
+    "send_enabled_gifts": true,
+    "receive_own_cycles": true
+  },
+  "plan_templates": [
+    {
+      "name": "Bronze",
+      "price_usd": 5,
+      "receipts_required": 2
+    },
+    {
+      "name": "Silver",
+      "price_usd": 10,
+      "receipts_required": 2
+    },
+    {
+      "name": "Gold",
+      "price_usd": 20,
+      "receipts_required": 2
+    },
+    {
+      "name": "Diamond",
+      "price_usd": 30,
+      "receipts_required": 2
+    },
+    {
+      "name": "Platinum",
+      "price_usd": 50,
+      "receipts_required": 2
+    },
+    {
+      "name": "Super",
+      "price_usd": 70,
+      "receipts_required": 2
+    },
+    {
+      "name": "Mega",
+      "price_usd": 100,
+      "receipts_required": 2
+    },
+    {
+      "name": "Giga",
+      "price_usd": 150,
+      "receipts_required": 2
+    },
+    {
+      "name": "Ultra",
+      "price_usd": 250,
+      "receipts_required": 2
+    },
+    {
+      "name": "Stellar",
+      "price_usd": 500,
+      "receipts_required": 2
+    },
+    {
+      "name": "Royal",
+      "price_usd": 1000,
+      "receipts_required": 2
+    },
+    {
+      "name": "Mythic",
+      "price_usd": 2500,
+      "receipts_required": 2
+    }
+  ],
+  "quote_ttl_minutes": 15,
+  "price_max_age_minutes": 15,
+  "native_price_display_decimals": 8,
+  "fiat_display_decimals": 2,
+  "wallet_change_cooloff_hours": 24,
+  "wallet_reminder_hours": 24,
+  "empty_queue_policy": {
+    "mode": "business_credit",
+    "destination_role": "developer"
+  },
+  "payout_limits": {
+    "auto_approve_usd": 100,
+    "signer_per_tx_usd": 5000,
+    "daily_per_asset_usd": 10000,
+    "batch_size": 25,
+    "interval_minutes": 15
+  },
+  "withdrawal_fee_policy": {
+    "quote_ttl_minutes": 30,
+    "max_rate_age_minutes": 15,
+    "platform_variance_pct": 25,
+    "failure_fee_mode": "actual_up_to_approved_quote",
+    "fixed_minimum": 0
+  },
+  "business_settlement_policy": {
+    "manual_enabled": true,
+    "daily_enabled": true,
+    "daily_anchor": "utc_midnight",
+    "fee_payer": "platform_reserve"
+  },
+  "bootstrap_destination_role": "developer",
+  "crypto_monitor_policy": {
+    "first_poll_seconds": 15,
+    "later_poll_seconds": 60,
+    "active_poll_minutes": 120,
+    "exception_age_hours": 48,
+    "stuck_blocks": 30,
+    "replacement_attempts": 3,
+    "rpc_rps": 10,
+    "rpc_timeout_ms": 5000
+  },
+  "points_rules": {
+    "signup": 1,
+    "usd_threshold": 100,
+    "sender_low": 25,
+    "sender_high": 50,
+    "referrer_low": 5,
+    "referrer_high": 10
+  },
+  "points_daily_cap": 1000,
+  "public_stats_policy": {
+    "enabled": false,
+    "refresh_hours": 24,
+    "include_system": false
+  },
+  "activity_policy": {
+    "source": "fixtures",
+    "max_records": 50
+  },
+  "captcha_surfaces": {
+    "consent": true,
+    "suspicious_checkout": true
+  },
+  "report_dedupe_hours": 24,
+  "moderator_permissions": {
+    "review": true,
+    "suspend": true,
+    "restore_suspension": true,
+    "ban": false,
+    "delete": false,
+    "finance": false,
+    "bulk_export": false
+  },
+  "auth_session_policy": {
+    "access_minutes": 60,
+    "absolute_days": 30,
+    "idle_days": 7,
+    "preauth_minutes": 5,
+    "totp_step_seconds": 30,
+    "totp_window_steps": 1,
+    "replay_retention_seconds": 90
+  },
+  "staff_reauth_minutes": 15,
+  "pending_consent_retention_days": 0,
+  "job_policy": {
+    "max_attempts": 6,
+    "base_delay_seconds": 5,
+    "max_delay_seconds": 300,
+    "jitter_fraction": 0.2,
+    "lease_seconds": 120,
+    "chunk_size": 100
+  },
+  "scheduler_auth_policy": {
+    "max_clock_skew_seconds": 300,
+    "replay_ttl_seconds": 600
+  },
+  "worker_shutdown_seconds": 20,
+  "health_timeout_ms": 2000,
+  "cache_policy": {
+    "manifest_server_seconds": 60,
+    "manifest_public_seconds": 300,
+    "catalog_seconds": 300,
+    "identity_seconds": 60,
+    "private_snapshot_seconds": 30,
+    "client_poll_seconds": 60,
+    "max_memory_entries": 100,
+    "max_memory_mb": 5,
+    "max_public_help_mb": 10
+  },
+  "retention_policy": {
+    "financial_archive_after_days": 365,
+    "financial_keep_years": 7,
+    "audit_hot_days": 90,
+    "job_terminal_days": 30,
+    "http_replay_days": 7,
+    "export_hours": 24,
+    "notification_days": 90
+  },
+  "backup_policy": {
+    "interval_hours": 24,
+    "keep_days": 30,
+    "restore_check_days": 30,
+    "rpo_hours": 24,
+    "rto_hours": 24
+  },
+  "alert_policy": {
+    "backlog": 500,
+    "dlq": 1,
+    "signer_stale_minutes": 45,
+    "lock_wait_ms": 1000,
+    "quota_warning_fraction": 0.8,
+    "public_rpc_minutes": 15,
+    "remind_minutes": [
+      5,
+      15,
+      60
+    ],
+    "daily_limit": 3
+  },
+  "export_import_limits": {
+    "upload_mb": 50,
+    "chunk_rows": 1000,
+    "max_message_chars": 5000,
+    "max_provider_metadata_kb": 16
+  },
+  "api_deprecation_days": 90,
+  "rate_policies": {
+    "auth": {
+      "allowance": 20,
+      "window_seconds": 60,
+      "key": "ip_route",
+      "failure_policy": "closed",
+      "disableable": false
+    },
+    "mfa": {
+      "allowance": 5,
+      "window_seconds": 300,
+      "key": "factor_ip_route",
+      "failure_policy": "closed",
+      "disableable": false
+    },
+    "consent": {
+      "allowance": 20,
+      "window_seconds": 60,
+      "key": "user_route",
+      "failure_policy": "closed",
+      "disableable": false
+    },
+    "invoice": {
+      "allowance": 5,
+      "window_seconds": 60,
+      "key": "user_asset_route",
+      "failure_policy": "closed",
+      "disableable": false
+    },
+    "payment_proof": {
+      "allowance": 20,
+      "window_seconds": 60,
+      "key": "user_route",
+      "failure_policy": "closed",
+      "disableable": false
+    },
+    "wallet": {
+      "allowance": 5,
+      "window_seconds": 300,
+      "key": "user_route",
+      "failure_policy": "closed",
+      "disableable": false
+    },
+    "withdrawal": {
+      "allowance": 5,
+      "window_seconds": 60,
+      "key": "user_route",
+      "failure_policy": "closed",
+      "disableable": false
+    },
+    "business_settlement": {
+      "allowance": 5,
+      "window_seconds": 300,
+      "key": "admin_route",
+      "failure_policy": "closed",
+      "disableable": false
+    },
+    "notifications": {
+      "allowance": 60,
+      "window_seconds": 60,
+      "key": "user_route",
+      "failure_policy": "closed",
+      "disableable": false
+    },
+    "reports": {
+      "allowance": 5,
+      "window_seconds": 3600,
+      "key": "user_route",
+      "failure_policy": "closed",
+      "disableable": false
+    },
+    "own_data": {
+      "allowance": 2,
+      "window_seconds": 86400,
+      "key": "user_route",
+      "failure_policy": "closed",
+      "disableable": false
+    },
+    "staff": {
+      "allowance": 30,
+      "window_seconds": 60,
+      "key": "user_route",
+      "failure_policy": "closed",
+      "disableable": false
+    },
+    "import_reset": {
+      "allowance": 2,
+      "window_seconds": 3600,
+      "key": "admin_route",
+      "failure_policy": "closed",
+      "disableable": false
+    },
+    "mutation": {
+      "allowance": 30,
+      "window_seconds": 60,
+      "key": "user_route",
+      "failure_policy": "closed",
+      "disableable": false
+    },
+    "reads": {
+      "allowance": 120,
+      "window_seconds": 60,
+      "key": "user_route",
+      "failure_policy": "cached_public_only",
+      "disableable": false
+    }
+  }
 }

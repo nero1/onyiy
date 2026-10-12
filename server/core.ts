@@ -18,12 +18,11 @@ import {
   users,
   walletLinks,
   withdrawals,
+  xManifest,
+  readManifest,
   type DbExecutor,
 } from '@gifters/db';
-import { splitAmount, giftPointAward, formatBaseUnits } from '@gifters/domain';
-import { loadManifest } from '@gifters/config';
-
-const manifest = loadManifest();
+import { splitAmount, giftPointAward, formatBaseUnits, usdToGivBaseUnits } from '@gifters/domain';
 
 type UserRow = typeof users.$inferSelect;
 type Posting = { accountId: string; direction: 'debit' | 'credit'; amount: bigint };
@@ -96,6 +95,7 @@ export function heldBalance(database: DbExecutor, userId: string, assetId: strin
 }
 
 export async function consentUser(database: DbExecutor, username: string, referralCode?: string) {
+  const manifest = await readManifest(database);
   // Raw SQL is intentionally limited to lock acquisition; all row reads/writes use Drizzle.
   await database.execute(sql`select id from users where username=${username} for update`);
   const user = await getUser(database, username);
@@ -114,14 +114,14 @@ export async function consentUser(database: DbExecutor, username: string, referr
   }
 
   const updated = await database.update(users).set({
-    status: 'active', consentVersion: 'draft-1', consentedAt: new Date(), referrerUserId: referrerId, updatedAt: new Date(),
+    status: 'active', consentVersion: manifest.terms_content.version, consentedAt: new Date(), referrerUserId: referrerId, updatedAt: new Date(),
   }).where(eq(users.id, user.id)).returning();
   await database.insert(referralCodes).values({ userId: user.id }).onConflictDoNothing({ target: referralCodes.userId });
 
   const asset = (await database.select({ id: assets.id }).from(assets)
     .where(and(eq(assets.symbol, 'GIV'), eq(assets.environment, 'simulation'), eq(assets.enabled, true))).limit(1))[0];
   if (!asset) throw new Error('PLAN_UNAVAILABLE');
-  const grant = BigInt(Math.round(manifest.simulation_policy.giv_grant * 100));
+  const grant = usdToGivBaseUnits(manifest.simulation_policy.giv_grant);
   const userAvail = await account(database, asset.id, 'user', user.id, 'available_payable', 'credit');
   const grantExpense = await account(database, asset.id, 'system', null, 'simulation_grant_expense', 'debit');
   await postJournal(database, 'GIV_GRANT', `giv-grant:simulation:${user.id}`, [
@@ -130,15 +130,18 @@ export async function consentUser(database: DbExecutor, username: string, referr
   ], { user_id: user.id });
 
   if (referrerId) {
-    await database.insert(pointEvents).values({ userId: referrerId, sourceKey: `consent:${user.id}`, awardType: 'signup', points: 1 }).onConflictDoNothing();
+    await database.insert(pointEvents).values({ userId: referrerId, sourceKey: `consent:${user.id}`, awardType: 'signup', points: manifest.points_rules.signup }).onConflictDoNothing();
   }
   return updated[0];
 }
 
 export async function activatePlan(database: DbExecutor, planId: string, actorId: string) {
+  const manifest = await readManifest(database);
   await database.execute(sql`select id from plans where id=${planId} for update`);
   const plan = (await database.select().from(plans).where(eq(plans.id, planId)).limit(1))[0];
   if (!plan) throw new Error('NOT_FOUND');
+
+  if (plan.status === 'active') return { plan_id:planId, status:'active' };
 
   const versionRows = await database.select({ version: planVersions, symbol: assets.symbol })
     .from(planVersions)
@@ -151,6 +154,10 @@ export async function activatePlan(database: DbExecutor, planId: string, actorId
 
   await database.update(plans).set({ status: 'active', updatedAt: new Date() }).where(eq(plans.id, planId));
   await database.update(planVersions).set({ active: true }).where(eq(planVersions.id, v.id));
+  const configKey = `plan_config_${planId}`;
+  const planConfig = manifest[configKey];
+  if (!planConfig || typeof planConfig !== 'object' || Array.isArray(planConfig)) throw new Error('CONFIGURATION_INVALID');
+  await database.update(xManifest).set({ value:{...planConfig,status:'active',amount_base_units:v.amountBaseUnits}, version:sql`${xManifest.version} + 1`, updatedBy:actorId, updatedAt:new Date() }).where(eq(xManifest.key,configKey));
 
   await database.execute(sql`select id from queue_partitions where plan_version_id=${v.id} for update`);
   let partition = (await database.select().from(queuePartitions).where(eq(queuePartitions.planVersionId, v.id)).limit(1))[0];
@@ -181,6 +188,7 @@ export async function activatePlan(database: DbExecutor, planId: string, actorId
 }
 
 export async function sendGift(database: DbExecutor, user: UserRow, planId: string, requestKey: string) {
+  const manifest = await readManifest(database);
   if (user.status !== 'active') throw new Error(user.status === 'pending_consent' ? 'CONSENT_REQUIRED' : 'ACCOUNT_RESTRICTED');
   const opKey = `gift:${user.id}:${requestKey}`;
   const requestHash = crypto.createHash('sha256').update(planId).digest('hex');
@@ -322,7 +330,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
     revision: sql`${queuePartitions.revision} + 1`,
   }).where(eq(queuePartitions.id, partition.id));
 
-  const award = giftPointAward(Number(v.usdReference));
+  const award = giftPointAward(v.usdReference, manifest.points_rules);
   await database.insert(pointEvents).values({ userId: user.id, sourceKey: `gift:${cycle.id}`, awardType: 'gift_sender', points: award.sender }).onConflictDoNothing();
   if (eligibleReferrer?.status === 'active') {
     await database.insert(pointEvents).values({ userId: eligibleReferrer.id, sourceKey: `gift:${cycle.id}`, awardType: 'gift_referrer', points: award.referrer }).onConflictDoNothing();
@@ -353,6 +361,7 @@ export async function linkSimulationWallet(database: DbExecutor, user: UserRow) 
 }
 
 export async function quoteWithdrawal(database: DbExecutor, user: UserRow, gross: bigint, requestKey: string) {
+  const manifest = await readManifest(database);
   if (gross <= 0n) throw new Error('INVALID_INPUT');
   const asset = (await database.select({ id: assets.id }).from(assets).where(and(eq(assets.symbol, 'GIV'), eq(assets.environment, 'simulation'))).limit(1))[0];
   if (!asset) throw new Error('PLAN_UNAVAILABLE');
@@ -369,7 +378,7 @@ export async function quoteWithdrawal(database: DbExecutor, user: UserRow, gross
     netBaseUnits: gross.toString(),
     destination: wallet.address,
     status: 'quoted',
-    quoteExpiresAt: new Date(Date.now() + 30 * 60_000),
+    quoteExpiresAt: new Date(Date.now() + manifest.withdrawal_fee_policy.quote_ttl_minutes * 60_000),
     requestKey: durableKey,
   }).onConflictDoUpdate({ target: withdrawals.requestKey, set: { requestKey: durableKey } }).returning();
   return rows[0];
@@ -407,6 +416,7 @@ export async function confirmWithdrawal(database: DbExecutor, user: UserRow, wit
 }
 
 export async function dashboard(database: DbExecutor, user: UserRow) {
+  const manifest = await readManifest(database);
   const asset = (await database.select().from(assets).where(and(eq(assets.symbol, 'GIV'), eq(assets.environment, 'simulation'))).limit(1))[0];
   if (!asset) throw new Error('PLAN_UNAVAILABLE');
   const available = user.status === 'pending_consent' ? 0n : await availableBalance(database, user.id, asset.id);

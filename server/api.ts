@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { asc, desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
@@ -11,8 +12,9 @@ import {
   queuePartitions,
   users,
   withTx,
+  readManifest,
 } from '@gifters/db';
-import { loadManifest } from '@gifters/config';
+import { loadManifest, publicManifest } from '@gifters/config';
 import { formatBaseUnits } from '@gifters/domain';
 import {
   activatePlan,
@@ -25,7 +27,7 @@ import {
   sendGift,
 } from './core';
 
-const manifest = loadManifest();
+const seed = loadManifest();
 
 function requestId() { return crypto.randomUUID(); }
 
@@ -34,7 +36,7 @@ function ok(data: unknown, status = 200) {
 }
 
 function fail(error: unknown) {
-  const code = error instanceof Error ? error.message : 'INTERNAL_ERROR';
+  const message = error instanceof Error ? error.message : 'INTERNAL_ERROR';
   const statusMap: Record<string, number> = {
     UNAUTHENTICATED: 401,
     FORBIDDEN: 403,
@@ -49,7 +51,9 @@ function fail(error: unknown) {
     QUOTE_EXPIRED: 409,
     VERSION_CONFLICT: 409,
     INSUFFICIENT_BALANCE: 409,
+    CONFIGURATION_INVALID: 503,
   };
+  const code = Object.hasOwn(statusMap, message) ? message : 'INTERNAL_ERROR';
   return Response.json(
     { error: { code, message_key: `errors.${code.toLowerCase()}`, help_slug: 'simulation', retryable: false }, meta: { request_id: requestId() } },
     { status: statusMap[code] ?? 500, headers: { 'Cache-Control': 'private, no-store' } },
@@ -92,7 +96,15 @@ export async function handleApiRequest(method: string, path: string[], request: 
   try {
     const route = `/${path.join('/')}`;
 
-    if (method === 'GET' && route === '/manifest') return ok(manifest);
+    if (method === 'GET' && route === '/manifest') {
+      let manifest = seed;
+      try { manifest = await readManifest(); } catch { /* Public seed fallback never authorizes a mutation. */ }
+      const data = publicManifest(manifest);
+      const etag = `W/"${crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex')}"`;
+      const headers = { 'ETag':etag, 'Cache-Control':`public, max-age=0, s-maxage=${manifest.cache_policy.manifest_public_seconds}` };
+      if (request.headers.get('if-none-match') === etag) return new Response(null,{status:304,headers});
+      return Response.json({data,meta:{request_id:requestId()}},{headers});
+    }
 
     if (method === 'GET' && route === '/sim/users') {
       const rows = await db().select({ id: users.id, username: users.username, role: users.role, status: users.status, locale: users.locale })

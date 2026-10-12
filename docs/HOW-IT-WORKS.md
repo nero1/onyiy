@@ -22,6 +22,18 @@ Application table access is Drizzle-first, targeting effectively 100% coverage. 
 
 Every migration that creates a new `public` table must include an explicit Supabase GRANT classification. Sensitive financial, identity, ledger, admin, queue, payout, and audit tables must not be broadly exposed to `anon` or `authenticated` merely to satisfy the Data API.
 
+## Manifest authority and safety
+
+`xmanifest.json` contains validated bootstrap defaults. Seeding inserts missing settings in one transaction and preserves existing database values, asset enablement and plan edits. The database is runtime authority: financial services reload validated configuration in their transaction. Schema-declared policies for future services do not implement those services.
+
+The Phase One registry validates 67 static settings and typed plan/asset/risk keys, with explicit public/private/staff scopes and closed nested fields. Unknown legacy database keys are quarantined from outputs. Credentials, platform-address configuration and secret-bearing URLs are rejected; public token registry fields are a distinct permitted class. Invalid financial settings or deployment ceilings block mutations with a redacted configuration error.
+
+`/manifest` projects only registered public fields, uses a weak ETag and bounded CDN TTL, and may serve validated public seed defaults during database failure. This fallback never authorizes a mutation. Simulation, finance, auth and operational policies do not enter the public DTO.
+
+Migration files each execute in a PostgreSQL transaction. Seeds also execute atomically. The reset CLI requires an explicit simulation environment, database-name confirmation and an enabled database policy; production or non-simulation assets are rejected. Locks serialize its inspection and truncation. No public reset endpoint exists.
+
+Authoritative conversion parses decimal strings into integer base units; it does not multiply JavaScript floating-point money. Queue economics retain immutable plan-version snapshots. New seed versions and point rules read database settings without rewriting used economics.
+
 ## Cache and browser persistence
 
 PostgreSQL is authoritative. Redis must never be required for financial correctness.
