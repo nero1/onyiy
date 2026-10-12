@@ -1,14 +1,14 @@
 'use client';
 import {useEffect,useState,useRef} from 'react';
-import {api,mutation,ApiError} from '@/lib/api-client';
+import {api,mutation,ApiError,clientSessionMatches} from '@/lib/api-client';
 import {copy,type Locale} from '@/lib/i18n';
 import type {AuthUser,SessionResult} from '@/lib/auth-client';
 type Props={scope?:string;securityReady?:boolean;locale:Locale;user:AuthUser|null;requiresMfa:boolean;provider:string;accounts:{username:string}[];manifest:any;onSession:(value:SessionResult)=>void};
 export default function AuthPanel({scope,securityReady=true,locale,user,requiresMfa,provider,accounts,manifest,onSession}:Props){
- const renderScope=(user?.id??'anonymous')+':'+(scope??'')+':'+requiresMfa;const scopeRef=useRef(renderScope);scopeRef.current=renderScope;const valid=()=>scopeRef.current===renderScope;
+ const renderScope=(user?.id??'anonymous')+':'+(scope??'')+':'+requiresMfa;const scopeRef=useRef(renderScope);scopeRef.current=renderScope;const mounted=useRef(true);useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);const valid=()=>mounted.current&&scopeRef.current===renderScope&&clientSessionMatches(user?.username??'',scope);
  const t=copy[locale];const [username,setUsername]=useState(user?.username??'member_01');const [newName,setNewName]=useState('');const [accepted,setAccepted]=useState(false);const [adult,setAdult]=useState(false);const [referral,setReferral]=useState('');const [code,setCode]=useState('');const [recovery,setRecovery]=useState(false);const [secret,setSecret]=useState<string|null>(null);const [codes,setCodes]=useState<string[]>([]);const [enrolled,setEnrolled]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState('');
- useEffect(()=>{try{const url=new URL(location.href);if(url.searchParams.get('auth_error')==='1'){setError(t.signInFailed);url.searchParams.delete('auth_error');history.replaceState(null,'',url.pathname+url.search+url.hash)}}catch{}},[]);
- useEffect(()=>{setBusy(false);setError('');setUsername(user?.username??'member_01');setAccepted(false);setAdult(false);setSecret(null);setCodes([]);setCode('');setEnrolled(false);if(user)void api<{enrolled:boolean}>('/auth/2fa/status',user.username).then(value=>{if(valid())setEnrolled(value.enrolled)}).catch(()=>{});},[user?.id,scope]);
+ useEffect(()=>{try{const url=new URL(location.href);const referral=url.searchParams.get('ref');if(referral&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(referral))setReferral(referral);if(url.searchParams.get('auth_error')==='1'){setError(t.signInFailed);url.searchParams.delete('auth_error');history.replaceState(null,'',url.pathname+url.search+url.hash)}}catch{}},[]);
+ useEffect(()=>{setBusy(false);setError('');setUsername(user?.username??'member_01');setAccepted(false);setAdult(false);setSecret(null);setCodes([]);setCode('');setEnrolled(false);if(user)void api<{enrolled:boolean}>('/auth/2fa/status',user.username).then(value=>{if(valid())setEnrolled(value.enrolled)}).catch(()=>{});},[user?.id,scope,requiresMfa]);
  async function run(fn:()=>Promise<void>){setBusy(true);setError('');try{await fn()}catch(e){if(valid())setError(e instanceof ApiError?e.code:t.error)}finally{if(valid())setBusy(false)}}
  function session(value:SessionResult){if(!valid())return;if(value.recovery_codes)setCodes(value.recovery_codes);onSession(value);}
  return <section className="card auth-panel" lang={locale}>

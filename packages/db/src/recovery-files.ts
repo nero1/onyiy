@@ -46,7 +46,7 @@ async function nativeEnvironment(directory:string) {
   const environment={...process.env};
   for(const name of Object.keys(environment)) if(name.startsWith('PG')) delete environment[name];
   // Native tools need the selected owner connection, never application keys.
-  for(const name of ['EXPORT_ENCRYPTION_KEY','SCHEDULER_HMAC_KEY','SCHEDULER_HMAC_PREVIOUS_KEY','AUTH_ACCESS_KEY','AUTH_ACCESS_PREVIOUS_KEY','MFA_ENCRYPTION_KEY','GOOGLE_CLIENT_SECRET','SIMULATION_TOOL_AUTH_KEY']) delete environment[name];
+  for(const name of ['DATA_EXPORT_KEY','EXPORT_ENCRYPTION_KEY','SCHEDULER_HMAC_KEY','SCHEDULER_HMAC_PREVIOUS_KEY','AUTH_ACCESS_KEY','AUTH_ACCESS_PREVIOUS_KEY','MFA_ENCRYPTION_KEY','GOOGLE_CLIENT_SECRET','SIMULATION_TOOL_AUTH_KEY']) delete environment[name];
   environment.PGHOST=url.hostname.replace(/^\[|\]$/g,'');
   environment.PGPORT=url.port||'5432';
   environment.PGUSER=decodeURIComponent(url.username);

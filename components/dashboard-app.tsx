@@ -154,13 +154,13 @@ export default function DashboardApp() {
   },[authUser?.id,sessionGeneration,username]);
 
   function receiveSession(value:SessionResult){
-    setClientSession(value.user?.username??'',value.user?value.generation??'':'');
+    setClientSession(value.user?.username??'',value.generation??'');
     refreshGeneration.current++;
-    try{const channel=new BroadcastChannel('gw-session-scope-v1');channel.postMessage({type:'GW_SCOPE',tab:tabId.current,owner:value.user?.username??'',generation:value.user?value.generation??'':''});channel.close()}catch{}
+    try{const channel=new BroadcastChannel('gw-session-scope-v1');channel.postMessage({type:'GW_SCOPE',tab:tabId.current,owner:value.user?.username??'',generation:value.generation??''});channel.close()}catch{}
     setAuthReady(true);setRequiresMfa(value.requires_mfa??false);if(value.provider)setAuthProvider(value.provider);
     const same=value.user?.id===authUser?.id&&value.generation===sessionGeneration;
     if(!same){if(!value.user||activeSessionGeneration(value.user.username)!==value.generation)clearActiveUserScope();setDash(null);setGiftQuote(null);setWithdrawalQuote(null);}
-    setAuthUser(value.user);setSessionGeneration(value.user?value.generation??'':'');
+    setAuthUser(value.user);setSessionGeneration(value.generation??'');
     if(value.user){currentUser.current=value.user.username;setUsername(value.user.username);activateUserScope(value.user.username,value.generation??'');if(same)void refresh();}
   }
   async function switchAccount(next:string){if(busy)return;setBusy(true);try{receiveSession(await mutation<SessionResult>('/auth/simulation/session','',{username:next}));}catch(error){setNotice({kind:'error',text:error instanceof ApiError?error.code:t.error});}finally{setBusy(false)}}
@@ -250,7 +250,8 @@ export default function DashboardApp() {
     });
   }
 
-  const publicNavigation=<nav className="product-nav" aria-label={t.navigation}><a href="/">{t.home}</a>{manifest?.feature_gifts&&<a href="/#gift-tiles">{t.gifts}</a>}{manifest?.feature_wallets&&authUser&&<a href="/#wallet">{t.wallet}</a>}{manifest?.feature_points&&authUser&&<a href="/#points">{t.points}</a>}{authUser&&<a href="/settings/account">{locale==='fr'?'Compte':'Account'}</a>}{manifest?.feature_moderation&&['admin','moderator'].includes(authUser?.role??'')&&<a href="/moderation">{locale==='fr'?'Modération':'Moderation'}</a>}{manifest?.feature_help&&<a href="/help">{t.help}</a>}{manifest&&<PwaControls enabled={!!manifest.feature_pwa} locale={locale} busy={busy}/>}</nav>;
+  const fullAccess=!!authUser&&['active','deactivated'].includes(authUser.status)&&!requiresMfa;
+  const publicNavigation=<nav className="product-nav" aria-label={t.navigation}><a href="/">{t.home}</a>{manifest?.feature_gifts&&<a href="/gifts#gift-tiles">{t.gifts}</a>}{manifest?.feature_wallets&&fullAccess&&<a href="/wallet#wallet">{t.wallet}</a>}{manifest?.feature_points&&fullAccess&&<a href="/points">{t.points}</a>}{fullAccess&&manifest?.feature_referrals&&<a href="/referrals">{locale==='fr'?'Parrainages':'Referrals'}</a>}{authUser&&manifest?.feature_portability&&<a href="/settings/data">{locale==='fr'?'Mes données':'My data'}</a>}{fullAccess&&manifest?.feature_wallets&&manifest?.entitlements_member?.history&&<a href="/wallet/history">{locale==='fr'?'Historique':'History'}</a>}{fullAccess&&manifest?.feature_shares&&<a href="/share">{locale==='fr'?'Reçus':'Receipts'}</a>}{authUser&&<a href="/settings/account">{locale==='fr'?'Compte':'Account'}</a>}{manifest?.feature_moderation&&['admin','moderator'].includes(authUser?.role??'')&&<a href="/moderation">{locale==='fr'?'Modération':'Moderation'}</a>}{manifest?.feature_help&&<a href="/help">{t.help}</a>}{manifest&&<PwaControls enabled={!!manifest.feature_pwa} locale={locale} busy={busy}/>}</nav>;
 
   if(!authReady)return <main className="center"><p role="status">{t.loading}</p></main>;
   if(!authUser||requiresMfa||authUser.status==='pending_consent')return <main className="auth-page">{publicNavigation}<h1>{t.brand}</h1><button aria-label={t.language} onClick={()=>setLocale(locale==='en'?'fr':'en')}>{locale.toUpperCase()}</button><AuthPanel scope={sessionGeneration} locale={locale} user={authUser} requiresMfa={requiresMfa} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/>{manifest?.feature_gifts&&<section className="plan-list" aria-label={t.gifts}>{plans.map(plan=><article className="card plan" key={plan.id}><div><h3>{plan.name}</h3><p>{plan.amount_giv} GIV · ≈ ${plan.usd_reference}</p><strong>{t.expected}: {plan.expected_giv} GIV</strong><p className="muted">{t.status}: {plan.status}</p></div></article>)}</section>}</main>;

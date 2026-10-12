@@ -26,6 +26,7 @@ export async function quoteIncoming(tx:DbExecutor,userId:string,planId:string,ke
  const [prior]=await tx.select().from(giftInvoices).where(and(eq(giftInvoices.userId,userId),eq(giftInvoices.requestKey,key))).limit(1);
  if(prior){const [version]=await tx.select().from(planVersions).where(eq(planVersions.id,prior.planVersionId)).limit(1);if(version.planId!==planId)throw new Error('VERSION_CONFLICT');return dto(prior)}
  await assertUnfrozen(tx,userId,asset.id);
+ await tx.select({id:plans.id}).from(plans).where(eq(plans.id,planId)).for('share');
  const [version]=await tx.select({version:planVersions,status:plans.status}).from(planVersions).innerJoin(plans,eq(plans.id,planVersions.planId)).where(and(eq(plans.id,planId),eq(planVersions.assetId,asset.id),eq(planVersions.active,true))).limit(1);
  if(!version || version.status!=='active')throw new Error('PLAN_UNAVAILABLE');
  const [partition]=await tx.select({id:queuePartitions.id}).from(queuePartitions).where(eq(queuePartitions.planVersionId,version.version.id)).limit(1);if(!partition)throw new Error('PLAN_UNAVAILABLE');await assertPartitionReady(tx,partition.id);

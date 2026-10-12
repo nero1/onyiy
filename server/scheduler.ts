@@ -1,3 +1,5 @@
+import {activateDuePlans} from './plans';import {invalidatePublicReads} from './public-reads';
+import {expireExportChunks} from './own-data';
 import {expireSuspensions} from './account-expiry';
 import crypto from 'node:crypto';
 import { and, asc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
@@ -71,7 +73,8 @@ export async function schedulerTick(request:Request) {
     return reclaimed[0]?{id:prior.id,token,generation:reclaimed[0].generation}:null;
   });
   if (!run) return {status:'already_claimed'};
-  await withContext({access:'service'},async tx=>{await expireSuspensions(tx);await enqueueDailyReconciliation(tx);await enqueueDailyMaintenance(tx);});
+  const launched=await withContext({access:'service'},activateDuePlans);if(launched)invalidatePublicReads();
+  await withContext({access:'service'},async tx=>{await expireSuspensions(tx);if(!operationalRetentionHeld())await expireExportChunks(tx);await enqueueDailyReconciliation(tx);await enqueueDailyMaintenance(tx);});
   const result=await runNonSigningJobs(run,request.signal);
   await completeRun(run);
   return {status:'done',...result};

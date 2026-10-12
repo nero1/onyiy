@@ -3,7 +3,8 @@ const BASE='/api/v1';
 export class ApiError extends Error{constructor(public code:string,message?:string){super(message??code);}}
 let refreshing:Promise<{user:{username:string}|null;generation?:string}>|undefined;
 let clientScope:{owner:string;generation:string}|null=null;
-export function setClientSession(owner:string,generation:string){clientScope=owner&&generation?{owner,generation}:null;}
+export function setClientSession(owner:string,generation:string){clientScope=generation?{owner,generation}:null;}
+export function clientSessionMatches(owner:string,generation?:string){return clientScope?clientScope.owner===owner&&clientScope.generation===(generation??''):!owner&&!generation;}
 function currentGeneration(owner:string){return clientScope?.owner===owner?clientScope.generation:activeSessionGeneration(owner);}
 function csrf(){try{const values=document.cookie.split(';').map(v=>v.trim()).filter(v=>v.startsWith('gw_csrf='));return values.length===1?decodeURIComponent(values[0].slice(8)):''}catch{return ''}}
 async function request(path:string,username:string,init:RequestInit){const headers=new Headers(init.headers);headers.set('Content-Type','application/json');if(username){headers.set('X-Client-Account',username);const generation=currentGeneration(username);if(generation&&!headers.has('X-Client-Session'))headers.set('X-Client-Session',generation);}if((init.method??'GET').toUpperCase()!=='GET')headers.set('X-CSRF-Token',csrf());return fetch(BASE+path,{...init,headers,credentials:'same-origin',cache:'no-store'});}

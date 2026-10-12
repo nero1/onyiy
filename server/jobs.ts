@@ -1,7 +1,8 @@
+import {exportJob,buildExportPage} from './own-data';
 import crypto from 'node:crypto';
 import { and, asc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { auditEvents, financialReconciliationResults, maintenanceResults, jobs, notifications, operationKeys, outbox, readManifest, schedulerRuns, users, withContext, type DbExecutor } from '@gifters/db';
+import { dataExports, auditEvents, financialReconciliationResults, maintenanceResults, jobs, notifications, operationKeys, outbox, readManifest, schedulerRuns, users, withContext, type DbExecutor } from '@gifters/db';
 import { validateRuntimeEnv } from '@gifters/config';
 import { reconcile } from './reconcile';
 import { cleanupSchedulerRecords } from './maintenance';
@@ -86,6 +87,7 @@ export async function executeJob(id:string,token:string,generation:number,run?:R
       if (!payload.success) throw new Error('INVALID_JOB');
       await database.insert(notifications).values({deliveryKey:row.businessKey,userId:payload.data.user_id,titleKey:payload.data.title_key,body:payload.data.body})
         .onConflictDoNothing({target:notifications.deliveryKey});
+    } else if(row.kind==='own_export'){const parsed=exportJob.safeParse(row.payload);if(!parsed.success)throw new Error('INVALID_JOB');await buildExportPage(database,parsed.data.export_id,parsed.data.part);
     } else if (row.kind==='financial_reconciliation') {
       const payload=reconciliationPayload.safeParse(row.payload);
       if (!payload.success) throw new Error('INVALID_JOB');
@@ -134,10 +136,12 @@ export async function failJob(id:string,token:string,generation:number,error:unk
     const delay=Math.min(policy.max_delay_seconds,policy.base_delay_seconds*2**Math.min(row.attempts-1,20));
     const jitter=1+(crypto.randomInt(0,2000001)/1000000-1)*policy.jitter_fraction;
     const seconds=Math.min(86400,Math.max(1,Math.ceil(delay*jitter)));
-    await database.update(jobs).set({status:retry?'retry_wait':'dead_letter',leaseToken:null,leaseUntil:null,
+    const changed=await database.update(jobs).set({status:retry?'retry_wait':'dead_letter',leaseToken:null,leaseUntil:null,
       dueAt:retry?sql`clock_timestamp()+${seconds}*interval '1 second'`:row.dueAt,
       completedAt:retry?null:sql`clock_timestamp()`,lastErrorCode:transient(error)?'TRANSIENT_FAILURE':error instanceof Error && error.message==='INVALID_JOB'?'INVALID_JOB':'PERMANENT_FAILURE',updatedAt:sql`clock_timestamp()`})
-      .where(and(eq(jobs.id,id),eq(jobs.leaseToken,token),eq(jobs.leaseGeneration,generation),sql`${jobs.leaseUntil}>clock_timestamp()`));
+      .where(and(eq(jobs.id,id),eq(jobs.leaseToken,token),eq(jobs.leaseGeneration,generation),sql`${jobs.leaseUntil}>clock_timestamp()`)).returning({id:jobs.id});
+    if(!changed.length)throw new Error('LEASE_LOST');
+    if(!retry&&row.kind==='own_export'){const parsed=exportJob.safeParse(row.payload);if(parsed.success)await database.update(dataExports).set({status:'failed',errorCode:'BUILD_FAILED',completedAt:sql`clock_timestamp()`}).where(and(eq(dataExports.id,parsed.data.export_id),eq(dataExports.status,'building')));}
     await fence(database,run);
   });
 }

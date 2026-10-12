@@ -1,6 +1,6 @@
 import {and,asc,desc,eq,gt,inArray,or,sql} from 'drizzle-orm';
 import {z} from 'zod';
-import {users,reports,appeals,operationKeys,auditEvents,referralCodes,userIdentities,authFactors,authRecoveryCodes,authTotpReplays,authSessions,authRefreshTokens,readManifest,type DbExecutor} from '@gifters/db';
+import {users,reports,appeals,operationKeys,auditEvents,referralCodes,userIdentities,authFactors,authRecoveryCodes,authTotpReplays,authSessions,authRefreshTokens,dataExports,exportChunks,readManifest,type DbExecutor} from '@gifters/db';
 import {validatePublicText} from '@gifters/config';
 import {databaseNow} from './auth';
 import {hash,randomToken,equalText} from './auth-crypto';
@@ -36,6 +36,7 @@ export async function accountChange(tx:DbExecutor,actorId:string,input:z.infer<t
   await tx.update(reports).set({body:'[redacted]',caseTokenHash:null,caseTokenExpiresAt:null}).where(or(eq(reports.actorId,target.id),eq(reports.targetId,target.id)));await tx.update(appeals).set({body:'[redacted]'}).where(eq(appeals.actorId,target.id));
  }
  await tx.update(users).set(patch).where(eq(users.id,target.id));
+ if(input.action==='delete'){const files=await tx.select({id:dataExports.id}).from(dataExports).where(eq(dataExports.userId,target.id));if(files.length)await tx.delete(exportChunks).where(inArray(exportChunks.exportId,files.map(r=>r.id)));}
  const result={user_id:target.id,status:patch.status??target.status,role:patch.role??target.role,revision:target.accountRevision+1};
  await tx.insert(auditEvents).values({actorUserId:actorId,action:'account_'+input.action,targetType:'user',targetId:target.id,reason:input.reason,beforeState:{status:target.status,role:target.role,revision:target.accountRevision},afterState:{...result,proof_reference:input.proof_reference??null}});
  if(input.action!=='delete')await enqueueNotification(tx,key,{user_id:target.id,title_key:'account_update',body:JSON.stringify({action:input.action,status:result.status})});

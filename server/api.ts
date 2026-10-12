@@ -1,3 +1,5 @@
+import {planEdit,editPlan,planState,changePlanState,planList,bootstrapEdit,editBootstrap} from './plans';
+import {exportsList,requestExport,downloadExport,readOwnSection,ownRows} from './own-data';
 import {accountAction,accountChange,reportInput,createReport,caseList,caseToken,appealInput,createAppeal,resolveCaseInput,resolveCase,changeOwnStatus,messageInput,sendAdminMessage} from './moderation';
 import {editSetting,editPriority,editHelp,settings,settingInput,priorityInput,helpInput} from './administration';
 import {notificationPage,seeNotifications,readNotification} from './notifications';
@@ -13,6 +15,7 @@ import {
   queuePartitions,
   users,
   userAccountBalances,
+  pointEvents,assets,withdrawals,operationKeys,
   withContext,
   withSessionScope,
   authSessions,
@@ -61,6 +64,7 @@ function publicOk(data:unknown,ttlSeconds:number,request:Request) {
 function fail(error: unknown) {
   const message = error instanceof z.ZodError ? 'INVALID_INPUT' : error instanceof Error ? error.message : 'INTERNAL_ERROR';
   const statusMap: Record<string, number> = {
+    EXPORT_EXPIRED:410,EXPORT_LIMIT_EXCEEDED:413,
     UNAUTHENTICATED: 401,
     FORBIDDEN: 403,
     ACCOUNT_RESTRICTED: 403,
@@ -250,6 +254,21 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
       return ok(rows);
     }
 
+    if(route==='/admin/plans'&&method==='GET'){const actor=await admin(request);return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},planList));}
+    if(route==='/admin/plans'&&method==='POST'){const actor=await admin(request),input=planEdit.parse(await json(request));const result=await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>editPlan(tx,actor.id,input,idempotencyKey(request)));invalidatePublicReads();return ok(result);}
+    if(route==='/admin/plans/state'&&method==='POST'){const actor=await admin(request),input=planState.parse(await json(request));const result=await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>changePlanState(tx,actor.id,input,idempotencyKey(request)));invalidatePublicReads();return ok(result);}
+    if(route==='/admin/bootstrap'&&method==='POST'){const actor=await admin(request),input=bootstrapEdit.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>editBootstrap(tx,actor.id,input,idempotencyKey(request))));}
+
+    if(route==='/me/points'&&method==='GET'){const actor=await current(request),after=new URL(request.url).searchParams.get('after');if(after)z.string().uuid().parse(after);return ok(await withContext({access:'service',actorId:actor.id},async tx=>{if(!(await readManifest(tx)).feature_points)throw new Error('FEATURE_DISABLED');const [total]=await tx.select({points:sql<string>`coalesce(sum(${pointEvents.points}),0)::text`}).from(pointEvents).where(eq(pointEvents.userId,actor.id));const rows=await ownRows(tx,actor.id,'points',after??undefined);return {total:total.points,rows,next_after:rows.length===100?String(rows.at(-1)!.id):null}}));}
+    if(route==='/me/referrals'&&method==='GET'){const actor=await current(request);return ok(await withContext({access:'service',actorId:actor.id},async tx=>{if(!(await readManifest(tx)).feature_referrals)throw new Error('FEATURE_DISABLED');return (await ownRows(tx,actor.id,'referrals'))[0]}));}
+    if(route==='/me/receipts'&&method==='GET'){const actor=await current(request),params=new URL(request.url).searchParams,id=params.has('id')?z.string().uuid().parse(params.get('id')):undefined,after=params.has('after')?z.string().uuid().parse(params.get('after')):undefined;return ok(await withContext({access:'service',actorId:actor.id},async tx=>{if(!(await readManifest(tx)).feature_shares)throw new Error('FEATURE_DISABLED');const rows=await tx.select({id:withdrawals.id,asset:assets.symbol,decimals:assets.decimals,environment:assets.environment,chain_id:assets.chainId,gross_base_units:withdrawals.grossBaseUnits,net_base_units:withdrawals.netBaseUnits,fee_base_units:withdrawals.feeBaseUnits,settled_at:withdrawals.settledAt}).from(withdrawals).innerJoin(assets,eq(assets.id,withdrawals.assetId)).where(and(eq(withdrawals.userId,actor.id),eq(withdrawals.status,'settled'),id?eq(withdrawals.id,id):undefined,after?gt(withdrawals.id,after):undefined)).orderBy(asc(withdrawals.id)).limit(100);if(id&&!rows.length)throw new Error('NOT_FOUND');return {rows,next_after:rows.length===100?rows.at(-1)!.id:null}}));}
+
+    if(route==='/me/exports'&&method==='GET'){const actor=await current(request);return ok(await withContext({access:'service',actorId:actor.id},tx=>exportsList(tx,actor.id)));}
+    if(route==='/me/exports'&&method==='POST'){const actor=await current(request);z.object({}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id},tx=>requestExport(tx,actor.id,idempotencyKey(request))),202);}
+    if(route==='/me/exports/download'&&method==='GET'){const actor=await current(request),params=new URL(request.url).searchParams;const id=z.string().uuid().parse(params.get('id')),part=z.coerce.number().int().min(0).max(10000).parse(params.get('part')),format=z.enum(['json','csv']).parse(params.get('format'));const result=await withContext({access:'service',actorId:actor.id},tx=>downloadExport(tx,actor.id,id,part,format));return new Response(result.content,{headers:{'Cache-Control':'private, no-store','Content-Type':result.type+'; charset=utf-8','Content-Disposition':`attachment; filename="${result.filename}"`,'X-Content-Type-Options':'nosniff'}});}
+    if(route==='/me/data'&&method==='GET'){const actor=await current(request),params=new URL(request.url).searchParams;return ok(await withContext({access:'service',actorId:actor.id},tx=>readOwnSection(tx,actor.id,params.get('section')??'profile',params.get('after')??undefined,params.get('cutoff')??undefined)));}
+    if(route==='/me/history'&&method==='GET'){const actor=await current(request),params=new URL(request.url).searchParams;const section=z.enum(['ledger','payouts','invoices']).parse(params.get('section')??'ledger'),after=params.has('after')?z.string().uuid().parse(params.get('after')):undefined;return ok(await withContext({access:'service',actorId:actor.id},async tx=>{const m=await readManifest(tx);if(!m.feature_wallets||!m.entitlements_member.history)throw new Error('FEATURE_DISABLED');const rows=await ownRows(tx,actor.id,section,after);return {rows,next_after:rows.length===100?String(rows.at(-1)!.id):null}}));}
+
     if(method==='POST'&&route==='/admin/messages'){const actor=await admin(request),input=messageInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>sendAdminMessage(tx,actor.id,input,idempotencyKey(request))));}
     if(method==='GET'&&route==='/me/account'){const actor=await current(request);return ok(await withContext({access:'member',actorId:actor.id},async tx=>{const [user]=await tx.select({id:users.id,username:users.username,status:users.status,role:users.role,revision:users.accountRevision,suspension_until:users.suspensionUntil}).from(users).where(eq(users.id,actor.id)).limit(1);const balances=await tx.select({asset_id:userAccountBalances.assetId,purpose:userAccountBalances.purpose,balance:userAccountBalances.balance}).from(userAccountBalances).where(eq(userAccountBalances.userId,actor.id));return {...user,balances}}));}
     if(method==='POST'&&route==='/me/account'){const identity=await authenticate(request),input=z.object({action:z.enum(['deactivate','reactivate']),revision:z.number().int().positive()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},tx=>changeOwnStatus(tx,identity,input,idempotencyKey(request))));}
@@ -344,6 +363,7 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
       const rows = await withContext({access:'staff',actorId:actor.id},(tx) => tx.select({
         id: queueEntries.id,
         partition_id: queueEntries.partitionId,
+        partition_revision:queuePartitions.revision,
         ticket: queueEntries.ticket,
         kind: queueEntries.kind,
         status: queueEntries.status,
@@ -386,10 +406,11 @@ export async function handleApiRequest(method:string,path:string[],request:Reque
   const identity=await authenticate(request);
   const account=request.headers.get('x-client-account');const generation=request.headers.get('x-client-session');if(!identity.tool&&((account&&account!==identity.user.username)||(generation&&generation!==identity.session!.generation)))throw new Error('VERSION_CONFLICT');
   if(identity.user.status==='pending_consent'&&route!=='/me/consent')throw new Error('CONSENT_REQUIRED');
-  const restricted=['/me/account','/me/reports','/me/appeals','/me/appeals/token'].includes(route);
+  const restricted=['/me/account','/me/reports','/me/appeals','/me/appeals/token','/me/exports','/me/exports/download','/me/data'].includes(route);
   if(identity.user.status==='suspended'&&(!restricted||(method!=='GET'&&route==='/me/account')))throw new Error('ACCOUNT_RESTRICTED');
   if(method!=='GET')csrf(request,identity);
-  if(!identity.tool){const family=(route.startsWith('/admin/')||route.startsWith('/moderation/'))?'staff':route.includes('/reports')||route.includes('/appeals')?'reports':route==='/me/consent'?'consent':route.startsWith('/gifts/')?(route.endsWith('/transaction')?'payment_proof':'invoice'):route.includes('/notifications')?'notifications':route.includes('/wallets')?'wallet':route.includes('/withdrawals')?'withdrawal':method==='GET'?'reads':'mutation';await enforceRate(request,family,identity.user.id);}
+  let exportReplay=false;if(route==='/me/exports'&&method==='POST'){z.object({}).strict().parse(await json(request.clone()));const key=`own-export:${identity.user.id}:${idempotencyKey(request)}`;exportReplay=!!(await withContext({access:'service'},async tx=>(await tx.select({key:operationKeys.businessKey}).from(operationKeys).where(eq(operationKeys.businessKey,key)).limit(1))[0]));}
+  if(!identity.tool){const family=(route.startsWith('/admin/')||route.startsWith('/moderation/'))?'staff':route.includes('/reports')||route.includes('/appeals')?'reports':((route.startsWith('/me/exports')||route==='/me/data')&&method!=='GET'&&!exportReplay)?'own_data':route==='/me/consent'?'consent':route.startsWith('/gifts/')?(route.endsWith('/transaction')?'payment_proof':'invoice'):route.includes('/notifications')?'notifications':route.includes('/wallets')?'wallet':route.includes('/withdrawals')?'withdrawal':method==='GET'?'reads':'mutation';await enforceRate(request,family,identity.user.id);}
   if(identity.tool||route==='/me/consent'||(route==='/me/account'&&method==='POST'))return await dispatchApiRequest(method,path,request);
   return await withSessionScope({userId:identity.user.id,sessionId:identity.session!.id,accessHash:identity.accessHash!,version:identity.user.sessionVersion,allowSuspended:restricted,requiresAdult:route.startsWith('/gifts/'),requiresWithdrawalProof:route==='/me/withdrawals/confirm'},()=>dispatchApiRequest(method,path,request));
  }catch(error){return fail(error);}
