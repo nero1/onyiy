@@ -1,4 +1,6 @@
 export const BASIS_POINTS_TOTAL = 10_000;
+export const QUEUE_TICKET_BITS = 40;
+export const QUEUE_TICKET_CEILING = 2 ** QUEUE_TICKET_BITS;
 export const GIV_DECIMALS = 2;
 export const GIV_FACTOR = 10n ** BigInt(GIV_DECIMALS);
 

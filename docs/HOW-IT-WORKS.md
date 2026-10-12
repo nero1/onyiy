@@ -18,7 +18,7 @@ Provider boundaries remain portable: compatible PostgreSQL databases and compati
 
 Supabase is used primarily as PostgreSQL. Runtime Vercel Functions use the Supabase transaction pooler; migrations/admin work use an appropriate migration connection.
 
-Application table access is Drizzle-first, targeting effectively 100% coverage. Raw SQL is reserved for PostgreSQL-specific operations such as DDL, GRANT/RLS, explicit locking, and specialized reconciliation/recovery.
+Application table access is Drizzle-first, targeting effectively 100% coverage. Raw SQL is reserved for PostgreSQL-specific operations such as DDL, GRANT/RLS, explicit locking, transaction-local security context, bounded PostgreSQL rank counters/functions, and specialized reconciliation/recovery.
 
 Every migration that creates a new `public` table must include an explicit Supabase GRANT classification. Sensitive financial, identity, ledger, admin, queue, payout, and audit tables must not be broadly exposed to `anon` or `authenticated` merely to satisfy the Data API.
 
@@ -71,6 +71,10 @@ Default incoming split:
 If no eligible referrer exists, the referral share falls back to reserve.
 
 Cycle completion and withdrawal are separate. The current simulator supports a dummy GIV destination and a zero-network-fee quote → hold → settle flow. Real-chain withdrawal verification/signing/broadcast belongs to later milestones.
+
+Queue ranks use sparse Fenwick counters for display, FIFO and priority lanes over the fixed 40-bit ticket space. PostgreSQL triggers update at most 41 nodes per affected lane under the partition lock, atomically with admission, completion/removal and priority changes. Prefix reads use bounded indexed lookups; no queue-wide scan or renumbering occurs in admission/rank reads. The scoped view/function shows display rank only for waiting entries; dashboards invoke it for known own entry IDs. Staff alone can read serving rank, and disabling priority restores FIFO. Admission tickets/history cannot be rewritten and sequences cannot rewind.
+
+The admin queue read is capped by `pagination_policy`; `limit` must stay within its maximum. Cursor reads require `partition_id` and `after_ticket` together to avoid mixing version-local ticket sequences. IDs and serving positions are staff-only DTO fields. This read contract does not implement the later priority-edit UI/API.
 
 ## GIV integrity controls
 

@@ -9,6 +9,7 @@ import {
   numeric,
   pgTable,
   pgView,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -89,9 +90,10 @@ export const queuePartitions = pgTable('queue_partitions', {
   id: uuid('id').primaryKey().defaultRandom(),
   planVersionId: uuid('plan_version_id').notNull().unique().references(() => planVersions.id, { onDelete: 'restrict' }),
   nextTicket: bigint('next_ticket', { mode: 'number' }).notNull().default(1),
+  nextPriorityTicket: bigint('next_priority_ticket', {mode:'number'}).notNull().default(1),
   revision: bigint('revision', { mode: 'number' }).notNull().default(0),
   createdAt: createdAt(),
-}).enableRLS();
+},(t) => [check('queue_partition_ticket_bounds',sql`${t.nextTicket} between 1 and 1099511627776 and ${t.nextPriorityTicket} between 1 and 1099511627776`)]).enableRLS();
 
 export const cycles = pgTable('cycles', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -123,6 +125,12 @@ export const queueEntries = pgTable('queue_entries', {
 }, (t) => [
   unique('queue_entries_partition_ticket_unique').on(t.partitionId, t.ticket),
   index('queue_waiting_order_idx').on(t.partitionId, t.priorityTicket, t.ticket).where(sql`${t.status} = 'waiting'`),
+  uniqueIndex('queue_priority_ticket_unique').on(t.partitionId,t.priorityTicket).where(sql`${t.priorityTicket} is not null and ${t.status}='waiting'`),
+  uniqueIndex('queue_cycle_entry_unique').on(t.cycleId).where(sql`${t.cycleId} is not null`),
+  index('queue_waiting_display_idx').on(t.partitionId,t.ticket).where(sql`${t.status}='waiting'`),
+  index('queue_waiting_priority_idx').on(t.partitionId,t.priorityTicket,t.ticket).where(sql`${t.status}='waiting' and ${t.priorityTicket} is not null`),
+  index('queue_waiting_fifo_idx').on(t.partitionId,t.ticket).where(sql`${t.status}='waiting' and ${t.priorityTicket} is null`),
+  check('queue_entry_ticket_bounds',sql`${t.ticket} between 1 and 1099511627775 and (${t.priorityTicket} is null or ${t.priorityTicket} between 1 and 1099511627775)`),
   check('queue_entries_kind_check', sql`${t.kind} in ('member','bootstrap')`),
   check('queue_entries_status_check', sql`${t.status} in ('waiting','fully_allocated','fulfilled','removed')`),
 ]).enableRLS();
@@ -244,6 +252,14 @@ export const userAccountBalances = pgView('gw_user_account_balances', {
 export const environmentInstances = pgTable('environment_instances', {
   environment:text('environment').primaryKey(), instanceId:uuid('instance_id').notNull().unique().defaultRandom(), createdAt:createdAt(),
 },(t) => [check('environment_instances_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`)]).enableRLS();
+export const queueRankNodes = pgTable('queue_rank_nodes', {
+  partitionId:uuid('partition_id').notNull().references(()=>queuePartitions.id,{onDelete:'restrict'}),
+  lane:text('lane').notNull(), nodeIndex:bigint('node_index',{mode:'bigint'}).notNull(), waitingCount:bigint('waiting_count',{mode:'bigint'}).notNull(),
+},(t) => [primaryKey({columns:[t.partitionId,t.lane,t.nodeIndex]}),
+  check('queue_rank_nodes_lane_check',sql`${t.lane} in ('display','fifo','priority')`),
+  check('queue_rank_nodes_node_index_check',sql`${t.nodeIndex} between 1 and 1099511627776`),
+  check('queue_rank_nodes_waiting_count_check',sql`${t.waitingCount} between 0 and 1099511627775`),
+]).enableRLS();
 export const queuePositions = pgView('gw_queue_positions', {
   entryId: uuid('entry_id'), displayPosition: bigint('display_position',{mode:'number'}),
 }).existing();
@@ -253,6 +269,7 @@ export const simulationAccounts = pgView('gw_sim_accounts', {
 
 export const schema = {
   environmentInstances,
+  queueRankNodes,
   userAccountBalances, queuePositions, simulationAccounts,
   users,
   referralCodes,

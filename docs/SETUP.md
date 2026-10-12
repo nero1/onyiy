@@ -362,6 +362,8 @@ Use a fresh, isolated Supabase simulation project for milestone acceptance. Neve
 
 Migrations 003–006 add immutable USD snapshots and ledger integrity protections. Migration 003 derives only the known historical GIV conversion; unsupported legacy plan assets require review rather than an invented rate. Orphaned financial owners also stop the owner-FK migration. Resolve such records through an authorized repair/restore process; do not delete obligations or disable ledger guards to make deployment pass.
 
+Migration 009 rebuilds only derived queue counters while holding maintenance locks; it preserves financial records and admission tickets. Schedule it while simulation writes are paused if existing queues are large. Out-of-range tickets, duplicate cycle entries or duplicate priority tickets stop migration for review; never renumber rights to make it pass. Normal rank changes then update bounded counters transactionally.
+
 After first hosted M1 acceptance, the optional integrity scenario is documented in HOW-IT-WORKS.md. Both scenarios require isolated simulation data and actual deployment evidence; skipped provider configuration does not count as a deployment.
 
 ## 10. Drizzle ORM requirement
