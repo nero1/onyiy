@@ -6,6 +6,7 @@ import { api, mutation, ApiError } from '@/lib/api-client';
 import { formatBaseUnits, decimalToBaseUnits } from '@gifters/domain';
 import {
   activateUserScope,
+  configureSnapshotBudget,
   loadPublicSnapshot,
   loadUserSnapshot,
   savePublicSnapshot,
@@ -51,6 +52,7 @@ export default function DashboardApp() {
     setLocale(initialLocale === 'fr' ? 'fr' : 'en');
     setTheme(initialTheme === 'dark' ? 'dark' : 'light');
     const cachedManifest=loadPublicSnapshot<any>('manifest');
+    configureSnapshotBudget(cachedManifest?.cache_policy);
     setPlans(loadPublicSnapshot<Plan[]>('plans',cacheMs(cachedManifest,'catalog_seconds')) ?? []);
     setManifest(cachedManifest);
     const ttl=cacheMs(cachedManifest,'private_snapshot_seconds');
@@ -90,6 +92,7 @@ export default function DashboardApp() {
     if (!online) return;
     api<User[]>('/sim/users', '').then(setUsers).catch(() => undefined);
     api<any>('/manifest', '').then((value) => {
+      configureSnapshotBudget(value.cache_policy);
       setManifest(value);
       const ttl=cacheMs(value,'manifest_public_seconds');if(ttl)savePublicSnapshot('manifest',value,ttl);
       return api<Plan[]>('/plans','').then(plans=>{setPlans(plans);const catalogTtl=cacheMs(value,'catalog_seconds');if(catalogTtl)savePublicSnapshot('plans',plans,catalogTtl)});
