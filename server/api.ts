@@ -32,6 +32,7 @@ import {
 import { reconcile } from './reconcile';
 import { schedulerTick } from './scheduler';
 import { replayDeadJob } from './jobs';
+import {recordReorg,reconfirmReorg,reorgHistory} from './reorg';
 import {quoteIncoming,submitIncoming,controlIncoming,resolveIncoming,ownInvoices,cancelIncomingQuote} from './incoming';
 
 const seed = loadManifest();
@@ -131,6 +132,19 @@ export async function handleApiRequest(method: string, path: string[], request: 
       }
       const body=z.object({action:z.enum(['settle','cancel']),reason:z.string().min(5).max(500)}).strict().parse(await json(request));
       return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>resolveSimulationWithdrawal(tx,actor.id,withdrawalId,body.action,body.reason,idempotencyKey(request))));
+    }
+
+    if(method==='POST' && (route==='/admin/simulation/allocations/reorg' || route==='/admin/simulation/reorgs/reconfirm')){
+      const actor=await admin(request);const body=z.object({reason:z.string().min(5).max(500)}).strict().parse(await json(request));
+      if(route.endsWith('/reorg')){
+        const id=resourceId(request,'allocation_id',/^\/api\/v1\/admin\/simulation\/allocations\/([^/]+)\/reorg\/?$/);
+        return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>recordReorg(tx,actor.id,id,body.reason,idempotencyKey(request))));
+      }
+      const id=resourceId(request,'review_id',/^\/api\/v1\/admin\/simulation\/reorgs\/([^/]+)\/reconfirm\/?$/);
+      return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>reconfirmReorg(tx,actor.id,id,body.reason,idempotencyKey(request))));
+    }
+    if(method==='GET' && route==='/admin/simulation/reorgs'){
+      const actor=await admin(request);return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>reorgHistory(tx)));
     }
 
     if (method==='POST' && (route==='/admin/simulation/invoices/control' || route==='/admin/simulation/invoices/resolve')) {

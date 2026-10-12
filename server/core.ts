@@ -3,6 +3,8 @@ import { and, asc, desc, eq, inArray, isNull, isNotNull, gte, lt, sql } from 'dr
 import {
   assets,
   giftInvoices,
+  userFinancialReviews,
+  cycleFinancialReviews,
   auditEvents,
   cycles,
   ledgerAccounts,
@@ -29,6 +31,7 @@ import {
 import { splitAmount, giftPointAward, formatBaseUnits, usdToGivBaseUnits, QUEUE_TICKET_CEILING } from '@gifters/domain';
 import type { Manifest } from '@gifters/config';
 import { enqueueNotification } from './jobs';
+import {assertUnfrozen,assertPartitionReady} from './financial-review';
 
 type UserRow = typeof users.$inferSelect;
 type Posting = { accountId: string; direction: 'debit' | 'credit'; amount: bigint };
@@ -39,6 +42,13 @@ export async function lockUser(database: DbExecutor, id: string) {
   const user = (await database.select().from(users).where(eq(users.id,id)).limit(1).for('no key update'))[0];
   if (!user) throw new Error('UNAUTHENTICATED');
   return user;
+}
+
+export async function lockGiftParticipants(database:DbExecutor,userId:string,manifest:Manifest,extraIds:string[]=[]){
+ const [candidate]=await database.select().from(users).where(eq(users.id,userId)).limit(1);if(!candidate)throw new Error('UNAUTHENTICATED');
+ const ids=[...new Set([userId,...extraIds,...(manifest.feature_referrals && candidate.referrerUserId?[candidate.referrerUserId]:[])])].sort();
+ const participants=new Map<string,UserRow>();for(const id of ids)participants.set(id,await lockUser(database,id));
+ const user=participants.get(userId)!;if(user.referrerUserId!==candidate.referrerUserId)throw new Error('VERSION_CONFLICT');return {user,participants};
 }
 
 function eligibleWithdrawal(user: UserRow) {
@@ -68,7 +78,7 @@ async function awardPoints(database: DbExecutor, manifest: Manifest, awards: Poi
     if (award.points <= 0) continue;
     const prior = await database.select({id:pointEvents.id}).from(pointEvents).where(and(eq(pointEvents.userId,award.userId),eq(pointEvents.sourceKey,award.sourceKey),eq(pointEvents.awardType,award.awardType))).limit(1);
     if (prior.length) continue;
-    const [total] = await database.select({points:sql<number>`coalesce(sum(greatest(${pointEvents.points},0)),0)::int`}).from(pointEvents).where(and(eq(pointEvents.userId,award.userId),gte(pointEvents.createdAt,start),lt(pointEvents.createdAt,sql`${start} + interval '1 day'`)));
+    const [total] = await database.select({points:sql<number>`coalesce(sum(greatest(${pointEvents.points},0)),0)::int`}).from(pointEvents).where(and(eq(pointEvents.userId,award.userId),gte(pointEvents.createdAt,start),lt(pointEvents.createdAt,sql`${start} + interval '1 day'`),sql`${pointEvents.awardType}<>'gift_reorg_reconfirm'`));
     const allowed = Math.min(award.points,Math.max(0,manifest.points_daily_cap - total.points));
     if (allowed > 0) await database.insert(pointEvents).values({...award,points:allowed}).onConflictDoNothing();
   }
@@ -159,7 +169,7 @@ export async function consentUser(database: DbExecutor, username: string, referr
       .from(referralCodes)
       .innerJoin(users, eq(users.id, referralCodes.userId))
       .where(eq(referralCodes.code, referralCode))
-      .limit(1).for('no key update');
+      .limit(1).for('no key update',{of:users});
     if (refs[0]?.id !== user.id && refs[0]?.status === 'active') referrerId = refs[0].id;
   }
 
@@ -255,7 +265,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
   requestKey=requestKey.toLowerCase();
   const manifest = await readManifest(database);
   if (!manifest.feature_gifts) throw new Error('FEATURE_DISABLED');
-  user = await lockUser(database,user.id);
+  const locked=await lockGiftParticipants(database,user.id,manifest);user=locked.user;const participants=locked.participants;
   if (user.status !== 'active') throw new Error(user.status === 'pending_consent' ? 'CONSENT_REQUIRED' : 'ACCOUNT_RESTRICTED');
   if (user.consentVersion !== manifest.terms_content.version) throw new Error('CONSENT_REQUIRED');
   const asset = await simulationAsset(database,manifest);
@@ -268,7 +278,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
   }
 
   const eligibleReferrer = manifest.feature_referrals && user.referrerUserId
-    ? (await database.select({ id: users.id, status: users.status }).from(users).where(eq(users.id, user.referrerUserId)).limit(1).for('no key update'))[0]
+    ? participants.get(user.referrerUserId)
     : undefined;
 
   await database.execute(sql`select pv.id from plan_versions pv join plans p on p.id=pv.plan_id join assets a on a.id=pv.asset_id where p.id=${planId} and pv.active=true and a.environment='simulation' for update of pv,p`);
@@ -303,6 +313,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
     return replayAfterLock.result;
   }
 
+  await assertUnfrozen(database,user.id,asset.id);
   const samePlanAsset = and(eq(planVersions.planId,v.planId),eq(planVersions.assetId,v.assetId));
   const active = await database.select({ id: cycles.id }).from(cycles)
     .innerJoin(planVersions,eq(planVersions.id,cycles.planVersionId))
@@ -338,6 +349,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
   await database.execute(sql`select id from queue_partitions where plan_version_id=${v.id} for update`);
   const partition = (await database.select().from(queuePartitions).where(eq(queuePartitions.planVersionId, v.id)).limit(1))[0];
   if (!partition) throw new Error('PLAN_UNAVAILABLE');
+  await assertPartitionReady(database,partition.id);
   if (partition.nextTicket >= QUEUE_TICKET_CEILING) throw new Error('FINANCIAL_SAFETY_PAUSE');
 
   const waiting = and(eq(queueEntries.partitionId,partition.id),eq(queueEntries.status,'waiting'));
@@ -476,6 +488,7 @@ export async function quoteWithdrawal(database: DbExecutor, user: UserRow, gross
     if (BigInt(prior.grossBaseUnits) !== gross || prior.assetId !== asset.id) throw new Error('VERSION_CONFLICT');
     return prior;
   }
+  await assertUnfrozen(database,user.id,asset.id);
   const balance = await availableBalance(database, user.id, asset.id);
   if (balance < gross) throw new Error('INSUFFICIENT_BALANCE');
   const wallet = (await database.select().from(walletLinks).where(and(eq(walletLinks.userId, user.id), eq(walletLinks.environment, 'simulation'), eq(walletLinks.chainId, 'giv'))).limit(1))[0];
@@ -504,6 +517,7 @@ export async function confirmWithdrawal(database: DbExecutor, user: UserRow, wit
   const asset = await simulationAsset(database,manifest);
   if (w.assetId !== asset.id) throw new Error('PLAN_UNAVAILABLE');
   if (['settled','cancelled','held'].includes(w.status)) return w;
+  await assertUnfrozen(database,user.id,asset.id);
   const wallet = (await database.select().from(walletLinks).where(and(eq(walletLinks.userId,user.id),eq(walletLinks.environment,'simulation'),eq(walletLinks.chainId,'giv'))).limit(1))[0];
   if (!wallet || wallet.address !== w.destination) throw new Error('DESTINATION_CHANGED');
   if (w.status !== 'quoted') throw new Error('VERSION_CONFLICT');
@@ -536,6 +550,7 @@ export async function confirmWithdrawal(database: DbExecutor, user: UserRow, wit
 type WithdrawalRow=typeof withdrawals.$inferSelect;
 async function finishGivWithdrawal(database:DbExecutor,w:WithdrawalRow,action:'cancel'|'settle') {
   if (w.status!=='held') throw new Error('VERSION_CONFLICT');
+  if(action==='settle')await assertUnfrozen(database,w.userId,w.assetId);
   const gross=BigInt(w.grossBaseUnits);
   if (await balanceForPurpose(database,w.userId,w.assetId,'held_payable')<gross) throw new Error('FINANCIAL_SAFETY_PAUSE');
   const held=await account(database,w.assetId,'user',w.userId,'held_payable','credit');
@@ -630,7 +645,10 @@ export async function dashboard(database: DbExecutor, user: UserRow, manifest: M
   const userCycles = await database.select({
     id: cycles.id,
     status: cycles.status,
-    credited_count: cycles.creditedCount,
+    credited_count: sql<number>`greatest(${cycles.creditedCount}-coalesce(${cycleFinancialReviews.invalidCreditCount},0),0)::int`,
+    historical_credited_count:cycles.creditedCount,
+    financial_review:cycleFinancialReviews.underReview,
+    queue_paused:cycleFinancialReviews.queuePaused,
     receipts_required: cycles.receiptsRequired,
     completed_at: cycles.completedAt,
     created_at: cycles.createdAt,
@@ -643,10 +661,12 @@ export async function dashboard(database: DbExecutor, user: UserRow, manifest: M
     .innerJoin(planVersions, eq(planVersions.id, cycles.planVersionId))
     .innerJoin(plans, eq(plans.id, planVersions.planId))
     .leftJoin(queueEntries, eq(queueEntries.cycleId, cycles.id))
+    .leftJoin(cycleFinancialReviews,eq(cycleFinancialReviews.cycleId,cycles.id))
     .where(eq(cycles.userId, user.id))
     .orderBy(desc(cycles.createdAt)).limit(30);
 
   const pendingInvoices=await database.select({id:giftInvoices.id,plan_id:planVersions.planId,expected_base_units:giftInvoices.expectedBaseUnits,expires_at:giftInvoices.quoteExpiresAt,status:giftInvoices.status}).from(giftInvoices).innerJoin(planVersions,eq(planVersions.id,giftInvoices.planVersionId)).where(and(eq(giftInvoices.userId,user.id),inArray(giftInvoices.status,['quoted','submitted']))).orderBy(desc(giftInvoices.createdAt),desc(giftInvoices.id)).limit(manifest.pagination_policy.max_size);
+  const [financialReview]=await database.select().from(userFinancialReviews).where(and(eq(userFinancialReviews.userId,user.id),eq(userFinancialReviews.assetId,asset.id))).limit(1);
   const pointRows = await database.select({ total: sql<number>`coalesce(sum(${pointEvents.points}),0)::int` }).from(pointEvents).where(eq(pointEvents.userId, user.id));
   // Retain the original camelCase aliases while adding the documented UI DTO.
   const pendingWithdrawals=await database.select({id:withdrawals.id,status:withdrawals.status,gross_base_units:withdrawals.grossBaseUnits}).from(withdrawals).where(and(eq(withdrawals.userId,user.id),eq(withdrawals.assetId,asset.id),eq(withdrawals.status,'held'))).orderBy(desc(withdrawals.createdAt),desc(withdrawals.id)).limit(manifest.pagination_policy.max_size);
@@ -660,7 +680,8 @@ export async function dashboard(database: DbExecutor, user: UserRow, manifest: M
     asset: { symbol: 'GIV', decimals: 2 },
     balances: { available: available.toString(), held: held.toString(), incoming:balances.find(row=>row.purpose==='incoming_payable')?.balance??'0',refundable:balances.find(row=>row.purpose==='refund_payable')?.balance??'0', withdrawn: withdrawnRows[0]?.total ?? '0' },
     points: pointRows[0]?.total ?? 0,
-    cycles: userCycles,
+    financial_review:!!financialReview,
+    cycles: userCycles.map(cycle=>({...cycle,status:cycle.financial_review?'exception':cycle.status})),
     notifications: notices,
     pending_invoices:pendingInvoices,
     pending_withdrawals:pendingWithdrawals,

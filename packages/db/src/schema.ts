@@ -106,6 +106,7 @@ export const cycles = pgTable('cycles', {
   completedAt: timestamp('completed_at', { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [
+  index('cycle_user_history_idx').on(t.userId,t.createdAt,t.id),
   check('cycles_status_check', sql`${t.status} in ('active','completed','exception')`),
   uniqueIndex('uniq_active_cycle_per_user_plan').on(t.userId, t.planVersionId).where(sql`${t.status} in ('active','exception')`),
 ]).enableRLS();
@@ -157,7 +158,7 @@ export const ledgerJournals = pgTable('ledger_journals', {
   createdTxid: bigint('created_txid', { mode:'bigint' }).notNull().default(sql`txid_current()`),
   metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
   createdAt: createdAt(),
-},(t)=>[uniqueIndex('ledger_giv_uuid_nonce_unique').on(sql`lower(${t.businessKey})`).where(sql`${t.businessKey} ~ '^gift-in:[0-9a-fA-F-]{36}:[0-9a-fA-F-]{36}$|^allocation:gift:[0-9a-fA-F-]{36}:[0-9a-fA-F-]{36}:'`)]).enableRLS();
+},(t)=>[index('ledger_business_prefix_idx').on(t.businessKey.asc().op('text_pattern_ops')),uniqueIndex('ledger_giv_uuid_nonce_unique').on(sql`lower(${t.businessKey})`).where(sql`${t.businessKey} ~ '^gift-in:[0-9a-fA-F-]{36}:[0-9a-fA-F-]{36}$|^allocation:gift:[0-9a-fA-F-]{36}:[0-9a-fA-F-]{36}:'`)]).enableRLS();
 
 export const ledgerPostings = pgTable('ledger_postings', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -185,7 +186,7 @@ export const pointEvents = pgTable('point_events', {
   awardType: text('award_type').notNull(),
   points: integer('points').notNull(),
   createdAt: createdAt(),
-}, (t) => [unique('point_events_user_source_award_unique').on(t.userId, t.sourceKey, t.awardType)]).enableRLS();
+}, (t) => [index('point_source_idx').on(t.sourceKey,t.userId),unique('point_events_user_source_award_unique').on(t.userId, t.sourceKey, t.awardType)]).enableRLS();
 
 export const walletLinks = pgTable('wallet_links', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -361,7 +362,30 @@ export const simulationIncomingRefunds=pgTable('simulation_incoming_refunds',{
   journalId:uuid('journal_id').notNull().unique().references(()=>ledgerJournals.id,{onDelete:'restrict'}),amountBaseUnits:numeric('amount_base_units',{precision:78,scale:0}).notNull(),reason:text('reason').notNull(),createdAt:createdAt(),
 },t=>[check('incoming_refund_environment_check',sql`${t.environment}='simulation'`),check('incoming_refund_amount_check',sql`${t.amountBaseUnits}>0`),check('incoming_refund_reason_check',sql`length(${t.reason}) between 5 and 500`)]).enableRLS();
 
+export const simulationReorgReviews=pgTable('simulation_reorg_reviews',{
+ id:uuid('id').primaryKey(),sourceAllocationId:uuid('source_allocation_id').notNull().references(()=>receiptAllocations.id,{onDelete:'restrict'}),
+ sourceOperationKey:text('source_operation_key').notNull().references(()=>operationKeys.businessKey,{onDelete:'restrict'}),revision:integer('revision').notNull(),
+ sourceCycleId:uuid('source_cycle_id').notNull().references(()=>cycles.id,{onDelete:'restrict'}),sourceTicket:bigint('source_ticket',{mode:'number'}).notNull(),
+ partitionId:uuid('partition_id').notNull().references(()=>queuePartitions.id,{onDelete:'restrict'}),receiverEntryId:uuid('receiver_entry_id').references(()=>queueEntries.id,{onDelete:'restrict'}),
+ assetId:uuid('asset_id').notNull().references(()=>assets.id,{onDelete:'restrict'}),payerUserId:uuid('payer_user_id').notNull().references(()=>users.id,{onDelete:'restrict'}),
+ affectedUserIds:uuid('affected_user_ids').array().notNull(),environment:text('environment').notNull().default('simulation'),amountBaseUnits:numeric('amount_base_units',{precision:78,scale:0}).notNull(),
+ settledOutgoingExposure:numeric('settled_outgoing_exposure',{precision:78,scale:0}).notNull().default('0'),lossJournalId:uuid('loss_journal_id').notNull().unique().references(()=>ledgerJournals.id,{onDelete:'restrict'}),
+ actorUserId:uuid('actor_user_id').notNull().references(()=>users.id,{onDelete:'restrict'}),operationKey:text('operation_key').notNull().unique().references(()=>operationKeys.businessKey,{onDelete:'restrict'}),reason:text('reason').notNull(),createdAt:createdAt(),
+},t=>[unique('reorg_source_revision_unique').on(t.sourceAllocationId,t.revision),index('reorg_source_operation_idx').on(t.sourceOperationKey),index('reorg_partition_idx').on(t.partitionId,t.createdAt,t.id),index('reorg_affected_users_idx').using('gin',t.affectedUserIds),check('reorg_environment_check',sql`${t.environment}='simulation'`),check('reorg_amount_check',sql`${t.amountBaseUnits}>0 and ${t.settledOutgoingExposure}>=0`),check('reorg_revision_check',sql`${t.revision} between 1 and 1000000`),check('reorg_users_check',sql`cardinality(${t.affectedUserIds}) between 1 and 3`),check('reorg_reason_check',sql`length(${t.reason}) between 5 and 500`)]).enableRLS();
+export const simulationReorgResolutions=pgTable('simulation_reorg_resolutions',{
+ id:uuid('id').primaryKey().defaultRandom(),reviewId:uuid('review_id').notNull().unique().references(()=>simulationReorgReviews.id,{onDelete:'restrict'}),environment:text('environment').notNull().default('simulation'),
+ journalId:uuid('journal_id').notNull().unique().references(()=>ledgerJournals.id,{onDelete:'restrict'}),actorUserId:uuid('actor_user_id').notNull().references(()=>users.id,{onDelete:'restrict'}),
+ operationKey:text('operation_key').notNull().unique().references(()=>operationKeys.businessKey,{onDelete:'restrict'}),reason:text('reason').notNull(),createdAt:createdAt(),
+},t=>[check('reorg_resolution_environment_check',sql`${t.environment}='simulation'`),check('reorg_resolution_reason_check',sql`length(${t.reason}) between 5 and 500`)]).enableRLS();
+export const userFinancialReviews=pgView('gw_user_financial_reviews',{
+ userId:uuid('user_id').notNull(),assetId:uuid('asset_id').notNull(),reviewCount:integer('review_count').notNull(),
+}).existing();
+export const cycleFinancialReviews=pgView('gw_cycle_financial_reviews',{
+ cycleId:uuid('cycle_id').notNull(),underReview:boolean('under_review').notNull(),invalidCreditCount:integer('invalid_credit_count').notNull(),queuePaused:boolean('queue_paused').notNull(),
+}).existing();
+
 export const schema = {
+  simulationReorgReviews,simulationReorgResolutions,userFinancialReviews,cycleFinancialReviews,
   giftInvoices,simulationIncomingControls,simulationIncomingEvents,simulationIncomingRefunds,
   deploymentBindingChallenges,
   financialReconciliationResults,

@@ -16,7 +16,7 @@ import {
 type User = { id: string; username: string; role: string; status: string; locale: string };
 type Plan = { id: string; name: string; slug: string; usd_reference: string; receipts_required: number; status: string; amount_base_units: string; amount_giv: string; expected_giv: string };
 type Notification = {id:string;title_key:string;body:string;created_at:string;read_at:string | null};
-type Dashboard = { user: User; asset: { symbol: string; decimals: number }; balances: { available: string; held: string; incoming?:string;refundable?:string; withdrawn: string }; points: number; cycles: any[]; notifications: Notification[]; pending_invoices?:(Omit<GiftQuote,'owner'> & {plan_id:string})[];pending_withdrawals?:{id:string;status:string;gross_base_units:string}[]; wallet: any | null };
+type Dashboard = { user: User; asset: { symbol: string; decimals: number }; balances: { available: string; held: string; incoming?:string;refundable?:string; withdrawn: string }; points: number; cycles: any[]; notifications: Notification[]; financial_review?:boolean;pending_invoices?:(Omit<GiftQuote,'owner'> & {plan_id:string})[];pending_withdrawals?:{id:string;status:string;gross_base_units:string}[]; wallet: any | null };
 type Notice = { kind: 'error' | 'ok'; text: string } | null;
 type GiftQuote={id:string;expected_base_units:string;expires_at:string;status:string;owner:string};
 type WithdrawalQuote = {id:string;grossBaseUnits:string;feeBaseUnits:string;netBaseUnits:string;destination:string};
@@ -78,6 +78,7 @@ export default function DashboardApp() {
     const ttl=cacheMs(manifest,'private_snapshot_seconds');
     setDash(ttl?loadUserSnapshot<Dashboard>(username,'dashboard','simulation',ttl):null);
   }, [username]);
+  useEffect(()=>{if(dash?.financial_review){setGiftQuote(null);setWithdrawalQuote(null);}},[dash?.financial_review]);
   useEffect(() => { if (!online){setWithdrawalQuote(null);setGiftQuote(null);} },[online]);
 
   useEffect(() => {
@@ -145,6 +146,7 @@ export default function DashboardApp() {
   }, [manifest]);
 
   const active = useMemo(() => dash?.cycles.filter((cycle) => cycle.status === 'active') ?? [], [dash]);
+  const reviewed=useMemo(()=>dash?.cycles.filter(cycle=>cycle.status==='exception')??[],[dash]);
   const completed = useMemo(() => dash?.cycles.filter((cycle) => cycle.status === 'completed') ?? [], [dash]);
 
   async function act(fn: () => Promise<unknown>) {
@@ -211,6 +213,7 @@ export default function DashboardApp() {
       </header>
 
       {manifest.activity_statements?.length > 0 && <div className="ticker" aria-live="polite">{manifest.activity_statements[ticker]}</div>}
+      {dash.financial_review && <section className="card" role="alert"><p>{t.financialReview}</p></section>}
       {notice && <div role={notice.kind==='error'?'alert':'status'} className={`notice ${notice.kind}`}>{notice.text}</div>}
 
       <main>
@@ -239,7 +242,7 @@ export default function DashboardApp() {
         <section className="plan-list">{plans.map((plan) => (
           <article className="card plan" id={`plan-${plan.id}`} key={plan.id}>
             <div><h3>{plan.name}</h3><p>{plan.amount_giv} GIV · ≈ ${plan.usd_reference}</p><strong>{t.expected}: {plan.expected_giv} GIV</strong><p className="muted">{t.status}: {plan.status}</p></div>
-            <button className="primary" disabled={busy || dash.user.status !== 'active' || plan.status !== 'active' || !online} onClick={() => requestGift(plan.id)}>{t.send}</button>
+            <button className="primary" disabled={busy || dash.user.status !== 'active' || plan.status !== 'active' || dash.financial_review || dash.cycles.some(cycle=>cycle.plan_id===plan.id && cycle.queue_paused) || !online} onClick={() => requestGift(plan.id)}>{t.send}</button>
           </article>
         ))}</section>
 
@@ -249,11 +252,13 @@ export default function DashboardApp() {
           <section><h2>{t.completed}</h2>{completed.length ? completed.map((cycle) => <Cycle key={cycle.id} c={cycle} t={t} />) : <p className="muted">{t.noCycles}</p>}</section>
         </div>
 
+        {!!reviewed.length && <section className="card"><h2>{t.reviewCycles}</h2>{reviewed.map(cycle=><Cycle key={cycle.id} c={cycle} t={t} />)}</section>}
+
         <section className="card">
           <div className="section-title"><h2>{t.wallet}</h2>{dash.wallet && <span className="ok-chip">{t.linked}</span>}</div>
           {dash.wallet ? <>
             <code>{dash.wallet.address}</code>
-            <div className="withdraw-row"><input aria-label={t.withdrawAmount} type="number" min="0.01" step="0.01" value={withdraw} onChange={(event) => {setWithdraw(event.target.value);setWithdrawalQuote(null);}} /><button className="primary" disabled={busy || !online} onClick={doWithdraw}>{t.withdraw}</button></div>
+            <div className="withdraw-row"><input aria-label={t.withdrawAmount} type="number" min="0.01" step="0.01" value={withdraw} onChange={(event) => {setWithdraw(event.target.value);setWithdrawalQuote(null);}} /><button className="primary" disabled={busy || !online || dash.financial_review} onClick={doWithdraw}>{t.withdraw}</button></div>
             {withdrawalQuote?.owner === username && <div role="region" aria-label={t.reviewWithdrawal}>
               <h3>{t.reviewWithdrawal}</h3>
               <p>{t.gross}: {formatBaseUnits(withdrawalQuote.grossBaseUnits)} GIV · {t.networkFee}: {formatBaseUnits(withdrawalQuote.feeBaseUnits)} GIV · {t.net}: {formatBaseUnits(withdrawalQuote.netBaseUnits)} GIV</p>

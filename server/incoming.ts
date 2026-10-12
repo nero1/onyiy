@@ -1,8 +1,9 @@
 import crypto from 'node:crypto';
-import {and,desc,eq,inArray,lte,sql} from 'drizzle-orm';
-import {auditEvents,cycles,giftInvoices,ledgerJournals,operationKeys,plans,planVersions,readManifest,simulationIncomingControls,simulationIncomingEvents,simulationIncomingRefunds,users,type DbExecutor} from '@gifters/db';
-import {account,availableBalance,lockUser,postJournal,sendGift,simulationAsset} from './core';
+import {and,desc,eq,exists,inArray,isNull,lte,sql} from 'drizzle-orm';
+import {auditEvents,cycles,giftInvoices,ledgerJournals,operationKeys,plans,planVersions,queuePartitions,readManifest,simulationIncomingControls,simulationIncomingEvents,simulationIncomingRefunds,simulationReorgReviews,simulationReorgResolutions,users,type DbExecutor} from '@gifters/db';
+import {account,availableBalance,lockGiftParticipants,lockUser,postJournal,sendGift,simulationAsset} from './core';
 import {enqueueNotification} from './jobs';
+import {assertUnfrozen,assertPartitionReady} from './financial-review';
 type Invoice=typeof giftInvoices.$inferSelect;
 type Outcome='reject'|'under'|'over'|'late'|'delay';
 async function clock(tx:DbExecutor){const rows=await tx.execute<{now:Date}>(sql`select clock_timestamp() as now`);return new Date(rows[0].now)}
@@ -24,8 +25,10 @@ export async function quoteIncoming(tx:DbExecutor,userId:string,planId:string,ke
  if(!user.consentedAt || user.consentVersion!==policy.terms_content.version)throw new Error('CONSENT_REQUIRED');
  const [prior]=await tx.select().from(giftInvoices).where(and(eq(giftInvoices.userId,userId),eq(giftInvoices.requestKey,key))).limit(1);
  if(prior){const [version]=await tx.select().from(planVersions).where(eq(planVersions.id,prior.planVersionId)).limit(1);if(version.planId!==planId)throw new Error('VERSION_CONFLICT');return dto(prior)}
+ await assertUnfrozen(tx,userId,asset.id);
  const [version]=await tx.select({version:planVersions,status:plans.status}).from(planVersions).innerJoin(plans,eq(plans.id,planVersions.planId)).where(and(eq(plans.id,planId),eq(planVersions.assetId,asset.id),eq(planVersions.active,true))).limit(1);
  if(!version || version.status!=='active')throw new Error('PLAN_UNAVAILABLE');
+ const [partition]=await tx.select({id:queuePartitions.id}).from(queuePartitions).where(eq(queuePartitions.planVersionId,version.version.id)).limit(1);if(!partition)throw new Error('PLAN_UNAVAILABLE');await assertPartitionReady(tx,partition.id);
  const [active]=await tx.select({id:cycles.id}).from(cycles).where(and(eq(cycles.userId,userId),eq(cycles.planVersionId,version.version.id),inArray(cycles.status,['active','exception']))).limit(1);
  if(active)throw new Error('ACTIVE_CYCLE_EXISTS');
  const now=await clock(tx);
@@ -67,9 +70,10 @@ async function finish(tx:DbExecutor,item:Invoice,outcome:'exact'|'reject'|'under
  if(refundable>0n)await enqueueNotification(tx,`incoming:${item.id}:exception`,{user_id:item.userId,title_key:'incoming_exception',body:'Your GIV payment has a refundable amount awaiting simulation review. No extra queue right was created.'});return dto(updated);
 }
 export async function submitIncoming(tx:DbExecutor,userId:string,id:string){
- const user=await lockUser(tx,userId);let item=await invoice(tx,id,userId);if(item.status!=='quoted')return dto(item);
- const manifest=await readManifest(tx);await simulationAsset(tx,manifest);if(!manifest.feature_gifts)throw new Error('FEATURE_DISABLED');
+ const manifest=await readManifest(tx);const {user}=await lockGiftParticipants(tx,userId,manifest);let item=await invoice(tx,id,userId);if(item.status!=='quoted')return dto(item);
+ await simulationAsset(tx,manifest);if(!manifest.feature_gifts)throw new Error('FEATURE_DISABLED');
  if(user.status!=='active' || user.consentVersion!==manifest.terms_content.version)throw new Error('ACCOUNT_RESTRICTED');
+ await assertUnfrozen(tx,userId,item.assetId);
  const now=await clock(tx);const [control]=await tx.select().from(simulationIncomingControls).where(eq(simulationIncomingControls.invoiceId,id)).limit(1);
  const outcome=control?.outcome==='reject'?'reject':now>=item.quoteExpiresAt?'late':control?.outcome??'exact';const actual=outcome==='reject'?0n:BigInt(control?.actualBaseUnits??item.expectedBaseUnits);
  if(await availableBalance(tx,userId,item.assetId)<actual)throw new Error('INSUFFICIENT_BALANCE');
@@ -86,7 +90,7 @@ export async function cancelIncomingQuote(tx:DbExecutor,userId:string,id:string)
 export async function resolveIncoming(tx:DbExecutor,actorId:string,id:string,action:'confirm'|'refund'|'cancel',reason:string,key:string){
  // Sorted owner/actor locks avoid crossed administrative recovery deadlocks.
  const [target]=await tx.select({userId:giftInvoices.userId}).from(giftInvoices).where(eq(giftInvoices.id,id)).limit(1);if(!target)throw new Error('NOT_FOUND');
- for(const owner of [...new Set([actorId,target.userId])].sort())await lockUser(tx,owner);
+ await lockGiftParticipants(tx,target.userId,await readManifest(tx),[actorId]);
  await staff(tx,actorId);const op=`admin-incoming-${action}:${actorId}:${key}`;const prior=await replay(tx,op,{id,action,reason});if(prior.result)return prior.result;
  const item=await invoice(tx,id);let result:Record<string,unknown>;
  if(action==='cancel'){
@@ -110,4 +114,4 @@ export async function resolveIncoming(tx:DbExecutor,actorId:string,id:string,act
  }
  await tx.insert(operationKeys).values({businessKey:op,requestHash:prior.hash,result});await tx.insert(auditEvents).values({actorUserId:actorId,action:`simulation.incoming.${action}`,targetType:'gift_invoice',targetId:id,reason,afterState:result});return result;
 }
-export async function ownInvoices(tx:DbExecutor,userId:string){const cap=(await readManifest(tx)).pagination_policy.max_size;return (await tx.select({invoice:giftInvoices,refunded:simulationIncomingRefunds.amountBaseUnits}).from(giftInvoices).leftJoin(simulationIncomingRefunds,eq(simulationIncomingRefunds.invoiceId,giftInvoices.id)).where(eq(giftInvoices.userId,userId)).orderBy(desc(giftInvoices.createdAt),desc(giftInvoices.id)).limit(cap)).map(row=>({...dto(row.invoice),refunded_base_units:row.refunded??'0'}))}
+export async function ownInvoices(tx:DbExecutor,userId:string){const cap=(await readManifest(tx)).pagination_policy.max_size;return (await tx.select({invoice:giftInvoices,refunded:simulationIncomingRefunds.amountBaseUnits,financialReview:exists(tx.select({id:simulationReorgReviews.id}).from(simulationReorgReviews).leftJoin(simulationReorgResolutions,eq(simulationReorgResolutions.reviewId,simulationReorgReviews.id)).where(and(eq(simulationReorgReviews.sourceOperationKey,simulationIncomingEvents.giftOperationKey),isNull(simulationReorgResolutions.id))))}).from(giftInvoices).leftJoin(simulationIncomingEvents,eq(simulationIncomingEvents.invoiceId,giftInvoices.id)).leftJoin(simulationIncomingRefunds,eq(simulationIncomingRefunds.invoiceId,giftInvoices.id)).where(eq(giftInvoices.userId,userId)).orderBy(desc(giftInvoices.createdAt),desc(giftInvoices.id)).limit(cap)).map(row=>({...dto(row.invoice),refunded_base_units:row.refunded??'0',funding_under_review:row.financialReview}))}

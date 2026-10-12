@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { giftInvoices, simulationIncomingRefunds, ledgerAccounts, ledgerJournals, ledgerPostings, operationKeys, queueEntries, receiptAllocations, readManifest, withdrawals, type DbExecutor } from '@gifters/db';
+import { giftInvoices, simulationIncomingRefunds, simulationReorgReviews, simulationReorgResolutions, ledgerAccounts, ledgerJournals, ledgerPostings, operationKeys, queueEntries, receiptAllocations, readManifest, withdrawals, type DbExecutor } from '@gifters/db';
 
 // Staff-only diagnostics. Counts are exact integer strings; examples are capped.
 // Each query observes a shared deadline; failure never becomes a clean result.
@@ -60,11 +60,12 @@ export async function reconcile(database: DbExecutor, budgetMs=8000) {
   const refundAccounts=database.select({userId:ledgerAccounts.ownerId,assetId:ledgerAccounts.assetId,net:sql<string>`${accountNet}`.as('net')}).from(ledgerAccounts).leftJoin(ledgerPostings,eq(ledgerPostings.accountId,ledgerAccounts.id)).where(and(eq(ledgerAccounts.ownerType,'user'),eq(ledgerAccounts.purpose,'refund_payable'))).groupBy(ledgerAccounts.ownerId,ledgerAccounts.assetId).as('refund_accounts');
   const incomingMismatch=await bounded(()=>database.select({user_id:sql<string>`coalesce(${incomingExpected.userId},${incomingAccounts.userId})`,asset_id:sql<string>`coalesce(${incomingExpected.assetId},${incomingAccounts.assetId})`,held_balance:sql<string>`coalesce(${incomingAccounts.net},0)::text`,invoice_total:sql<string>`coalesce(${incomingExpected.total},0)::text`}).from(incomingExpected).fullJoin(incomingAccounts,and(eq(incomingExpected.userId,incomingAccounts.userId),eq(incomingExpected.assetId,incomingAccounts.assetId))).where(sql`coalesce(${incomingExpected.total},0)<>coalesce(${incomingAccounts.net},0)`).limit(limit));
   const refundMismatch=await bounded(()=>database.select({user_id:sql<string>`coalesce(${refundExpected.userId},${refundAccounts.userId})`,asset_id:sql<string>`coalesce(${refundExpected.assetId},${refundAccounts.assetId})`,refundable_balance:sql<string>`coalesce(${refundAccounts.net},0)::text`,invoice_total:sql<string>`coalesce(${refundExpected.total},0)::text`}).from(refundExpected).fullJoin(refundAccounts,and(eq(refundExpected.userId,refundAccounts.userId),eq(refundExpected.assetId,refundAccounts.assetId))).where(sql`coalesce(${refundExpected.total},0)<>coalesce(${refundAccounts.net},0)`).limit(limit));
+  const openReorgs=await bounded(()=>database.select({review_id:simulationReorgReviews.id,source_operation_key:simulationReorgReviews.sourceOperationKey,amount_base_units:simulationReorgReviews.amountBaseUnits,settled_outgoing_exposure:simulationReorgReviews.settledOutgoingExposure}).from(simulationReorgReviews).leftJoin(simulationReorgResolutions,eq(simulationReorgResolutions.reviewId,simulationReorgReviews.id)).where(isNull(simulationReorgResolutions.id)).limit(limit));
   const balanced = bad.length===0;
   return {
-    balanced,consistent:balanced && !incomingMismatch.length && !refundMismatch.length && !heldMismatch.length && !negative.length && !clearing.length && !mismatch.length && missingJournals==='0' && missingOperations==='0',
+    balanced,consistent:balanced && !openReorgs.length && !incomingMismatch.length && !refundMismatch.length && !heldMismatch.length && !negative.length && !clearing.length && !mismatch.length && missingJournals==='0' && missingOperations==='0',
     lineage_complete:missingJournals==='0' && missingOperations==='0' && legacy==='0',
-    incoming_hold_mismatches:incomingMismatch,refundable_mismatches:refundMismatch,imbalanced_journals:bad,held_withdrawal_mismatches:heldMismatch,negative_user_balances:negative,nonzero_gift_clearing:clearing,queue_credit_mismatches:mismatch,
+    open_reorg_reviews:openReorgs,incoming_hold_mismatches:incomingMismatch,refundable_mismatches:refundMismatch,imbalanced_journals:bad,held_withdrawal_mismatches:heldMismatch,negative_user_balances:negative,nonzero_gift_clearing:clearing,queue_credit_mismatches:mismatch,
     unlinked_journal_count:missingJournals,unlinked_operation_count:missingOperations,legacy_unsequenced_count:legacy,captured_allocation_count:captured,
     diagnostic_sample_limit:limit,
   };
