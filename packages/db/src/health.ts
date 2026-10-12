@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { loadManifest, validateRuntimeEnv } from '@gifters/config';
 import { databaseConnectionOptions, readManifest, type Database } from './index';
 import { schema } from './schema';
+import { scopedTransaction } from './context';
 
 let pending: Promise<boolean> | undefined;
 
@@ -19,7 +20,7 @@ async function probe() {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const started = performance.now();
   try {
-    const ready = readManifest(database).then((manifest) => {
+    const ready = scopedTransaction(database,{access:'service'},(tx) => readManifest(tx)).then((manifest) => {
       // The bootstrap ceiling bounds cold-start lookup; the DB can shorten it.
       return performance.now() - started < Math.min(deadlineMs,manifest.health_timeout_ms);
     });

@@ -1,14 +1,16 @@
 import { ne, sql } from 'drizzle-orm';
-import { assets, db, closeDb, readManifest } from './index';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { assets, migrationClient, schema, readManifest } from './index';
 
 if (process.env.APP_ENV !== 'simulation') throw new Error('Reset requires explicit APP_ENV=simulation');
 if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') throw new Error('Production reset is prohibited');
 let databaseName: string;
-try { databaseName = decodeURIComponent(new URL(process.env.DATABASE_URL ?? '').pathname.slice(1)); }
+try { databaseName = decodeURIComponent(new URL(process.env.DATABASE_MIGRATION_URL ?? process.env.DATABASE_URL ?? '').pathname.slice(1)); }
 catch { throw new Error('Invalid reset database configuration'); }
 if (!databaseName || process.env.SIMULATION_RESET_CONFIRM !== `reset:${databaseName}`) throw new Error('Explicit confirmation of the isolated target database is required');
+const client = migrationClient();
 try {
-  await db().transaction(async (transaction) => {
+  await drizzle(client,{schema}).transaction(async (transaction) => {
     // PostgreSQL-specific maintenance locks serialize inspection and truncation.
     // No reset endpoint or production reset capability is introduced.
     await transaction.execute(sql.raw('LOCK TABLE x_manifest, assets IN ACCESS EXCLUSIVE MODE'));
@@ -18,4 +20,4 @@ try {
     await transaction.execute(sql.raw(`TRUNCATE TABLE audit_events, notifications, withdrawals, wallet_links, point_events, operation_keys, ledger_postings, ledger_journals, ledger_accounts, queue_entries, cycles, queue_partitions, plan_versions, plans, assets, referral_codes, users, x_manifest RESTART IDENTITY CASCADE`));
   });
   console.log('Isolated simulation database cleared. Run npm run db:seed.');
-} finally { await closeDb(); }
+} finally { await client.end({timeout:3}); }

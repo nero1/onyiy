@@ -19,6 +19,8 @@ import {
   walletLinks,
   withdrawals,
   xManifest,
+  userAccountBalances,
+  queuePositions,
   readManifest,
   type DbExecutor,
 } from '@gifters/db';
@@ -520,12 +522,15 @@ export async function confirmWithdrawal(database: DbExecutor, user: UserRow, wit
   return settled[0];
 }
 
-export async function dashboard(database: DbExecutor, user: UserRow) {
-  const manifest = await readManifest(database);
+export async function dashboard(database: DbExecutor, user: UserRow, manifest: Manifest) {
+  const freshUser = await getUser(database,user.username);
+  if (!freshUser) throw new Error('UNAUTHENTICATED');
+  user = freshUser;
   const asset = (await database.select().from(assets).where(and(eq(assets.symbol, 'GIV'), eq(assets.environment, 'simulation'))).limit(1))[0];
   if (!asset) throw new Error('PLAN_UNAVAILABLE');
-  const available = user.status === 'pending_consent' ? 0n : await availableBalance(database, user.id, asset.id);
-  const held = user.status === 'pending_consent' ? 0n : await heldBalance(database, user.id, asset.id);
+  const balances = await database.select().from(userAccountBalances).where(and(eq(userAccountBalances.userId,user.id),eq(userAccountBalances.assetId,asset.id)));
+  const available = user.status === 'pending_consent' ? 0n : BigInt(balances.find((row) => row.purpose === 'available_payable')?.balance ?? '0');
+  const held = user.status === 'pending_consent' ? 0n : BigInt(balances.find((row) => row.purpose === 'held_payable')?.balance ?? '0');
 
   const userCycles = await database.select({
     id: cycles.id,
@@ -538,11 +543,12 @@ export async function dashboard(database: DbExecutor, user: UserRow) {
     name: plans.name,
     slug: plans.slug,
     ticket: queueEntries.ticket,
-    display_position: sql<number>`(select count(*) from queue_entries q2 where q2.partition_id=${queueEntries.partitionId} and q2.status='waiting' and q2.ticket < ${queueEntries.ticket}) + 1`,
+    display_position: queuePositions.displayPosition,
   }).from(cycles)
     .innerJoin(planVersions, eq(planVersions.id, cycles.planVersionId))
     .innerJoin(plans, eq(plans.id, planVersions.planId))
     .leftJoin(queueEntries, eq(queueEntries.cycleId, cycles.id))
+    .leftJoin(queuePositions,eq(queuePositions.entryId,queueEntries.id))
     .where(eq(cycles.userId, user.id))
     .orderBy(desc(cycles.createdAt)).limit(30);
 

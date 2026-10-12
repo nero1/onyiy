@@ -69,17 +69,17 @@ Gifters World uses Supabase as hosted PostgreSQL. The application does not requi
 
 ### 3.2 Copy the runtime connection string
 
-For Next.js Route Handlers on Vercel, use Supabase's **Transaction pooler** connection string for `DATABASE_URL`. Follow the current Supabase Connect instructions for Vercel/serverless connections; if Supabase instructs you to append a Vercel pooler workaround query parameter, preserve it exactly.
+For Next.js Route Handlers on Vercel, use Supabase's **Transaction pooler** connection string for `DATABASE_URL`. Follow the current Supabase Connect instructions for the postgres-js driver. Only driver-compatible SSL query settings are accepted; Prisma-specific pooler options do not apply.
 
 It normally uses port `6543` and is designed for serverless workloads with many short-lived connections.
 
 Example shape only:
 
 ```text
-postgresql://postgres.<project-ref>:<password>@<pooler-host>:6543/postgres
+postgresql://gw_runtime.<project-ref>:<password>@<pooler-host>:6543/postgres
 ```
 
-Do not invent the hostname. Copy the actual value from Supabase's Connect screen.
+Do not invent the hostname. Copy the actual value from Supabase's Connect screen and select the restricted runtime role described below, rather than the migration owner.
 
 The application disables prepared statements for the Supabase runtime connection and keeps the serverless connection pool small. Runtime, migration and health connections require trusted certificates and matching hostnames for hosted PostgreSQL, including URLs with `sslmode=require`. Never use `sslmode=disable`, `NODE_TLS_REJECT_UNAUTHORIZED=0` or a verification bypass to unblock deployment.
 
@@ -107,7 +107,25 @@ Supabase recommends a direct connection for migrations, backup/restore, and othe
 
 If a hosted CI runner cannot reach the direct endpoint because of network/IP-version restrictions, use the Supabase **Session pooler** connection for the migration job after confirming the migration works through it. Do not use the transaction pooler as the default migration connection.
 
-### 3.4 Supabase GRANT requirement
+### 3.4 Provision the restricted runtime login
+
+Before enabling deployments, use the Supabase SQL editor as the database owner to create the two application groups. These commands contain no credentials:
+
+```sql
+create role gw_read nologin noinherit nosuperuser nocreatedb nocreaterole nobypassrls;
+create role gw_service nologin noinherit nosuperuser nocreatedb nocreaterole nobypassrls;
+create role gw_runtime login noinherit nosuperuser nocreatedb nocreaterole nobypassrls;
+grant gw_read, gw_service to gw_runtime;
+grant connect on database postgres to gw_runtime;
+```
+
+Run each creation only if that role does not already exist. Set a strong generated password for `gw_runtime` through the provider's secure role settings or SQL editor; never save the password-setting statement to GitHub or chat. Store the resulting custom-role transaction-pooler URL as `DATABASE_URL` in Vercel and the matching GitHub environment. Store the owner direct/session URL only as GitHub `DATABASE_MIGRATION_URL`. Do not give the runtime login ownership, BYPASSRLS, superuser, role creation or inherited table access. Compatible PostgreSQL hosts use the same role contract with their actual database name and supported connection endpoint.
+
+Migration 007 installs explicit privileges and RLS: member reads use own rows; financial services receive only their required server permissions; public catalog data is served by native handlers. No browser or Data API key receives application tables/views, including ledger/audit/configuration. Migration/seed/reset tooling uses the separate owner connection. A migration user without permission to create the groups must have them provisioned by the provider owner beforehand.
+
+After migrations and seeds, `npm run db:check:runtime` validates the restricted login, seeded configuration and a matching internal namespace ID through both runtime and owner URLs. It fails closed on mismatched projects or unsafe roles. The deployment workflow runs this automatically before building. No namespace ID or credential is exported to the browser. Simulation authentication is still a test-only account chooser; RLS does not replace the pending OAuth/session/MFA milestone.
+
+### 3.5 Supabase GRANT requirement
 
 Every migration that creates a new table in `public` must include its explicit Supabase Data API grant classification in that same migration.
 
@@ -133,9 +151,9 @@ Do **not** blindly grant those permissions to every table.
 
 For Gifters World:
 
-- public catalog/config data may receive narrowly scoped read grants when appropriate,
+- public catalog data is served through native handlers; configuration is projected by its registered scope,
 - financial, identity, ledger, admin, queue, payout, and audit tables should not be exposed to `anon` or `authenticated` merely to silence a permission error,
-- server-only tables should normally remain accessible only through the server/database role until an intentional RLS/Data API contract is implemented.
+- application tables/views remain closed to `anon`, `authenticated` and Data API `service_role`; native handlers use the restricted application groups. Do not restore broad Data API grants to fix a dashboard warning.
 
 The repository's migration checks are intended to catch new public tables that lack a grant classification.
 
@@ -298,7 +316,7 @@ DATABASE_MIGRATION_URL=<Supabase Direct or approved Session pooler URL>
 
 Give `preview` a separate simulation Supabase database; PR migrations and seeds can change its state. Configure the corresponding Vercel **Preview** environment with that same database and Upstash bindings. Multiple PR previews share the selected preview database unless you provision isolated projects; do not reset it while another preview uses it. Keep all preview data separate from future real-money data.
 
-The workflow requires `DATABASE_MIGRATION_URL` explicitly before deployment and migrates/seeds the selected environment before building. The database setup/migration step runs with:
+The workflow requires `DATABASE_MIGRATION_URL` explicitly before deployment and migrates/seeds the selected environment before building. It checks that Vercel and GitHub have the exact same restricted runtime URL, then verifies the runtime/owner namespace and privileges. The migration URL is prohibited in Vercel runtime settings. If your provider needs a custom CA, add the same public certificate chain as GitHub environment secret `DATABASE_TLS_CA_PEM` as well as the Vercel server variable. The database setup/migration step runs with:
 
 ```text
 APP_ENV=simulation
@@ -317,6 +335,7 @@ The production GitHub Actions job should run these commands after dependencies a
 ```bash
 npm run db:migrate
 npm run db:seed
+npm run db:check:runtime
 ```
 
 with:
@@ -328,6 +347,7 @@ env:
   MAINNET_ENABLED: "false"
   DATABASE_URL: ${{ secrets.DATABASE_URL }}
   DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
+  DATABASE_TLS_CA_PEM: ${{ secrets.DATABASE_TLS_CA_PEM }}
 ```
 
 `db:migrate` is forward/idempotent for the current migration style, and the Phase One seed is designed to insert defaults without overwriting normal runtime state.
@@ -338,7 +358,7 @@ For later real-money releases, migration/seed policy must be reviewed again befo
 
 Migrations execute each file atomically. Repeated seeds insert missing defaults and preserve configured values, disabled assets and existing plans. Apply migration `002_manifest_metadata.sql` before the updated seed; it corrects the legacy simulation-policy scope without changing its value. Invalid stored settings stop financial work rather than silently replacing them with file defaults.
 
-Use a fresh, isolated Supabase simulation project for milestone acceptance. Never reset a shared preview or a real-money database. If an isolated reset is deliberately required, stop its writes, set `APP_ENV=simulation`, confirm the actual database name through `SIMULATION_RESET_CONFIRM=reset:<database-name>`, and run `npm run db:reset:simulation` followed by `npm run db:seed`. Reset refuses production runtime/deployment context, a disabled database reset policy, or any non-simulation asset. Supabase projects often share the database name `postgres`; independently verify the selected project/connection before confirming it. No reset is part of ordinary CI/deployment.
+Use a fresh, isolated Supabase simulation project for milestone acceptance. Never reset a shared preview or a real-money database. If an isolated reset is deliberately required, stop its writes, set `APP_ENV=simulation`, confirm the actual owner/migration target database name through `SIMULATION_RESET_CONFIRM=reset:<database-name>`, and run `npm run db:reset:simulation` followed by `npm run db:seed`. Reset refuses production runtime/deployment context, a disabled database reset policy, or any non-simulation asset. Supabase projects often share the database name `postgres`; independently verify the selected project/connection before confirming it. No reset is part of ordinary CI/deployment.
 
 Migrations 003–006 add immutable USD snapshots and ledger integrity protections. Migration 003 derives only the known historical GIV conversion; unsupported legacy plan assets require review rather than an invented rate. Orphaned financial owners also stop the owner-FK migration. Resolve such records through an authorized repair/restore process; do not delete obligations or disable ledger guards to make deployment pass.
 
@@ -368,7 +388,7 @@ Complete these prerequisites first:
 
 1. Link the repository to a Vercel project using Node 22 and the root application directory; keep Vercel native Git deployment disabled.
 2. Fill the Vercel **Preview** and **Production** environment settings from section 6, including the corresponding Supabase and Upstash values. No signer credentials belong here.
-3. Fill **both** GitHub `preview` and `production` environments with `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `DATABASE_URL`, and `DATABASE_MIGRATION_URL`. Apply the reviewer and branch controls from section 7.
+3. Provision the restricted database roles from section 3.4. Fill **both** GitHub `preview` and `production` environments with `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `DATABASE_URL`, and `DATABASE_MIGRATION_URL`. Apply the reviewer and branch controls from section 7.
 4. At **Repository → Settings → Secrets and variables → Actions → Variables**, create the **repository variable** `ENABLE_VERCEL_DEPLOYMENTS` with value `true`. This is a non-secret switch, not a credential.
 5. Open or update a same-repository pull request. If the PR was already open before enabling the variable, push a new commit or rerun its workflow after saving the settings.
 6. In **Actions → ci-vercel**, confirm `checks` passes. Approve the protected `preview` environment when prompted. The `deploy` job retrieves Vercel Preview configuration, validates required bindings, migrates/seeds the preview database, runs `vercel build`, and runs `vercel deploy --prebuilt`. The CLI prints the preview deployment URL in the job log; this workflow does not post a PR comment.

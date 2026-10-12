@@ -3,7 +3,6 @@ import { asc, desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   assets,
-  db,
   ledgerJournals,
   ledgerPostings,
   plans,
@@ -11,7 +10,8 @@ import {
   queueEntries,
   queuePartitions,
   users,
-  withTx,
+  withContext,
+  simulationAccounts,
   readManifest,
 } from '@gifters/db';
 import { loadManifest, publicManifest } from '@gifters/config';
@@ -68,7 +68,7 @@ function fail(error: unknown) {
 async function current(request: Request) {
   const username = request.headers.get('x-sim-user');
   if (!username) throw new Error('UNAUTHENTICATED');
-  const user = await getUser(db(), username);
+  const user = await withContext({access:'service'},(tx) => getUser(tx, username));
   if (!user) throw new Error('UNAUTHENTICATED');
   return user;
 }
@@ -112,24 +112,24 @@ export async function handleApiRequest(method: string, path: string[], request: 
     }
 
     if (method === 'GET' && route === '/sim/users') {
-      const rows = await db().select({ id: users.id, username: users.username, role: users.role, status: users.status, locale: users.locale })
-        .from(users).orderBy(desc(users.role), asc(users.username));
+      const rows = await withContext({access:'public'},(tx) => tx.select().from(simulationAccounts).orderBy(desc(simulationAccounts.role),asc(simulationAccounts.username)));
       return ok(rows);
     }
 
     if (method === 'POST' && route === '/me/consent') {
       const user = await current(request);
       const body = z.object({ accepted: z.literal(true), referral_code: z.string().uuid().optional() }).strict().parse(await json(request));
-      return ok(await withTx((tx) => consentUser(tx, user.username, body.referral_code)));
+      return ok(await withContext({access:'service',actorId:user.id},(tx) => consentUser(tx, user.username, body.referral_code)));
     }
 
     if (method === 'GET' && route === '/me/dashboard') {
       const user = await current(request);
-      return ok(await dashboard(db(), user));
+      const manifest = await readManifest();
+      return ok(await withContext({access:'member',actorId:user.id},(tx) => dashboard(tx,user,manifest)));
     }
 
     if (method === 'GET' && route === '/plans') {
-      const rows = await db().select({
+      const rows = await withContext({access:'public'},(tx) => tx.select({
         id: plans.id,
         name: plans.name,
         slug: plans.slug,
@@ -146,7 +146,7 @@ export async function handleApiRequest(method: string, path: string[], request: 
         .innerJoin(planVersions, eq(planVersions.planId, plans.id))
         .innerJoin(assets, eq(assets.id, planVersions.assetId))
         .where(eq(assets.environment, 'simulation'))
-        .orderBy(asc(plans.usdReference));
+        .orderBy(asc(plans.usdReference)));
       return ok(rows.map((row) => ({
         ...row,
         amount_giv: formatBaseUnits(BigInt(row.amount_base_units)),
@@ -157,39 +157,39 @@ export async function handleApiRequest(method: string, path: string[], request: 
     if (method === 'POST' && route === '/gifts/simulate') {
       const user = await current(request);
       const body = z.object({ plan_id: z.string().uuid() }).strict().parse(await json(request));
-      return ok(await withTx((tx) => sendGift(tx, user, body.plan_id, idempotencyKey(request))));
+      return ok(await withContext({access:'service',actorId:user.id},(tx) => sendGift(tx, user, body.plan_id, idempotencyKey(request))));
     }
 
     if (method === 'POST' && route === '/me/wallets/simulate') {
       const user = await current(request);
       z.object({}).strict().parse(await json(request));
-      return ok(await withTx((tx) => linkSimulationWallet(tx, user)));
+      return ok(await withContext({access:'service',actorId:user.id},(tx) => linkSimulationWallet(tx, user)));
     }
 
     if (method === 'POST' && route === '/me/withdrawals/quotes') {
       const user = await current(request);
       const body = z.object({ gross_base_units: z.string().max(78).regex(/^[1-9][0-9]*$/) }).strict().parse(await json(request));
-      return ok(await withTx((tx) => quoteWithdrawal(tx, user, BigInt(body.gross_base_units), idempotencyKey(request))));
+      return ok(await withContext({access:'service',actorId:user.id},(tx) => quoteWithdrawal(tx, user, BigInt(body.gross_base_units), idempotencyKey(request))));
     }
 
     if (method === 'POST' && route === '/me/withdrawals/confirm') {
       const user = await current(request);
       z.object({}).strict().parse(await json(request));
       const withdrawalId = resourceId(request, 'withdrawal_id', /^\/api\/v1\/me\/withdrawals\/([^/]+)\/confirm\/?$/);
-      return ok(await withTx((tx) => confirmWithdrawal(tx, user, withdrawalId)));
+      return ok(await withContext({access:'service',actorId:user.id},(tx) => confirmWithdrawal(tx, user, withdrawalId)));
     }
 
     if (method === 'POST' && route === '/admin/plans/activate') {
       const user = await admin(request);
       z.object({}).strict().parse(await json(request));
       const planId = resourceId(request, 'plan_id', /^\/api\/v1\/admin\/plans\/([^/]+)\/activate\/?$/);
-      return ok(await withTx((tx) => activatePlan(tx, planId, user.id, idempotencyKey(request))));
+      return ok(await withContext({access:'service',actorId:user.id,requireAdmin:true},(tx) => activatePlan(tx, planId, user.id, idempotencyKey(request))));
     }
 
     if (method === 'GET' && route === '/admin/queue') {
-      await admin(request);
+      const actor = await admin(request);
       const planId = resourceId(request, 'plan_id', /^\/api\/v1\/admin\/queue\/([^/]+)\/?$/);
-      const rows = await db().select({
+      const rows = await withContext({access:'staff',actorId:actor.id},(tx) => tx.select({
         ticket: queueEntries.ticket,
         kind: queueEntries.kind,
         status: queueEntries.status,
@@ -204,18 +204,18 @@ export async function handleApiRequest(method: string, path: string[], request: 
         .innerJoin(planVersions, eq(planVersions.id, queuePartitions.planVersionId))
         .leftJoin(users, eq(users.id, queueEntries.beneficiaryUserId))
         .where(eq(planVersions.planId, planId))
-        .orderBy(asc(queueEntries.ticket));
+        .orderBy(asc(queueEntries.ticket)));
       return ok(rows);
     }
 
     if (method === 'GET' && route === '/admin/reconcile') {
-      await admin(request);
+      const actor = await admin(request);
       const imbalanceExpr = sql<string>`sum(case when ${ledgerPostings.direction}='debit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end)`;
-      const bad = await db().select({ id: ledgerJournals.id, business_key: ledgerJournals.businessKey, imbalance: sql<string>`${imbalanceExpr}::text` })
+      const bad = await withContext({access:'service',actorId:actor.id,requireAdmin:true},(tx) => tx.select({ id: ledgerJournals.id, business_key: ledgerJournals.businessKey, imbalance: sql<string>`${imbalanceExpr}::text` })
         .from(ledgerJournals)
         .innerJoin(ledgerPostings, eq(ledgerPostings.journalId, ledgerJournals.id))
         .groupBy(ledgerJournals.id, ledgerJournals.businessKey)
-        .having(sql`${imbalanceExpr} <> 0`);
+        .having(sql`${imbalanceExpr} <> 0`));
       return ok({ balanced: bad.length === 0, imbalanced_journals: bad });
     }
 

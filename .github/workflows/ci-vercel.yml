@@ -67,6 +67,7 @@ jobs:
       - name: Validate hosted settings
         env:
           VERCEL_ENV: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && 'production' || 'preview' }}
+          EXPECTED_DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: node --env-file=".vercel/.env.$VERCEL_ENV.local" --import tsx scripts/validate-deployment.ts --hosted
       - name: Migrate and seed the selected simulation database
         env:
@@ -77,9 +78,11 @@ jobs:
           PAYMENT_PROVIDER: giv_simulation
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
+          DATABASE_TLS_CA_PEM: ${{ secrets.DATABASE_TLS_CA_PEM }}
         run: |
           npm run db:migrate
           npm run db:seed
+          npm run db:check:runtime
       - name: Build and deploy prebuilt output
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

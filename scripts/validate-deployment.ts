@@ -25,8 +25,9 @@ if (process.argv.includes('--hosted')) {
   // Validate presence/selectors only; never print URLs, tokens or secret values.
   const env = { ...process.env, NODE_ENV: 'production' };
   const config = validateRuntimeEnv(env);
+  if (env.EXPECTED_DATABASE_URL && config.databaseUrl !== env.EXPECTED_DATABASE_URL) throw new Error('Vercel and GitHub runtime database bindings differ');
+  if (env.DATABASE_MIGRATION_URL) throw new Error('Migration credentials must not be present in the Vercel runtime settings');
   databaseConnectionOptions(config.databaseUrl,env);
-  if (env.DATABASE_MIGRATION_URL) databaseConnectionOptions(env.DATABASE_MIGRATION_URL,env);
   let database: URL;
   try { database = new URL(config.databaseUrl); } catch { throw new Error('Invalid DATABASE_URL'); }
   if (!['postgres:', 'postgresql:'].includes(database.protocol)) throw new Error('A PostgreSQL DATABASE_URL is required');

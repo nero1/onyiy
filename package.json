@@ -26,6 +26,7 @@
     "db:reset:simulation": "tsx packages/db/src/reset-simulation.ts",
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check",
+    "db:check:runtime": "tsx packages/db/src/verify-runtime.ts",
     "scenario:m1": "node scripts/manual-m1-scenario.mjs",
     "check:deployment": "tsx scripts/validate-deployment.ts",
     "check:bundle": "node scripts/report-bundle.mjs",

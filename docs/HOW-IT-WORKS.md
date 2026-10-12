@@ -34,6 +34,8 @@ Runtime, migration and health connections enforce verified certificate trust and
 
 Health coalesces simultaneous requests into one separate database probe, reads validated database configuration, and closes timed-out work without cancelling application transactions. The bootstrap `health_timeout_ms` is its cold-start ceiling; database policy may tighten successful readiness. Outages return a redacted 503; no Redis command, treasury diagnostic or secret is exposed. Health alone does not prove financial acceptance.
 
+Application queries run in a transaction-local role/actor/environment context. `gw_read` has read-only own-row policies and scoped balance/rank views; `gw_service` supplies minimum financial-service writes behind domain authorization. The login cannot own tables or bypass RLS, and staff reads recheck current DB role/status. Context and role reset on commit/rollback. All current tables enable RLS; browser/Data API roles have no application access. Migration/seed/reset use a separate owner connection. An internal namespace ID lets deployment prove that runtime and owner URLs reach the same database.
+
 Migration files each execute in a PostgreSQL transaction. Seeds also execute atomically. The reset CLI requires an explicit simulation environment, database-name confirmation and an enabled database policy; production or non-simulation assets are rejected. Locks serialize its inspection and truncation. No public reset endpoint exists.
 
 Authoritative conversion parses decimal strings into integer base units; it does not multiply JavaScript floating-point money. Queue economics retain immutable plan-version snapshots. New seed versions and point rules read database settings without rewriting used economics.

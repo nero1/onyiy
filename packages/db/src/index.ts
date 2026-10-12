@@ -3,6 +3,7 @@ import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { loadManifest, parseManifest, manifestDefinition, validateManifestValue, validateSecurityCeilings, validateRuntimeEnv } from '@gifters/config';
 import { schema, xManifest } from './schema';
 import { databaseConnectionOptions } from './connection-options';
+import { withContext } from './context';
 
 export type Database = PostgresJsDatabase<typeof schema>;
 export type DbExecutor = Pick<Database, 'select' | 'insert' | 'update' | 'delete' | 'execute'>;
@@ -29,10 +30,6 @@ export async function closeDb() {
   runtimeDb = undefined;
 }
 
-export async function withTx<T>(fn: (tx: DbExecutor) => Promise<T>): Promise<T> {
-  return db().transaction(async (tx) => fn(tx));
-}
-
 export function migrationClient(): Sql {
   const cfg = validateRuntimeEnv();
   const url = process.env.DATABASE_MIGRATION_URL ?? cfg.databaseUrl;
@@ -43,7 +40,8 @@ export async function getManifestValue<T>(key: string): Promise<T | undefined> {
   return (await readManifest())[key] as T | undefined;
 }
 
-export async function readManifest(database: DbExecutor = db()) {
+export async function readManifest(database?: DbExecutor): Promise<ReturnType<typeof parseManifest>> {
+  if (!database) return withContext({access:'service'},(tx) => readManifest(tx));
   const rows = await database.select({key:xManifest.key,value:xManifest.value,scope:xManifest.scope}).from(xManifest);
   const values: Record<string,unknown> = {};
   for (const row of rows) {
@@ -57,7 +55,7 @@ export async function readManifest(database: DbExecutor = db()) {
   return manifest;
 }
 
-export async function seedManifest(database: DbExecutor = db()) {
+export async function seedManifest(database: DbExecutor) {
   const manifest = loadManifest();
   for (const [key, value] of Object.entries(manifest)) {
     await seedManifestValue(database,key,value);
@@ -75,3 +73,4 @@ export async function seedManifestValue(database: DbExecutor, key: string, value
 export * from './schema';
 export { databaseConnectionOptions } from './connection-options';
 export { databaseHealthy } from './health';
+export { withContext, scopedTransaction, type DatabaseContext } from './context';
