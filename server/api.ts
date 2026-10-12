@@ -44,6 +44,13 @@ function ok(data: unknown, status = 200) {
   return Response.json({ data, meta: { request_id: requestId() } }, { status, headers: { 'Cache-Control': 'private, no-store' } });
 }
 
+function publicOk(data:unknown,ttlSeconds:number,request:Request) {
+  const etag=`W/"${crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex')}"`;
+  const headers={'ETag':etag,'Cache-Control':`public, max-age=0, s-maxage=${ttlSeconds}`};
+  if(request.headers.get('if-none-match')===etag)return new Response(null,{status:304,headers});
+  return Response.json({data,meta:{request_id:requestId()}},{headers});
+}
+
 function fail(error: unknown) {
   const message = error instanceof z.ZodError ? 'INVALID_INPUT' : error instanceof Error ? error.message : 'INTERNAL_ERROR';
   const statusMap: Record<string, number> = {
@@ -218,10 +225,7 @@ export async function handleApiRequest(method: string, path: string[], request: 
       let manifest = seed;
       try { manifest = await readManifest(); } catch { /* Public seed fallback never authorizes a mutation. */ }
       const data = publicManifest(manifest);
-      const etag = `W/"${crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex')}"`;
-      const headers = { 'ETag':etag, 'Cache-Control':`public, max-age=0, s-maxage=${manifest.cache_policy.manifest_public_seconds}` };
-      if (request.headers.get('if-none-match') === etag) return new Response(null,{status:304,headers});
-      return Response.json({data,meta:{request_id:requestId()}},{headers});
+      return publicOk(data,manifest.cache_policy.manifest_public_seconds,request);
     }
 
     if (method === 'GET' && route === '/sim/users') {
@@ -242,6 +246,7 @@ export async function handleApiRequest(method: string, path: string[], request: 
     }
 
     if (method === 'GET' && route === '/plans') {
+      const ttl=(await readManifest()).cache_policy.catalog_seconds;
       const rows = await withContext({access:'public'},(tx) => tx.select({
         id: plans.id,
         name: plans.name,
@@ -260,11 +265,11 @@ export async function handleApiRequest(method: string, path: string[], request: 
         .innerJoin(assets, eq(assets.id, planVersions.assetId))
         .where(eq(assets.environment, 'simulation'))
         .orderBy(asc(plans.usdReference)));
-      return ok(rows.map((row) => ({
+      return publicOk(rows.map((row) => ({
         ...row,
         amount_giv: formatBaseUnits(BigInt(row.amount_base_units)),
         expected_giv: formatBaseUnits((BigInt(row.amount_base_units) * BigInt(row.receiver_bps) / 10000n) * BigInt(row.receipts_required)),
-      })));
+      })),ttl,request);
     }
 
     if (method === 'POST' && route === '/gifts/simulate') {
