@@ -29,6 +29,7 @@ try {
         assetId: asset.id,
         version: 1,
         amountBaseUnits: usdToGivBaseUnits(usd).toString(),
+        usdReference: formatBaseUnits(usdToGivBaseUnits(usd)),
         receiverBps: manifest.payment_split_bps.receiver,
         marketingBps: manifest.payment_split_bps.marketing,
         referralBps: manifest.payment_split_bps.referral,

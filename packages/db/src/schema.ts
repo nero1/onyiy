@@ -73,6 +73,7 @@ export const planVersions = pgTable('plan_versions', {
   assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'restrict' }),
   version: integer('version').notNull(),
   amountBaseUnits: numeric('amount_base_units', { precision: 78, scale: 0 }).notNull(),
+  usdReference: numeric('usd_reference', { precision: 20, scale: 2 }).notNull(),
   receiverBps: integer('receiver_bps').notNull(),
   marketingBps: integer('marketing_bps').notNull(),
   referralBps: integer('referral_bps').notNull(),
@@ -129,19 +130,21 @@ export const ledgerAccounts = pgTable('ledger_accounts', {
   id: uuid('id').primaryKey().defaultRandom(),
   assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'restrict' }),
   ownerType: text('owner_type').notNull(),
-  ownerId: uuid('owner_id'),
+  ownerId: uuid('owner_id').references(() => users.id, {onDelete:'restrict'}),
   purpose: text('purpose').notNull(),
   normalSide: text('normal_side').notNull(),
   createdAt: createdAt(),
 }, (t) => [
   check('ledger_accounts_owner_type_check', sql`${t.ownerType} in ('user','platform','system')`),
   check('ledger_accounts_normal_side_check', sql`${t.normalSide} in ('debit','credit')`),
+  uniqueIndex('ledger_accounts_owner_unique').on(t.assetId,t.ownerType,sql`coalesce(${t.ownerId},'00000000-0000-0000-0000-000000000000'::uuid)`,t.purpose),
 ]);
 
 export const ledgerJournals = pgTable('ledger_journals', {
   id: uuid('id').primaryKey().defaultRandom(),
   ledgerType: text('ledger_type').notNull(),
   businessKey: text('business_key').notNull().unique(),
+  createdTxid: bigint('created_txid', { mode:'bigint' }).notNull().default(sql`txid_current()`),
   metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
   createdAt: createdAt(),
 });

@@ -66,6 +66,16 @@ If no eligible referrer exists, the referral share falls back to reserve.
 
 Cycle completion and withdrawal are separate. The current simulator supports a dummy GIV destination and a zero-network-fee quote → hold → settle flow. Real-chain withdrawal verification/signing/broadcast belongs to later milestones.
 
+## GIV integrity controls
+
+Outgoing gifts and withdrawals acquire the same user row lock, reload eligibility, and validate the configured asset. Distinct quotes cannot spend the same balance concurrently. UUID request keys bind gift/admin/quote inputs; retries return recorded results, while changed inputs conflict. Wallet replay keeps its original verification timestamp. A completed no-wallet receiver keeps available earnings without an automatic withdrawal.
+
+Plan versions retain their USD snapshot; displayed potential receipts use their actual base-unit split and receipt target. Point awards use durable events with sorted transaction advisory locks and UTC daily caps. Empty queues honor block-checkout or the configured business role; the payer is admitted only after recipient selection. New bootstrap allocations use a separate business category, preserving old journal history.
+
+Database guards forbid journal/posting edits and reassignment of used accounts, seal journal lines after their creating transaction, and enforce deferred balanced single-asset postings. Financial owner deletion is restricted. Correct through new journals; never disable these controls for ordinary application work. GIV per-send/daily limits are enforced from immutable hold journals under an asset/day lock. Real signing, approval orchestration, business reservations and recovery remain later work.
+
+The UI requests a quote, shows gross/fee/net/destination, then requires a separate confirmation. Quote state stays in memory and is discarded on edits, offline state or account changes. Stale responses cannot replace the current identity's dashboard. Notification DTOs expose snake-case UI fields while retaining legacy aliases.
+
 ## Deployment flow
 
 GitHub Actions is the deployment authority for the Next.js application:
@@ -93,3 +103,5 @@ Provider contract acceptance additionally requires documented observations of Up
 ## Iteration handover
 
 Implementation state and completion percentages live in the current `docs/PROJECT-STATUS_vN.md`. The self-contained prompt for the next implementation LLM lives in the current `docs/LLM-HANDOVER_vN.md`. The `_vN` filename suffix is the visible iteration version. The baseline pair is `_v0`; each completed iteration normally renames/replaces the pair with `_v1`, `_v2`, and so on.
+
+For additional manual M1 acceptance, immediately after the 21-gift scenario on fresh isolated simulation data, run `APP_BASE_URL=<verified origin> M1_INTEGRITY_CONFIRM=isolated-simulation npm run scenario:m1:integrity`. It exercises grant/wallet replay, changed quote inputs, simultaneous spending and admission, ownership, no-wallet completion, exact small amounts and reconciliation. It changes data, does not reset it, and is never part of CI.

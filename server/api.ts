@@ -52,6 +52,11 @@ function fail(error: unknown) {
     VERSION_CONFLICT: 409,
     INSUFFICIENT_BALANCE: 409,
     CONFIGURATION_INVALID: 503,
+    FEATURE_DISABLED: 404,
+    CYCLE_LIMIT_REACHED: 409,
+    DESTINATION_CHANGED: 409,
+    NO_RECEIVER_AVAILABLE: 409,
+    FINANCIAL_SAFETY_PAUSE: 503,
   };
   const code = Object.hasOwn(statusMap, message) ? message : 'INTERNAL_ERROR';
   return Response.json(
@@ -81,7 +86,7 @@ async function json(request: Request) {
 function idempotencyKey(request: Request) {
   const key = request.headers.get('Idempotency-Key');
   if (!key) throw new Error('INVALID_INPUT');
-  return key;
+  return z.string().uuid().parse(key);
 }
 
 // Route Handlers can retain the public URL after a rewrite. Resolve the public
@@ -114,7 +119,7 @@ export async function handleApiRequest(method: string, path: string[], request: 
 
     if (method === 'POST' && route === '/me/consent') {
       const user = await current(request);
-      const body = z.object({ accepted: z.literal(true), referral_code: z.string().uuid().optional() }).parse(await json(request));
+      const body = z.object({ accepted: z.literal(true), referral_code: z.string().uuid().optional() }).strict().parse(await json(request));
       return ok(await withTx((tx) => consentUser(tx, user.username, body.referral_code)));
     }
 
@@ -128,8 +133,9 @@ export async function handleApiRequest(method: string, path: string[], request: 
         id: plans.id,
         name: plans.name,
         slug: plans.slug,
-        usd_reference: plans.usdReference,
-        receipts_required: plans.receiptsRequired,
+        usd_reference: planVersions.usdReference,
+        receipts_required: planVersions.receiptsRequired,
+        receiver_bps: planVersions.receiverBps,
         status: plans.status,
         bootstrap_enabled: plans.bootstrapEnabled,
         bootstrap_count: plans.bootstrapCount,
@@ -144,37 +150,40 @@ export async function handleApiRequest(method: string, path: string[], request: 
       return ok(rows.map((row) => ({
         ...row,
         amount_giv: formatBaseUnits(BigInt(row.amount_base_units)),
-        expected_giv: formatBaseUnits(BigInt(row.amount_base_units) * 170n / 100n),
+        expected_giv: formatBaseUnits((BigInt(row.amount_base_units) * BigInt(row.receiver_bps) / 10000n) * BigInt(row.receipts_required)),
       })));
     }
 
     if (method === 'POST' && route === '/gifts/simulate') {
       const user = await current(request);
-      const body = z.object({ plan_id: z.string().uuid() }).parse(await json(request));
+      const body = z.object({ plan_id: z.string().uuid() }).strict().parse(await json(request));
       return ok(await withTx((tx) => sendGift(tx, user, body.plan_id, idempotencyKey(request))));
     }
 
     if (method === 'POST' && route === '/me/wallets/simulate') {
       const user = await current(request);
+      z.object({}).strict().parse(await json(request));
       return ok(await withTx((tx) => linkSimulationWallet(tx, user)));
     }
 
     if (method === 'POST' && route === '/me/withdrawals/quotes') {
       const user = await current(request);
-      const body = z.object({ gross_base_units: z.string().regex(/^\d+$/) }).parse(await json(request));
+      const body = z.object({ gross_base_units: z.string().max(78).regex(/^[1-9][0-9]*$/) }).strict().parse(await json(request));
       return ok(await withTx((tx) => quoteWithdrawal(tx, user, BigInt(body.gross_base_units), idempotencyKey(request))));
     }
 
     if (method === 'POST' && route === '/me/withdrawals/confirm') {
       const user = await current(request);
+      z.object({}).strict().parse(await json(request));
       const withdrawalId = resourceId(request, 'withdrawal_id', /^\/api\/v1\/me\/withdrawals\/([^/]+)\/confirm\/?$/);
       return ok(await withTx((tx) => confirmWithdrawal(tx, user, withdrawalId)));
     }
 
     if (method === 'POST' && route === '/admin/plans/activate') {
       const user = await admin(request);
+      z.object({}).strict().parse(await json(request));
       const planId = resourceId(request, 'plan_id', /^\/api\/v1\/admin\/plans\/([^/]+)\/activate\/?$/);
-      return ok(await withTx((tx) => activatePlan(tx, planId, user.id)));
+      return ok(await withTx((tx) => activatePlan(tx, planId, user.id, idempotencyKey(request))));
     }
 
     if (method === 'GET' && route === '/admin/queue') {
