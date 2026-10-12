@@ -300,26 +300,37 @@ export const outbox = pgTable('outbox', {
   id:uuid('id').primaryKey().defaultRandom(),businessKey:text('business_key').notNull().unique(),
   environment:text('environment').notNull(),kind:text('kind').notNull(),payload:jsonb('payload').notNull(),
   dispatchedAt:timestamp('dispatched_at',{withTimezone:true}),createdAt:createdAt(),
-},(t)=>[check('outbox_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),check('outbox_kind_check',sql`${t.kind} in ('notification','financial_reconciliation')`),check('outbox_payload_check',sql`jsonb_typeof(${t.payload})='object' and octet_length(${t.payload}::text)<=8192`),index('outbox_pending_idx').on(t.environment,t.createdAt,t.id).where(sql`${t.dispatchedAt} is null`)]).enableRLS();
+},(t)=>[check('outbox_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),check('outbox_kind_check',sql`${t.kind} in ('notification','financial_reconciliation','operational_cleanup')`),check('outbox_payload_check',sql`jsonb_typeof(${t.payload})='object' and octet_length(${t.payload}::text)<=8192`),index('outbox_pending_idx').on(t.environment,t.createdAt,t.id).where(sql`${t.dispatchedAt} is null`)]).enableRLS();
 export const jobs = pgTable('jobs', {
   id:uuid('id').primaryKey().defaultRandom(),outboxId:uuid('outbox_id').notNull().unique().references(()=>outbox.id,{onDelete:'restrict'}),
   businessKey:text('business_key').notNull().unique(),environment:text('environment').notNull(),kind:text('kind').notNull(),payload:jsonb('payload').notNull(),
   status:text('status').notNull().default('pending'),attempts:integer('attempts').notNull().default(0),retryLimit:integer('retry_limit').notNull(),
   dueAt:timestamp('due_at',{withTimezone:true}).notNull().defaultNow(),leaseGeneration:integer('lease_generation').notNull().default(0),leaseToken:uuid('lease_token'),leaseUntil:timestamp('lease_until',{withTimezone:true}),
   lastErrorCode:text('last_error_code'),completedAt:timestamp('completed_at',{withTimezone:true}),createdAt:createdAt(),updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
-},(t)=>[check('jobs_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),check('jobs_kind_check',sql`${t.kind} in ('notification','financial_reconciliation')`),check('jobs_payload_check',sql`jsonb_typeof(${t.payload})='object' and octet_length(${t.payload}::text)<=8192`),check('jobs_status_check',sql`${t.status} in ('pending','running','done','retry_wait','dead_letter')`),check('jobs_attempts_check',sql`${t.attempts}>=0`),check('jobs_retry_limit_check',sql`${t.retryLimit} between 1 and 1000000`),check('jobs_lease_generation_check',sql`${t.leaseGeneration} between 0 and 1000000`),check('jobs_last_error_code_check',sql`${t.lastErrorCode} in ('TRANSIENT_FAILURE','INVALID_JOB','LEASE_EXPIRED','PERMANENT_FAILURE')`),index('jobs_due_idx').on(t.environment,t.status,t.dueAt,t.id),index('jobs_expired_lease_idx').on(t.environment,t.leaseUntil,t.id).where(sql`${t.status}='running'`),
+},(t)=>[check('jobs_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),check('jobs_kind_check',sql`${t.kind} in ('notification','financial_reconciliation','operational_cleanup')`),check('jobs_payload_check',sql`jsonb_typeof(${t.payload})='object' and octet_length(${t.payload}::text)<=8192`),check('jobs_status_check',sql`${t.status} in ('pending','running','done','retry_wait','dead_letter')`),check('jobs_attempts_check',sql`${t.attempts}>=0`),check('jobs_retry_limit_check',sql`${t.retryLimit} between 1 and 1000000`),check('jobs_lease_generation_check',sql`${t.leaseGeneration} between 0 and 1000000`),check('jobs_last_error_code_check',sql`${t.lastErrorCode} in ('TRANSIENT_FAILURE','INVALID_JOB','LEASE_EXPIRED','PERMANENT_FAILURE')`),index('jobs_due_idx').on(t.environment,t.status,t.dueAt,t.id),index('jobs_expired_lease_idx').on(t.environment,t.leaseUntil,t.id).where(sql`${t.status}='running'`),
   check('jobs_lease_shape',sql`(${t.status}='running' and ${t.leaseToken} is not null and ${t.leaseUntil} is not null) or (${t.status}<>'running' and ${t.leaseToken} is null and ${t.leaseUntil} is null)`),
   check('jobs_completion_shape',sql`(${t.status} in ('done','dead_letter') and ${t.completedAt} is not null) or (${t.status} not in ('done','dead_letter') and ${t.completedAt} is null)`),
 ]).enableRLS();
 export const schedulerNonces = pgTable('scheduler_nonces', {
   id:uuid('id').primaryKey().defaultRandom(),environment:text('environment').notNull(),nonce:uuid('nonce').notNull(),
   expiresAt:timestamp('expires_at',{withTimezone:true}).notNull(),createdAt:createdAt(),
-},(t)=>[check('scheduler_nonces_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),unique('scheduler_nonces_environment_nonce_key').on(t.environment,t.nonce),index('scheduler_nonce_expiry_idx').on(t.expiresAt,t.id)]).enableRLS();
+},(t)=>[check('scheduler_nonces_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),unique('scheduler_nonces_environment_nonce_key').on(t.environment,t.nonce),index('scheduler_nonce_expiry_idx').on(t.expiresAt,t.id),index('scheduler_nonce_environment_expiry_idx').on(t.environment,t.expiresAt,t.id)]).enableRLS();
 export const schedulerRuns = pgTable('scheduler_runs', {
   id:uuid('id').primaryKey().defaultRandom(),environment:text('environment').notNull(),runKey:text('run_key').notNull(),
   leaseGeneration:integer('lease_generation').notNull().default(1),leaseToken:uuid('lease_token').notNull(),leaseUntil:timestamp('lease_until',{withTimezone:true}).notNull(),
   completedAt:timestamp('completed_at',{withTimezone:true}),createdAt:createdAt(),
-},(t)=>[check('scheduler_runs_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),check('scheduler_runs_lease_generation_check',sql`${t.leaseGeneration} between 1 and 1000000`),unique('scheduler_runs_environment_run_key_key').on(t.environment,t.runKey),index('scheduler_runs_lease_idx').on(t.environment,t.leaseUntil,t.id).where(sql`${t.completedAt} is null`)]).enableRLS();
+},(t)=>[check('scheduler_runs_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),check('scheduler_runs_lease_generation_check',sql`${t.leaseGeneration} between 1 and 1000000`),unique('scheduler_runs_environment_run_key_key').on(t.environment,t.runKey),index('scheduler_runs_lease_idx').on(t.environment,t.leaseUntil,t.id).where(sql`${t.completedAt} is null`),index('scheduler_runs_completed_idx').on(t.environment,t.completedAt,t.id).where(sql`${t.completedAt} is not null`)]).enableRLS();
+
+export const maintenanceResults=pgTable('maintenance_results',{
+  id:uuid('id').primaryKey().defaultRandom(),sourceJobId:uuid('source_job_id').notNull().unique().references(()=>jobs.id,{onDelete:'restrict'}),
+  environment:text('environment').notNull(),runDate:date('run_date').notNull(),pageNumber:integer('page_number').notNull(),leaseGeneration:integer('lease_generation').notNull(),
+  noncesDeleted:integer('nonces_deleted').notNull(),runsDeleted:integer('runs_deleted').notNull(),batchLimit:integer('batch_limit').notNull(),
+  held:boolean('held').notNull(),morePossible:boolean('more_possible').notNull(),checkedAt:timestamp('checked_at',{withTimezone:true}).notNull().default(sql`clock_timestamp()`),
+},t=>[index('maintenance_history_idx').on(t.environment,t.checkedAt,t.id),check('maintenance_results_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),check('maintenance_results_page_number_check',sql`${t.pageNumber} between 0 and 1000000`),
+  check('maintenance_results_lease_generation_check',sql`${t.leaseGeneration} between 1 and 1000000`),check('maintenance_results_nonces_deleted_check',sql`${t.noncesDeleted} between 0 and 100`),
+  check('maintenance_results_runs_deleted_check',sql`${t.runsDeleted} between 0 and 100`),check('maintenance_results_batch_limit_check',sql`${t.batchLimit} between 1 and 100`),
+  check('maintenance_result_bounds',sql`${t.noncesDeleted}<=${t.batchLimit} and ${t.runsDeleted}<=${t.batchLimit} and (not ${t.held} or (${t.noncesDeleted}=0 and ${t.runsDeleted}=0 and not ${t.morePossible}))`),
+]).enableRLS();
 
 export const simulationWithdrawalControls=pgTable('simulation_withdrawal_controls',{
   id:uuid('id').primaryKey().defaultRandom(),withdrawalId:uuid('withdrawal_id').notNull().unique().references(()=>withdrawals.id,{onDelete:'restrict'}),
@@ -385,6 +396,7 @@ export const cycleFinancialReviews=pgView('gw_cycle_financial_reviews',{
 }).existing();
 
 export const schema = {
+  maintenanceResults,
   simulationReorgReviews,simulationReorgResolutions,userFinancialReviews,cycleFinancialReviews,
   giftInvoices,simulationIncomingControls,simulationIncomingEvents,simulationIncomingRefunds,
   deploymentBindingChallenges,

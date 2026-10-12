@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   assets,
   financialReconciliationResults,
+  maintenanceResults,
   jobs,
   plans,
   planVersions,
@@ -188,6 +189,17 @@ export async function handleApiRequest(method: string, path: string[], request: 
         const limit=Math.min(pagination.default_size,pagination.max_size,100);
         return tx.select({id:financialReconciliationResults.id,run_date:financialReconciliationResults.runDate,balanced:financialReconciliationResults.balanced,consistent:financialReconciliationResults.consistent,lineage_complete:financialReconciliationResults.lineageComplete,snapshot_started_at:financialReconciliationResults.snapshotStartedAt,checked_at:financialReconciliationResults.checkedAt})
           .from(financialReconciliationResults).orderBy(desc(financialReconciliationResults.checkedAt),desc(financialReconciliationResults.id)).limit(limit);
+      }));
+    }
+
+    if (method === 'GET' && route === '/admin/maintenance/reports') {
+      const actor=await admin(request);
+      return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},async tx=>{
+        const pagination=(await readManifest(tx)).pagination_policy;
+        return tx.select({id:maintenanceResults.id,run_date:maintenanceResults.runDate,page_number:maintenanceResults.pageNumber,nonces_deleted:maintenanceResults.noncesDeleted,
+          runs_deleted:maintenanceResults.runsDeleted,batch_limit:maintenanceResults.batchLimit,held:maintenanceResults.held,
+          more_possible:maintenanceResults.morePossible,checked_at:maintenanceResults.checkedAt})
+          .from(maintenanceResults).orderBy(desc(maintenanceResults.checkedAt),desc(maintenanceResults.id)).limit(Math.min(pagination.default_size,pagination.max_size,100));
       }));
     }
 

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { readManifest, schedulerNonces, schedulerRuns, withContext } from '@gifters/db';
 import { validateRuntimeEnv } from '@gifters/config';
 import { enqueueDailyReconciliation, runNonSigningJobs, type RunFence } from './jobs';
+import { enqueueDailyMaintenance, operationalRetentionHeld } from './maintenance';
 
 const PATH='/api/v1/internal/tick';
 function keyFor(id:string) {
@@ -58,8 +59,8 @@ export async function schedulerTick(request:Request) {
     const consumed=await database.insert(schedulerNonces).values({environment,nonce,expiresAt:sql`clock_timestamp()+${policy.replay_ttl_seconds}*interval '1 second'`})
       .onConflictDoNothing().returning({id:schedulerNonces.id});
     if (!consumed.length) throw new Error('SCHEDULER_REPLAY');
-    const expired=await database.select({id:schedulerNonces.id}).from(schedulerNonces).where(lt(schedulerNonces.expiresAt,sql`clock_timestamp()`)).orderBy(asc(schedulerNonces.expiresAt),asc(schedulerNonces.id)).limit(100).for('update',{skipLocked:true});
-    if (expired.length) await database.delete(schedulerNonces).where(inArray(schedulerNonces.id,expired.map(item=>item.id)));
+    const expired=await database.select({id:schedulerNonces.id}).from(schedulerNonces).where(and(lt(schedulerNonces.expiresAt,sql`clock_timestamp()`),lt(schedulerNonces.createdAt,sql`clock_timestamp()-interval '600 seconds'`))).orderBy(asc(schedulerNonces.expiresAt),asc(schedulerNonces.id)).limit(100).for('update',{skipLocked:true});
+    if (expired.length && !operationalRetentionHeld()) await database.delete(schedulerNonces).where(inArray(schedulerNonces.id,expired.map(item=>item.id)));
     const [inserted]=await database.insert(schedulerRuns).values({environment,runKey:time.runKey,leaseToken:token,leaseUntil:sql`clock_timestamp()+interval '60 seconds'`}).onConflictDoNothing().returning({id:schedulerRuns.id,generation:schedulerRuns.leaseGeneration});
     if (inserted) return {id:inserted.id,token,generation:inserted.generation};
     const [prior]=await database.select().from(schedulerRuns).where(and(eq(schedulerRuns.environment,environment),eq(schedulerRuns.runKey,time.runKey))).limit(1).for('update');
@@ -69,7 +70,7 @@ export async function schedulerTick(request:Request) {
     return reclaimed[0]?{id:prior.id,token,generation:reclaimed[0].generation}:null;
   });
   if (!run) return {status:'already_claimed'};
-  await withContext({access:'service'},tx=>enqueueDailyReconciliation(tx));
+  await withContext({access:'service'},async tx=>{await enqueueDailyReconciliation(tx);await enqueueDailyMaintenance(tx);});
   const result=await runNonSigningJobs(run,request.signal);
   await completeRun(run);
   return {status:'done',...result};
