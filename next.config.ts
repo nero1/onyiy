@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
+      { source: '/api/v1/admin/reconcile/reports/:id', destination: '/api/v1/admin/reconcile/report?report_id=:id' },
       { source: '/api/v1/me/withdrawals/:id/cancel', destination: '/api/v1/me/withdrawals/cancel?withdrawal_id=:id' },
       { source: '/api/v1/admin/simulation/withdrawals/:id/control', destination: '/api/v1/admin/simulation/withdrawals/control?withdrawal_id=:id' },
       { source: '/api/v1/admin/simulation/withdrawals/:id/resolve', destination: '/api/v1/admin/simulation/withdrawals/resolve?withdrawal_id=:id' },

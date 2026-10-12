@@ -3,7 +3,7 @@ import { and, asc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { readManifest, schedulerNonces, schedulerRuns, withContext } from '@gifters/db';
 import { validateRuntimeEnv } from '@gifters/config';
-import { runNotificationJobs, type RunFence } from './jobs';
+import { enqueueDailyReconciliation, runNonSigningJobs, type RunFence } from './jobs';
 
 const PATH='/api/v1/internal/tick';
 function keyFor(id:string) {
@@ -69,7 +69,8 @@ export async function schedulerTick(request:Request) {
     return reclaimed[0]?{id:prior.id,token,generation:reclaimed[0].generation}:null;
   });
   if (!run) return {status:'already_claimed'};
-  const result=await runNotificationJobs(run,request.signal);
+  await withContext({access:'service'},tx=>enqueueDailyReconciliation(tx));
+  const result=await runNonSigningJobs(run,request.signal);
   await completeRun(run);
   return {status:'done',...result};
 }

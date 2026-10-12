@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   assets,
+  financialReconciliationResults,
   jobs,
   plans,
   planVersions,
@@ -57,6 +58,7 @@ function fail(error: unknown) {
     VERSION_CONFLICT: 409,
     INSUFFICIENT_BALANCE: 409,
     CONFIGURATION_INVALID: 503,
+    RECONCILIATION_TIMEOUT: 503,
     SCHEDULER_UNAVAILABLE: 503,
     SCHEDULER_REPLAY: 409,
     LEASE_LOST: 409,
@@ -68,7 +70,7 @@ function fail(error: unknown) {
   };
   const code = Object.hasOwn(statusMap, message) ? message : 'INTERNAL_ERROR';
   return Response.json(
-    { error: { code, message_key: `errors.${code.toLowerCase()}`, help_slug: 'simulation', retryable: false }, meta: { request_id: requestId() } },
+    { error: { code, message_key: `errors.${code.toLowerCase()}`, help_slug: 'simulation', retryable: code==='RECONCILIATION_TIMEOUT' }, meta: { request_id: requestId() } },
     { status: statusMap[code] ?? 500, headers: { 'Cache-Control': 'private, no-store' } },
   );
 }
@@ -127,6 +129,21 @@ export async function handleApiRequest(method: string, path: string[], request: 
       }
       const body=z.object({action:z.enum(['settle','cancel']),reason:z.string().min(5).max(500)}).strict().parse(await json(request));
       return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>resolveSimulationWithdrawal(tx,actor.id,withdrawalId,body.action,body.reason,idempotencyKey(request))));
+    }
+
+    if (method === 'GET' && (route === '/admin/reconcile/reports' || route === '/admin/reconcile/report')) {
+      const actor=await admin(request);
+      return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},async tx=>{
+        if (route.endsWith('/report')) {
+          const id=resourceId(request,'report_id',/^\/api\/v1\/admin\/reconcile\/reports\/([^/]+)\/?$/);
+          const [report]=await tx.select().from(financialReconciliationResults).where(eq(financialReconciliationResults.id,id)).limit(1);
+          if (!report) throw new Error('NOT_FOUND');return report;
+        }
+        const pagination=(await readManifest(tx)).pagination_policy;
+        const limit=Math.min(pagination.default_size,pagination.max_size,100);
+        return tx.select({id:financialReconciliationResults.id,run_date:financialReconciliationResults.runDate,balanced:financialReconciliationResults.balanced,consistent:financialReconciliationResults.consistent,lineage_complete:financialReconciliationResults.lineageComplete,snapshot_started_at:financialReconciliationResults.snapshotStartedAt,checked_at:financialReconciliationResults.checkedAt})
+          .from(financialReconciliationResults).orderBy(desc(financialReconciliationResults.checkedAt),desc(financialReconciliationResults.id)).limit(limit);
+      }));
     }
 
     if (method === 'GET' && route === '/admin/jobs') {

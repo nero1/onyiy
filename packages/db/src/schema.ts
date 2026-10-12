@@ -3,6 +3,7 @@ import {
   bigint,
   boolean,
   check,
+  date,
   index,
   integer,
   jsonb,
@@ -298,14 +299,14 @@ export const outbox = pgTable('outbox', {
   id:uuid('id').primaryKey().defaultRandom(),businessKey:text('business_key').notNull().unique(),
   environment:text('environment').notNull(),kind:text('kind').notNull(),payload:jsonb('payload').notNull(),
   dispatchedAt:timestamp('dispatched_at',{withTimezone:true}),createdAt:createdAt(),
-},(t)=>[check('outbox_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),check('outbox_kind_check',sql`${t.kind}='notification'`),check('outbox_payload_check',sql`jsonb_typeof(${t.payload})='object' and octet_length(${t.payload}::text)<=8192`),index('outbox_pending_idx').on(t.environment,t.createdAt,t.id).where(sql`${t.dispatchedAt} is null`)]).enableRLS();
+},(t)=>[check('outbox_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),check('outbox_kind_check',sql`${t.kind} in ('notification','financial_reconciliation')`),check('outbox_payload_check',sql`jsonb_typeof(${t.payload})='object' and octet_length(${t.payload}::text)<=8192`),index('outbox_pending_idx').on(t.environment,t.createdAt,t.id).where(sql`${t.dispatchedAt} is null`)]).enableRLS();
 export const jobs = pgTable('jobs', {
   id:uuid('id').primaryKey().defaultRandom(),outboxId:uuid('outbox_id').notNull().unique().references(()=>outbox.id,{onDelete:'restrict'}),
   businessKey:text('business_key').notNull().unique(),environment:text('environment').notNull(),kind:text('kind').notNull(),payload:jsonb('payload').notNull(),
   status:text('status').notNull().default('pending'),attempts:integer('attempts').notNull().default(0),retryLimit:integer('retry_limit').notNull(),
   dueAt:timestamp('due_at',{withTimezone:true}).notNull().defaultNow(),leaseGeneration:integer('lease_generation').notNull().default(0),leaseToken:uuid('lease_token'),leaseUntil:timestamp('lease_until',{withTimezone:true}),
   lastErrorCode:text('last_error_code'),completedAt:timestamp('completed_at',{withTimezone:true}),createdAt:createdAt(),updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
-},(t)=>[check('jobs_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),check('jobs_kind_check',sql`${t.kind}='notification'`),check('jobs_payload_check',sql`jsonb_typeof(${t.payload})='object' and octet_length(${t.payload}::text)<=8192`),check('jobs_status_check',sql`${t.status} in ('pending','running','done','retry_wait','dead_letter')`),check('jobs_attempts_check',sql`${t.attempts}>=0`),check('jobs_retry_limit_check',sql`${t.retryLimit} between 1 and 1000000`),check('jobs_lease_generation_check',sql`${t.leaseGeneration} between 0 and 1000000`),check('jobs_last_error_code_check',sql`${t.lastErrorCode} in ('TRANSIENT_FAILURE','INVALID_JOB','LEASE_EXPIRED','PERMANENT_FAILURE')`),index('jobs_due_idx').on(t.environment,t.status,t.dueAt,t.id),index('jobs_expired_lease_idx').on(t.environment,t.leaseUntil,t.id).where(sql`${t.status}='running'`),
+},(t)=>[check('jobs_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),check('jobs_kind_check',sql`${t.kind} in ('notification','financial_reconciliation')`),check('jobs_payload_check',sql`jsonb_typeof(${t.payload})='object' and octet_length(${t.payload}::text)<=8192`),check('jobs_status_check',sql`${t.status} in ('pending','running','done','retry_wait','dead_letter')`),check('jobs_attempts_check',sql`${t.attempts}>=0`),check('jobs_retry_limit_check',sql`${t.retryLimit} between 1 and 1000000`),check('jobs_lease_generation_check',sql`${t.leaseGeneration} between 0 and 1000000`),check('jobs_last_error_code_check',sql`${t.lastErrorCode} in ('TRANSIENT_FAILURE','INVALID_JOB','LEASE_EXPIRED','PERMANENT_FAILURE')`),index('jobs_due_idx').on(t.environment,t.status,t.dueAt,t.id),index('jobs_expired_lease_idx').on(t.environment,t.leaseUntil,t.id).where(sql`${t.status}='running'`),
   check('jobs_lease_shape',sql`(${t.status}='running' and ${t.leaseToken} is not null and ${t.leaseUntil} is not null) or (${t.status}<>'running' and ${t.leaseToken} is null and ${t.leaseUntil} is null)`),
   check('jobs_completion_shape',sql`(${t.status} in ('done','dead_letter') and ${t.completedAt} is not null) or (${t.status} not in ('done','dead_letter') and ${t.completedAt} is null)`),
 ]).enableRLS();
@@ -325,7 +326,14 @@ export const simulationWithdrawalControls=pgTable('simulation_withdrawal_control
   operationKey:text('operation_key').notNull().unique().references(()=>operationKeys.businessKey,{onDelete:'restrict'}),reason:text('reason').notNull(),createdAt:createdAt(),
 },(t)=>[check('simulation_withdrawal_controls_environment_check',sql`${t.environment}='simulation'`),check('simulation_withdrawal_controls_outcome_check',sql`${t.outcome} in ('hold','reject')`),check('simulation_withdrawal_controls_reason_check',sql`length(${t.reason}) between 5 and 500`)]).enableRLS();
 
+export const financialReconciliationResults=pgTable('financial_reconciliation_results',{
+  id:uuid('id').primaryKey().defaultRandom(),sourceJobId:uuid('source_job_id').notNull().unique().references(()=>jobs.id,{onDelete:'restrict'}),
+  environment:text('environment').notNull(),runDate:date('run_date').notNull(),balanced:boolean('balanced').notNull(),consistent:boolean('consistent').notNull(),lineageComplete:boolean('lineage_complete').notNull(),
+  result:jsonb('result').notNull(),snapshotStartedAt:timestamp('snapshot_started_at',{withTimezone:true}).notNull().defaultNow(),checkedAt:timestamp('checked_at',{withTimezone:true}).notNull().default(sql`clock_timestamp()`),
+},(t)=>[index('reconciliation_history_idx').on(t.environment,t.checkedAt,t.id),check('financial_reconciliation_results_environment_check',sql`${t.environment} in ('simulation','testnet','mainnet')`),check('financial_reconciliation_results_result_check',sql`jsonb_typeof(${t.result})='object' and octet_length(${t.result}::text)<=131072`)]).enableRLS();
+
 export const schema = {
+  financialReconciliationResults,
   simulationWithdrawalControls,
   outbox,jobs,schedulerNonces,schedulerRuns,
   environmentInstances,
