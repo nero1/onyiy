@@ -38,6 +38,7 @@ export const policyFields = {
   rate_policies: z.object(Object.fromEntries(rateFamilies.map((key) => [key,rate])) as Record<typeof rateFamilies[number], typeof rate>).strict(),
   report_dedupe_hours: positive,
   moderator_permissions: z.object({ review:z.boolean(), suspend:z.boolean(), restore_suspension:z.boolean(), ban:z.literal(false), delete:z.literal(false), finance:z.literal(false), bulk_export:z.literal(false) }).strict(),
+  identity_policy:z.object({username_min:positive.max(64),username_max:positive.max(64),collision_attempts:positive.max(100),reserved:z.array(z.string().regex(/^[a-z0-9_]{1,64}$/)).max(200),blocked_words:z.array(z.string().min(1).max(64)).max(200)}).strict().refine(v=>v.username_min<=v.username_max),
   auth_session_policy: z.object({ access_minutes:positive, absolute_days:positive, idle_days:positive, preauth_minutes:positive.max(5), totp_step_seconds:z.literal(30), totp_window_steps:count.max(1), replay_retention_seconds:positive.min(90) }).strict(),
   staff_reauth_minutes: positive,
   pending_consent_retention_days: count,
@@ -54,7 +55,7 @@ export const policyFields = {
 };
 
 export const privatePolicyKeys = new Set(['price_max_age_minutes','crypto_monitor_policy','points_daily_cap','activity_policy','rate_policies','report_dedupe_hours','auth_session_policy','pending_consent_retention_days','job_policy','scheduler_auth_policy','worker_shutdown_seconds','health_timeout_ms']);
-export const staffPolicyKeys = new Set(['admin_timezone','plan_templates','empty_queue_policy','payout_limits','business_settlement_policy','bootstrap_destination_role','moderator_permissions','staff_reauth_minutes','retention_policy','backup_policy','alert_policy','simulation_policy','export_import_limits']);
+export const staffPolicyKeys = new Set(['identity_policy','admin_timezone','plan_templates','empty_queue_policy','payout_limits','business_settlement_policy','bootstrap_destination_role','moderator_permissions','staff_reauth_minutes','retention_policy','backup_policy','alert_policy','simulation_policy','export_import_limits']);
 
 export const planConfigSchema = z.object({ status:z.enum(['disabled','scheduled','active','paused','retired']), price_usd:money.or(z.string().regex(/^[0-9]+(\.[0-9]{1,2})?$/).refine((v) => BigInt(v.replace('.','')) > 0n)), pricing_mode:z.enum(['usd_at_activation','fixed_token']), amount_base_units:z.string().regex(/^[1-9][0-9]{0,77}$/).optional(), receipts_required:positive, icon:z.string().min(1).max(100), launch_at:z.string().datetime().optional(), countdown:z.boolean(), countdown_lead_days:count, bootstrap_enabled:z.boolean(), bootstrap_count:count.max(1000) }).strict();
 export const assetConfigSchema = z.object({ enabled:z.boolean(), environment:z.enum(['simulation','testnet','mainnet']), chain_id:z.string().min(1).max(100), kind:z.enum(['native','token','internal']), contract:z.string().min(1).max(200).optional(), mint:z.string().min(1).max(200).optional(), decimals:count.max(78), display_unit:z.enum(['usd','asset']), confirmation_policy:z.object({ mode:z.enum(['transactional','finalized','solidified','depth']), depth:positive.optional() }).strict() }).strict();

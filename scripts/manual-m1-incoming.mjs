@@ -1,3 +1,5 @@
+import {installSimulationToolAuth} from './manual-auth.mjs';
+installSimulationToolAuth();
 // Named operator acceptance only: no CI, no reset, GIV only.
 if(process.env.M1_INCOMING_CONFIRM!=='isolated-simulation')throw new Error('Confirm isolated simulation with M1_INCOMING_CONFIRM');
 const origin=process.env.APP_BASE_URL;if(!origin)throw new Error('APP_BASE_URL required');const base=origin.replace(/\/$/,'')+'/api/v1';

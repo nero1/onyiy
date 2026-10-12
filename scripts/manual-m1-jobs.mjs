@@ -1,3 +1,5 @@
+import {installSimulationToolAuth} from './manual-auth.mjs';
+installSimulationToolAuth();
 import crypto from 'node:crypto';
 
 // Operator-invoked acceptance, never CI. Run after the fresh 21-gift/integrity

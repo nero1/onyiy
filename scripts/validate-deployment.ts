@@ -27,6 +27,12 @@ if (process.argv.includes('--hosted')) {
   const config = validateRuntimeEnv(env);
   if (env.EXPECTED_DATABASE_URL && config.databaseUrl !== env.EXPECTED_DATABASE_URL) throw new Error('Vercel and GitHub runtime database bindings differ');
   if (env.DATABASE_MIGRATION_URL) throw new Error('Migration credentials must not be present in the Vercel runtime settings');
+  for(const name of ['AUTH_ACCESS_KEY','MFA_ENCRYPTION_KEY'])if(!env[name]||Buffer.from(env[name]!,'base64url').length!==32||Buffer.from(env[name]!,'base64url').toString('base64url')!==env[name])throw new Error('Hosted identity keys must be separately provisioned');
+  if(env.AUTH_ACCESS_PREVIOUS_KEY&&!env.AUTH_ACCESS_KEY)throw new Error('Authentication rotation requires a current key');
+  let web:URL;try{web=new URL(env.WEB_ORIGIN??'')}catch{throw new Error('Hosted WEB_ORIGIN must be configured')}
+  if(web.protocol!=='https:'||web.origin!==env.WEB_ORIGIN||web.username||web.password)throw new Error('Hosted WEB_ORIGIN must be an exact HTTPS origin');
+  if(env.AUTH_PROVIDER==='google'&&(!env.GOOGLE_CLIENT_ID||!env.GOOGLE_CLIENT_SECRET))throw new Error('Google identity requires owner-provisioned credentials');
+  if(env.SIMULATION_TOOL_AUTH_KEY)throw new Error('Operator fixture keys must stay outside hosted runtime');
   databaseConnectionOptions(config.databaseUrl,env);
   let database: URL;
   try { database = new URL(config.databaseUrl); } catch { throw new Error('Invalid DATABASE_URL'); }

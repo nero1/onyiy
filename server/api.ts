@@ -10,6 +10,8 @@ import {
   queuePartitions,
   users,
   withContext,
+  withSessionScope,
+  authSessions,
   simulationAccounts,
   readManifest,
 } from '@gifters/db';
@@ -33,6 +35,9 @@ import {recordReorg,reconfirmReorg,reorgHistory} from './reorg';
 import {quoteIncoming,submitIncoming,controlIncoming,resolveIncoming,ownInvoices,cancelIncomingQuote} from './incoming';
 
 import { getPublicManifest,getPublicCatalog,invalidatePublicReads } from './public-reads';
+import { authenticate,csrf,requireStepUp,requireWithdrawalAuth,issueSession,validateUsername,databaseNow,clearCookies } from './auth';
+import { handleAuthRequest } from './auth-api';
+import { enforceRate } from './rate-limits';
 
 function requestId() { return crypto.randomUUID(); }
 
@@ -70,6 +75,10 @@ function fail(error: unknown) {
     SCHEDULER_UNAVAILABLE: 503,
     SCHEDULER_REPLAY: 409,
     LEASE_LOST: 409,
+    STEP_UP_REQUIRED:403,
+    INVALID_PROOF:400,
+    RATE_LIMITED:429,
+    PROVIDER_UNAVAILABLE:503,
     FEATURE_DISABLED: 404,
     CYCLE_LIMIT_REACHED: 409,
     DESTINATION_CHANGED: 409,
@@ -83,19 +92,8 @@ function fail(error: unknown) {
   );
 }
 
-async function current(request: Request) {
-  const username = request.headers.get('x-sim-user');
-  if (!username) throw new Error('UNAUTHENTICATED');
-  const user = await withContext({access:'service'},(tx) => getUser(tx, username));
-  if (!user) throw new Error('UNAUTHENTICATED');
-  return user;
-}
-
-async function admin(request: Request) {
-  const user = await current(request);
-  if (user.role !== 'admin') throw new Error('FORBIDDEN');
-  return user;
-}
+async function current(request:Request){return (await authenticate(request)).user;}
+async function admin(request:Request){const identity=await authenticate(request);if(identity.user.role!=='admin'||identity.user.status!=='active')throw new Error('FORBIDDEN');await requireStepUp(identity);return identity.user;}
 
 async function json(request: Request) {
   try { return await request.json(); } catch { throw new Error('INVALID_INPUT'); }
@@ -115,7 +113,7 @@ function resourceId(request: Request, queryKey: string, publicPath: RegExp) {
   return z.string().uuid().parse(match?.[1] ?? url.searchParams.get(queryKey));
 }
 
-export async function handleApiRequest(method: string, path: string[], request: Request) {
+async function dispatchApiRequest(method: string, path: string[], request: Request) {
   try {
     const route = `/${path.join('/')}`;
 
@@ -227,10 +225,22 @@ export async function handleApiRequest(method: string, path: string[], request: 
       return ok(rows);
     }
 
-    if (method === 'POST' && route === '/me/consent') {
-      const user = await current(request);
-      const body = z.object({ accepted: z.literal(true), referral_code: z.string().uuid().optional() }).strict().parse(await json(request));
-      return ok(await withContext({access:'service',actorId:user.id},(tx) => consentUser(tx, user.username, body.referral_code)));
+    if(method==='POST'&&route==='/me/consent'){
+      const identity=await authenticate(request);const user=identity.user;
+      const input=z.object({accepted:z.literal(true),referral_code:z.string().uuid().optional(),terms_version:z.string().max(100).optional(),adult:z.literal(true).optional(),minimum_age:z.number().int().positive().optional(),username:z.string().max(64).optional()}).strict().parse(await json(request));
+      const result=await withContext({access:'service',actorId:user.id},async tx=>{
+        await tx.select({id:users.id}).from(users).where(eq(users.id,user.id)).for('no key update');
+        if(!identity.tool){const [family]=await tx.select({id:authSessions.id}).from(authSessions).where(and(eq(authSessions.id,identity.session!.id),eq(authSessions.accessHash,identity.accessHash!),sql`${authSessions.revokedAt} is null and ${authSessions.accessExpiresAt}>clock_timestamp()`)).for('share');if(!family)throw new Error('UNAUTHENTICATED');}
+        const manifest=await readManifest(tx);
+        if(!identity.tool&&(input.terms_version!==manifest.terms_content.version||!input.adult||input.minimum_age!==manifest.eligibility_min_age||!input.username))throw new Error('CONSENT_REQUIRED');
+        let username=user.username;
+        if(!identity.tool&&user.status==='pending_consent')await validateUsername(tx,input.username!);
+        if(input.username&&input.username!==user.username){if(user.consentedAt)throw new Error('VERSION_CONFLICT');username=await validateUsername(tx,input.username);await tx.update(users).set({username}).where(eq(users.id,user.id));}
+        await tx.update(users).set({ageConfirmedAt:await databaseNow(tx),ageMinimumAccepted:manifest.eligibility_min_age}).where(eq(users.id,user.id));
+        return consentUser(tx,username,input.referral_code);
+      });
+      if(identity.tool)return ok(result);
+      return issueSession(request,user.id);
     }
 
     if (method === 'GET' && route === '/me/dashboard') {
@@ -269,6 +279,7 @@ export async function handleApiRequest(method: string, path: string[], request: 
     }
 
     if (method === 'POST' && route === '/me/withdrawals/confirm') {
+      await requireWithdrawalAuth(await authenticate(request));
       const user = await current(request);
       z.object({}).strict().parse(await json(request));
       const withdrawalId = resourceId(request, 'withdrawal_id', /^\/api\/v1\/me\/withdrawals\/([^/]+)\/confirm\/?$/);
@@ -324,4 +335,21 @@ export async function handleApiRequest(method: string, path: string[], request: 
     if (error instanceof z.ZodError) return fail(new Error('INVALID_INPUT'));
     return fail(error);
   }
+}
+
+
+export async function handleApiRequest(method:string,path:string[],request:Request){
+ try{
+  const route='/'+path.join('/');
+  if(route.startsWith('/auth/'))return await handleAuthRequest(method,route,request);
+  if(route==='/sim/users'&&(process.env.AUTH_PROVIDER??'simulation')!=='simulation')throw new Error('FEATURE_DISABLED');
+  if(['/manifest','/plans','/sim/users','/internal/tick'].includes(route))return await dispatchApiRequest(method,path,request);
+  const identity=await authenticate(request);
+  const account=request.headers.get('x-client-account');const generation=request.headers.get('x-client-session');if(!identity.tool&&((account&&account!==identity.user.username)||(generation&&generation!==identity.session!.generation)))throw new Error('VERSION_CONFLICT');
+  if(identity.user.status==='pending_consent'&&route!=='/me/consent')throw new Error('CONSENT_REQUIRED');
+  if(method!=='GET')csrf(request,identity);
+  if(!identity.tool){const family=route.startsWith('/admin/')?'staff':route==='/me/consent'?'consent':route.startsWith('/gifts/')?(route.endsWith('/transaction')?'payment_proof':'invoice'):route.includes('/notifications')?'notifications':route.includes('/wallets')?'wallet':route.includes('/withdrawals')?'withdrawal':method==='GET'?'reads':'mutation';await enforceRate(request,family,identity.user.id);}
+  if(identity.tool||route==='/me/consent')return await dispatchApiRequest(method,path,request);
+  return await withSessionScope({userId:identity.user.id,sessionId:identity.session!.id,accessHash:identity.accessHash!,version:identity.user.sessionVersion,requiresAdult:route.startsWith('/gifts/'),requiresWithdrawalProof:route==='/me/withdrawals/confirm'},()=>dispatchApiRequest(method,path,request));
+ }catch(error){return fail(error);}
 }

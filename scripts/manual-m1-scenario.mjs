@@ -1,3 +1,5 @@
+import {installSimulationToolAuth} from './manual-auth.mjs';
+installSimulationToolAuth();
 const origin = process.env.APP_BASE_URL;
 if (!origin) throw new Error('APP_BASE_URL is required, e.g. https://your-project.vercel.app');
 const BASE = `${origin.replace(/\/$/, '')}/api/v1`;

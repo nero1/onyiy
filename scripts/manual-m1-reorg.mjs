@@ -1,3 +1,5 @@
+import {installSimulationToolAuth} from './manual-auth.mjs';
+installSimulationToolAuth();
 // Explicit operator acceptance only, after fresh M1/integrity/jobs/recovery/incoming.
 if(process.env.M1_REORG_CONFIRM!=='isolated-simulation')throw Error('Confirm isolated simulation with M1_REORG_CONFIRM');
 const origin=process.env.APP_BASE_URL;if(!origin)throw Error('APP_BASE_URL required');const base=origin.replace(/\/$/,'')+'/api/v1';
