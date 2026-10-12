@@ -67,7 +67,8 @@ export function activateUserScope(owner:string,session='simulation'){
  for(const key of keys())if(key.startsWith(`gw:${SCHEMA_VERSION}:user:${owner}:`) && !key.startsWith(userPrefix(owner,session)))remove(key);
  write(ACTIVE_USER_KEY,owner);write(ACTIVE_SESSION_KEY,session);
 }
-export function clearActiveUserScope(expectedOwner?:string){
+export function clearActiveUserScope(expectedOwner?:string,expectedGeneration?:string){
+ if(expectedOwner&&expectedGeneration&&read(ACTIVE_SESSION_KEY)!==expectedGeneration){clearUserScope(expectedOwner,expectedGeneration);return;}
  const active=read(ACTIVE_USER_KEY);const owner=expectedOwner??active;
  if(owner)clearUserScope(owner);
  if(!expectedOwner || active===expectedOwner){remove(ACTIVE_USER_KEY);remove(ACTIVE_SESSION_KEY)}

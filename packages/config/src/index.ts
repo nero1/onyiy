@@ -23,7 +23,7 @@ export const manifestSchema = z.object({
   mainnet_enabled: z.literal(false),
   default_locale: z.enum(["en","fr"]),
   supported_locales: z.array(z.enum(["en","fr"])).length(2).refine((locales) => new Set(locales).size === 2),
-  eligibility_min_age: z.number().int().positive(),
+  eligibility_min_age: z.number().int().positive().max(120),
   cycle_max_concurrent: z.number().int().nonnegative(),
   cycle_rejoin_cooldown_hours: z.number().int().nonnegative(),
   payment_split_bps: paymentSplitSchema,
@@ -62,6 +62,8 @@ function rejectSecretContent(value: unknown, location: string[] = []): void {
   } else if (Array.isArray(value)) value.forEach((child,index) => rejectSecretContent(child,[...location,String(index)]));
   else if (value && typeof value === 'object') Object.entries(value).forEach(([key,child]) => rejectSecretContent(child,[...location,key]));
 }
+
+export function validatePublicText(value:string){rejectSecretContent(value);if(value.length<1||value.length>20000)throw new Error('INVALID_INPUT');return value;}
 
 export function validateManifestValue(key: string, value: unknown, scope?: string): unknown {
   const definition = manifestDefinition(key);

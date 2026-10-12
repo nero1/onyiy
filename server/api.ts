@@ -1,3 +1,5 @@
+import {editSetting,editPriority,editHelp,settings,settingInput,priorityInput,helpInput} from './administration';
+import {notificationPage,seeNotifications,readNotification} from './notifications';
 import crypto from 'node:crypto';
 import { and, asc, desc, eq, gt, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -12,6 +14,7 @@ import {
   withContext,
   withSessionScope,
   authSessions,
+  helpArticles,
   simulationAccounts,
   readManifest,
 } from '@gifters/db';
@@ -34,7 +37,7 @@ import { replayDeadJob } from './jobs';
 import {recordReorg,reconfirmReorg,reorgHistory} from './reorg';
 import {quoteIncoming,submitIncoming,controlIncoming,resolveIncoming,ownInvoices,cancelIncomingQuote} from './incoming';
 
-import { getPublicManifest,getPublicCatalog,invalidatePublicReads } from './public-reads';
+import { getPublicManifest,getPublicCatalog,getPublicHelp,publicHelpSlug,invalidatePublicReads } from './public-reads';
 import { authenticate,csrf,requireStepUp,requireWithdrawalAuth,issueSession,validateUsername,databaseNow,clearCookies } from './auth';
 import { handleAuthRequest } from './auth-api';
 import { enforceRate } from './rate-limits';
@@ -93,7 +96,7 @@ function fail(error: unknown) {
 }
 
 async function current(request:Request){return (await authenticate(request)).user;}
-async function admin(request:Request){const identity=await authenticate(request);if(identity.user.role!=='admin'||identity.user.status!=='active')throw new Error('FORBIDDEN');await requireStepUp(identity);return identity.user;}
+async function admin(request:Request){const identity=await authenticate(request);if(identity.user.role!=='admin'||identity.user.status!=='active')throw new Error('FORBIDDEN');await requireStepUp(identity);const policy=await readManifest();if(!policy.feature_admin&&request.method!=='GET')throw new Error('FEATURE_DISABLED');return identity.user;}
 
 async function json(request: Request) {
   try { return await request.json(); } catch { throw new Error('INVALID_INPUT'); }
@@ -220,6 +223,24 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
       const value=await getPublicManifest();return publicOk(value.data,value.ttlSeconds,request);
     }
 
+    if(method==='GET'&&route==='/help'){
+      const query=new URL(request.url).searchParams,locale=z.enum(['en','fr']).parse(query.get('locale')??'en');const slug=query.get('slug');
+      if(slug){z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/).parse(slug);const response=await getPublicHelp(locale);const canonical=await publicHelpSlug(locale,slug);const article=(response.data as any[]).find(article=>article.slug===canonical);if(!article)throw new Error('NOT_FOUND');return publicOk(article,response.ttlSeconds,request);}
+      const response=await getPublicHelp(locale);return publicOk(response.data,response.ttlSeconds,request);
+    }
+    if(route==='/admin/settings'){
+      const actor=await admin(request);if(method==='GET')return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},settings));
+      if(method==='POST'){const input=settingInput.parse(await json(request));const result=await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>editSetting(tx,actor.id,input,idempotencyKey(request)));invalidatePublicReads();return ok(result);}
+    }
+    if(method==='POST'&&route==='/admin/priority'){const actor=await admin(request);const input=priorityInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>editPriority(tx,actor.id,input,idempotencyKey(request))));}
+    if(route==='/admin/help'){
+      const actor=await admin(request);if(method==='GET'){const id=new URL(request.url).searchParams.get('id');if(id){z.string().uuid().parse(id);const rows=await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>tx.select().from(helpArticles).where(eq(helpArticles.id,id)).limit(1));if(!rows[0])throw new Error('NOT_FOUND');return ok(rows[0]);}return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>tx.select({id:helpArticles.id,locale:helpArticles.locale,slug:helpArticles.slug,title:helpArticles.title,published:helpArticles.published,version:helpArticles.version}).from(helpArticles).orderBy(asc(helpArticles.locale),asc(helpArticles.slug)).limit(200)));}
+      if(method==='POST'){if(!(await readManifest()).feature_help)throw new Error('FEATURE_DISABLED');const input=helpInput.parse(await json(request));const result=await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>editHelp(tx,actor.id,input,idempotencyKey(request)));invalidatePublicReads();return ok(result);}
+    }
+    if(route==='/me/notifications'&&method==='GET'){const user=await current(request);const params=new URL(request.url).searchParams;const limit=params.has('limit')?z.coerce.number().int().positive().max(100).parse(params.get('limit')):undefined;return ok(await withContext({access:'service',actorId:user.id},tx=>notificationPage(tx,user.id,limit,params.get('cursor')??undefined)));}
+    if(route==='/me/notifications/seen'&&method==='POST'){const user=await current(request);const input=z.object({newest_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:user.id},tx=>seeNotifications(tx,user.id,input.newest_id)));}
+    if(route==='/me/notifications/read'&&method==='POST'){const user=await current(request);const input=z.object({id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:user.id},tx=>readNotification(tx,user.id,input.id)));}
+
     if (method === 'GET' && route === '/sim/users') {
       const rows = await withContext({access:'public'},(tx) => tx.select().from(simulationAccounts).orderBy(desc(simulationAccounts.role),asc(simulationAccounts.username)));
       return ok(rows);
@@ -246,6 +267,7 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
     if (method === 'GET' && route === '/me/dashboard') {
       const user = await current(request);
       const manifest = await readManifest();
+      if(!manifest.entitlements_member.dashboard)throw new Error('FEATURE_DISABLED');
       return ok(await withContext({access:'member',actorId:user.id},(tx) => dashboard(tx,user,manifest)));
     }
 
@@ -315,6 +337,7 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
         username: users.username,
         platform_role: queueEntries.platformRole,
         priority_ticket: queueEntries.priorityTicket,
+        priority_revision:queueEntries.priorityRevision,
         serving_position: sql<number>`public.gw_queue_rank(${queueEntries.id},'serving')`.mapWith((value) => value === null ? null : Number(value)),
       }).from(queueEntries)
         .innerJoin(queuePartitions, eq(queuePartitions.id, queueEntries.partitionId))
@@ -343,7 +366,7 @@ export async function handleApiRequest(method:string,path:string[],request:Reque
   const route='/'+path.join('/');
   if(route.startsWith('/auth/'))return await handleAuthRequest(method,route,request);
   if(route==='/sim/users'&&(process.env.AUTH_PROVIDER??'simulation')!=='simulation')throw new Error('FEATURE_DISABLED');
-  if(['/manifest','/plans','/sim/users','/internal/tick'].includes(route))return await dispatchApiRequest(method,path,request);
+  if(['/manifest','/plans','/help','/sim/users','/internal/tick'].includes(route))return await dispatchApiRequest(method,path,request);
   const identity=await authenticate(request);
   const account=request.headers.get('x-client-account');const generation=request.headers.get('x-client-session');if(!identity.tool&&((account&&account!==identity.user.username)||(generation&&generation!==identity.session!.generation)))throw new Error('VERSION_CONFLICT');
   if(identity.user.status==='pending_consent'&&route!=='/me/consent')throw new Error('CONSENT_REQUIRED');

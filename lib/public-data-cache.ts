@@ -101,3 +101,5 @@ export async function loadPublicCatalog(maxAgeMs:number){return await load('cata
 export async function savePublicHelp(value:unknown,ttlMs:number){const projected=help(value);if(projected)await save(`help:${projected.locale}:${projected.slug}`,projected,ttlMs);}
 export async function loadPublicHelp(locale:'en'|'fr',slug:string,maxAgeMs:number){return await load(`help:${locale}:${slug}`,maxAgeMs) as PublicHelpArticle|null;}
 export async function clearPublicData(){await transaction(undefined,store=>{store.clear();});}
+
+export async function loadAllPublicHelp(locale:'en'|'fr',maxAgeMs:number){if(!ttlValid(maxAgeMs))return [];return transaction<PublicHelpArticle[]>([],(store,all)=>{const rows=prune(store,all);return rows.filter(row=>row.key.startsWith(`help:${locale}:`)&&Date.now()-row.createdAt<maxAgeMs).map(row=>payload(row.key,row.json) as PublicHelpArticle).sort((a,b)=>a.slug.localeCompare(b.slug));});}
