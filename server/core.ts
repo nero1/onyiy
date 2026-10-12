@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { and, asc, desc, eq, inArray, isNull, gte, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, isNotNull, gte, lt, sql } from 'drizzle-orm';
 import {
   assets,
   auditEvents,
@@ -20,11 +20,10 @@ import {
   withdrawals,
   xManifest,
   userAccountBalances,
-  queuePositions,
   readManifest,
   type DbExecutor,
 } from '@gifters/db';
-import { splitAmount, giftPointAward, formatBaseUnits, usdToGivBaseUnits } from '@gifters/domain';
+import { splitAmount, giftPointAward, formatBaseUnits, usdToGivBaseUnits, QUEUE_TICKET_CEILING } from '@gifters/domain';
 import type { Manifest } from '@gifters/config';
 
 type UserRow = typeof users.$inferSelect;
@@ -333,11 +332,14 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
   await database.execute(sql`select id from queue_partitions where plan_version_id=${v.id} for update`);
   const partition = (await database.select().from(queuePartitions).where(eq(queuePartitions.planVersionId, v.id)).limit(1))[0];
   if (!partition) throw new Error('PLAN_UNAVAILABLE');
+  if (partition.nextTicket >= QUEUE_TICKET_CEILING) throw new Error('FINANCIAL_SAFETY_PAUSE');
 
-  const recipients = await database.select().from(queueEntries)
-    .where(and(eq(queueEntries.partitionId, partition.id), eq(queueEntries.status, 'waiting')))
-    .orderBy(sql`${queueEntries.priorityTicket} is null`, asc(queueEntries.priorityTicket), asc(queueEntries.ticket)).limit(1);
-  const recipient = recipients[0];
+  const waiting = and(eq(queueEntries.partitionId,partition.id),eq(queueEntries.status,'waiting'));
+  const priority = manifest.feature_priority ? (await database.select().from(queueEntries)
+    .where(and(waiting,isNotNull(queueEntries.priorityTicket))).orderBy(asc(queueEntries.priorityTicket),asc(queueEntries.ticket)).limit(1))[0] : undefined;
+  const recipient = priority ?? (await database.select().from(queueEntries)
+    .where(manifest.feature_priority ? and(waiting,isNull(queueEntries.priorityTicket)) : waiting)
+    .orderBy(asc(queueEntries.ticket)).limit(1))[0];
   if (recipient) await database.execute(sql`select id from queue_entries where id=${recipient.id} for update`);
   if (recipient?.beneficiaryUserId === user.id) throw new Error('NO_RECEIVER_AVAILABLE');
   if (!recipient && manifest.empty_queue_policy.mode === 'block_checkout') throw new Error('NO_RECEIVER_AVAILABLE');
@@ -543,12 +545,11 @@ export async function dashboard(database: DbExecutor, user: UserRow, manifest: M
     name: plans.name,
     slug: plans.slug,
     ticket: queueEntries.ticket,
-    display_position: queuePositions.displayPosition,
+    display_position: sql<number>`public.gw_queue_rank(${queueEntries.id},'display')`.mapWith((value) => value === null ? null : Number(value)),
   }).from(cycles)
     .innerJoin(planVersions, eq(planVersions.id, cycles.planVersionId))
     .innerJoin(plans, eq(plans.id, planVersions.planId))
     .leftJoin(queueEntries, eq(queueEntries.cycleId, cycles.id))
-    .leftJoin(queuePositions,eq(queuePositions.entryId,queueEntries.id))
     .where(eq(cycles.userId, user.id))
     .orderBy(desc(cycles.createdAt)).limit(30);
 

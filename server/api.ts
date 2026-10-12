@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   assets,
@@ -189,7 +189,15 @@ export async function handleApiRequest(method: string, path: string[], request: 
     if (method === 'GET' && route === '/admin/queue') {
       const actor = await admin(request);
       const planId = resourceId(request, 'plan_id', /^\/api\/v1\/admin\/queue\/([^/]+)\/?$/);
+      const manifest = await readManifest();
+      const params = new URL(request.url).searchParams;
+      const limit = params.has('limit') ? z.string().regex(/^[1-9][0-9]*$/).transform(Number).pipe(z.number().int().max(manifest.pagination_policy.max_size)).parse(params.get('limit')) : Math.min(manifest.pagination_policy.default_size,manifest.pagination_policy.max_size);
+      const partition = params.has('partition_id') ? z.string().uuid().parse(params.get('partition_id')) : undefined;
+      const after = params.has('after_ticket') ? z.string().max(13).regex(/^[0-9]+$/).transform(Number).pipe(z.number().int().max(1099511627775)).parse(params.get('after_ticket')) : undefined;
+      if (after !== undefined && !partition) throw new Error('INVALID_INPUT');
       const rows = await withContext({access:'staff',actorId:actor.id},(tx) => tx.select({
+        id: queueEntries.id,
+        partition_id: queueEntries.partitionId,
         ticket: queueEntries.ticket,
         kind: queueEntries.kind,
         status: queueEntries.status,
@@ -199,12 +207,13 @@ export async function handleApiRequest(method: string, path: string[], request: 
         username: users.username,
         platform_role: queueEntries.platformRole,
         priority_ticket: queueEntries.priorityTicket,
+        serving_position: sql<number>`public.gw_queue_rank(${queueEntries.id},'serving')`.mapWith((value) => value === null ? null : Number(value)),
       }).from(queueEntries)
         .innerJoin(queuePartitions, eq(queuePartitions.id, queueEntries.partitionId))
         .innerJoin(planVersions, eq(planVersions.id, queuePartitions.planVersionId))
         .leftJoin(users, eq(users.id, queueEntries.beneficiaryUserId))
-        .where(eq(planVersions.planId, planId))
-        .orderBy(asc(queueEntries.ticket)));
+        .where(and(eq(planVersions.planId, planId),partition ? eq(queueEntries.partitionId,partition) : undefined,after !== undefined ? gt(queueEntries.ticket,after) : undefined))
+        .orderBy(asc(queueEntries.partitionId),asc(queueEntries.ticket)).limit(limit));
       return ok(rows);
     }
 
