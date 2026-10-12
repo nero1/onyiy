@@ -21,6 +21,7 @@ import {
   xManifest,
   userAccountBalances,
   receiptAllocations,
+  simulationWithdrawalControls,
   readManifest,
   type DbExecutor,
 } from '@gifters/db';
@@ -499,9 +500,9 @@ export async function confirmWithdrawal(database: DbExecutor, user: UserRow, wit
   eligibleWithdrawal(user);
   const w = (await database.select().from(withdrawals).where(and(eq(withdrawals.id, withdrawalId), eq(withdrawals.userId, user.id))).limit(1).for('update'))[0];
   if (!w) throw new Error('NOT_FOUND');
-  if (w.status === 'settled') return w;
   const asset = await simulationAsset(database,manifest);
   if (w.assetId !== asset.id) throw new Error('PLAN_UNAVAILABLE');
+  if (['settled','cancelled','held'].includes(w.status)) return w;
   const wallet = (await database.select().from(walletLinks).where(and(eq(walletLinks.userId,user.id),eq(walletLinks.environment,'simulation'),eq(walletLinks.chainId,'giv'))).limit(1))[0];
   if (!wallet || wallet.address !== w.destination) throw new Error('DESTINATION_CHANGED');
   if (w.status !== 'quoted') throw new Error('VERSION_CONFLICT');
@@ -520,23 +521,99 @@ export async function confirmWithdrawal(database: DbExecutor, user: UserRow, wit
   if (BigInt(spent.amount) + gross > usdToGivBaseUnits(manifest.payout_limits.daily_per_asset_usd)) throw new Error('FINANCIAL_SAFETY_PAUSE');
   const avail = await account(database, w.assetId, 'user', user.id, 'available_payable', 'credit');
   const held = await account(database, w.assetId, 'user', user.id, 'held_payable', 'credit');
-  const sink = await account(database, w.assetId, 'system', null, 'simulation_settlement_sink', 'credit');
-  await postJournal(database, 'PAYOUT_HOLD', `payout-hold:${w.id}`, [
+  const holdJournal=await postJournal(database, 'PAYOUT_HOLD', `payout-hold:${w.id}`, [
     { accountId: avail.id, direction: 'debit', amount: gross },
     { accountId: held.id, direction: 'credit', amount: gross },
   ], { withdrawal_id: w.id });
-  await database.update(withdrawals).set({ status: 'held' }).where(eq(withdrawals.id, w.id));
-  await postJournal(database, 'PAYOUT_SETTLE', `payout-settle:${w.id}`, [
-    { accountId: held.id, direction: 'debit', amount: gross },
-    { accountId: sink.id, direction: 'credit', amount: gross },
-  ], { withdrawal_id: w.id, simulation: true });
-  const settled = await database.update(withdrawals).set({ status: 'settled', settledAt: sql`current_timestamp` }).where(eq(withdrawals.id, w.id)).returning();
-  await enqueueNotification(database, `notice:withdrawal:${w.id}:settled`, {
-    user_id: user.id,
-    title_key: 'withdrawal_settled',
-    body: `Simulation withdrawal settled for ${formatBaseUnits(gross)} GIV. No on-chain export occurred.`,
+  if (!holdJournal) throw new Error('FINANCIAL_SAFETY_PAUSE');
+  const [heldWithdrawal]=await database.update(withdrawals).set({status:'held'}).where(eq(withdrawals.id,w.id)).returning();
+  const [control]=await database.select().from(simulationWithdrawalControls).where(eq(simulationWithdrawalControls.withdrawalId,w.id)).limit(1);
+  if (control?.outcome==='hold') return heldWithdrawal;
+  return finishGivWithdrawal(database,heldWithdrawal,control?.outcome==='reject'?'cancel':'settle');
+}
+
+type WithdrawalRow=typeof withdrawals.$inferSelect;
+async function finishGivWithdrawal(database:DbExecutor,w:WithdrawalRow,action:'cancel'|'settle') {
+  if (w.status!=='held') throw new Error('VERSION_CONFLICT');
+  const gross=BigInt(w.grossBaseUnits);
+  if (await balanceForPurpose(database,w.userId,w.assetId,'held_payable')<gross) throw new Error('FINANCIAL_SAFETY_PAUSE');
+  const held=await account(database,w.assetId,'user',w.userId,'held_payable','credit');
+  const destination=action==='cancel'?await account(database,w.assetId,'user',w.userId,'available_payable','credit'):await account(database,w.assetId,'system',null,'simulation_settlement_sink','credit');
+  const journal=await postJournal(database,action==='cancel'?'HOLD_RELEASE':'PAYOUT_SETTLE',`${action==='cancel'?'hold-release':'payout-settle'}:${w.id}`,[
+    {accountId:held.id,direction:'debit',amount:gross},{accountId:destination.id,direction:'credit',amount:gross},
+  ],{withdrawal_id:w.id,simulation:true});
+  if (!journal) throw new Error('FINANCIAL_SAFETY_PAUSE');
+  const [result]=await database.update(withdrawals).set(action==='cancel'?{status:'cancelled',cancelledAt:sql`current_timestamp`}:{status:'settled',settledAt:sql`current_timestamp`}).where(eq(withdrawals.id,w.id)).returning();
+  if (action==='settle') await enqueueNotification(database,`notice:withdrawal:${w.id}:settled`,{
+    user_id:w.userId,title_key:'withdrawal_settled',body:`Simulation withdrawal settled for ${formatBaseUnits(gross)} GIV. No on-chain export occurred.`,
   });
-  return settled[0];
+  return result;
+}
+
+export async function cancelWithdrawal(database:DbExecutor,user:UserRow,withdrawalId:string) {
+  const manifest=await readManifest(database);
+  if (!manifest.feature_wallets) throw new Error('FEATURE_DISABLED');
+  user=await lockUser(database,user.id);eligibleWithdrawal(user);
+  const [w]=await database.select().from(withdrawals).where(and(eq(withdrawals.id,withdrawalId),eq(withdrawals.userId,user.id))).limit(1).for('update');
+  if (!w) throw new Error('NOT_FOUND');
+  const asset=await simulationAsset(database,manifest);
+  if (w.assetId!==asset.id) throw new Error('PLAN_UNAVAILABLE');
+  if (w.status==='cancelled') return w;
+  if (!['quoted','held'].includes(w.status)) throw new Error('VERSION_CONFLICT');
+  // GIV cannot broadcast; this is positive simulation-only evidence of an
+  // unsent hold. Never apply this rule to a real payout or ambiguous attempt.
+  const result=w.status==='quoted'?(await database.update(withdrawals).set({status:'cancelled',cancelledAt:sql`current_timestamp`}).where(eq(withdrawals.id,w.id)).returning())[0]:await finishGivWithdrawal(database,w,'cancel');
+  await database.insert(auditEvents).values({actorUserId:user.id,action:'withdrawal_cancel',targetType:'withdrawal',targetId:w.id,reason:'Explicit cancellation of unsent GIV withdrawal',beforeState:{status:w.status},afterState:{status:'cancelled'}});
+  return result;
+}
+
+export async function controlSimulationWithdrawal(database:DbExecutor,actorId:string,withdrawalId:string,outcome:'hold'|'reject',reason:string,nonce:string) {
+  const manifest=await readManifest(database);
+  if (!manifest.feature_simulation || !manifest.feature_admin) throw new Error('FEATURE_DISABLED');
+  const actor=await lockUser(database,actorId);
+  if (actor.role!=='admin' || actor.status!=='active') throw new Error('FORBIDDEN');
+  const asset=await simulationAsset(database,manifest);
+  const key=`admin-sim-withdrawal:${actorId}:${nonce.toLowerCase()}`;
+  const requestHash=crypto.createHash('sha256').update(JSON.stringify({withdrawalId:withdrawalId.toLowerCase(),outcome,reason})).digest('hex');
+  const [prior]=await database.select().from(operationKeys).where(eq(operationKeys.businessKey,key)).limit(1);
+  if (prior) {if (prior.requestHash!==requestHash) throw new Error('VERSION_CONFLICT');return prior.result;}
+  const [w]=await database.select().from(withdrawals).where(eq(withdrawals.id,withdrawalId)).limit(1).for('update');
+  if (!w || w.assetId!==asset.id) throw new Error('NOT_FOUND');
+  if (w.status!=='quoted') throw new Error('VERSION_CONFLICT');
+  const [existing]=await database.select().from(simulationWithdrawalControls).where(eq(simulationWithdrawalControls.withdrawalId,w.id)).limit(1);
+  if (existing) throw new Error('VERSION_CONFLICT');
+  await database.insert(simulationWithdrawalControls).values({withdrawalId:w.id,outcome,reason,actorUserId:actorId,operationKey:key});
+  const result={withdrawal_id:w.id,outcome};
+  await database.insert(auditEvents).values({actorUserId:actorId,action:'simulation_withdrawal_control',targetType:'withdrawal',targetId:w.id,reason,afterState:result});
+  await database.insert(operationKeys).values({businessKey:key,requestHash,result});
+  return result;
+}
+
+export async function resolveSimulationWithdrawal(database:DbExecutor,actorId:string,withdrawalId:string,action:'cancel'|'settle',reason:string,nonce:string) {
+  const manifest=await readManifest(database);
+  if (!manifest.feature_simulation || !manifest.feature_admin) throw new Error('FEATURE_DISABLED');
+  const [lookup]=await database.select({userId:withdrawals.userId}).from(withdrawals).where(eq(withdrawals.id,withdrawalId)).limit(1);
+  if (!lookup) throw new Error('NOT_FOUND');
+  let actor:UserRow|undefined;
+  for (const id of [...new Set([actorId,lookup.userId])].sort()) {
+    const locked=await lockUser(database,id);
+    if (id===actorId) actor=locked;
+  }
+  if (actor?.role!=='admin' || actor.status!=='active') throw new Error('FORBIDDEN');
+  const asset=await simulationAsset(database,manifest);
+  const key=`admin-resolve-withdrawal:${actorId}:${nonce.toLowerCase()}`;
+  const requestHash=crypto.createHash('sha256').update(JSON.stringify({withdrawalId:withdrawalId.toLowerCase(),action,reason})).digest('hex');
+  const [prior]=await database.select().from(operationKeys).where(eq(operationKeys.businessKey,key)).limit(1);
+  if (prior) {if (prior.requestHash!==requestHash) throw new Error('VERSION_CONFLICT');return prior.result;}
+  // Sorted user locks precede the withdrawal lock, including crossed staff recovery.
+  const [w]=await database.select().from(withdrawals).where(eq(withdrawals.id,withdrawalId)).limit(1).for('update');
+  if (w.assetId!==asset.id) throw new Error('NOT_FOUND');
+  let result:WithdrawalRow;
+  if (w.status===(action==='cancel'?'cancelled':'settled')) result=w;
+  else result=await finishGivWithdrawal(database,w,action);
+  await database.insert(auditEvents).values({actorUserId:actorId,action:'simulation_withdrawal_resolution',targetType:'withdrawal',targetId:w.id,reason,beforeState:{status:w.status},afterState:{status:result.status}});
+  await database.insert(operationKeys).values({businessKey:key,requestHash,result});
+  return result;
 }
 
 export async function dashboard(database: DbExecutor, user: UserRow, manifest: Manifest) {
@@ -570,6 +647,7 @@ export async function dashboard(database: DbExecutor, user: UserRow, manifest: M
 
   const pointRows = await database.select({ total: sql<number>`coalesce(sum(${pointEvents.points}),0)::int` }).from(pointEvents).where(eq(pointEvents.userId, user.id));
   // Retain the original camelCase aliases while adding the documented UI DTO.
+  const pendingWithdrawals=await database.select({id:withdrawals.id,status:withdrawals.status,gross_base_units:withdrawals.grossBaseUnits}).from(withdrawals).where(and(eq(withdrawals.userId,user.id),eq(withdrawals.assetId,asset.id),eq(withdrawals.status,'held'))).orderBy(desc(withdrawals.createdAt),desc(withdrawals.id)).limit(manifest.pagination_policy.max_size);
   const notices = await database.select({id:notifications.id,userId:notifications.userId,titleKey:notifications.titleKey,createdAt:notifications.createdAt,readAt:notifications.readAt,title_key:notifications.titleKey,body:notifications.body,created_at:notifications.createdAt,read_at:notifications.readAt}).from(notifications).where(eq(notifications.userId, user.id)).orderBy(desc(notifications.createdAt)).limit(manifest.notification_page_size);
   const wallet = (await database.select().from(walletLinks).where(and(eq(walletLinks.userId, user.id), eq(walletLinks.environment, 'simulation'), eq(walletLinks.chainId, 'giv'))).limit(1))[0];
   const withdrawnRows = await database.select({ total: sql<string>`coalesce(sum(${withdrawals.netBaseUnits}),0)::text` }).from(withdrawals)
@@ -582,6 +660,7 @@ export async function dashboard(database: DbExecutor, user: UserRow, manifest: M
     points: pointRows[0]?.total ?? 0,
     cycles: userCycles,
     notifications: notices,
+    pending_withdrawals:pendingWithdrawals,
     wallet: wallet ?? null,
   };
 }

@@ -366,6 +366,8 @@ Migration 009 rebuilds only derived queue counters while holding maintenance loc
 
 Migration 010 adds immutable allocation links and withdrawal/operation snapshot guards under maintenance locks. Pause simulation writes during legacy backfill. Only verifiable GIV evidence is linked; unknown slot sequence stays unresolved in reconciliation. Historical UUID keys that collide only by letter case stop migration for review; never erase financial records to bypass uniqueness. Use fresh isolated data for complete-lineage acceptance.
 
+Migration 012 adds immutable GIV failure controls and exact deferred hold/settle/release checks. It does not invent historical cancellation timestamps or verify real-chain attempts. Investigate unsupported legacy GIV states through reconciliation before attempting recovery; never alter quotes or journals to bypass a guard.
+
 After first hosted M1 acceptance, the optional integrity scenario is documented in HOW-IT-WORKS.md. Both scenarios require isolated simulation data and actual deployment evidence; skipped provider configuration does not count as a deployment.
 
 ## 10. Drizzle ORM requirement
@@ -568,3 +570,11 @@ Protected environments with required reviewers also hold scheduled runs for appr
 For key rotation, put the old key in Vercel's optional `SCHEDULER_HMAC_PREVIOUS_KEY`, install a new current key in Vercel, redeploy, then update GitHub's current secret. Retire the previous key after outstanding requests' maximum skew/replay window. Use separate keys/origins if manually exercising an isolated preview; never point preview jobs at production data. Hosted key delivery and scheduling remain unverified until executed.
 
 Staff may explicitly replay a reviewed dead-letter notification through `POST /api/v1/admin/jobs/<id>/replay` with an empty JSON body and UUID `Idempotency-Key`. This preserves the original operation and attempts. Invalid payloads are refused; never edit immutable work or financial history to force a retry. Long-running workers, alerts and retention/recovery orchestration remain later milestones.
+
+## 14. Exercise GIV withdrawal recovery
+
+Use only an isolated simulation deployment. Create a normal user quote, then as the selected simulation admin call `POST /api/v1/admin/simulation/withdrawals/<id>/control` with `{ "outcome": "hold", "reason": "Your named scenario" }` or outcome `reject`, and a UUID `Idempotency-Key`. Configure it before confirmation; its outcome is immutable. Without a control, GIV retains normal immediate settlement.
+
+The user confirms the quote normally. A `hold` reserves funds without settlement; the wallet shows a cancellable held withdrawal. A `reject` records a balanced release and cancellation. The user can call `POST /api/v1/me/withdrawals/<id>/cancel` with `{}`; the withdrawal ID is its single-use state identity. This moves no money for an unused quote and releases an unsent GIV hold once.
+
+For a reviewed delayed hold, admin calls `POST /api/v1/admin/simulation/withdrawals/<id>/resolve` with `{ "action": "settle", "reason": "Your review reason" }` or action `cancel`, plus a UUID `Idempotency-Key`. Inspect the returned state and staff reconciliation; duplicate requests preserve the original result. No mode permits reopening settlement or exporting GIV. The named recovery procedure is in HOW-IT-WORKS.md. Real-chain cancellation/signing and reorg handling remain separate, unimplemented gates.

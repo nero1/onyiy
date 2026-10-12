@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { ledgerAccounts, ledgerJournals, ledgerPostings, operationKeys, queueEntries, receiptAllocations, readManifest, type DbExecutor } from '@gifters/db';
+import { ledgerAccounts, ledgerJournals, ledgerPostings, operationKeys, queueEntries, receiptAllocations, readManifest, withdrawals, type DbExecutor } from '@gifters/db';
 
 // Staff-only diagnostics. Counts are exact integer strings; examples are capped.
 // Scheduled/chunked orchestration belongs to the subsequent jobs milestone.
@@ -31,11 +31,14 @@ export async function reconcile(database: DbExecutor) {
     .where(and(sql`${operationKeys.businessKey} like 'gift:%'`,isNull(receiptAllocations.id))))[0].count;
   const legacy = (await database.select({count:sql<string>`count(*)::text`}).from(receiptAllocations).where(eq(receiptAllocations.lineageStatus,'legacy_linked')))[0].count;
   const captured = (await database.select({count:sql<string>`count(*)::text`}).from(receiptAllocations).where(eq(receiptAllocations.lineageStatus,'captured')))[0].count;
+  const outstanding=database.select({userId:withdrawals.userId,assetId:withdrawals.assetId,gross:sql<string>`sum(${withdrawals.grossBaseUnits})`.as('gross')}).from(withdrawals).where(eq(withdrawals.status,'held')).groupBy(withdrawals.userId,withdrawals.assetId).as('outstanding');
+  const heldAccounts=database.select({userId:ledgerAccounts.ownerId,assetId:ledgerAccounts.assetId,net:sql<string>`${accountNet}`.as('net')}).from(ledgerAccounts).leftJoin(ledgerPostings,eq(ledgerPostings.accountId,ledgerAccounts.id)).where(and(eq(ledgerAccounts.ownerType,'user'),eq(ledgerAccounts.purpose,'held_payable'))).groupBy(ledgerAccounts.ownerId,ledgerAccounts.assetId).as('held_accounts');
+  const heldMismatch=await database.select({user_id:sql<string>`coalesce(${outstanding.userId},${heldAccounts.userId})`,asset_id:sql<string>`coalesce(${outstanding.assetId},${heldAccounts.assetId})`,held_balance:sql<string>`coalesce(${heldAccounts.net},0)::text`,withdrawal_total:sql<string>`coalesce(${outstanding.gross},0)::text`}).from(outstanding).fullJoin(heldAccounts,and(eq(outstanding.userId,heldAccounts.userId),eq(outstanding.assetId,heldAccounts.assetId))).where(sql`coalesce(${outstanding.gross},0)<>coalesce(${heldAccounts.net},0)`).limit(limit);
   const balanced = bad.length===0;
   return {
-    balanced,consistent:balanced && !negative.length && !clearing.length && !mismatch.length && missingJournals==='0' && missingOperations==='0',
+    balanced,consistent:balanced && !heldMismatch.length && !negative.length && !clearing.length && !mismatch.length && missingJournals==='0' && missingOperations==='0',
     lineage_complete:missingJournals==='0' && missingOperations==='0' && legacy==='0',
-    imbalanced_journals:bad,negative_user_balances:negative,nonzero_gift_clearing:clearing,queue_credit_mismatches:mismatch,
+    imbalanced_journals:bad,held_withdrawal_mismatches:heldMismatch,negative_user_balances:negative,nonzero_gift_clearing:clearing,queue_credit_mismatches:mismatch,
     unlinked_journal_count:missingJournals,unlinked_operation_count:missingOperations,legacy_unsequenced_count:legacy,captured_allocation_count:captured,
     diagnostic_sample_limit:limit,
   };
