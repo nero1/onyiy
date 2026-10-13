@@ -36,6 +36,7 @@ export const businessInput = z
       "bootstrap_developer",
       "bootstrap_marketing",
     ]),
+    previous_obligation_id:z.string().uuid().optional(),
     reason: z.string().min(5).max(500),
   })
   .strict();
@@ -88,10 +89,12 @@ export async function holdBusinessSettlement(
         JSON.stringify({
           asset_key: input.asset_key,
           role: input.role,
+          previous_obligation_id:input.previous_obligation_id,
           reason: scheduled ? "UTC_DAILY" : input.reason,
         }),
       )
       .digest("hex");
+  if(input.previous_obligation_id){if(scheduled)throw new Error("INVALID_INPUT");const [parent]=await tx.select().from(cryptoObligations).where(eq(cryptoObligations.id,input.previous_obligation_id)).limit(1);if(!parent||parent.kind!=="business"||parent.userId!==null||parent.assetId!==asset.id||parent.sourcePurpose!==sourcePurpose||!(parent.status==="cancelled"||parent.status==="exception"&&parent.completedAt))throw new Error("PREVIOUS_OBLIGATION_NOT_CLOSED");}
   const source = await account(
     tx,
     asset.id,
@@ -185,6 +188,7 @@ export async function holdBusinessSettlement(
       .values({
         assetId: asset.id,
         kind: "business",
+        previousObligationId:input.previous_obligation_id,
         businessKey: `${key}:leg:${legIds.length}`,
         requestHash: digest,
         environment: "testnet",

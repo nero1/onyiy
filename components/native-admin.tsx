@@ -1,5 +1,5 @@
 "use client";
-import { decimalToBaseUnits } from "@gifters/domain";
+import { decimalToBaseUnits, formatBaseUnits } from "@gifters/domain";
 import { useState } from "react";
 import { api, mutation, ApiError } from "@/lib/api-client";
 import type { Locale } from "@/lib/i18n";
@@ -21,6 +21,13 @@ export default function NativeAdmin({
     [recovery, setRecovery] = useState<any>(null),
     [approval, setApproval] = useState(""),
     [link, setLink] = useState("");
+  const [previousId, setPreviousId] = useState("");
+  const [obligations, setObligations] = useState<any[]>([]),
+    [obligationCursor, setObligationCursor] = useState<string | null>(null);
+  const [sweepGross, setSweepGross] = useState(""),
+    [sweep, setSweep] = useState<any>(null);
+  const [eventId, setEventId] = useState(""),
+    [reviews, setReviews] = useState<any[]>([]);
   const fr = locale === "fr",
     [reason, setReason] = useState(""),
     [currency, setCurrency] = useState(assets[0]?.key ?? "bnb"),
@@ -70,6 +77,10 @@ export default function NativeAdmin({
           void run(async () => {
             setPlans(await api<any[]>("/admin/plans", owner));
             setAlerts(await api<any[]>("/admin/crypto/alerts", owner));
+            setReviews(await api<any[]>("/admin/crypto/reorg", owner));
+            const page = await api<any>("/admin/crypto/obligations", owner);
+            setObligations(page.rows);
+            setObligationCursor(page.next_after);
           })
         }
       >
@@ -179,12 +190,42 @@ export default function NativeAdmin({
             ))}
           </select>
         </label>
+        <label>
+          {fr
+            ? "Demande clôturée à relier (facultatif)"
+            : "Closed request to link (optional)"}
+          <input
+            value={previousId}
+            onChange={(e) => setPreviousId(e.target.value)}
+          />
+        </label>
+        <label>
+          {fr ? "Événement entrant à rembourser" : "Incoming event to refund"}
+          <input value={eventId} onChange={(e) => setEventId(e.target.value)} />
+        </label>
+        <button
+          disabled={!eventId}
+          onClick={() =>
+            void run(() =>
+              mutation("/admin/crypto/refunds", owner, {
+                event_id: eventId,
+                previous_obligation_id: previousId || undefined,
+                reason,
+              }),
+            )
+          }
+        >
+          {fr
+            ? "Préparer le remboursement au payeur d’origine"
+            : "Prepare refund to original payer"}
+        </button>
         <button
           onClick={() =>
             void run(() =>
               mutation("/admin/crypto/business", owner, {
                 asset_key: currency,
                 role,
+                previous_obligation_id: previousId || undefined,
                 reason,
               }),
             )
@@ -374,6 +415,221 @@ export default function NativeAdmin({
           </>
         )}
       </fieldset>
+      <fieldset disabled={busy || !enabled || reason.trim().length < 10}>
+        <legend>{fr ? "Révision de finalité" : "Finality review"}</legend>
+        <p>
+          {fr
+            ? "Une disparition seule ne suffit pas. Deux fournisseurs doivent prouver le remplacement du bloc finalisé. Les soldes et l’historique sont conservés."
+            : "Absence alone is insufficient. Two providers must prove replacement of the finalized block. Balances and history are retained."}
+        </p>
+        <label>
+          {fr ? "Identifiant de l’événement entrant" : "Incoming event ID"}
+          <input value={eventId} onChange={(e) => setEventId(e.target.value)} />
+        </label>
+        <button
+          disabled={!eventId}
+          onClick={() =>
+            void run(async () => {
+              await mutation("/admin/crypto/reorg", owner, {
+                event_id: eventId,
+                reason,
+              });
+              setReviews(await api<any[]>("/admin/crypto/reorg", owner));
+            })
+          }
+        >
+          {fr ? "Vérifier et ouvrir la révision" : "Verify and open review"}
+        </button>
+        {reviews.map((row) => (
+          <article key={row.review_id}>
+            <p>
+              {row.event_id} · {row.amount_base_units} ·{" "}
+              {row.resolved_at
+                ? fr
+                  ? "Reconfirmé"
+                  : "Reconfirmed"
+                : fr
+                  ? "Monnaie suspendue"
+                  : "Currency paused"}
+            </p>
+            {!row.resolved_at && (
+              <button
+                onClick={() =>
+                  void run(async () => {
+                    await mutation("/admin/crypto/reorg/reconfirm", owner, {
+                      review_id: row.review_id,
+                      reason,
+                    });
+                    setReviews(await api<any[]>("/admin/crypto/reorg", owner));
+                  })
+                }
+              >
+                {fr ? "Vérifier la reconfirmation" : "Verify reconfirmation"}
+              </button>
+            )}
+          </article>
+        ))}
+      </fieldset>
+      <fieldset disabled={busy || !enabled || reason.trim().length < 10}>
+        <legend>
+          {fr
+            ? "Transfert de réserve de la plateforme"
+            : "Platform reserve sweep"}
+        </legend>
+        <p>
+          {fr
+            ? "Le montant doit provenir du surplus comptabilisé. Les obligations et la réserve de gaz restent protégées. La destination est configurée par l’opérateur."
+            : "The amount must come from recorded surplus. Beneficiary liabilities and gas reserves remain protected. The operator configures the destination."}
+        </p>
+        <label>
+          {fr
+            ? "Montant dans la monnaie sélectionnée"
+            : "Amount in selected currency"}
+          <input
+            inputMode="decimal"
+            value={sweepGross}
+            onChange={(e) => setSweepGross(e.target.value)}
+          />
+        </label>
+        <button
+          disabled={!sweepGross}
+          onClick={() =>
+            void run(async () => {
+              const asset = assets.find((a) => a.key === currency);
+              if (!asset) throw new Error("CURRENCY_NOT_PROVISIONED");
+              const value = await mutation<any>(
+                "/admin/crypto/sweeps/quote",
+                owner,
+                {
+                  asset_key: currency,
+                  amount_base_units: decimalToBaseUnits(
+                    sweepGross,
+                    asset.decimals,
+                  ).toString(),
+                  reason,
+                },
+              );
+              setSweep(value);
+            })
+          }
+        >
+          {fr ? "Examiner le transfert" : "Review sweep"}
+        </button>
+        {sweep && (
+          <>
+            <p>
+              {sweep.status} ·{" "}
+              {formatBaseUnits(BigInt(sweep.amount_base_units), sweep.decimals)}{" "}
+              {sweep.asset}
+            </p>
+            <p className="wallet-address">{sweep.destination}</p>
+            <p>
+              {fr ? "Frais natifs approuvés" : "Approved native fee"}:{" "}
+              {formatBaseUnits(
+                BigInt(sweep.native_fee_base_units),
+                sweep.native_decimals,
+              )}{" "}
+              {sweep.native_asset}
+            </p>
+            <button
+              disabled={sweep.status !== "quoted"}
+              onClick={() =>
+                void run(async () => {
+                  const value = await mutation<any>(
+                    "/admin/crypto/sweeps/confirm",
+                    owner,
+                    { obligation_id: sweep.id, reason },
+                  );
+                  setSweep((old: any) => ({ ...old, ...value }));
+                })
+              }
+            >
+              {fr
+                ? "Confirmer la destination et le montant"
+                : "Confirm destination and amount"}
+            </button>
+            <button
+              disabled={
+                sweep.status === "settled" ||
+                sweep.status === "cancelled" ||
+                sweep.status === "failed_closed"
+              }
+              onClick={() =>
+                void run(async () => {
+                  const value = await mutation<any>(
+                    "/admin/crypto/sweeps/recover",
+                    owner,
+                    { obligation_id: sweep.id, reason },
+                  );
+                  setSweep((old: any) => ({ ...old, ...value }));
+                })
+              }
+            >
+              {fr
+                ? "Annuler si non signé ou positivement résolu"
+                : "Cancel if unsigned or positively resolved"}
+            </button>
+          </>
+        )}
+      </fieldset>
+      <section className="card">
+        <h3>{fr ? "Demandes financières" : "Financial requests"}</h3>
+        {obligations.map((row) => (
+          <article key={row.id}>
+            <p>
+              {row.kind} · {row.asset} · {row.network} · {row.status}
+            </p>
+            <p>
+              {formatBaseUnits(BigInt(row.gross_base_units), row.decimals)} →{" "}
+              {formatBaseUnits(BigInt(row.net_base_units), row.decimals)}{" "}
+              {row.asset}
+            </p>
+            <p className="wallet-address">{row.destination}</p>
+            <small>{row.id}</small>
+            {!row.completed_at && ["business", "refund"].includes(row.kind) && (
+              <button
+                disabled={busy || !enabled || reason.trim().length < 10}
+                onClick={() =>
+                  void run(async () => {
+                    await mutation("/admin/crypto/operational/recover", owner, {
+                      obligation_id: row.id,
+                      reason,
+                    });
+                    const page = await api<any>(
+                      "/admin/crypto/obligations",
+                      owner,
+                    );
+                    setObligations(page.rows);
+                    setObligationCursor(page.next_after);
+                  })
+                }
+              >
+                {fr
+                  ? "Récupérer si non signé ou positivement résolu"
+                  : "Recover if unsigned or positively resolved"}
+              </button>
+            )}
+          </article>
+        ))}
+        {obligationCursor && (
+          <button
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                const page = await api<any>(
+                  "/admin/crypto/obligations?after=" +
+                    encodeURIComponent(obligationCursor),
+                  owner,
+                );
+                setObligations(page.rows);
+                setObligationCursor(page.next_after);
+              })
+            }
+          >
+            {fr ? "Page suivante" : "Next page"}
+          </button>
+        )}
+      </section>
       {alerts.map((row) => (
         <article key={row.id}>
           <p>

@@ -78,6 +78,48 @@ export class EvmAdapter implements ChainAdapter {
       }),
     );
   }
+  async getCanonicalBlock(height: bigint) {
+    if (height < 0n) throw new Error("INVALID_INPUT");
+    const values = await Promise.all(
+      ([0, 1] as const).map(async (side) => {
+        if (
+          quantity(await this.rpc.request(side, "eth_chainId", [])) !==
+          BigInt(this.asset.network)
+        )
+          throw new Error("WRONG_NETWORK");
+        const block = await this.rpc.request(side, "eth_getBlockByNumber", [
+          hex(height),
+          false,
+        ]);
+        if (
+          !block ||
+          quantity(block.number) !== height ||
+          !hashPattern.test(block.hash)
+        )
+          throw new Error("RPC_EVIDENCE_INVALID");
+        const final =
+          this.asset.finality.mode === "depth"
+            ? quantity(await this.rpc.request(side, "eth_blockNumber", [])) >=
+              height + BigInt(this.asset.finality.depth!) - 1n
+            : quantity(
+                (
+                  await this.rpc.request(side, "eth_getBlockByNumber", [
+                    "finalized",
+                    false,
+                  ])
+                ).number,
+              ) >= height;
+        return {
+          height,
+          hash: String(block.hash).toLowerCase(),
+          finalized: final,
+        };
+      }),
+    );
+    if (values[0].hash !== values[1].hash || !values.every((v) => v.finalized))
+      throw new Error("FINALITY_UNAVAILABLE");
+    return values[0];
+  }
   async getFinality() {
     await this.network();
     const blocks = await this.rpc.pair("eth_getBlockByNumber", [
@@ -281,15 +323,35 @@ export class EvmAdapter implements ChainAdapter {
     )
       throw new Error("RPC_EVIDENCE_INVALID");
     const height = quantity(receipt.blockNumber),
-      actualNativeFee =
-        quantity(receipt.gasUsed) *
-        quantity(receipt.effectiveGasPrice ?? tx.gasPrice),
+      gasUsed = quantity(receipt.gasUsed),
+      unitPrice = quantity(receipt.effectiveGasPrice ?? tx.gasPrice),
+      status = quantity(receipt.status),
+      transactionIndex = quantity(receipt.transactionIndex),
       block = await this.rpc.request(side, "eth_getBlockByNumber", [
         receipt.blockNumber,
         false,
       ]);
     if (!block || block.hash !== receipt.blockHash)
       return { ...base, state: "pending", contradiction: true };
+    // Hash equality alone does not prove a receipt belongs to the requested
+    // canonical block. Check its height, exact transaction slot and gas bounds.
+    if (
+      !hashPattern.test(receipt.blockHash) ||
+      quantity(block.number) !== height ||
+      quantity(tx.blockNumber) !== height ||
+      quantity(tx.transactionIndex) !== transactionIndex ||
+      !Array.isArray(block.transactions) ||
+      transactionIndex >= BigInt(block.transactions.length) ||
+      String(
+        block.transactions[parseInt(transactionIndex.toString(), 10)],
+      ).toLowerCase() !== hash.toLowerCase() ||
+      gasUsed <= 0n ||
+      gasUsed > quantity(tx.gas) ||
+      unitPrice > quantity(tx.maxFeePerGas ?? tx.gasPrice) ||
+      ![0n, 1n].includes(status)
+    )
+      throw new Error("RPC_EVIDENCE_INVALID");
+    const actualNativeFee = gasUsed * unitPrice;
     const final =
       this.asset.finality.mode === "depth"
         ? quantity(await this.rpc.request(side, "eth_blockNumber", [])) >=
@@ -343,6 +405,11 @@ export class EvmAdapter implements ChainAdapter {
       );
       if (
         !log ||
+        log.removed !== false ||
+        String(log.transactionHash).toLowerCase() !== hash.toLowerCase() ||
+        log.blockHash !== receipt.blockHash ||
+        quantity(log.blockNumber) !== height ||
+        quantity(log.transactionIndex) !== transactionIndex ||
         getAddress(log.address) !== getAddress(asset.contract!) ||
         log.topics?.length !== 3 ||
         String(log.topics[0]).toLowerCase() !== transferTopic

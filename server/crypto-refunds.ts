@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, like, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   assets,
@@ -28,7 +28,7 @@ import {
 } from "./financial-config";
 import type { AssetRegistry } from "@gifters/chains";
 export const refundInput = z
-  .object({ event_id: z.string().uuid(), reason: z.string().min(5).max(500) })
+  .object({ event_id: z.string().uuid(),previous_obligation_id:z.string().uuid().optional(), reason: z.string().min(5).max(500) })
   .strict();
 export async function reserveOriginalRefund(
   tx: DbExecutor,
@@ -66,11 +66,14 @@ export async function reserveOriginalRefund(
   const registry = locked.registrySnapshot as AssetRegistry,
     config = await financialConfiguration(tx, registry);
   await assertExternalActivation(tx, config.hash);
-  const key = `refund:${event.id}:leg:0`,
+  const [latest]=await tx.select().from(cryptoObligations).where(like(cryptoObligations.businessKey,`refund:${event.id}:leg:%`)).orderBy(sql`split_part(${cryptoObligations.businessKey},':',4)::int desc`).limit(1);
+  let leg=0;
+  if(input.previous_obligation_id){if(latest?.previousObligationId===input.previous_obligation_id)return {obligation_id:latest.id,status:latest.status};if(!latest||latest.id!==input.previous_obligation_id||latest.kind!=="refund"||latest.userId!==invoice.userId||latest.assetId!==event.assetId||!(latest.status==="cancelled"||latest.status==="exception"&&latest.completedAt))throw new Error("PREVIOUS_OBLIGATION_NOT_CLOSED");leg=parseInt(latest.businessKey.split(':').at(-1)!,10)+1;if(leg>1000)throw new Error("FINANCIAL_SAFETY_PAUSE");}
+  const key = `refund:${event.id}:leg:${leg}`,
     digest = crypto
       .createHash("sha256")
       .update(
-        JSON.stringify({ event_id: event.id, destination: invoice.sender }),
+        JSON.stringify({ event_id: event.id, destination: invoice.sender,previous_obligation_id:input.previous_obligation_id }),
       )
       .digest("hex"),
     [old] = await tx
@@ -157,6 +160,7 @@ export async function reserveOriginalRefund(
         userId: invoice.userId,
         assetId: asset.id,
         kind: "refund",
+        previousObligationId:input.previous_obligation_id,
         businessKey: key,
         requestHash: digest,
         environment: "testnet",
@@ -190,7 +194,7 @@ export async function reserveOriginalRefund(
   await postJournal(
     tx,
     "PAYOUT_HOLD",
-    `refund-hold:${event.id}`,
+    `refund-hold:${row.id}`,
     [
       { accountId: source.id, direction: "debit", amount: refundable },
       { accountId: held.id, direction: "credit", amount: refundable },

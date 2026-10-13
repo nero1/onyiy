@@ -9,6 +9,10 @@ export async function assertUnfrozen(
   userId: string,
   assetId: string,
 ) {
+  const [native] = await tx.execute<{ allowed: boolean }>(
+    sql`select public.gw_native_asset_fence(${assetId}::uuid) as allowed`,
+  );
+  if (!native.allowed) throw new Error("FINANCIAL_SAFETY_PAUSE");
   const [review] = await tx
     .select({ id: simulationReorgReviews.id })
     .from(simulationReorgReviews)

@@ -174,6 +174,11 @@ export async function signPrepared(
       const tx = prepared.payload as any,
         contract = tx.raw_data?.contract?.[0],
         hex = (a: string) => TronWeb.address.toHex(a).toLowerCase();
+      const {runtimeAdapter}=await import("../../packages/chains/src/runtime"),chain=await runtimeAdapter(intent.asset);if(!chain.assertReference)throw new Error("SIGNED_INTENT_INVALID");await chain.assertReference(tx);
+      if(intent.asset.kind==="native") {
+        if(intent.asset.key!=="trx"||!utils.transaction.txCheck(tx)||tx.raw_data.contract.length!==1||contract.type!=="TransferContract"||BigInt(contract.Permission_id??0)!==0n||contract.parameter.value.owner_address.toLowerCase()!==hex(intent.sender)||contract.parameter.value.to_address.toLowerCase()!==hex(intent.destination)||BigInt(contract.parameter.value.amount)!==intent.amount||BigInt(tx.raw_data.expiration)<=BigInt(Date.now())||BigInt(tx.raw_data.expiration)>BigInt(Date.now()+600000)||tx.txID!==crypto.createHash("sha256").update(Buffer.from(tx.raw_data_hex,"hex")).digest("hex"))throw new Error("SIGNED_INTENT_INVALID");
+        const tron=new TronWeb({fullHost:"http://127.0.0.1:1"}),signed=await tron.trx.sign(tx,privateHex);if(signed.txID!==tx.txID||signed.signature?.length!==1||signed.raw_data_hex!==tx.raw_data_hex)throw new Error("SIGNED_INTENT_INVALID");return {bytes:JSON.stringify(signed),hash:tx.txID,expiresAt:prepared.expiresAt};
+      }
       const expected = erc20
         .encodeFunctionData("transfer", [
           "0x" + hex(intent.destination).slice(-40),

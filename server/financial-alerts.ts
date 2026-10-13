@@ -34,6 +34,7 @@ export async function openFinancialAlert(
     ![
       "activation_probe",
       "gas_low",
+      "hot_wallet_cap",
       "rpc_unavailable",
       "signer_unavailable",
       "balance_shortfall",

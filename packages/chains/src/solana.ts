@@ -96,6 +96,40 @@ export class SolanaAdapter implements ChainAdapter {
       }),
     );
   }
+  async getCanonicalBlock(height: bigint) {
+    if (height < 0n || height > 9007199254740991n)
+      throw new Error("INVALID_INPUT");
+    const values = await Promise.all(
+      ([0, 1] as const).map(async (side) => {
+        if ((await this.rpc.request(side, "getGenesisHash", [])) !== genesis)
+          throw new Error("WRONG_NETWORK");
+        const slot = integer(
+            await this.rpc.request(side, "getSlot", [
+              { commitment: "finalized" },
+            ]),
+          ),
+          block = await this.rpc.request(side, "getBlock", [
+            parseInt(height.toString(), 10),
+            {
+              commitment: "finalized",
+              transactionDetails: "none",
+              rewards: false,
+              maxSupportedTransactionVersion: 0,
+            },
+          ]);
+        if (
+          !block ||
+          base58.decode(block.blockhash).length !== 32 ||
+          slot < height
+        )
+          throw new Error("FINALITY_UNAVAILABLE");
+        return { height, hash: String(block.blockhash), finalized: true };
+      }),
+    );
+    if (values[0].hash !== values[1].hash)
+      throw new Error("RPC_EVIDENCE_INVALID");
+    return values[0];
+  }
   async getFinality() {
     await this.network();
     const values = (

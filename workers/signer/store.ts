@@ -217,7 +217,7 @@ export class SignerStore {
         .from(assets)
         .where(eq(assets.id, row.assetId))
         .limit(1);
-      if (!activeAsset?.enabled) throw new Error("SIGNER_INTENT_DENIED");
+      if (!activeAsset?.enabled && !(row.kind==="sweep"&&(row.registrySnapshot as AssetRegistry).kind==="native")) throw new Error("SIGNER_INTENT_DENIED");
       const live = await this.configurationIn(
         tx,
         row.registrySnapshot as AssetRegistry,
@@ -239,6 +239,7 @@ export class SignerStore {
             )) /
             100n +
           approvedSetup;
+      const nativeFloor=BigInt((row.feeSnapshot as {nativeFloor?:string}).nativeFloor??"0");if(nativeFloor<0n)throw new Error("SIGNER_INTENT_DENIED");
       if (nativeQuote > nativeBudget || nativeQuote < 0n)
         throw new Error("FEE_REQUOTE_REQUIRED");
       if (assetAvailable === undefined || assetAvailable < 0n)
@@ -259,6 +260,8 @@ export class SignerStore {
               "available_payable",
               "held_payable",
               "refund_payable",
+              "incoming_payable",
+              "unallocated_payable",
               "marketing_payable",
               "developer_payable",
               "bootstrap_developer_payable",
@@ -373,6 +376,8 @@ export class SignerStore {
               "available_payable",
               "held_payable",
               "refund_payable",
+              "incoming_payable",
+              "unallocated_payable",
               "marketing_payable",
               "developer_payable",
               "bootstrap_developer_payable",
@@ -395,10 +400,10 @@ export class SignerStore {
       if (
         !existing &&
         (BigInt(spent.total) + usd > daily ||
-          BigInt(gas.total) + nativeBudget > nativeAvailable)
+          BigInt(gas.total) + nativeBudget + nativeFloor > nativeAvailable)
       )
         throw new Error("SIGNER_CAP_EXCEEDED");
-      if (existing && BigInt(gas.total) > nativeAvailable)
+      if (existing && BigInt(gas.total) + nativeFloor > nativeAvailable)
         throw new Error("SIGNER_CAP_EXCEEDED");
       if (existing && BigInt(existing.nativeFeeReserved) < nativeBudget)
         throw new Error("FEE_REQUOTE_REQUIRED");
@@ -491,7 +496,7 @@ export class SignerStore {
         .from(assets)
         .where(eq(assets.id, obligation.assetId))
         .limit(1);
-      if (!activeAsset?.enabled) throw new Error("SIGNER_INTENT_DENIED");
+      if (!activeAsset?.enabled && !(obligation.kind==="sweep"&&(obligation.registrySnapshot as AssetRegistry).kind==="native")) throw new Error("SIGNER_INTENT_DENIED");
       const live = await this.configurationIn(tx, prepared.intent.asset);
       if (
         live.hash !== obligation.configurationHash ||
@@ -727,6 +732,8 @@ export class SignerStore {
               "available_payable",
               "held_payable",
               "refund_payable",
+              "incoming_payable",
+              "unallocated_payable",
               "marketing_payable",
               "developer_payable",
               "bootstrap_developer_payable",
@@ -738,7 +745,7 @@ export class SignerStore {
       const liability = (id: string) =>
         BigInt(liabilities.find((v) => v.asset === id)?.amount ?? "0");
       if (
-        nativeAvailable < liability(native.id) + BigInt(reserved.fee) ||
+        nativeAvailable < liability(native.id) + BigInt(reserved.fee) + BigInt((row.feeSnapshot as {nativeFloor?:string}).nativeFloor??"0") ||
         assetAvailable < liability(row.assetId)
       )
         throw new Error("SIGNER_CAP_EXCEEDED");
