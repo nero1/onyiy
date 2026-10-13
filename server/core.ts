@@ -57,6 +57,7 @@ function eligibleWithdrawal(user: UserRow) {
 }
 
 export async function simulationAsset(database: DbExecutor, manifest: Manifest & Record<string,unknown>) {
+  if((process.env.APP_ENV??'simulation')!=='simulation')throw new Error('FEATURE_DISABLED');
   const asset = (await database.select().from(assets).where(and(eq(assets.symbol,'GIV'),eq(assets.environment,'simulation'),eq(assets.chainId,'giv'))).limit(1))[0];
   if (!asset?.enabled) throw new Error('PLAN_UNAVAILABLE');
   const config = manifest[`asset_config_${asset.id}`] as {enabled:boolean;environment:string;chain_id:string;decimals:number} | undefined;
@@ -179,6 +180,7 @@ export async function consentUser(database: DbExecutor, username: string, referr
   }).where(eq(users.id, user.id)).returning();
   await database.insert(referralCodes).values({ userId: user.id }).onConflictDoNothing({ target: referralCodes.userId });
 
+  if((process.env.APP_ENV??'simulation')==='simulation'){
   const asset = await simulationAsset(database,manifest);
   const grant = usdToGivBaseUnits(manifest.simulation_policy.giv_grant);
   const userAvail = await account(database, asset.id, 'user', user.id, 'available_payable', 'credit');
@@ -188,6 +190,7 @@ export async function consentUser(database: DbExecutor, username: string, referr
     { accountId: userAvail.id, direction: 'credit', amount: grant },
   ], { user_id: user.id });
 
+  }
   if (referrerId && manifest.feature_referrals) {
     await awardPoints(database,manifest,[{userId:referrerId,sourceKey:`consent:${user.id}`,awardType:'signup',points:manifest.points_rules.signup}]);
   }
@@ -264,14 +267,14 @@ export async function activatePlan(database: DbExecutor, planId: string, actorId
   return save();
 }
 
-export async function sendGift(database: DbExecutor, user: UserRow, planId: string, requestKey: string, expectedVersionId?: string) {
+export async function sendGift(database: DbExecutor, user: UserRow, planId: string, requestKey: string, expectedVersionId?: string,verifiedAsset?:typeof assets.$inferSelect) {
   requestKey=requestKey.toLowerCase();
   const manifest = await readManifest(database);
   if (!manifest.feature_gifts||!manifest.entitlements_member.send_enabled_gifts) throw new Error('FEATURE_DISABLED');
   const locked=await lockGiftParticipants(database,user.id,manifest);user=locked.user;const participants=locked.participants;
   if (user.status !== 'active') throw new Error(user.status === 'pending_consent' ? 'CONSENT_REQUIRED' : 'ACCOUNT_RESTRICTED');
   if (user.consentVersion !== manifest.terms_content.version) throw new Error('CONSENT_REQUIRED');
-  const asset = await simulationAsset(database,manifest);
+  const asset=verifiedAsset??await simulationAsset(database,manifest);if(verifiedAsset&&(verifiedAsset.environment!=='testnet'||!verifiedAsset.enabled))throw new Error('PLAN_UNAVAILABLE');
   const opKey = `gift:${user.id}:${requestKey}`;
   const requestHash = crypto.createHash('sha256').update(expectedVersionId?JSON.stringify({planId,invoiceVersion:expectedVersionId}):planId).digest('hex');
   const prior = (await database.select().from(operationKeys).where(eq(sql<string>`lower(${operationKeys.businessKey})`,opKey)).limit(1))[0];
@@ -280,13 +283,13 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
     return prior.result;
   }
 
-  // Shared lifecycle lock fences new admission against price/pause/retire edits.
-  await database.select({id:plans.id}).from(plans).where(eq(plans.id,planId)).for('share');
+  // Match the later version lock order without a shared-to-exclusive upgrade.
+  await database.select({id:plans.id}).from(plans).where(eq(plans.id,planId)).for('update');
   const eligibleReferrer = manifest.feature_referrals && user.referrerUserId
     ? participants.get(user.referrerUserId)
     : undefined;
 
-  await database.execute(sql`select pv.id from plan_versions pv join plans p on p.id=pv.plan_id join assets a on a.id=pv.asset_id where p.id=${planId} and pv.active=true and a.environment='simulation' for update of pv,p`);
+  await database.execute(sql`select pv.id from plan_versions pv join plans p on p.id=pv.plan_id join assets a on a.id=pv.asset_id where p.id=${planId} and pv.active=true and a.environment=${asset.environment} and a.id=${asset.id} for update of pv,p`);
   const versions = await database.select({
     id: planVersions.id,
     planId: planVersions.planId,
@@ -306,7 +309,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
   }).from(planVersions)
     .innerJoin(plans, eq(plans.id, planVersions.planId))
     .innerJoin(assets, eq(assets.id, planVersions.assetId))
-    .where(and(eq(plans.id, planId), eq(planVersions.active, true), eq(assets.environment, 'simulation')))
+    .where(and(eq(plans.id, planId), eq(planVersions.active, true), eq(assets.environment,asset.environment),eq(assets.id,asset.id)))
     .limit(1);
   const v = versions[0];
   if (!v || v.planStatus !== 'active' || (expectedVersionId && v.id!==expectedVersionId)) throw new Error('PLAN_UNAVAILABLE');

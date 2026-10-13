@@ -1054,3 +1054,15 @@ bm***9j just received a gift worth $140
 dn**********k6 just sent a gift worth $65
 uj*****p3 just received $9.5 referral commission
 ```
+
+## §33. Financial implementation checkpoint — 13 October 2026
+
+The owner delivery directive in §31 applies to every milestone and handover: continue M0–M8 irrespective of earlier acceptance, toward100% implementation in a few substantial verified iterations. PROJECT-STATUS_v24 records79.30% implementation; this is not release permission or proof of hosted/live acceptance. Continue remaining work immediately.
+
+Native staged contracts now include bounded dual RPCs, generated EVM/SOL/TRON ownership/signing/finality, immutable registry identity/history, first-seen submissions, custody-preserving admission/refunds, exact quoted/held/settled withdrawal arithmetic, manual/daily business holds, original-sender refund holds, isolated encrypted attempts/nonces/leases/caps, workload replay/retention and authenticated alert ACK. Native simulation/testnet recovery preserves56 retained inventories/63 schema definitions. GIV is spendable only in simulation. Actual currencies remain owner-empty/disabled until official registry provisioning; real addresses and acceptance results shall never be invented.
+
+Treat CHAIN_IN as the verified external treasury inflow and GIFT_IN as subsequent internal gift clearing, never a second external receipt. Monetary journal rows are append-only/balanced. Record unresolved custody as refundable rather than rolling back its recognition when eligibility/intake changes after payment. A closed invoice cannot admit another gift. Bind asset identity to immutable network/contract/mint/decimals; history uses its approved registry snapshot even after intake changes. For SOL/TRON, canonical finality requires block membership of the hash. RPC amounts above53bits must retain their original integer literal, without rounding.
+
+Configuration fingerprints include current payout/fee/rate/cooling/business/intake policies plus registry/treasury addresses/hard limits/alert binding. Decimal USD ceilings do not use floating money. Nonces advance only with durable encrypted signed bytes; presign crash/retry must not create holes. Broadcast may use only those bytes. A worker must recover status if ledger settlement committed before its own confirmation metadata, without replaying principal or fee journals.
+
+Alert acceptance shall require receiver-authenticated payload-hash/delivery-key ACK and committed recent evidence for the exact fingerprint; HTTP200 or approval environment strings alone are insufficient. No financial gate shall open while the web/signer implementation code gates are false. Native top-up/setup-fee/failure/requote/replacement/expiry/reorg/checkpoint/sweep/hot-cap/scheduler/reminder/provider and wallet/product closure remain required. Local generated receipts and balanced journals shall not be represented as actual native prefunding/custody. Deferred live inputs do not block implementation of these remaining contracts.
