@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
-  assets,
+  assets,cryptoObligations,signedAttemptStatus,
   ledgerAccounts,
   ledgerPostings,
   signerHealth,
@@ -18,17 +18,17 @@ import {
 } from "./financial-config";
 import { openFinancialAlert } from "./financial-alerts";
 import { priceUnits } from "@gifters/domain";
-export async function monitorFinancials() {
+export async function monitorFinancials(assetKey?:string) {
   assertFinancialEnvironment();
-  const registry = readRegistry().filter((v) => v.enabled && v.verified),
+  const registry = readRegistry().filter((v) => v.enabled && v.verified && (!assetKey||v.key===assetKey)).slice(0,8),
     observations: unknown[] = [];
   for (const item of registry) {
     try {
       const chain = await adapter(item),
         sender = await platformAddress(item, "RECEIVING"),
-        [physical, nativePhysical] = await Promise.all([
+        [physical, nativePhysical, height] = await Promise.all([
           chain.getBalance(item, sender, true),
-          chain.getNativeBalance(sender, true),
+          chain.getNativeBalance(sender, true),chain.currentBlockHeight(),
         ]);
       const result = await withContext({ access: "service" }, async (tx) => {
         const config = await financialConfiguration(tx, item),
@@ -90,6 +90,12 @@ export async function monitorFinancials() {
           .orderBy(sql`${priceQuotes.observedAt} desc`)
           .limit(1);
         const label = `${item.chain}:${item.network}:${config.treasuryFingerprint}`;
+        const priceStale=!rate||Date.now()-rate.observedAt.getTime()>policy.price_max_age_minutes*60000;if(priceStale)await openFinancialAlert(tx,`price:${item.key}:${label}`,"chain_exception","warning",{asset_key:item.key,reason:"PRICE_STALE"});
+        const held=await tx.select({id:cryptoObligations.id,status:cryptoObligations.status,created:cryptoObligations.createdAt}).from(cryptoObligations).where(and(eq(cryptoObligations.assetId,asset.id),sql`${cryptoObligations.completedAt} is null`,inArray(cryptoObligations.status,['approved','signing','broadcast','exception','awaiting_requote']),sql`${cryptoObligations.createdAt}<clock_timestamp()-${policy.crypto_monitor_policy.exception_age_hours}*interval '1 hour'`)).orderBy(asc(cryptoObligations.createdAt),asc(cryptoObligations.id)).limit(100);
+        for(const obligation of held)await openFinancialAlert(tx,`hold:${obligation.id}`,"chain_exception","warning",{asset_key:item.key,obligation_id:obligation.id,reason:"LONG_HELD_LIABILITY"});
+        const stuck=await tx.select({id:signedAttemptStatus.id,obligation:signedAttemptStatus.obligationId}).from(signedAttemptStatus).innerJoin(cryptoObligations,eq(cryptoObligations.id,signedAttemptStatus.obligationId)).where(and(eq(cryptoObligations.assetId,asset.id),sql`${cryptoObligations.completedAt} is null`,inArray(signedAttemptStatus.status,['signed','broadcast']),sql`${signedAttemptStatus.signedAtHeight}<=${height.toString()}::numeric-${policy.crypto_monitor_policy.stuck_blocks}`)).orderBy(asc(signedAttemptStatus.signedAtHeight),asc(signedAttemptStatus.id)).limit(100);
+        for(const attempt of stuck)await openFinancialAlert(tx,`stuck:${attempt.id}`,"chain_exception","critical",{asset_key:item.key,obligation_id:attempt.obligation,reason:"STUCK_SIGNED_ATTEMPT"});
+
         const shortages = physical < BigInt(liability.amount);
         if (shortages)
           await openFinancialAlert(
@@ -144,7 +150,7 @@ export async function monitorFinancials() {
           shortage: shortages,
           hot_wallet_above_cap:hot,
           gas_low: gasLow,
-          signer_stale: stale,
+          signer_stale: stale,long_held:held.length,stuck_attempts:stuck.length,price_stale:priceStale,
         };
       });
       observations.push(result);

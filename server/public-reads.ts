@@ -26,7 +26,7 @@ async function manifestLoader():Promise<Loaded> {
   await tx.execute(sql`set local statement_timeout='5000ms'`);return readManifest(tx);
  });}catch{fallback=true;}
  // Projection happens before either L1 or a shared promise contains a result.
- return captured(publicManifest(manifest),manifest,manifest.cache_policy.manifest_public_seconds,fallback);
+ return captured({...publicManifest(manifest),payment_environment:process.env.APP_ENV==='testnet'?'testnet':'simulation'},manifest,manifest.cache_policy.manifest_public_seconds,fallback);
 }
 async function catalogLoader():Promise<Loaded> {
  const manifest=await withContext({access:'service',snapshot:true},async tx=>{

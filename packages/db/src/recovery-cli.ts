@@ -117,6 +117,6 @@ main().catch(async(error:unknown)=>{
   const safe=new Set(['RECOVERY_INPUT_INVALID','RECOVERY_PATH_INVALID','RECOVERY_KEY_REQUIRED','RECOVERY_ENVIRONMENT_INVALID','RECOVERY_SCHEDULER_MUST_BE_OFF','DATABASE_MIGRATION_URL_REQUIRED','RECOVERY_TARGET_CONFIRMATION_REQUIRED',
     'RECOVERY_TARGET_NOT_EMPTY','RECOVERY_TARGET_ACTIVE','RECOVERY_INVENTORY_INVALID','RECOVERY_ARCHIVE_INVALID','RECOVERY_VERSION_MISMATCH','RECOVERY_CONTENT_MISMATCH','RECOVERY_SCHEMA_UNCLASSIFIED','RECOVERY_CONFIG_UNCLASSIFIED','RECOVERY_NATIVE_TOOL_FAILED','RECOVERY_OUTPUT_EXISTS','CONFIGURATION_INVALID']);
   const category=error instanceof Error&&safe.has(error.message)?error.message:'RECOVERY_FAILED';
-  console.error(`Simulation recovery failed (${category}). Check guards, bindings, native tools and the preserved inventory; staging must remain unpublished.`);
+  console.error(`Financial recovery failed (${category}). Check guards, bindings, native tools and the preserved inventory; staging must remain unpublished.`);
   process.exitCode=1;
 });

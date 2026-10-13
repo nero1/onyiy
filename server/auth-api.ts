@@ -1,3 +1,4 @@
+import {boundedJson} from './request-body';
 import {recoveryStatementView} from './liability-recovery';
 import { and,eq,sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -6,7 +7,7 @@ import { authenticate,authResponse,clearCookies,cookie,csrf,databaseNow,issueSes
 import { randomToken,hash } from './auth-crypto';
 import { enforceRate } from './rate-limits';
 import { startGoogle,finishGoogle } from './google-auth';
-async function body(request:Request){try{return await request.json()}catch{throw new Error('INVALID_INPUT')}}
+async function body(request:Request){try{return await boundedJson(request)}catch{throw new Error('INVALID_INPUT')}}
 export async function handleAuthRequest(method:string,path:string,request:Request):Promise<Response>{
  if(method==='GET'&&path==='/auth/session'){
   origin(request);let identity;try{identity=await authenticate(request)}catch{/* An anonymous bootstrap has no authority. */}

@@ -88,7 +88,11 @@ export type SignedTransfer = {
   validUntilHeight?: bigint;
   expiresAt?: Date;
 };
+export type ScannedTransfer={hash:string;index:number;sender:string;destination:string;amount:bigint;height:bigint;blockHash:string;direction:"incoming"|"outgoing"};
+export type TransferScan={through:bigint;transfers:ScannedTransfer[]};
 export interface ChainAdapter {
+  getReconciledBalance(asset:AssetRegistry,address:string,minimumHeight:bigint):Promise<bigint>;
+  scanTransfers(address:string,after:bigint,through:bigint):Promise<TransferScan>;
   validateAddress(address: string): Promise<boolean>;
   normalizeAddress(address: string): Promise<string>;
   verifyOwnershipProof(

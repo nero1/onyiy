@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { and, asc, eq, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
-  operationalAlerts,
+  operationalAlerts,operationKeys,readManifest,
   alertDeliveries,
   withContext,
   type DbExecutor,
@@ -49,7 +49,18 @@ export async function openFinancialAlert(
     .from(operationalAlerts)
     .where(eq(operationalAlerts.conditionKey, conditionKey))
     .for("update");
-  if (existing) return existing;
+  if (existing) {
+    if (existing.status !== "resolved") return existing;
+    // Resume the same condition without recycling permanent delivery ordinals.
+    // The dispatcher applies the daily HTTP budget to reopened alerts too.
+    const ordinal=existing.reminders+1,policy=(await readManifest(tx)).alert_policy;
+    await tx.insert(alertDeliveries).values({alertId:existing.id,businessKey:`alert:${existing.id}:${ordinal}`}).onConflictDoNothing();
+    const [reopened] = await tx.update(operationalAlerts).set({
+      status: "open", safeDetails: safe, severity: severity === "critical" ? "P1" : "P2",
+      acknowledgedAt: null, resolvedAt: null, reminders:ordinal,nextReminderAt: sql`clock_timestamp()+${policy.remind_minutes[0]}*interval '1 minute'`,
+    }).where(eq(operationalAlerts.id, existing.id)).returning();
+    return reopened;
+  }
   const [alert] = await tx
     .insert(operationalAlerts)
     .values({
@@ -97,6 +108,13 @@ export async function acceptedAlert(tx: DbExecutor, configurationHash: string) {
 /** Receiver must dedupe the permanent delivery key and echo a signed acknowledgement. */
 export async function deliverFinancialAlert() {
   const claim = await withContext({ access: "service" }, async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('financial-alert-http-budget',0))`);
+    const policy=(await readManifest(tx)).alert_policy;
+    const [day]=await tx.execute<{day:string}>(sql`select (clock_timestamp() at time zone 'UTC')::date::text as day`);
+    const prefix=`alert-http:testnet:${day.day}:`;
+    const [spent]=await tx.select({n:sql<string>`count(*)::text`}).from(operationKeys).where(sql`${operationKeys.businessKey}>=${prefix} and ${operationKeys.businessKey}<${prefix+'~'}`);
+    if(BigInt(spent.n)>=BigInt(policy.daily_limit))return null;
+
     const [clock] = await tx.execute<{
         now: Date;
       }>(sql`select clock_timestamp() as now`),
@@ -122,6 +140,8 @@ export async function deliverFinancialAlert() {
       .limit(1);
     const token = crypto.randomUUID(),
       generation = delivery.leaseGeneration + 1;
+    await tx.insert(operationKeys).values({businessKey:prefix+spent.n,requestHash:crypto.createHash('sha256').update(`${delivery.id}:${generation}`).digest('hex'),result:{delivery_id:delivery.id,generation}});
+
     await tx
       .update(alertDeliveries)
       .set({

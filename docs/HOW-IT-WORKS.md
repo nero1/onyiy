@@ -278,3 +278,17 @@ Business and original-sender refunds use the same positive recovery rule. A rene
 Own history/export includes native invoices/events/payout requests; twelve bounded encrypted sections preserve the original cutoff and exclude auth/signer/config secrets. Native settled withdrawal receipts identify the canonical journal-linked hash and actual member cost after refund. Staff lists are privately paginated and mask destinations.
 
 Repeat named procedures on isolated sources, preserve first failures, then compare journals/rights and current71-resource/61-retained encrypted inactive roundtrip. A known inconsistent fixture is evidence of the reproduced failure, never a clean restore/release source. Trusted cold scanning remains required before live resume.
+
+## Checkpoint recovery, monitoring and portability
+
+Staff registers an exact finalized block verified by both pinned providers. Registration pauses the asset even if an older scan was clean. Five-block/slot pages verify transfers before booking, retain page hashes and use the permanent event registry. Unknown incoming value becomes system unallocated liability, without membership/points. Original-sender signature and staff review create a full-principal refund with platform-paid fees; cancellation/retry requires exact independent holds and positively closed lineage.
+
+Terminal recovery pages also reconcile bounded saved-attempt pages. Missing/ambiguous hashes keep the run scanning. Clean completion requires agreeing finalized balances, exact book cash and sufficient beneficiary custody. Copied database bindings cannot authorize recovery. Verified unknown outgoing value stays in review until an explicit company principal/network/setup loss is audited; a new scan is still required. Historical review rows remain immutable.
+
+Idle signer heartbeats validate the encrypted key scope and pinned RPC, and never create nonce state. The workload inventory returns only enabled asset keys; the scheduler observes one asset per request. Stale price/heartbeat, gas/custody/hot-wallet conditions, long-held liabilities and stuck attempts feed deduplicated alerts. Resolved recurring conditions reopen with the next permanent ordinal. The HTTP dispatcher reserves a shared daily attempt slot before any initial/repeated/retried send.
+
+Public statistics keep separate cached simulation/testnet snapshots and include settled member payments only. Global fixture rotation supports pause/reduced motion without announcing every automatic change. History retains a bounded500-row window while continuing to fetch later cursors.
+
+Staff selected-user JSON/CSV exports use a closed field allowlist and audit reason; CSV protects formula-leading strings. Optional owner-produced encrypted site artifacts are checked against deployment checksum, environment and migration fingerprint and streamed privately. Uploads are size/time/storage bounded and remain explicitly unverified. No web route reads owner DB credentials, decrypts a site snapshot, restores financial data or starts workers. CLI validation/empty-target restore and separate deployment publication remain required.
+
+Build reports bound every API trace below3MiB compressed and conservatively bound each lazy wallet by all client chunks below2MiB. Baseline regression is10%; hosted measurements remain separate. The financial readiness gates stay disabled pending explicit approval and independent release inputs.

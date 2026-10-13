@@ -52,7 +52,7 @@ export default function DashboardApp() {
   const [manifest, setManifest] = useState<any>(null);
   const [locale, setLocale] = useState<Locale>('en');
   const [theme, setTheme] = useState('light');
-  const [ticker, setTicker] = useState(0);
+
   const [notice, setNotice] = useState<Notice>(null);
   const [online, setOnline] = useState(true);
   const [queue, setQueue] = useState<any[] | null>(null);
@@ -194,14 +194,7 @@ export default function DashboardApp() {
 
   useEffect(() => { void refresh(); }, [username,sessionGeneration,authUser?.id,online,manifest?.cache_policy?.private_snapshot_seconds]);
 
-  useEffect(() => {
-    if (!manifest?.activity_statements?.length) return;
-    const id = setInterval(
-      () => setTicker((value) => (value + 1) % manifest.activity_statements.length),
-      (manifest.ui_rotation_policy?.activity_seconds ?? 10) * 1000,
-    );
-    return () => clearInterval(id);
-  }, [manifest]);
+
 
   const active = useMemo(() => dash?.cycles.filter((cycle) => cycle.status === 'active') ?? [], [dash]);
   const reviewed=useMemo(()=>dash?.cycles.filter(cycle=>cycle.status==='exception')??[],[dash]);
@@ -268,7 +261,7 @@ export default function DashboardApp() {
         <div><div className="brand">🎁 {t.brand}</div><div className="tagline">{t.tagline}</div></div>
         <div className="top-actions">
           {manifest.feature_notifications&&<NotificationInbox user={username} locale={locale} initial={dash.notifications} badge={!!dash.notification_badge?.has_new} onChange={()=>void refresh()}/>}
-          <span className="env">{t.simulation}</span>
+          <span className="env">{manifest.payment_environment==='testnet'?'Testnet':t.simulation}</span>
           {authProvider==='simulation'&&<select aria-label={t.chooseUser} value={username} disabled={busy} onChange={event=>void switchAccount(event.target.value)}>
             {users.map((user) => <option key={user.id} value={user.username}>{user.username} · {user.role} · {user.status}</option>)}
           </select>}
@@ -278,7 +271,7 @@ export default function DashboardApp() {
       </header>
 
       {publicNavigation}
-      {manifest.activity_statements?.length > 0 && <div className="ticker" aria-live="polite">{manifest.activity_statements[ticker]}</div>}
+
       {dash.financial_review && <section className="card" role="alert"><p>{t.financialReview}</p></section>}
       {notice && <div role={notice.kind==='error'?'alert':'status'} className={`notice ${notice.kind}`}>{notice.text}</div>}
 

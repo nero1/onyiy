@@ -8,6 +8,8 @@ import { DualRpc, integer } from "./rpc";
 import { assertActive } from "./registry";
 import type {
   AssetRegistry,
+  ScannedTransfer,
+  TransferScan,
   ChainAdapter,
   RpcOptions,
   Transfer,
@@ -48,6 +50,19 @@ export class TronAdapter implements ChainAdapter {
     if (asset.chain !== "tron" || !chainIds[asset.network])
       throw new Error("WRONG_NETWORK");
     this.rpc = new DualRpc(options);
+  }
+  async scanTransfers(address:string,after:bigint,through:bigint):Promise<TransferScan> {
+    if(after<0n||through<=after||through-after>5n)throw new Error("SCAN_RANGE_INVALID");jsonInteger(through);const account=normalized(address);
+    const results=await Promise.all(([0,1] as const).map(async side=>{
+      const identity=await this.rpc.post(side,"jsonrpc",{jsonrpc:"2.0",id:1,method:"eth_chainId",params:[]},true);if(BigInt(identity)!==chainIds[this.asset.network])throw new Error("WRONG_NETWORK");const solid=await this.rpc.post(side,"walletsolidity/getnowblock",{});if(integer(solid.block_header.raw_data.number)<through)throw new Error("FINALITY_UNAVAILABLE");const transfers:ScannedTransfer[]=[],blocks:{height:string;hash:string}[]=[];
+      for(let height=after+1n;height<=through;height++){const block=await this.rpc.post(side,"walletsolidity/getblockbynum",{num:jsonInteger(height)});if(integer(block.block_header.raw_data.number)!==height||!/^[0-9a-f]{64}$/i.test(block.blockID)||!Array.isArray(block.transactions??[])||(block.transactions??[]).length>1000)throw new Error("SCAN_CAPACITY_EXCEEDED");
+        blocks.push({height:height.toString(),hash:block.blockID.toLowerCase()});for(const tx of block.transactions??[]){const hash=canonicalTransactionHash("tron",tx.txID),contract=tx.raw_data?.contract?.[0];if(tx.raw_data?.contract?.length!==1)continue;
+          if(this.asset.kind==="native"){if(contract.type!=="TransferContract")continue;const value=contract.parameter.value,sender=normalized(TronWeb.address.fromHex(value.owner_address)),destination=normalized(TronWeb.address.fromHex(value.to_address)),amount=integer(value.amount);if(amount<=0n||sender===destination||sender!==account&&destination!==account)continue;transfers.push({hash,index:0,height,blockHash:block.blockID.toLowerCase(),sender,destination,amount,direction:destination===account?"incoming":"outgoing"})}
+          else{const info=await this.rpc.post(side,"walletsolidity/gettransactioninfobyid",{value:hash});if(info.id!==hash||integer(info.blockNumber)!==height)throw new Error("SCAN_INCOMPLETE");for(const [index,log] of (info.log??[]).entries()){if(addressHex(TronWeb.address.fromHex("41"+log.address)).slice(2)!==addressHex(this.asset.contract!).slice(2)||log.topics?.length!==3||log.topics[0].toLowerCase()!==transferTopic)continue;const sender=normalized(TronWeb.address.fromHex("41"+log.topics[1].slice(-40))),destination=normalized(TronWeb.address.fromHex("41"+log.topics[2].slice(-40))),amount=BigInt("0x"+log.data);if(amount<=0n||sender===destination||sender!==account&&destination!==account)continue;transfers.push({hash,index,height,blockHash:block.blockID.toLowerCase(),sender,destination,amount,direction:destination===account?"incoming":"outgoing"})}}
+        }
+      }
+      if(transfers.length>100)throw new Error("SCAN_CAPACITY_EXCEEDED");return {blocks,transfers:transfers.sort((a,b)=>(a.hash+":"+a.index+":"+a.direction).localeCompare(b.hash+":"+b.index+":"+b.direction))};
+    }));const digest=(v:unknown)=>JSON.stringify(v,(_,x)=>typeof x==="bigint"?x.toString():x);if(digest(results[0])!==digest(results[1]))throw new Error("RPC_SCAN_CONTRADICTION");return {through,transfers:results[0].transfers};
   }
   async validateAddress(address: string) {
     return TronWeb.isAddress(address);
@@ -197,6 +212,12 @@ export class TronAdapter implements ChainAdapter {
     const values = await this.constant(asset, "decimals()");
     if (values.some((v) => v !== BigInt(asset.decimals)))
       throw new Error("TOKEN_REGISTRY_MISMATCH");
+  }
+  async getReconciledBalance(asset:AssetRegistry,address:string,height:bigint){
+    assertActive(asset);if(asset.key!==this.asset.key||height<0n)throw new Error("INVALID_INPUT");const account=normalized(address);
+    const values=await Promise.all(([0,1] as const).map(async side=>{const identity=await this.rpc.post(side,"jsonrpc",{jsonrpc:"2.0",id:1,method:"eth_chainId",params:[]},true);if(BigInt(identity)!==chainIds[asset.network])throw new Error("WRONG_NETWORK");const before=await this.rpc.post(side,"walletsolidity/getnowblock",{}),tip=integer(before.block_header.raw_data.number);if(tip<height||!/^[0-9a-f]{64}$/i.test(before.blockID))throw new Error("FINALITY_UNAVAILABLE");let amount:bigint;
+    if(asset.kind==="native"){const result=await this.rpc.post(side,"walletsolidity/getaccount",{address:addressHex(account),visible:false});amount=integer(result.balance??0)}else{const result=await this.rpc.post(side,"walletsolidity/triggerconstantcontract",{owner_address:addressHex(account),contract_address:addressHex(asset.contract!),function_selector:"balanceOf(address)",parameter:addressHex(account).slice(-40).padStart(64,"0"),visible:false});if(!result.result?.result||!Array.isArray(result.constant_result)||result.constant_result.length!==1||! /^[0-9a-f]{64}$/i.test(result.constant_result[0]))throw new Error("RPC_EVIDENCE_INVALID");amount=BigInt("0x"+result.constant_result[0])}
+    const after=await this.rpc.post(side,"walletsolidity/getnowblock",{});if(after.blockID!==before.blockID||integer(after.block_header.raw_data.number)!==tip)throw new Error("FINALITY_UNAVAILABLE");return {tip,hash:before.blockID,amount}}));if(values[0].tip!==values[1].tip||values[0].hash!==values[1].hash||values[0].amount!==values[1].amount)throw new Error("RPC_BALANCE_CONTRADICTION");return values[0].amount;
   }
   async getBalance(asset: AssetRegistry, address: string, fresh = false) {
     assertActive(asset);
