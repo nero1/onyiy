@@ -1,3 +1,5 @@
+import { enqueueObservation } from "./crypto-observer";
+import { canonicalTransactionHash } from "@gifters/chains";
 import type { AssetRegistry } from "@gifters/chains";
 import crypto from "node:crypto";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
@@ -8,6 +10,7 @@ import {
   planVersions,
   cryptoInvoices,
   cryptoEvents,
+  operationKeys,
   walletLinks,
   users,
   cycles,
@@ -39,7 +42,7 @@ export const cryptoSubmission = z
   .object({
     invoice_id: z.string().uuid(),
     tx_hash: z.string().min(20).max(128),
-    event_index: z.number().int().min(0).max(1000),
+    event_index: z.number().int().min(-1).max(1000).default(-1),
   })
   .strict();
 export async function quoteCryptoInvoice(
@@ -252,8 +255,14 @@ export async function verifyCryptoDeposit(
     .from(assets)
     .where(eq(assets.id, invoice.assetId))
     .limit(1);
-  const registry = invoice.registrySnapshot as AssetRegistry,
-    chain = await adapter(registry);
+  input = {
+    ...input,
+    tx_hash: canonicalTransactionHash(
+      invoice.chain as AssetRegistry["chain"],
+      input.tx_hash,
+    ),
+  };
+  const registry = invoice.registrySnapshot as AssetRegistry;
   const [prior] = await tx
     .select()
     .from(cryptoEvents)
@@ -262,7 +271,9 @@ export async function verifyCryptoDeposit(
         eq(cryptoEvents.environment, "testnet"),
         eq(cryptoEvents.chain, registry.chain),
         eq(cryptoEvents.txHash, input.tx_hash),
-        eq(cryptoEvents.eventIndex, input.event_index),
+        input.event_index >= 0
+          ? eq(cryptoEvents.eventIndex, input.event_index)
+          : undefined,
         eq(cryptoEvents.assetId, asset.id),
       ),
     )
@@ -270,6 +281,16 @@ export async function verifyCryptoDeposit(
   if (prior) {
     if (prior.invoiceId !== invoice.id) throw new Error("VERSION_CONFLICT");
     return prior;
+  }
+  const chain = await adapter(registry);
+  if (input.event_index === -1) {
+    const index = await chain.findTransferIndex(
+      input.tx_hash,
+      invoice.sender,
+      invoice.treasury,
+    );
+    if (index === undefined) return { status: "pending", hash: input.tx_hash };
+    input = { ...input, event_index: index };
   }
   const proof = await chain.verifyTransfer({
     asset: registry,
@@ -287,6 +308,21 @@ export async function verifyCryptoDeposit(
     proof.height === undefined
   )
     throw new Error("INVALID_PROOF");
+  const claimKey = `chain-event:testnet:${registry.chain}:${registry.network}:${input.tx_hash}:${input.event_index}:${asset.id}`,
+    claimHash = crypto
+      .createHash("sha256")
+      .update(JSON.stringify({ purpose: "invoice", invoice_id: invoice.id }))
+      .digest("hex");
+  const claimed = await tx
+    .insert(operationKeys)
+    .values({
+      businessKey: claimKey,
+      requestHash: claimHash,
+      result: { purpose: "invoice", invoice_id: invoice.id },
+    })
+    .onConflictDoNothing()
+    .returning();
+  if (!claimed.length) throw new Error("TRANSFER_ALREADY_ALLOCATED");
   const config = await financialConfiguration(tx, registry);
   const registryMatches = config.registryHash === invoice.registryHash;
   const [clock] = await tx.execute<{
@@ -301,7 +337,7 @@ export async function verifyCryptoDeposit(
       and(
         eq(cryptoSubmissions.invoiceId, invoice.id),
         eq(cryptoSubmissions.txHash, input.tx_hash),
-        eq(cryptoSubmissions.eventIndex, input.event_index),
+        sql`${cryptoSubmissions.eventIndex} in (-1,${input.event_index})`,
       ),
     )
     .limit(1);
@@ -313,23 +349,21 @@ export async function verifyCryptoDeposit(
     proof.amount >= expected &&
     !late;
   const eventId = crypto.randomUUID();
-  await tx
-    .insert(cryptoEvents)
-    .values({
-      id: eventId,
-      invoiceId: invoice.id,
-      assetId: asset.id,
-      environment: "testnet",
-      chain: registry.chain,
-      txHash: input.tx_hash,
-      eventIndex: input.event_index,
-      amountBaseUnits: proof.amount.toString(),
-      sender: proof.sender!,
-      destination: proof.destination!,
-      blockHash: proof.blockHash,
-      blockHeight: proof.height.toString(),
-      status: eligible ? "confirmed" : "exception",
-    });
+  await tx.insert(cryptoEvents).values({
+    id: eventId,
+    invoiceId: invoice.id,
+    assetId: asset.id,
+    environment: "testnet",
+    chain: registry.chain,
+    txHash: input.tx_hash,
+    eventIndex: input.event_index,
+    amountBaseUnits: proof.amount.toString(),
+    sender: proof.sender!,
+    destination: proof.destination!,
+    blockHash: proof.blockHash,
+    blockHeight: proof.height.toString(),
+    status: eligible ? "confirmed" : "exception",
+  });
   const cash = await account(
       tx,
       asset.id,
@@ -456,6 +490,13 @@ export async function submitCryptoDeposit(
     )
     .for("update");
   if (!invoice) throw new Error("NOT_FOUND");
+  input = {
+    ...input,
+    tx_hash: canonicalTransactionHash(
+      invoice.chain as AssetRegistry["chain"],
+      input.tx_hash,
+    ),
+  };
   if (!["quoted", "submitted"].includes(invoice.status))
     throw new Error("VERSION_CONFLICT");
   const [old] = await tx
@@ -487,6 +528,7 @@ export async function submitCryptoDeposit(
     .update(cryptoInvoices)
     .set({ status: "submitted" })
     .where(eq(cryptoInvoices.id, invoice.id));
+  await enqueueObservation(tx, { user_id: userId, ...input, round: 0 });
   return {
     id: row.id,
     status: "submitted",

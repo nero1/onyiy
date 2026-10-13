@@ -1,7 +1,12 @@
-import DashboardApp from '@/components/dashboard-app';
+import NativePortal from "@/components/native-portal";
+import DashboardApp from "@/components/dashboard-app";
 
-export const dynamic='force-dynamic';
+export const dynamic = "force-dynamic";
 
 export default function HomePage() {
-  return <DashboardApp />;
+  return process.env.APP_ENV === "testnet" ? (
+    <NativePortal />
+  ) : (
+    <DashboardApp />
+  );
 }

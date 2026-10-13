@@ -53,22 +53,36 @@ export function withdrawalBreakdown(
   nativeQuote: bigint,
   rate: RateSnapshot,
   dust: bigint,
+  setupNative: bigint = 0n,
 ) {
   if (gross <= 0n || nativeQuote < 0n || dust < 0n)
     throw new Error("INVALID_INPUT");
-  const charge = nativeFeeInAsset(nativeQuote, rate),
+  const networkCharge = nativeFeeInAsset(nativeQuote, rate),
+    accountSetupCharge = nativeFeeInAsset(setupNative, rate),
+    charge = networkCharge + accountSetupCharge,
     net = gross - charge;
   if (net <= 0n || net < dust) throw new Error("WITHDRAWAL_NOT_VIABLE");
-  return { gross, charge, net, nativeQuote, rate };
+  return {
+    gross,
+    charge,
+    net,
+    nativeQuote: nativeQuote + setupNative,
+    networkCharge,
+    accountSetupCharge,
+    rate,
+  };
 }
 export function attributableRefund(
   approvedCharge: bigint,
   actualNativeCost: bigint,
   rate: RateSnapshot,
+  setupNative: bigint = 0n,
 ) {
   if (approvedCharge < 0n || actualNativeCost < 0n)
     throw new Error("INVALID_INPUT");
-  const actual = nativeFeeInAsset(actualNativeCost, rate);
+  const actual =
+    nativeFeeInAsset(actualNativeCost, rate) +
+    nativeFeeInAsset(setupNative, rate);
   return actual >= approvedCharge ? 0n : approvedCharge - actual;
 }
 export function feeWithinVariance(

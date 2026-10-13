@@ -178,10 +178,18 @@ export async function runSignerOnce() {
         });
         if (
           !feeWithinVariance(
-            BigInt(row.nativeFeeQuote),
-            fee.nativeFee,
+            BigInt(
+              (row.feeSnapshot as { networkFee?: string }).networkFee ??
+                row.nativeFeeQuote,
+            ),
+            fee.networkFee ?? fee.nativeFee,
             config.policy.withdrawal_fee_policy.platform_variance_pct,
-          )
+          ) ||
+          (fee.accountSetupCost ?? 0n) >
+            BigInt(
+              (row.feeSnapshot as { accountSetupCost?: string })
+                .accountSetupCost ?? "0",
+            )
         )
           throw new Error("FEE_REQUOTE_REQUIRED");
         const nonce =

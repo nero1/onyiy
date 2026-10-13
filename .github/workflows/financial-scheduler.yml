@@ -1,0 +1,26 @@
+name: non-signing-financial-scheduler
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tick:
+    if: vars.ENABLE_FINANCIAL_SCHEDULER == 'true' && github.repository == 'nero1/onyiy' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 4
+    concurrency:
+      group: non-signing-financial-scheduler-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+      - name: Bounded authenticated testnet observations and operations
+        env:
+          FINANCIAL_API_ORIGIN: ${{ vars.FINANCIAL_API_ORIGIN }}
+          FINANCIAL_WORKER_AUTH_KEY: ${{ secrets.FINANCIAL_WORKER_AUTH_KEY }}
+        run: node scripts/financial-tick.mjs

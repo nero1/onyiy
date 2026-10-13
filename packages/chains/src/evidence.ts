@@ -27,6 +27,8 @@ export function reconcileEvidence(
       height: v.height?.toString(),
       amount: v.amount?.toString(),
       actualNativeFee: v.actualNativeFee?.toString(),
+      actualNetworkFee: v.actualNetworkFee?.toString(),
+      accountSetupCost: v.accountSetupCost?.toString(),
     });
   if (
     conflict ||

@@ -1,3 +1,4 @@
+import {observationPayload,enqueueObservation} from "./crypto-observer";
 import {exportJob,buildExportPage} from './own-data';
 import crypto from 'node:crypto';
 import { and, asc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
@@ -94,6 +95,10 @@ export async function executeJob(id:string,token:string,generation:number,run?:R
       const result=await reconcile(database);
       if (Buffer.byteLength(JSON.stringify(result),'utf8')>131072) throw new Error('INVALID_JOB');
       await database.insert(financialReconciliationResults).values({sourceJobId:row.id,environment:row.environment,runDate:payload.data.anchor,balanced:result.balanced,consistent:result.consistent,lineageComplete:result.lineage_complete,result}).onConflictDoNothing({target:financialReconciliationResults.sourceJobId});
+    } else if(row.kind==='chain_observation'){
+      const payload=observationPayload.safeParse(row.payload);if(!payload.success)throw new Error('INVALID_JOB');
+      const {verifyCryptoDeposit}=await import('./crypto-incoming');const result=await verifyCryptoDeposit(database,payload.data.user_id,payload.data);
+      if(result.status==='pending'){if(payload.data.round>=2880)throw new Error('OBSERVATION_REVIEW_REQUIRED');await enqueueObservation(database,{...payload.data,round:payload.data.round+1});}
     } else if (row.kind==='operational_cleanup') {
       const payload=maintenancePayload.safeParse(row.payload);
       if (!payload.success) throw new Error('INVALID_JOB');
@@ -119,6 +124,7 @@ export async function executeJob(id:string,token:string,generation:number,run?:R
 }
 
 function transient(error:unknown):boolean {
+  if(error instanceof Error&&['RPC_UNAVAILABLE','RPC_CAPACITY_EXCEEDED','OBSERVATION_UNAVAILABLE'].includes(error.message))return true;
   const code=error && typeof error==='object' && 'code' in error ? String(error.code) : '';
   if (['40001','40P01','57014','53300','57P01','57P02','57P03','CONNECTION_CLOSED','CONNECT_TIMEOUT','CONNECTION_ENDED','EPIPE','ECONNRESET','ETIMEDOUT'].includes(code) || /^08/.test(code)) return true;
   // Drizzle wraps database errors without changing the underlying SQLSTATE.

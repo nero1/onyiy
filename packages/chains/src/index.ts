@@ -18,3 +18,5 @@ export async function chainAdapter(
   const { TronAdapter } = await import("./tron");
   return new TronAdapter(asset, options);
 }
+
+export * from "./hash";

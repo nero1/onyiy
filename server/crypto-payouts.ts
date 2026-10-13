@@ -10,6 +10,7 @@ import {
   ledgerPostings,
   readManifest,
   auditEvents,
+  operationKeys,
   signedAttemptStatus,
   type DbExecutor,
 } from "@gifters/db";
@@ -19,6 +20,7 @@ import {
   principalUsdMicros,
   usdLimitMicros,
   attributableRefund,
+  nativeFeeInAsset,
   type RateSnapshot,
 } from "@gifters/domain";
 import {
@@ -36,6 +38,7 @@ export const cryptoWithdrawal = z
   .object({
     asset_key: z.string().max(30),
     gross_base_units: z.string().regex(/^[1-9][0-9]{0,77}$/),
+    previous_obligation_id: z.string().uuid().optional(),
   })
   .strict();
 async function balance(
@@ -107,6 +110,28 @@ export async function quoteCryptoWithdrawal(
     if (old.requestHash !== requestHash) throw new Error("VERSION_CONFLICT");
     return old;
   }
+  if (input.previous_obligation_id) {
+    const [previous] = await tx
+      .select()
+      .from(cryptoObligations)
+      .where(
+        and(
+          eq(cryptoObligations.id, input.previous_obligation_id),
+          eq(cryptoObligations.userId, userId),
+        ),
+      )
+      .limit(1);
+    if (
+      !previous ||
+      previous.kind !== "withdrawal" ||
+      previous.assetId !== asset.id ||
+      !(
+        previous.status === "cancelled" ||
+        (previous.status === "exception" && previous.completedAt)
+      )
+    )
+      throw new Error("VERSION_CONFLICT");
+  }
   await assertUnfrozen(tx, userId, asset.id);
   const [wallet] = await tx
     .select()
@@ -161,14 +186,19 @@ export async function quoteCryptoWithdrawal(
     }),
     quote = withdrawalBreakdown(
       gross,
-      fee.nativeFee,
+      fee.networkFee ?? fee.nativeFee,
       snapshot,
       BigInt(registry.dust),
+      fee.accountSetupCost ?? 0n,
     );
   const config = await financialConfiguration(tx, registry);
   const feeSnapshot = {
     ...fee,
     nativeFee: fee.nativeFee.toString(),
+    networkFee: (fee.networkFee ?? fee.nativeFee).toString(),
+    accountSetupCost: (fee.accountSetupCost ?? 0n).toString(),
+    network_charge_base_units: quote.networkCharge.toString(),
+    account_setup_charge_base_units: quote.accountSetupCharge.toString(),
     gasLimit: fee.gasLimit.toString(),
     unitPrice: fee.unitPrice.toString(),
     priorityPrice: fee.priorityPrice?.toString(),
@@ -184,6 +214,7 @@ export async function quoteCryptoWithdrawal(
       .insert(cryptoObligations)
       .values({
         userId,
+        previousObligationId: input.previous_obligation_id,
         assetId: asset.id,
         kind: "withdrawal",
         businessKey,
@@ -248,6 +279,7 @@ export async function confirmCryptoWithdrawal(
     .from(assets)
     .where(eq(assets.id, row.assetId))
     .limit(1);
+  if (!asset.enabled) throw new Error("FEATURE_DISABLED");
   const registry = registryAsset(asset.symbol.toLowerCase()),
     config = await financialConfiguration(tx, registry);
   if (config.hash !== row.configurationHash)
@@ -333,12 +365,18 @@ export async function cancelCryptoWithdrawal(
     .for("update");
   if (!row) throw new Error("NOT_FOUND");
   if (row.kind !== "withdrawal") throw new Error("FORBIDDEN");
-  if (row.status === "cancelled") return row;
+  if (
+    row.status === "cancelled" ||
+    (row.status === "exception" && row.completedAt)
+  )
+    return row;
   const attempts = await tx
     .select()
     .from(signedAttemptStatus)
     .where(eq(signedAttemptStatus.obligationId, id))
-    .limit(1);
+    .limit(21);
+  if (row.status === "exception" && attempts.length)
+    return closeFailedWithdrawal(tx, row, attempts);
   if (
     attempts.length ||
     !["quoted", "held", "approved", "awaiting_requote"].includes(row.status)
@@ -419,4 +457,154 @@ export async function approveCryptoObligation(
       .where(eq(cryptoObligations.id, id))
       .returning()
   )[0];
+}
+
+async function closeFailedWithdrawal(
+  tx: DbExecutor,
+  row: typeof cryptoObligations.$inferSelect,
+  attempts: (typeof signedAttemptStatus.$inferSelect)[],
+) {
+  if (attempts.length > 20 || attempts.some((v) => v.status !== "failed"))
+    throw new Error("FINANCIAL_SAFETY_PAUSE");
+  const registry =
+      row.registrySnapshot as import("@gifters/chains").AssetRegistry,
+    chain = await adapter(registry),
+    sender = await platformAddress(registry, "RECEIVING");
+  let actualCharge = 0n;
+  for (const attempt of attempts) {
+    const proof = await chain.verifyTransfer({
+      asset: registry,
+      hash: attempt.txHash,
+      index: 0,
+      sender,
+      destination: row.destination,
+      amount: BigInt(row.netBaseUnits),
+    });
+    if (
+      proof.state !== "failed" ||
+      proof.contradiction ||
+      proof.actualNativeFee === undefined ||
+      !proof.blockHash ||
+      proof.height === undefined ||
+      proof.actualNativeFee.toString() !== attempt.actualNativeFee
+    )
+      throw new Error("FINANCIAL_SAFETY_PAUSE");
+    const network = proof.actualNetworkFee ?? proof.actualNativeFee,
+      setup = proof.accountSetupCost ?? 0n;
+    actualCharge +=
+      nativeFeeInAsset(network, row.rateSnapshot as RateSnapshot) +
+      nativeFeeInAsset(setup, row.rateSnapshot as RateSnapshot);
+  }
+  const approved = BigInt(row.chargeBaseUnits),
+    charge = actualCharge < approved ? actualCharge : approved,
+    released = BigInt(row.grossBaseUnits) - charge,
+    held = await account(
+      tx,
+      row.assetId,
+      "user",
+      row.userId,
+      "held_payable",
+      "credit",
+    ),
+    available = await account(
+      tx,
+      row.assetId,
+      "user",
+      row.userId,
+      "available_payable",
+      "credit",
+    );
+  if (charge > 0n) {
+    const recovery = await account(
+      tx,
+      row.assetId,
+      "platform",
+      null,
+      "fee_recovery_equity",
+      "credit",
+    );
+    await postJournal(
+      tx,
+      "WITHDRAWAL_FAILED_FEE_CHARGE",
+      `crypto-failed-charge:${row.id}`,
+      [
+        { accountId: held.id, direction: "debit", amount: charge },
+        { accountId: recovery.id, direction: "credit", amount: charge },
+      ],
+      { obligation_id: row.id, attempt_ids: attempts.map((v) => v.id) },
+    );
+  }
+  if (released > 0n)
+    await postJournal(
+      tx,
+      "HOLD_RELEASE",
+      `crypto-failed-release:${row.id}`,
+      [
+        { accountId: held.id, direction: "debit", amount: released },
+        { accountId: available.id, direction: "credit", amount: released },
+      ],
+      { obligation_id: row.id },
+    );
+  const result = {
+    status: "failed_closed",
+    obligation_id: row.id,
+    charge_base_units: charge.toString(),
+    released_base_units: released.toString(),
+  };
+  await tx
+    .insert(operationKeys)
+    .values({
+      businessKey: `crypto-failed-close:${row.id}`,
+      requestHash: crypto
+        .createHash("sha256")
+        .update(JSON.stringify(result))
+        .digest("hex"),
+      result,
+    });
+  await tx
+    .update(cryptoObligations)
+    .set({ completedAt: sql`clock_timestamp()` })
+    .where(eq(cryptoObligations.id, row.id));
+  return result;
+}
+export async function requoteCryptoWithdrawal(
+  tx: DbExecutor,
+  userId: string,
+  generation: string,
+  id: string,
+  requestKey: string,
+) {
+  const [old] = await tx
+    .select()
+    .from(cryptoObligations)
+    .where(
+      and(eq(cryptoObligations.id, id), eq(cryptoObligations.userId, userId)),
+    )
+    .limit(1);
+  if (!old || old.kind !== "withdrawal") throw new Error("NOT_FOUND");
+  await cancelCryptoWithdrawal(tx, userId, id);
+  const [asset] = await tx
+    .select()
+    .from(assets)
+    .where(eq(assets.id, old.assetId))
+    .limit(1);
+  const [closure] = await tx
+    .select()
+    .from(operationKeys)
+    .where(eq(operationKeys.businessKey, `crypto-failed-close:${id}`))
+    .limit(1);
+  const gross = closure
+    ? String((closure.result as any).released_base_units)
+    : old.grossBaseUnits;
+  return quoteCryptoWithdrawal(
+    tx,
+    userId,
+    generation,
+    {
+      asset_key: asset.symbol.toLowerCase(),
+      gross_base_units: gross,
+      previous_obligation_id: id,
+    },
+    requestKey,
+  );
 }

@@ -1,3 +1,8 @@
+import {enqueueFinancialReminders,controlFinancialAlert,financialAlertList,scheduleDailyBusiness} from './financial-operations';
+import {prepareNativeInvoice} from './crypto-checkout';
+import {nativeFundingStatement,bookNativeFunding,nativeFundingInput} from './native-funding';
+import {nativeCatalog,ownNativePortfolio} from './crypto-reads';
+import {provisionNativeAsset,activateNativePlan,nativeProvision,nativePlanActivation} from './crypto-provisioning';
 import {reserveOriginalRefund,refundInput} from './crypto-refunds';
 import {monitorFinancials} from './financial-monitor';
 import {cleanupFinancialEphemeral} from './financial-cleanup';
@@ -5,7 +10,7 @@ import {holdBusinessSettlement,businessInput} from './crypto-business';
 import {ingestSignedPrice,signedPriceInput} from './crypto-prices';
 import {challengeWallet,proveWallet,walletChallengeInput,walletProofInput} from './crypto-wallets';
 import {quoteCryptoInvoice,submitCryptoDeposit,verifyCryptoDeposit,cryptoInvoiceInput,cryptoSubmission} from './crypto-incoming';
-import {quoteCryptoWithdrawal,confirmCryptoWithdrawal,cancelCryptoWithdrawal,approveCryptoObligation,cryptoWithdrawal} from './crypto-payouts';
+import {quoteCryptoWithdrawal,confirmCryptoWithdrawal,cancelCryptoWithdrawal,requoteCryptoWithdrawal,approveCryptoObligation,cryptoWithdrawal} from './crypto-payouts';
 import {authenticateWorker} from './worker-auth';
 import {settleCryptoAttempt} from './crypto-settlement';
 import {openFinancialAlert,deliverFinancialAlert} from './financial-alerts';
@@ -54,7 +59,7 @@ import { replayDeadJob } from './jobs';
 import {recordReorg,reconfirmReorg,reorgHistory} from './reorg';
 import {quoteIncoming,submitIncoming,controlIncoming,resolveIncoming,ownInvoices,cancelIncomingQuote} from './incoming';
 
-import { getPublicManifest,getPublicCatalog,getPublicHelp,publicHelpSlug,invalidatePublicReads } from './public-reads';
+import { getPublicManifest,getPublicCatalog,getPublicNativeCatalog,getPublicHelp,publicHelpSlug,invalidatePublicReads } from './public-reads';
 import { authenticate,csrf,requireStepUp,requireWithdrawalAuth,issueSession,validateUsername,databaseNow,clearCookies } from './auth';
 import { handleAuthRequest } from './auth-api';
 import { enforceRate } from './rate-limits';
@@ -76,7 +81,7 @@ function publicOk(data:unknown,ttlSeconds:number,request:Request) {
 function fail(error: unknown) {
   const message = error instanceof z.ZodError ? 'INVALID_INPUT' : error instanceof Error ? error.message : 'INTERNAL_ERROR';
   const statusMap: Record<string, number> = {
-    REGISTRY_VERSION_CONFLICT:409,REGISTRY_NOT_PROVISIONED:503,REGISTRY_UNVERIFIED:503,RPC_UNAVAILABLE:503,FINANCIAL_ENVIRONMENT_DENIED:403,PRICE_STALE:503,TRANSFER_MISMATCH:400,WRONG_TOKEN:400,WRONG_NETWORK:400,MAINNET_DENIED:403,
+    TRANSFER_ALREADY_ALLOCATED:409,OPERATIONAL_ASSET_ONLY:409,REGISTRY_VERSION_CONFLICT:409,REGISTRY_NOT_PROVISIONED:503,REGISTRY_UNVERIFIED:503,RPC_UNAVAILABLE:503,FINANCIAL_ENVIRONMENT_DENIED:403,PRICE_STALE:503,TRANSFER_MISMATCH:400,WRONG_TOKEN:400,WRONG_NETWORK:400,MAINNET_DENIED:403,
     EXPORT_EXPIRED:410,EXPORT_LIMIT_EXCEEDED:413,
     UNAUTHENTICATED: 401,
     FORBIDDEN: 403,
@@ -104,6 +109,12 @@ function fail(error: unknown) {
     FEATURE_DISABLED: 404,
     CYCLE_LIMIT_REACHED: 409,
     DESTINATION_CHANGED: 409,
+    DESTINATION_NOT_CONFIGURED: 503,
+
+    RPC_CAPACITY: 503,
+    OBSERVATION_UNAVAILABLE: 503,
+
+    AMBIGUOUS_TRANSFER: 409,
     NO_RECEIVER_AVAILABLE: 409,
     FINANCIAL_SAFETY_PAUSE: 503,
   };
@@ -141,13 +152,23 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
   try {
     const route = `/${path.join('/')}`;
 
+    if(method==='GET'&&route==='/crypto/catalog'){const value=await getPublicNativeCatalog();return publicOk(value.data,value.ttlSeconds,request);}
+    if(method==='GET'&&route==='/me/crypto'){const actor=await current(request);return ok(await withContext({access:'service',actorId:actor.id},tx=>ownNativePortfolio(tx,actor.id)));}
     if(method==='POST'&&route==='/internal/financial'){
-      const input=z.discriminatedUnion('action',[z.object({action:z.literal('settle'),attempt_id:z.string().uuid(),event_index:z.number().int().min(0).max(1000)}).strict(),z.object({action:z.literal('verify'),user_id:z.string().uuid(),invoice_id:z.string().uuid(),tx_hash:z.string().min(20).max(128),event_index:z.number().int().min(0).max(1000)}).strict(),z.object({action:z.literal('alerts')}).strict(),z.object({action:z.literal('cleanup')}).strict(),z.object({action:z.literal('monitor')}).strict()]).parse(await authenticateWorker(request,'financial'));
+      const input=z.discriminatedUnion('action',[z.object({action:z.literal('settle'),attempt_id:z.string().uuid(),event_index:z.number().int().min(0).max(1000)}).strict(),z.object({action:z.literal('verify'),user_id:z.string().uuid(),invoice_id:z.string().uuid(),tx_hash:z.string().min(20).max(128),event_index:z.number().int().min(-1).max(1000)}).strict(),z.object({action:z.literal('alerts')}).strict(),z.object({action:z.literal('cleanup')}).strict(),z.object({action:z.literal('monitor')}).strict(),z.object({action:z.literal('business_daily')}).strict(),z.object({action:z.literal('reminders')}).strict()]).parse(await authenticateWorker(request,'financial'));
       if(input.action==='monitor')return ok(await monitorFinancials());
+      if(input.action==='business_daily')return ok(await scheduleDailyBusiness());
+      if(input.action==='reminders')return ok(await withContext({access:'service'},enqueueFinancialReminders));
       if(input.action==='cleanup')return ok(await withContext({access:'service'},cleanupFinancialEphemeral));
       if(input.action==='alerts')return ok(await deliverFinancialAlert());
       return ok(await withContext<unknown>({access:'service'},tx=>input.action==='settle'?settleCryptoAttempt(tx,input.attempt_id,input.event_index):verifyCryptoDeposit(tx,input.user_id,input)));
     }
+    if(method==='GET'&&route==='/admin/crypto/alerts'){const actor=await admin(request);return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},financialAlertList));}
+    if(method==='POST'&&route==='/admin/crypto/alerts'){const actor=await admin(request),input=z.object({alert_id:z.string().uuid(),action:z.enum(['acknowledge','resolve']),reason:z.string().trim().min(5).max(500)}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>controlFinancialAlert(tx,actor.id,input.alert_id,input.action,input.reason)));}
+    if(method==='POST'&&route==='/admin/crypto/funding/statement'){const actor=await admin(request),input=nativeFundingInput.omit({signature:true,reason:true}).parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},async tx=>{const value=await nativeFundingStatement(tx,actor.id,input,idempotencyKey(request));return {message:value.message,hash:value.hash,sender:value.sender,destination:value.destination}}));}
+    if(method==='POST'&&route==='/admin/crypto/funding'){const actor=await admin(request),input=nativeFundingInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>bookNativeFunding(tx,actor.id,input,idempotencyKey(request))));}
+    if(method==='POST'&&route==='/admin/crypto/assets'){const actor=await admin(request),input=nativeProvision.parse(await json(request));const result=await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>provisionNativeAsset(tx,actor.id,input,idempotencyKey(request)));invalidatePublicReads();return ok(result);}
+    if(method==='POST'&&route==='/admin/crypto/plans'){const actor=await admin(request),input=nativePlanActivation.parse(await json(request));const result=await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>activateNativePlan(tx,actor.id,input,idempotencyKey(request)));invalidatePublicReads();return ok(result);}
     if(method==='POST'&&route==='/admin/crypto/refunds'){const actor=await admin(request),input=refundInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>reserveOriginalRefund(tx,actor.id,input)));}
     if(method==='POST'&&route==='/admin/crypto/business'){const actor=await admin(request),input=businessInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>holdBusinessSettlement(tx,actor.id,input,idempotencyKey(request))));}
     if(method==='POST'&&route==='/admin/crypto/prices'){const actor=await admin(request),input=signedPriceInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>ingestSignedPrice(tx,input)));}
@@ -155,7 +176,9 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
     if(method==='POST'&&route==='/me/wallets/challenge'){const identity=await authenticate(request);const input=walletChallengeInput.parse(await json(request));if(input.session_generation!==identity.session?.generation)throw new Error('VERSION_CONFLICT');return ok(await withContext({access:'service',actorId:identity.user.id},tx=>challengeWallet(tx,identity.user.id,input)));}
     if(method==='POST'&&route==='/me/wallets/proof'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=walletProofInput.parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},tx=>proveWallet(tx,identity.user.id,identity.session!.generation,input)));}
     if(method==='POST'&&route==='/gifts/crypto/invoices'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=cryptoInvoiceInput.parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},tx=>quoteCryptoInvoice(tx,identity.user.id,identity.session!.generation,input,idempotencyKey(request))));}
+    if(method==='POST'&&route==='/gifts/crypto/prepare'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=z.object({invoice_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},tx=>prepareNativeInvoice(tx,identity.user.id,identity.session!.generation,input.invoice_id)));}
     if(method==='POST'&&route==='/gifts/crypto/transaction'){const actor=await current(request),input=cryptoSubmission.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id},tx=>submitCryptoDeposit(tx,actor.id,input)));}
+    if(method==='POST'&&route==='/me/withdrawals/crypto/requote'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=z.object({obligation_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},tx=>requoteCryptoWithdrawal(tx,identity.user.id,identity.session!.generation,input.obligation_id,idempotencyKey(request))));}
     if(method==='POST'&&route==='/me/withdrawals/crypto/quotes'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=cryptoWithdrawal.parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},tx=>quoteCryptoWithdrawal(tx,identity.user.id,identity.session!.generation,input,idempotencyKey(request))));}
     if(method==='POST'&&['/me/withdrawals/crypto/confirm','/me/withdrawals/crypto/cancel'].includes(route)){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');await requireWithdrawalAuth(identity);const input=z.object({obligation_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},tx=>route.endsWith('/confirm')?confirmCryptoWithdrawal(tx,identity.user.id,identity.session!.generation,input.obligation_id):cancelCryptoWithdrawal(tx,identity.user.id,input.obligation_id)));}
     if(method==='POST'&&route==='/admin/crypto/approve'){const actor=await admin(request),input=z.object({obligation_id:z.string().uuid(),reason:z.string().min(5).max(500)}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>approveCryptoObligation(tx,actor.id,input.obligation_id,input.reason)));}
@@ -434,7 +457,7 @@ export async function handleApiRequest(method:string,path:string[],request:Reque
   const route='/'+path.join('/');
   if(route.startsWith('/auth/'))return await handleAuthRequest(method,route,request);
   if(route==='/sim/users'&&(process.env.AUTH_PROVIDER??'simulation')!=='simulation')throw new Error('FEATURE_DISABLED');
-  if(['/manifest','/plans','/help','/sim/users','/internal/tick','/internal/financial'].includes(route))return await dispatchApiRequest(method,path,request);
+  if(['/manifest','/plans','/help','/sim/users','/internal/tick','/internal/financial','/crypto/catalog'].includes(route))return await dispatchApiRequest(method,path,request);
   const identity=await authenticate(request);
   const account=request.headers.get('x-client-account');const generation=request.headers.get('x-client-session');if(!identity.tool&&((account&&account!==identity.user.username)||(generation&&generation!==identity.session!.generation)))throw new Error('VERSION_CONFLICT');
   if(identity.user.status==='pending_consent'&&route!=='/me/consent')throw new Error('CONSENT_REQUIRED');

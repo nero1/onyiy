@@ -1,3 +1,4 @@
+import { selectEventIndex } from "./event-index";
 import { reconcileEvidence } from "./evidence";
 import { getAddress, Interface, id, verifyMessage, Transaction } from "ethers";
 import { DualRpc, quantity } from "./rpc";
@@ -365,6 +366,34 @@ export class EvmAdapter implements ChainAdapter {
       amount,
       actualNativeFee,
     };
+  }
+  async findTransferIndex(hash: string, sender: string, destination: string) {
+    if (this.asset.kind === "native") return 0;
+    await this.network();
+    const values = await this.rpc.pair("eth_getTransactionReceipt", [hash]);
+    return selectEventIndex(
+      values.map((receipt) =>
+        receipt
+          ? (receipt.logs ?? [])
+              .filter(
+                (log: any) =>
+                  getAddress(log.address) ===
+                    getAddress(this.asset.contract!) &&
+                  log.topics?.length === 3 &&
+                  String(log.topics[0]).toLowerCase() === transferTopic &&
+                  getAddress("0x" + log.topics[1].slice(-40)) ===
+                    getAddress(sender) &&
+                  getAddress("0x" + log.topics[2].slice(-40)) ===
+                    getAddress(destination),
+              )
+              .map((log: any) => {
+                const index = quantity(log.logIndex);
+                if (index > 1000n) throw new Error("INVALID_INPUT");
+                return parseInt(index.toString(), 10);
+              })
+          : null,
+      ),
+    );
   }
   async verifyTransfer(expected: Transfer) {
     if (!Number.isInteger(expected.index) || expected.index < 0)

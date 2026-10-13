@@ -11,6 +11,7 @@ export const helpInput=z.object({id:z.string().uuid().optional(),locale:z.enum([
 async function prior(tx:DbExecutor,key:string,body:unknown){const digest=crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');const [old]=await tx.select().from(operationKeys).where(eq(operationKeys.businessKey,key)).limit(1);if(old){if(old.requestHash!==digest)throw new Error('VERSION_CONFLICT');return {digest,result:old.result}}return {digest,result:null}}
 async function save(tx:DbExecutor,key:string,digest:string,result:Record<string,unknown>){await tx.insert(operationKeys).values({businessKey:key,requestHash:digest,result});return result}
 export async function editSetting(tx:DbExecutor,actorId:string,input:z.infer<typeof settingInput>,requestKey:string){
+ await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('financial-policy',0))`);
  // Lock the bounded configuration set in a stable order; validate the resulting whole policy.
  const rows=await tx.select().from(xManifest).orderBy(asc(xManifest.key)).limit(1001).for('update');if(rows.length>1000)throw new Error('CONFIGURATION_INVALID');
  const manifest=await readManifest(tx);if(!manifest.feature_admin)throw new Error('FEATURE_DISABLED');const definition=manifestDefinition(input.key);if(!definition)throw new Error('INVALID_INPUT');

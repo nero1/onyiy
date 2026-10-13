@@ -1,3 +1,4 @@
+import { selectEventIndex } from "./event-index";
 import { reconcileEvidence } from "./evidence";
 import crypto from "node:crypto";
 import { TronWeb, Trx, utils } from "tronweb";
@@ -165,6 +166,7 @@ export class TronAdapter implements ChainAdapter {
     assertActive(asset);
     if (asset.chain !== "tron" || asset.network !== this.asset.network)
       throw new Error("WRONG_NETWORK");
+    if (asset.kind === "native") return this.getNativeBalance(address, fresh);
     await this.network();
     await this.token(asset);
     return BigInt(
@@ -349,6 +351,27 @@ export class TronAdapter implements ChainAdapter {
         blockHash: block.blockID,
         actualNativeFee,
       };
+    if (asset.kind === "native") {
+      const contract = tx.raw_data?.contract?.[0],
+        value = contract?.parameter?.value;
+      if (
+        index !== 0 ||
+        tx.raw_data?.contract?.length !== 1 ||
+        contract.type !== "TransferContract" ||
+        !value
+      )
+        throw new Error("TRANSFER_NOT_FOUND");
+      return {
+        ...base,
+        state: final ? "confirmed" : "pending",
+        height,
+        blockHash: block.blockID,
+        sender: normalized(TronWeb.address.fromHex(value.owner_address)),
+        destination: normalized(TronWeb.address.fromHex(value.to_address)),
+        amount: integer(value.amount),
+        actualNativeFee,
+      };
+    }
     let eventIndex = index;
     if (index === -1) {
       if (!utils.transaction.txCheck(tx))
@@ -400,6 +423,34 @@ export class TronAdapter implements ChainAdapter {
       amount,
       actualNativeFee,
     };
+  }
+  async findTransferIndex(hash: string, sender: string, destination: string) {
+    if (this.asset.kind === "native") return 0;
+    await this.network();
+    const values = await Promise.allSettled([
+      this.rpc.post(0, "wallet/gettransactioninfobyid", { value: hash }),
+      this.rpc.post(1, "wallet/gettransactioninfobyid", { value: hash }),
+    ]);
+    return selectEventIndex(
+      values.map((value) =>
+        value.status === "fulfilled" && value.value.id
+          ? (value.value.log ?? [])
+              .map((log: any, index: number) => ({ log, index }))
+              .filter(
+                ({ log }: any) =>
+                  log.address?.toLowerCase() ===
+                    addressHex(this.asset.contract!).slice(-40) &&
+                  log.topics?.length === 3 &&
+                  String(log.topics[0]).toLowerCase() === transferTopic &&
+                  log.topics[1].slice(-40).toLowerCase() ===
+                    addressHex(sender).slice(-40) &&
+                  log.topics[2].slice(-40).toLowerCase() ===
+                    addressHex(destination).slice(-40),
+              )
+              .map(({ index }: any) => index)
+          : null,
+      ),
+    );
   }
   async verifyTransfer(expected: Transfer) {
     if (
