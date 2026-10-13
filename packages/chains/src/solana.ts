@@ -15,6 +15,8 @@ import { DualRpc, integer } from "./rpc";
 import { assertActive } from "./registry";
 import type {
   AssetRegistry,
+  ScannedTransfer,
+  TransferScan,
   ChainAdapter,
   RpcOptions,
   Transfer,
@@ -36,6 +38,23 @@ export class SolanaAdapter implements ChainAdapter {
     if (asset.chain !== "sol" || asset.network !== "devnet")
       throw new Error("WRONG_NETWORK");
     this.rpc = new DualRpc(options);
+  }
+  async scanTransfers(address:string,after:bigint,through:bigint):Promise<TransferScan> {
+    if(after<0n||through<=after||through-after>5n||through>9007199254740991n)throw new Error("SCAN_RANGE_INVALID");const account=normalized(address);
+    const results=await Promise.all(([0,1] as const).map(async side=>{
+      if(await this.rpc.request(side,"getGenesisHash",[])!==genesis)throw new Error("WRONG_NETWORK");if(integer(await this.rpc.request(side,"getSlot",[{commitment:"finalized"}]))<through)throw new Error("FINALITY_UNAVAILABLE");
+      const slots=await this.rpc.request(side,"getBlocks",[parseInt((after+1n).toString(),10),parseInt(through.toString(),10),{commitment:"finalized"}]);if(!Array.isArray(slots)||slots.length>5)throw new Error("RPC_EVIDENCE_INVALID");const transfers:ScannedTransfer[]=[],blocks:{height:string;hash:string}[]=[];
+      for(const slot of slots){const height=integer(slot);if(height<=after||height>through)throw new Error("RPC_EVIDENCE_INVALID");const block=await this.rpc.request(side,"getBlock",[slot,{commitment:"finalized",encoding:"jsonParsed",transactionDetails:"full",rewards:false,maxSupportedTransactionVersion:0}]);if(!block||base58.decode(block.blockhash).length!==32||!Array.isArray(block.transactions)||block.transactions.length>1000)throw new Error("SCAN_CAPACITY_EXCEEDED");
+        blocks.push({height:height.toString(),hash:block.blockhash});for(const record of block.transactions){if(record.meta?.err)continue;const tx=record.transaction,hash=canonicalTransactionHash("sol",tx.signatures?.[0]);const instructions=tx.message.instructions;if(!Array.isArray(instructions)||instructions.length>1000)throw new Error("SCAN_CAPACITY_EXCEEDED");
+          for(const [index,instruction] of instructions.entries()){const info=instruction.parsed?.info;let sender:string,destination:string,amount:bigint;
+            if(this.asset.kind==="native"){if(instruction.programId!==SystemProgram.programId.toBase58()||instruction.parsed?.type!=="transfer")continue;sender=normalized(info.source);destination=normalized(info.destination);amount=integer(info.lamports)}
+            else{if(instruction.programId!==TOKEN_PROGRAM_ID.toBase58()||instruction.parsed?.type!=="transferChecked"||info.mint!==this.asset.mint)continue;if(info.tokenAmount?.decimals!==this.asset.decimals)throw new Error("TOKEN_REGISTRY_MISMATCH");const source=record.meta.preTokenBalances?.find((v:any)=>tx.message.accountKeys[v.accountIndex]?.pubkey===info.source&&v.mint===this.asset.mint),target=record.meta.postTokenBalances?.find((v:any)=>tx.message.accountKeys[v.accountIndex]?.pubkey===info.destination&&v.mint===this.asset.mint);if(!source?.owner||!target?.owner)throw new Error("SCAN_INCOMPLETE");sender=normalized(source.owner);destination=normalized(target.owner);amount=integer(info.tokenAmount.amount)}
+            if(amount<=0n||sender===destination||sender!==account&&destination!==account)continue;transfers.push({hash,index,height,blockHash:block.blockhash,sender,destination,amount,direction:destination===account?"incoming":"outgoing"});
+          }
+        }
+      }
+      if(transfers.length>100)throw new Error("SCAN_CAPACITY_EXCEEDED");return {blocks,slots:slots.map(v=>integer(v).toString()),transfers:transfers.sort((a,b)=>(a.hash+":"+a.index).localeCompare(b.hash+":"+b.index))};
+    }));const digest=(value:unknown)=>JSON.stringify(value,(_,v)=>typeof v==="bigint"?v.toString():v);if(digest(results[0])!==digest(results[1]))throw new Error("RPC_SCAN_CONTRADICTION");return {through,transfers:results[0].transfers};
   }
   async validateAddress(address: string) {
     try {
@@ -178,6 +197,10 @@ export class SolanaAdapter implements ChainAdapter {
       )
     )
       throw new Error("TOKEN_REGISTRY_MISMATCH");
+  }
+  async getReconciledBalance(asset:AssetRegistry,address:string,height:bigint){
+    assertActive(asset);if(asset.key!==this.asset.key||height<0n||height>9007199254740991n)throw new Error("INVALID_INPUT");const account=normalized(address),target=asset.kind==="native"?account:getAssociatedTokenAddressSync(new PublicKey(asset.mint!),new PublicKey(account)).toBase58();
+    const values=await Promise.all(([0,1] as const).map(async side=>{if(await this.rpc.request(side,"getGenesisHash",[])!==genesis)throw new Error("WRONG_NETWORK");const result=await this.rpc.request(side,asset.kind==="native"?"getBalance":"getTokenAccountBalance",[target,{commitment:"finalized",minContextSlot:parseInt(height.toString(),10)}]);const slot=integer(result.context?.slot);if(slot<height)throw new Error("FINALITY_UNAVAILABLE");if(asset.kind==="token"&&result.value?.decimals!==asset.decimals)throw new Error("TOKEN_REGISTRY_MISMATCH");return {slot,amount:integer(asset.kind==="native"?result.value:result.value.amount)}}));if(values[0].slot!==values[1].slot||values[0].amount!==values[1].amount)throw new Error("RPC_BALANCE_CONTRADICTION");return values[0].amount;
   }
   async getBalance(asset: AssetRegistry, address: string, fresh = false) {
     assertActive(asset);

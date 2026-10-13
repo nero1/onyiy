@@ -265,7 +265,7 @@ export async function settleCryptoAttempt(
       ? "TREASURY_SWEEP_SETTLE"
       : obligation.kind === "business"
       ? "BUSINESS_SETTLEMENT_SETTLE"
-      : obligation.kind === "refund"
+      : ["refund","unallocated_refund"].includes(obligation.kind)
         ? "REFUND_SETTLE"
         : "PAYOUT_SETTLE",
     `crypto-settle:${obligation.id}`,

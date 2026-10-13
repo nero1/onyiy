@@ -2,7 +2,7 @@ import { prepareEvmReplacement } from "./evm-replacement";
 import crypto from "node:crypto";
 import { SignerStore, decryptSigned } from "./store";
 import { signPrepared } from "./sign";
-import { assertIsolated } from "./keys";
+import { assertIsolated,withSigningKey } from "./keys";
 import { runtimeAdapter } from "../../packages/chains/src/runtime";
 import {
   readRegistry,
@@ -94,6 +94,11 @@ export async function runSignerOnce() {
   let processed = 0,
     paused = 0;
   try {
+    const heartbeats=new Set<string>();
+    for(const asset of readRegistry().filter(v=>v.enabled&&v.verified)){
+      if(stopping)break;
+      try{const config=await store.configuration(asset);if(heartbeats.has(config.treasuryFingerprint)||!config.addresses.RECEIVING)continue;const chain=await runtimeAdapter(asset);await withSigningKey(asset.chain,asset.network,async(_key,address)=>{if(await chain.normalizeAddress(address)!==config.addresses.RECEIVING)throw new Error("SIGNER_ADDRESS_MISMATCH")});await Promise.all([chain.currentBlockHeight(),chain.getNativeBalance(config.addresses.RECEIVING,true)]);await store.heartbeat(asset);heartbeats.add(config.treasuryFingerprint);}catch{paused++;}
+    }
     const rows = await store.pending();
     for (const row of rows) {
       if (stopping) break;

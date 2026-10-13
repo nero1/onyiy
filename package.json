@@ -29,7 +29,7 @@
     "db:check:runtime": "tsx packages/db/src/verify-runtime.ts",
     "scenario:m1": "node scripts/manual-m1-scenario.mjs",
     "check:deployment": "tsx scripts/validate-deployment.ts",
-    "check:bundle": "node scripts/report-bundle.mjs",
+    "check:bundle": "node scripts/report-bundle.mjs && node scripts/report-function-budgets.mjs",
     "scenario:m1:integrity": "node scripts/manual-m1-integrity.mjs",
     "scenario:m1:jobs": "node scripts/manual-m1-jobs.mjs",
     "scenario:m1:recovery": "node scripts/manual-m1-withdrawal-recovery.mjs",

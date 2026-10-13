@@ -27,7 +27,7 @@ export async function recoverOperationalObligation(
     .from(cryptoObligations)
     .where(eq(cryptoObligations.id, id))
     .limit(1);
-  if (!lookup || !["business", "refund"].includes(lookup.kind))
+  if (!lookup || !["business", "refund", "unallocated_refund"].includes(lookup.kind))
     throw new Error("NOT_FOUND");
   for (const userId of [
     ...new Set([actorId, ...(lookup.userId ? [lookup.userId] : [])]),
@@ -135,7 +135,7 @@ export async function recoverOperationalObligation(
     source = await account(
       tx,
       row.assetId,
-      row.userId ? "user" : "platform",
+      row.kind === "unallocated_refund" ? "system" : row.userId ? "user" : "platform",
       row.userId,
       row.sourcePurpose,
       "credit",

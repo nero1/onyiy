@@ -11,3 +11,7 @@
 .account-portal{overflow-wrap:anywhere}.account-portal .card{margin-block:1rem;min-width:0}.account-portal label{display:flex;flex-direction:column;gap:.5rem;margin-block:1rem}.account-portal input,.account-portal select,.account-portal textarea{font:inherit;min-width:0;max-width:100%;width:100%;padding:.6rem;border:1px solid var(--border);border-radius:.5rem;background:var(--surface);color:var(--text)}.account-portal article{margin-block:1rem}.account-portal nav{display:flex;flex-wrap:wrap;gap:1rem;align-items:center}
 .wallet-address{overflow-wrap:anywhere;word-break:break-word}
 .recovery-statement{white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%;font-size:.85rem}.bot-check{max-width:100%;overflow-wrap:anywhere}
+
+.ticker{display:flex;align-items:center;justify-content:center;gap:1rem}.ticker button{background:#241a47;color:white}.public-statistics{padding:.7rem;text-align:center;font-size:.85rem}.public-statistics time{display:block}pre.wrap{white-space:pre-wrap;overflow-wrap:anywhere}:focus-visible{outline:3px solid var(--accent);outline-offset:3px}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+
+.card p,.stack p{overflow-wrap:anywhere}.public-statistics{overflow-wrap:anywhere}

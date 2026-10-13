@@ -5,6 +5,8 @@ import { DualRpc, quantity } from "./rpc";
 import { assertActive } from "./registry";
 import type {
   AssetRegistry,
+  ScannedTransfer,
+  TransferScan,
   ChainAdapter,
   RpcOptions,
   Transfer,
@@ -32,6 +34,20 @@ export class EvmAdapter implements ChainAdapter {
     if (!["eth", "bnb"].includes(asset.chain))
       throw new Error("REGISTRY_INVALID");
     this.rpc = new DualRpc(options);
+  }
+  async scanTransfers(address:string,after:bigint,through:bigint):Promise<TransferScan> {
+    if(after<0n||through<=after||through-after>5n)throw new Error("SCAN_RANGE_INVALID");const account=await this.normalizeAddress(address),topic="0x"+account.slice(2).toLowerCase().padStart(64,"0");
+    const results=await Promise.all(([0,1] as const).map(async side=>{
+      if(quantity(await this.rpc.request(side,"eth_chainId",[]))!==BigInt(this.asset.network))throw new Error("WRONG_NETWORK");const transfers:ScannedTransfer[]=[];
+      if(this.asset.kind==="token"){
+        const options={fromBlock:hex(after+1n),toBlock:hex(through),address:this.asset.contract};
+        const lists=await Promise.all([this.rpc.request(side,"eth_getLogs",[{...options,topics:[transferTopic,null,topic]}]),this.rpc.request(side,"eth_getLogs",[{...options,topics:[transferTopic,topic]}])]);
+        for(const [i,logs] of lists.entries()){if(!Array.isArray(logs)||logs.length>100)throw new Error("SCAN_CAPACITY_EXCEEDED");for(const log of logs){const index=quantity(log.logIndex),height=quantity(log.blockNumber);if(log.removed!==false||index>1000n||height<=after||height>through||getAddress(log.address)!==getAddress(this.asset.contract!)||log.topics?.length!==3||String(log.topics[0]).toLowerCase()!==transferTopic||!hashPattern.test(log.transactionHash)||!hashPattern.test(log.blockHash))throw new Error("RPC_EVIDENCE_INVALID");const sender=getAddress("0x"+log.topics[1].slice(-40)),destination=getAddress("0x"+log.topics[2].slice(-40));if((i===0?destination:sender)!==account)throw new Error("RPC_EVIDENCE_INVALID");if(sender===destination||quantity(log.data)===0n)continue;transfers.push({hash:log.transactionHash.toLowerCase(),index:parseInt(index.toString(),10),height,blockHash:log.blockHash.toLowerCase(),sender,destination,amount:quantity(log.data),direction:i===0?"incoming":"outgoing"});}}
+      }else{
+        for(let height=after+1n;height<=through;height++){const block=await this.rpc.request(side,"eth_getBlockByNumber",[hex(height),true]);if(!block||quantity(block.number)!==height||!hashPattern.test(block.hash)||!Array.isArray(block.transactions)||block.transactions.length>1000)throw new Error("SCAN_CAPACITY_EXCEEDED");for(const tx of block.transactions){if(!tx.to||!hashPattern.test(tx.hash))continue;const sender=getAddress(tx.from),destination=getAddress(tx.to),amount=quantity(tx.value);if(amount===0n||sender===destination||sender!==account&&destination!==account)continue;transfers.push({hash:tx.hash.toLowerCase(),index:0,height,blockHash:block.hash.toLowerCase(),sender,destination,amount,direction:destination===account?"incoming":"outgoing"});}}
+      }
+      if(transfers.length>100)throw new Error("SCAN_CAPACITY_EXCEEDED");return transfers.sort((a,b)=>(a.hash+":"+a.index+":"+a.direction).localeCompare(b.hash+":"+b.index+":"+b.direction));
+    }));const digest=(v:ScannedTransfer[])=>JSON.stringify(v,(_,x)=>typeof x==="bigint"?x.toString():x);if(digest(results[0])!==digest(results[1]))throw new Error("RPC_SCAN_CONTRADICTION");await this.getCanonicalBlock(through);return {through,transfers:results[0]};
   }
   async validateAddress(address: string) {
     try {
@@ -168,6 +184,11 @@ export class EvmAdapter implements ChainAdapter {
       values.some((v) => v !== BigInt(asset.decimals))
     )
       throw new Error("TOKEN_REGISTRY_MISMATCH");
+  }
+  async getReconciledBalance(asset:AssetRegistry,address:string,height:bigint){
+    assertActive(asset);if(asset.key!==this.asset.key||asset.network!==this.asset.network)throw new Error("WRONG_NETWORK");await this.getCanonicalBlock(height);const account=await this.normalizeAddress(address);
+    const values=await Promise.all(([0,1] as const).map(side=>asset.kind==="native"?this.rpc.request(side,"eth_getBalance",[account,hex(height)]):this.rpc.request(side,"eth_call",[{to:asset.contract,data:erc20.encodeFunctionData("balanceOf",[account])},hex(height)])));
+    const amounts=values.map(quantity);if(amounts[0]!==amounts[1])throw new Error("RPC_BALANCE_CONTRADICTION");return amounts[0];
   }
   async getBalance(asset: AssetRegistry, address: string, fresh = false) {
     assertActive(asset);

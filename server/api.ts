@@ -1,3 +1,8 @@
+import {selectedUserExport,selectedExportInput,portabilityStatus,downloadSiteSnapshot,stageSnapshot} from './portability';
+import {publicStatisticsRead} from './public-statistics';
+import {boundedJson} from './request-body';
+import {registerCheckpoint,startRecoveryScan,recoverScanPage,checkpointInput,resolveRecoveryOutflow,outflowResolutionInput} from './chain-recovery';
+import {unmatchedRefundStatement,reserveUnmatchedRefund,unmatchedRefundInput} from './unallocated-refunds';
 import {recoverOperationalObligation} from './crypto-operational-recovery';
 import {quoteTreasurySweep,confirmTreasurySweep,recoverTreasurySweep,sweepInput} from './treasury-sweeps';
 import {ownNativeReceipts} from './native-receipts';
@@ -88,6 +93,7 @@ function publicOk(data:unknown,ttlSeconds:number,request:Request) {
 function fail(error: unknown) {
   const message = error instanceof z.ZodError ? 'INVALID_INPUT' : error instanceof Error ? error.message : 'INTERNAL_ERROR';
   const statusMap: Record<string, number> = {
+    SCAN_RANGE_INVALID:400,SCAN_CAPACITY_EXCEEDED:409,RPC_SCAN_CONTRADICTION:503,RPC_BALANCE_CONTRADICTION:503,SCAN_INCOMPLETE:503,CHECKPOINT_REORGED:409,RECOVERY_TARGET_MISMATCH:409,RECOVERY_UNAVAILABLE:503,RECOVERY_INPUT_INVALID:400,RECOVERY_CONTENT_MISMATCH:409,RECOVERY_VERSION_MISMATCH:409,
     TRANSFER_ALREADY_ALLOCATED:409,OPERATIONAL_ASSET_ONLY:409,REGISTRY_VERSION_CONFLICT:409,REGISTRY_NOT_PROVISIONED:503,REGISTRY_UNVERIFIED:503,RPC_UNAVAILABLE:503,FINANCIAL_ENVIRONMENT_DENIED:403,PRICE_STALE:503,TRANSFER_MISMATCH:400,WRONG_TOKEN:400,WRONG_NETWORK:400,MAINNET_DENIED:403,
     EXPORT_EXPIRED:410,EXPORT_LIMIT_EXCEEDED:413,
     CAPTCHA_REQUIRED:403,CAPTCHA_REJECTED:403,CAPTCHA_REPLAY:409,CAPTCHA_UNAVAILABLE:503,
@@ -128,7 +134,7 @@ function fail(error: unknown) {
   };
   const code = Object.hasOwn(statusMap, message) ? message : 'INTERNAL_ERROR';
   return Response.json(
-    { error: { code, message_key: `errors.${code.toLowerCase()}`, help_slug: 'simulation', retryable: code==='RECONCILIATION_TIMEOUT' }, meta: { request_id: requestId() } },
+    { error: { code, message_key: `errors.${code.toLowerCase()}`, help_slug: 'errors', retryable: code==='RECONCILIATION_TIMEOUT' }, meta: { request_id: requestId() } },
     { status: statusMap[code] ?? 500, headers: { 'Cache-Control': 'private, no-store' } },
   );
 }
@@ -139,7 +145,7 @@ async function admin(request:Request){const identity=await authenticate(request)
 async function moderator(request:Request){const identity=await authenticate(request);if(!['admin','moderator'].includes(identity.user.role)||identity.user.status!=='active')throw new Error('FORBIDDEN');await requireStepUp(identity);return identity.user;}
 
 async function json(request: Request) {
-  try { return await request.json(); } catch { throw new Error('INVALID_INPUT'); }
+  try { return await boundedJson(request); } catch { throw new Error('INVALID_INPUT'); }
 }
 
 function idempotencyKey(request: Request) {
@@ -160,12 +166,15 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
   try {
     const route = `/${path.join('/')}`;
 
+    if(method==='GET'&&route==='/statistics')return publicOk(await publicStatisticsRead(),60,request);
     if(method==='GET'&&route==='/crypto/catalog'){const value=await getPublicNativeCatalog();return publicOk(value.data,value.ttlSeconds,request);}
     if(method==='GET'&&route==='/me/crypto'){const actor=await current(request);return ok(await withContext({access:'service',actorId:actor.id},tx=>ownNativePortfolio(tx,actor.id)));}
     if(method==='POST'&&route==='/internal/financial'){
-      const input=z.discriminatedUnion('action',[z.object({action:z.literal('expiry'),attempt_id:z.string().uuid()}).strict(),z.object({action:z.literal('settle'),attempt_id:z.string().uuid(),event_index:z.number().int().min(0).max(1000)}).strict(),z.object({action:z.literal('verify'),user_id:z.string().uuid(),invoice_id:z.string().uuid(),tx_hash:z.string().min(20).max(128),event_index:z.number().int().min(-1).max(1000)}).strict(),z.object({action:z.literal('alerts')}).strict(),z.object({action:z.literal('cleanup')}).strict(),z.object({action:z.literal('monitor')}).strict(),z.object({action:z.literal('business_daily')}).strict(),z.object({action:z.literal('reminders')}).strict()]).parse(await authenticateWorker(request,'financial'));
+      const input=z.discriminatedUnion('action',[z.object({action:z.literal('scan'),run_id:z.string().uuid()}).strict(),z.object({action:z.literal('expiry'),attempt_id:z.string().uuid()}).strict(),z.object({action:z.literal('settle'),attempt_id:z.string().uuid(),event_index:z.number().int().min(0).max(1000)}).strict(),z.object({action:z.literal('verify'),user_id:z.string().uuid(),invoice_id:z.string().uuid(),tx_hash:z.string().min(20).max(128),event_index:z.number().int().min(-1).max(1000)}).strict(),z.object({action:z.literal('alerts')}).strict(),z.object({action:z.literal('cleanup')}).strict(),z.object({action:z.literal('monitor_inventory')}).strict(),z.object({action:z.literal('monitor'),asset_key:z.string().max(30).optional()}).strict(),z.object({action:z.literal('business_daily')}).strict(),z.object({action:z.literal('reminders')}).strict()]).parse(await authenticateWorker(request,'financial'));
+      if(input.action==='scan')return ok(await withContext({access:'service'},tx=>recoverScanPage(tx,input.run_id)));
       if(input.action==='expiry')return ok(await withContext({access:'service'},tx=>verifySignedExpiry(tx,input.attempt_id)));
-      if(input.action==='monitor')return ok(await monitorFinancials());
+      if(input.action==='monitor_inventory'){const {readRegistry}=await import('@gifters/chains');return ok({asset_keys:readRegistry().filter(v=>v.enabled&&v.verified).map(v=>v.key).slice(0,8)})}
+      if(input.action==='monitor')return ok(await monitorFinancials(input.asset_key));
       if(input.action==='business_daily')return ok(await scheduleDailyBusiness());
       if(input.action==='reminders')return ok(await withContext({access:'service'},enqueueFinancialReminders));
       if(input.action==='cleanup')return ok(await withContext({access:'service'},cleanupFinancialEphemeral));
@@ -173,6 +182,17 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
       return ok(await withContext<unknown>({access:'service'},tx=>input.action==='settle'?settleCryptoAttempt(tx,input.attempt_id,input.event_index):verifyCryptoDeposit(tx,input.user_id,input)));
     }
     if(method==='GET'&&route==='/admin/crypto/obligations'){const actor=await admin(request),params=new URL(request.url).searchParams,after=params.has('after')?z.string().uuid().parse(params.get('after')):undefined;return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},async tx=>{const {cryptoObligations,assets}=await import('@gifters/db');const rows=await tx.select({id:cryptoObligations.id,user_id:cryptoObligations.userId,asset:assets.symbol,decimals:assets.decimals,network:assets.chainId,kind:cryptoObligations.kind,status:cryptoObligations.status,source_purpose:cryptoObligations.sourcePurpose,gross_base_units:cryptoObligations.grossBaseUnits,charge_base_units:cryptoObligations.chargeBaseUnits,net_base_units:cryptoObligations.netBaseUnits,destination:sql<string>`left(${cryptoObligations.destination},6)||'…'||right(${cryptoObligations.destination},4)`,created_at:cryptoObligations.createdAt,completed_at:cryptoObligations.completedAt}).from(cryptoObligations).innerJoin(assets,eq(assets.id,cryptoObligations.assetId)).where(after?gt(cryptoObligations.id,after):undefined).orderBy(asc(cryptoObligations.id)).limit(100);return {rows,next_after:rows.length===100?rows.at(-1)!.id:null}}));}
+    if(method==='GET'&&route==='/admin/portability'){const actor=await admin(request);return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},portabilityStatus));}
+    if(method==='POST'&&route==='/admin/portability/users'){const actor=await admin(request),input=selectedExportInput.parse(await json(request));return withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>selectedUserExport(tx,actor.id,input));}
+    if(method==='POST'&&route==='/admin/portability/site'){const actor=await admin(request),input=z.object({confirmation:z.literal('download-encrypted-site'),reason:z.string().trim().min(10).max(500)}).strict().parse(await json(request));return withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>downloadSiteSnapshot(tx,actor.id,input.reason));}
+    if(method==='POST'&&route==='/admin/portability/stage'){const actor=await admin(request);return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>stageSnapshot(tx,actor.id,request)));}
+    if(method==='GET'&&route==='/admin/crypto/recovery-state'){const actor=await admin(request);return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},async tx=>{const {chainRecoveryRuns,unallocatedInflows,recoveryOutflows,recoveryOutflowResolutions}=await import('@gifters/db');const runs=await tx.select({id:chainRecoveryRuns.id,state:chainRecoveryRuns.state,cursor_height:chainRecoveryRuns.cursorHeight,through_height:chainRecoveryRuns.throughHeight,reason_code:chainRecoveryRuns.reasonCode}).from(chainRecoveryRuns).orderBy(desc(chainRecoveryRuns.createdAt),desc(chainRecoveryRuns.id)).limit(50);const inflows=await tx.select({id:unallocatedInflows.id,amount_base_units:unallocatedInflows.amountBaseUnits,asset:assets.symbol,network:unallocatedInflows.network,sender:sql<string>`left(${unallocatedInflows.sender},6)||'…'||right(${unallocatedInflows.sender},4)`}).from(unallocatedInflows).innerJoin(assets,eq(assets.id,unallocatedInflows.assetId)).orderBy(desc(unallocatedInflows.createdAt),desc(unallocatedInflows.id)).limit(50);const outflows=await tx.select({id:recoveryOutflows.id,amount_base_units:recoveryOutflows.amountBaseUnits,network:assets.chainId,tx_hash:recoveryOutflows.txHash}).from(recoveryOutflows).innerJoin(assets,eq(assets.id,recoveryOutflows.assetId)).where(sql`${recoveryOutflows.status}='review' and not exists(select 1 from ${recoveryOutflowResolutions} r where r.asset_id=${recoveryOutflows.assetId} and r.tx_hash=${recoveryOutflows.txHash} and r.event_index=${recoveryOutflows.eventIndex})`).orderBy(desc(recoveryOutflows.createdAt),desc(recoveryOutflows.id)).limit(50);return {runs,inflows,outflows}}));}
+    if(method==='POST'&&route==='/admin/crypto/scans/resolve'){const actor=await admin(request),input=outflowResolutionInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>resolveRecoveryOutflow(tx,actor.id,input)));}
+    if(method==='POST'&&route==='/admin/crypto/checkpoints'){const actor=await admin(request),input=checkpointInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>registerCheckpoint(tx,actor.id,input,idempotencyKey(request))));}
+    if(method==='POST'&&route==='/admin/crypto/scans/start'){const actor=await admin(request),input=z.object({checkpoint_id:z.string().uuid(),through_height:z.string().regex(/^(0|[1-9][0-9]{0,77})$/)}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>startRecoveryScan(tx,actor.id,input.checkpoint_id,input.through_height,idempotencyKey(request))));}
+    if(method==='POST'&&route==='/admin/crypto/scans/page'){const actor=await admin(request),input=z.object({run_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>recoverScanPage(tx,input.run_id)));}
+    if(method==='POST'&&route==='/admin/crypto/unmatched/statement'){const actor=await admin(request),input=z.object({inflow_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>unmatchedRefundStatement(tx,actor.id,input.inflow_id)));}
+    if(method==='POST'&&route==='/admin/crypto/unmatched/refund'){const actor=await admin(request),input=unmatchedRefundInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>reserveUnmatchedRefund(tx,actor.id,input)));}
     if(method==='POST'&&route==='/admin/crypto/operational/recover'){const actor=await admin(request),input=z.object({obligation_id:z.string().uuid(),reason:z.string().trim().min(10).max(500)}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>recoverOperationalObligation(tx,actor.id,input.obligation_id,input.reason)));}
     if(method==='POST'&&route==='/admin/crypto/sweeps/quote'){const actor=await admin(request),input=sweepInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>quoteTreasurySweep(tx,actor.id,input,idempotencyKey(request))));}
     if(method==='POST'&&(route==='/admin/crypto/sweeps/confirm'||route==='/admin/crypto/sweeps/recover')){const actor=await admin(request),input=z.object({obligation_id:z.string().uuid(),reason:z.string().trim().min(10).max(500)}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>route.endsWith('/confirm')?confirmTreasurySweep(tx,actor.id,input.obligation_id,input.reason):recoverTreasurySweep(tx,actor.id,input.obligation_id,input.reason)));}
@@ -479,7 +499,7 @@ export async function handleApiRequest(method:string,path:string[],request:Reque
   const route='/'+path.join('/');
   if(route.startsWith('/auth/'))return await handleAuthRequest(method,route,request);
   if(route==='/sim/users'&&(process.env.AUTH_PROVIDER??'simulation')!=='simulation')throw new Error('FEATURE_DISABLED');
-  if(['/manifest','/plans','/help','/sim/users','/internal/tick','/internal/financial','/crypto/catalog'].includes(route))return await dispatchApiRequest(method,path,request);
+  if(['/manifest','/statistics','/plans','/help','/sim/users','/internal/tick','/internal/financial','/crypto/catalog'].includes(route))return await dispatchApiRequest(method,path,request);
   const identity=await authenticate(request);
   const account=request.headers.get('x-client-account');const generation=request.headers.get('x-client-session');if(!identity.tool&&((account&&account!==identity.user.username)||(generation&&generation!==identity.session!.generation)))throw new Error('VERSION_CONFLICT');
   if(identity.user.status==='pending_consent'&&!['/me/consent','/me/bot-check'].includes(route))throw new Error('CONSENT_REQUIRED');

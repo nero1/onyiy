@@ -1,3 +1,4 @@
+import {databaseScopeFingerprint} from '../../packages/db/src/binding-fingerprint';
 import { Transaction } from "ethers";
 import type { DbExecutor } from "../../packages/db/src/index";
 import crypto from "node:crypto";
@@ -8,6 +9,7 @@ import {
   schema,
   cryptoObligations,
   signerStates,
+  signerHeartbeats,
   signerReservations,
   signedAttempts,
   assets,
@@ -113,7 +115,7 @@ export class SignerStore {
   }
   private async context<T>(fn: (tx: DbExecutor) => Promise<T>) {
     return this.database.transaction(async (tx) => {
-      await tx.execute(sql`select set_config('gw.environment','testnet',true)`);
+      await tx.execute(sql`select set_config('gw.environment','testnet',true),set_config('gw.database_binding',${databaseScopeFingerprint(process.env.SIGNER_DATABASE_URL??'')},true)`);
       const [role] = await tx.execute<{
         safe: boolean;
         isolated: boolean;
@@ -147,6 +149,9 @@ export class SignerStore {
   }
   async configuration(asset: AssetRegistry) {
     return this.context((tx) => this.configurationIn(tx, asset));
+  }
+  async heartbeat(asset:AssetRegistry) {
+    return this.context(async tx=>{const config=await this.configurationIn(tx,asset);if(!config.addresses.RECEIVING)throw new Error("SIGNER_ADDRESS_MISMATCH");await tx.insert(signerHeartbeats).values({treasuryFingerprint:config.treasuryFingerprint,environment:"testnet",chain:asset.chain,configurationHash:config.hash}).onConflictDoUpdate({target:signerHeartbeats.treasuryFingerprint,set:{configurationHash:config.hash,heartbeatAt:sql`clock_timestamp()`}});return config.treasuryFingerprint;});
   }
   async activation(hash: string) {
     return this.context(async (tx) => {

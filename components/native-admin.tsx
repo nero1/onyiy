@@ -1,4 +1,5 @@
 "use client";
+import ChainRecoveryAdmin from "./chain-recovery-admin";
 import { decimalToBaseUnits, formatBaseUnits } from "@gifters/domain";
 import { useState } from "react";
 import { api, mutation, ApiError } from "@/lib/api-client";
@@ -64,6 +65,7 @@ export default function NativeAdmin({
   }
   return (
     <section className="card">
+      <ChainRecoveryAdmin owner={owner} locale={locale} enabled={enabled}/>
       <h2>
         {fr ? "Administration des réseaux de test" : "Testnet administration"}
       </h2>
