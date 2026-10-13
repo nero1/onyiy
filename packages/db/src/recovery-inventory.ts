@@ -30,13 +30,13 @@ export async function recoveryInventory(database:DbExecutor) {
   const keys=await database.select({key:schema.xManifest.key}).from(schema.xManifest);
   if(keys.some(row=>!manifestDefinition(row.key))) throw new Error('RECOVERY_CONFIG_UNCLASSIFIED');
   const assets=await database.select({environment:schema.assets.environment}).from(schema.assets);
-  if(assets.some(row=>row.environment!=='simulation')) throw new Error('RECOVERY_ENVIRONMENT_INVALID');
+  const environment=process.env.APP_ENV??'simulation';if(!['simulation','testnet'].includes(environment)||assets.some(row=>row.environment!=='simulation'&&(environment!=='testnet'||row.environment!=='testnet'))) throw new Error('RECOVERY_ENVIRONMENT_INVALID');
   const extensions=await database.execute<{name:string;schema:string;version:string}>(sql`select e.extname::text as name,n.nspname::text as schema,e.extversion::text as version from pg_extension e join pg_namespace n on n.oid=e.extnamespace where e.extname='pgcrypto' order by e.extname`);
   if(extensions.length!==1||!['public','extensions'].includes(extensions[0].schema)||extensions[0].version!=='1.3') throw new Error('RECOVERY_SCHEMA_UNCLASSIFIED');
   const records:Record<string,{rows:number;sha256:string}>={};
   for(const table of tables) {
     const config=getTableConfig(table);
-    if(['deployment_binding_challenges','auth_sessions','auth_refresh_tokens','auth_flows','rate_limits'].includes(config.name)) continue; // Ephemeral connection challenges are never transferable proof.
+    if(['deployment_binding_challenges','auth_sessions','auth_refresh_tokens','auth_flows','rate_limits','wallet_challenges','worker_requests'].includes(config.name)) continue; // Ephemeral connection challenges are never transferable proof.
     const primary=config.primaryKeys.flatMap(key=>key.columns);
     const order=primary.length?primary:config.columns.filter(column=>column.primary);
     if(!order.length) throw new Error('RECOVERY_SCHEMA_UNCLASSIFIED');

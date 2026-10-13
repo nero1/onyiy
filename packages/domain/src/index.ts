@@ -29,7 +29,7 @@ export const withdrawalStatuses = ["quoted", "held", "awaiting_requote", "approv
 export type WithdrawalStatus = (typeof withdrawalStatuses)[number];
 
 export const ledgerTypes = [
-  "GIV_GRANT","GIFT_IN","RECEIVER_ALLOCATE","REFERRAL_ALLOCATE","MARKETING_ALLOCATE","DEV_ALLOCATE","RESERVE_ALLOCATE",
+  "GIV_GRANT","CHAIN_IN","GIFT_IN","RECEIVER_ALLOCATE","REFERRAL_ALLOCATE","MARKETING_ALLOCATE","DEV_ALLOCATE","RESERVE_ALLOCATE",
   "REFERRAL_FALLBACK_ALLOCATE","PAYOUT_HOLD","PAYOUT_SETTLE","HOLD_RELEASE","WITHDRAWAL_FEE_CHARGE","WITHDRAWAL_FEE_REFUND",
   "GAS_VARIANCE","BUSINESS_SETTLEMENT_HOLD","BUSINESS_SETTLEMENT_SETTLE","BUSINESS_FEE_CHARGE","GAS_OUT","SURPLUS_HOLD","REFUND_HOLD",
   "REFUND_SETTLE","REORG_COMPENSATE","ADMIN_ADJUST","TREASURY_SWEEP"
@@ -90,3 +90,5 @@ export function giftPointAward(usdReference: string, rules: { usd_threshold:numb
     ? { sender: rules.sender_high, referrer: rules.referrer_high }
     : { sender: rules.sender_low, referrer: rules.referrer_low };
 }
+
+export * from './fees';

@@ -2,7 +2,7 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@gifters/cache', '@gifters/config', '@gifters/db', '@gifters/domain'],
+  transpilePackages: ['@gifters/cache', '@gifters/config', '@gifters/db', '@gifters/domain', '@gifters/chains'],
   poweredByHeader: false,
   outputFileTracingIncludes: {
     '/*': ['./xmanifest.json'],

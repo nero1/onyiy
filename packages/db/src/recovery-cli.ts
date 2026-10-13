@@ -11,11 +11,11 @@ import { archiveChecksum, authenticatedCopy, encryptedDump, exclusiveFile, nativ
 
 const hash=z.string().regex(/^[0-9a-f]{64}$/);
 const inventorySchema=z.object({
-  format:z.literal('gw-simulation-backup-v1'),environment:z.literal('simulation'),created_at:z.string().datetime(),
+  format:z.enum(['gw-simulation-backup-v1','gw-financial-backup-v2']),environment:z.enum(['simulation','testnet']),created_at:z.string().datetime(),
   archive_sha256:hash,schema_sha256:hash,migrations_sha256:hash,
   extensions:z.array(z.object({name:z.literal('pgcrypto'),schema:z.enum(['public','extensions']),version:z.literal('1.3')}).strict()).length(1),
   records:z.record(z.object({rows:z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),sha256:hash}).strict()),
-}).strict();
+}).strict().refine(v=>(v.format==='gw-simulation-backup-v1')===(v.environment==='simulation'));
 const packetSchema=z.object({inventory:inventorySchema,signature:hash}).strict();
 function signature(value:unknown,key:Buffer) {
   const signing=crypto.createHmac('sha256',key).update('gw-recovery-inventory-v1').digest();
@@ -40,6 +40,7 @@ async function validatePacket(file:string,key:Buffer) {
   if(!parsed.success) throw new Error('RECOVERY_INVENTORY_INVALID');
   const packet=parsed.data;
   if(!crypto.timingSafeEqual(Buffer.from(packet.signature,'hex'),Buffer.from(signature(packet.inventory,key),'hex'))) throw new Error('RECOVERY_INVENTORY_INVALID');
+  if(packet.inventory.environment!==process.env.APP_ENV)throw new Error('RECOVERY_ENVIRONMENT_INVALID');
   if(packet.inventory.migrations_sha256!==await migrationFingerprint()) throw new Error('RECOVERY_VERSION_MISMATCH');
   return packet.inventory;
 }
@@ -48,8 +49,8 @@ async function main() {
   const mode=process.argv[2];
   if(!['backup','restore','verify'].includes(mode)||process.argv.length!==4) throw new Error('RECOVERY_INPUT_INVALID');
   const file=recoveryPath(process.argv[3]);const key=recoveryKey();
-  if(process.env.APP_ENV!=='simulation'||process.env.MAINNET_ENABLED!=='false'||process.env.SIGNER_PROVIDER!=='disabled'
-    ||process.env.VERCEL==='1'||process.env.RECOVERY_CONFIRM!=='isolated-simulation') throw new Error('RECOVERY_ENVIRONMENT_INVALID');
+  const environment=process.env.APP_ENV;if(!['simulation','testnet'].includes(environment??'')||process.env.MAINNET_ENABLED!=='false'||process.env.SIGNER_PROVIDER!=='disabled'
+    ||process.env.VERCEL==='1'||process.env.RECOVERY_CONFIRM!==`isolated-${environment}`) throw new Error('RECOVERY_ENVIRONMENT_INVALID');
   if(process.env.SCHEDULER_HMAC_KEY||process.env.SCHEDULER_HMAC_PREVIOUS_KEY) throw new Error('RECOVERY_SCHEDULER_MUST_BE_OFF');
   validateRuntimeEnv();
   const url=process.env.DATABASE_MIGRATION_URL;
@@ -73,11 +74,11 @@ async function main() {
         const captured=await recoveryInventory(transaction);
         const [snapshot]=await transaction.execute<{id:string}>(sql`select pg_export_snapshot() as id`);
         await encryptedDump(file,snapshot.id,key);
-        return {format:'gw-simulation-backup-v1' as const,environment:'simulation' as const,created_at:new Date().toISOString(),
+        return {format:environment==='testnet'?'gw-financial-backup-v2' as const:'gw-simulation-backup-v1' as const,environment:environment as 'simulation'|'testnet',created_at:new Date().toISOString(),
           archive_sha256:await archiveChecksum(file),...captured};
       },{isolationLevel:'repeatable read',accessMode:'read only'});
       await exclusiveFile(file+'.json',canonical({inventory,signature:signature(inventory,key)})+'\n');
-      console.log(`Encrypted simulation backup and signed inventory saved (${Object.keys(inventory.records).length} retained tables). No scheduler or signer ran.`);
+      console.log(`Encrypted financial backup and signed inventory saved (${Object.keys(inventory.records).length} retained tables). No scheduler or signer ran.`);
       return;
     }
     // Verify both signed metadata and AEAD before even bootstrapping the target.
@@ -105,7 +106,7 @@ async function main() {
     if(expected.schema_sha256!==actual.schema_sha256||expected.migrations_sha256!==actual.migrations_sha256||digest(expected.records)!==digest(actual.records)||digest(expected.extensions)!==digest(actual.extensions)) throw new Error('RECOVERY_CONTENT_MISMATCH');
     // Fresh runtime configuration/role checks are separate from copied IDs.
     await withContext({access:'service'},async database=>{await readManifest(database);await database.execute(sql`set local statement_timeout='2000ms'`);});
-    console.log('Exact simulation rows, schema/RLS/grants, queue counters, work and financial history verified. Staging remains unpublished; reconcile and explicitly review before starting any scheduler.');
+    console.log('Exact financial rows, schema/RLS/grants, queue counters, work and financial history verified. Staging remains unpublished; reconcile and explicitly review before starting any scheduler.');
   } finally {await input?.release();await owner.end({timeout:3});await closeDb();key.fill(0);}
 }
 

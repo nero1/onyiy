@@ -38,6 +38,9 @@
       ],
       "@gifters/cache": [
         "packages/cache/src/index.ts"
+      ],
+      "@gifters/chains": [
+        "packages/chains/src/index.ts"
       ]
     }
   },
@@ -52,7 +55,8 @@
     "server/**/*.ts",
     "packages/**/*.ts",
     "drizzle.config.ts",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    "workers/**/*.ts"
   ],
   "exclude": [
     "node_modules"
