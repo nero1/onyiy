@@ -46,7 +46,7 @@ async function nativeEnvironment(directory:string) {
   const environment={...process.env};
   for(const name of Object.keys(environment)) if(name.startsWith('PG')) delete environment[name];
   // Native tools need the selected owner connection, never application keys.
-  for(const name of ['SIGNER_DATABASE_URL','SIGNER_KEY_FILE','SIGNER_DECRYPTION_SECRET','SIGNED_PAYLOAD_ENCRYPTION_KEY','FINANCIAL_WORKER_AUTH_KEY','ALERT_WEBHOOK_KEY','DATA_EXPORT_KEY','EXPORT_ENCRYPTION_KEY','SCHEDULER_HMAC_KEY','SCHEDULER_HMAC_PREVIOUS_KEY','AUTH_ACCESS_KEY','AUTH_ACCESS_PREVIOUS_KEY','MFA_ENCRYPTION_KEY','GOOGLE_CLIENT_SECRET','SIMULATION_TOOL_AUTH_KEY']) delete environment[name];
+  for(const name of ['SIGNER_DATABASE_URL','SIGNER_KEY_FILE','SIGNER_DECRYPTION_SECRET','SIGNED_PAYLOAD_ENCRYPTION_KEY','FINANCIAL_WORKER_AUTH_KEY','ALERT_WEBHOOK_KEY','DATA_EXPORT_KEY','EXPORT_ENCRYPTION_KEY','SCHEDULER_HMAC_KEY','SCHEDULER_HMAC_PREVIOUS_KEY','AUTH_ACCESS_KEY','AUTH_ACCESS_PREVIOUS_KEY','MFA_ENCRYPTION_KEY','GOOGLE_CLIENT_SECRET','SIMULATION_TOOL_AUTH_KEY','CAPTCHA_SECRET_KEY']) delete environment[name];
   environment.PGHOST=url.hostname.replace(/^\[|\]$/g,'');
   environment.PGPORT=url.port||'5432';
   environment.PGUSER=decodeURIComponent(url.username);
@@ -96,7 +96,7 @@ export async function encryptedDump(file:string,snapshot:string,key:Buffer) {
     await handle.write(Buffer.concat([MAGIC,iv,Buffer.alloc(16)]),0,HEADER_BYTES,0);
     const cipher=crypto.createCipheriv('aes-256-gcm',key,iv);
     cipher.setAAD(MAGIC);
-    await nativeTool('pg_dump',['--format=custom','--compress=0','--no-owner','--schema=public','--exclude-table=public.deployment_binding_challenges',...['auth_sessions','auth_refresh_tokens','auth_flows','rate_limits','wallet_challenges','worker_requests'].map(name=>'--exclude-table-data=public.'+name),'--lock-wait-timeout=5s',`--snapshot=${snapshot}`],async child=>{
+    await nativeTool('pg_dump',['--format=custom','--compress=0','--no-owner','--schema=public','--exclude-table=public.deployment_binding_challenges',...['auth_sessions','auth_refresh_tokens','auth_flows','rate_limits','wallet_challenges','worker_requests','bot_challenges','bot_token_uses','recovery_view_caps'].map(name=>'--exclude-table-data=public.'+name),'--lock-wait-timeout=5s',`--snapshot=${snapshot}`],async child=>{
       child.stdin?.end();
       await pipeline(child.stdout!,cipher,fs.createWriteStream(temporary,{fd:handle.fd,autoClose:false,start:HEADER_BYTES}));
     });

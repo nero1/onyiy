@@ -1,3 +1,4 @@
+import { canonicalTransactionHash } from "./hash";
 import { selectEventIndex } from "./event-index";
 import { reconcileEvidence } from "./evidence";
 import crypto from "node:crypto";
@@ -526,6 +527,47 @@ export class SolanaAdapter implements ChainAdapter {
     )
       throw new Error("TRANSFER_MISMATCH");
     return result;
+  }
+  async proveExpiry(
+    hash: string,
+    validity: { lastValidHeight?: bigint; expiresAt?: Date },
+  ) {
+    hash = canonicalTransactionHash("sol", hash);
+    if (validity.lastValidHeight === undefined || validity.lastValidHeight < 0n)
+      return false;
+    // Absence is stronger than ordinary availability failover: both independent
+    // providers must positively respond from the pinned finalized network.
+    const observations = await Promise.all(
+      ([0, 1] as const).map(async (side) => {
+        const [identity, status, transaction, height] = await Promise.all([
+          this.rpc.request(side, "getGenesisHash", []),
+          this.rpc.request(side, "getSignatureStatuses", [
+            [hash],
+            { searchTransactionHistory: true },
+          ]),
+          this.rpc.request(side, "getTransaction", [
+            hash,
+            {
+              encoding: "jsonParsed",
+              commitment: "finalized",
+              maxSupportedTransactionVersion: 0,
+            },
+          ]),
+          this.rpc.request(side, "getBlockHeight", [
+            { commitment: "finalized" },
+          ]),
+        ]);
+        return (
+          identity === genesis &&
+          Array.isArray(status?.value) &&
+          status.value.length === 1 &&
+          status.value[0] === null &&
+          transaction === null &&
+          integer(height) > validity.lastValidHeight!
+        );
+      }),
+    );
+    return observations.every(Boolean);
   }
   async getTransactionStatus(asset: AssetRegistry, signed: SignedTransfer) {
     const tx = Transaction.from(Buffer.from(signed.bytes, "base64"));

@@ -1,3 +1,4 @@
+import { prepareEvmReplacement } from "./evm-replacement";
 import crypto from "node:crypto";
 import { SignerStore, decryptSigned } from "./store";
 import { signPrepared } from "./sign";
@@ -19,7 +20,11 @@ process.on("SIGTERM", () => {
 process.on("SIGINT", () => {
   stopping = true;
 });
-async function report(attemptId: string, eventIndex: number) {
+async function report(
+  attemptId: string,
+  eventIndex: number,
+  action: "settle" | "expiry" = "settle",
+) {
   const origin = new URL(process.env.FINANCIAL_API_ORIGIN ?? "");
   if (
     origin.protocol !== "https:" &&
@@ -37,9 +42,9 @@ async function report(attemptId: string, eventIndex: number) {
     timestamp = String(Math.floor(Date.now() / 1000)),
     nonce = crypto.randomUUID(),
     body = JSON.stringify({
-      action: "settle",
+      action,
       attempt_id: attemptId,
-      event_index: eventIndex,
+      ...(action === "settle" ? { event_index: eventIndex } : {}),
     }),
     digest = crypto.createHash("sha256").update(body).digest("hex");
   try {
@@ -105,52 +110,174 @@ export async function runSignerOnce() {
             process.env.ALERT_ACCEPTANCE_FINGERPRINT === config.hash &&
             (await store.activation(config.hash));
         if (attempts.length) {
+          const observations = [];
           for (const attempt of attempts) {
             if (stopping) break;
-            if (["confirmed", "failed"].includes(attempt.status)) continue;
-            const signed: SignedTransfer = {
-                bytes: decryptSigned(
-                  attempt.signedCipher,
-                  `signed-attempt:${row.id}:${attempt.id}`,
-                ),
-                hash: attempt.txHash,
-                nonce:
-                  attempt.nonce === null ? undefined : BigInt(attempt.nonce),
-                validUntilHeight:
-                  attempt.validUntilHeight === null
-                    ? undefined
-                    : BigInt(attempt.validUntilHeight),
-              },
-              proof = await chain.getTransactionStatus(asset, signed);
             if (
-              ["confirmed", "failed"].includes(proof.state) &&
-              !proof.contradiction &&
-              proof.actualNativeFee !== undefined
-            ) {
-              const recorded = await report(
-                attempt.id,
-                Math.max(0, proof.index),
-              );
-              if (
-                recorded.status === "settled" ||
-                recorded.attempt_state === "failed"
+              ["confirmed", "failed", "expired", "superseded"].includes(
+                attempt.status,
               )
-                await store.observed(
-                  attempt.id,
-                  proof.state as "confirmed" | "failed",
-                  proof.actualNativeFee,
+            )
+              continue;
+            const signed: SignedTransfer = {
+              bytes: decryptSigned(
+                attempt.signedCipher,
+                `signed-attempt:${row.id}:${attempt.id}`,
+              ),
+              hash: attempt.txHash,
+              nonce: attempt.nonce === null ? undefined : BigInt(attempt.nonce),
+              validUntilHeight:
+                attempt.validUntilHeight === null
+                  ? undefined
+                  : BigInt(attempt.validUntilHeight),
+            };
+            if (asset.chain === "tron" && !attempt.expiresAt) {
+              const expiration = BigInt(
+                JSON.parse(signed.bytes).raw_data.expiration,
+              );
+              if (expiration > 8640000000000000n || expiration <= 0n)
+                throw new Error("SIGNED_INTENT_INVALID");
+              await store.bindTronExpiry(
+                attempt.id,
+                new Date(parseInt(expiration.toString(), 10)),
+              );
+            }
+            const proof = await chain.getTransactionStatus(asset, signed);
+            observations.push({ attempt, signed, proof });
+          }
+          // Check all known hashes before any rebroadcast or new signature.
+          const winners = observations.filter(
+            (v) =>
+              ["confirmed", "failed"].includes(v.proof.state) &&
+              !v.proof.contradiction &&
+              v.proof.actualNativeFee !== undefined,
+          );
+          if (winners.length > 1)
+            throw new Error("CONTRADICTORY_ATTEMPT_OUTCOMES");
+          if (winners.length) {
+            const { attempt, proof } = winners[0],
+              recorded = await report(attempt.id, Math.max(0, proof.index));
+            if (
+              recorded.status === "settled" ||
+              recorded.attempt_state === "failed"
+            )
+              await store.observed(
+                attempt.id,
+                proof.state as "confirmed" | "failed",
+                proof.actualNativeFee!,
+              );
+          } else if (observations.length && chain.proveExpiry) {
+            for (const value of observations) {
+              const validity = {
+                lastValidHeight: value.signed.validUntilHeight,
+                expiresAt:
+                  asset.chain === "tron"
+                    ? new Date(
+                        parseInt(
+                          BigInt(
+                            JSON.parse(value.signed.bytes).raw_data.expiration,
+                          ).toString(),
+                          10,
+                        ),
+                      )
+                    : undefined,
+              };
+              if (
+                !value.proof.contradiction &&
+                (await chain.proveExpiry(value.attempt.txHash, validity))
+              ) {
+                const recorded = await report(value.attempt.id, 0, "expiry");
+                if (recorded.attempt_state === "expired")
+                  await store.observed(value.attempt.id, "expired", 0n);
+              } else if (active && !stopping && !value.proof.contradiction) {
+                const unexpired =
+                  asset.chain === "tron"
+                    ? BigInt(
+                        JSON.parse(value.signed.bytes).raw_data.expiration,
+                      ) > BigInt(Date.now())
+                    : value.signed.validUntilHeight !== undefined &&
+                      (await chain.currentBlockHeight()) <=
+                        value.signed.validUntilHeight;
+                if (unexpired) {
+                  await chain.broadcastSigned(value.signed);
+                  await store.broadcast(value.attempt.id);
+                }
+              }
+            }
+          } else if (active && !stopping && observations.length) {
+            const latest = observations.at(-1)!;
+            if (!latest.proof.contradiction) {
+              let saved: { id: string; signed: SignedTransfer } | undefined;
+              if (
+                ["eth", "bnb"].includes(asset.chain) &&
+                latest.attempt.signedAtHeight !== null &&
+                latest.attempt.attempt <=
+                  config.policy.crypto_monitor_policy.replacement_attempts
+              ) {
+                const sender = row.treasurySender;
+                if (!sender) throw new Error("HISTORICAL_SENDER_REQUIRED");
+                const prepared = await prepareEvmReplacement(
+                  chain,
+                  asset,
+                  latest.signed,
+                  {
+                    sender,
+                    destination: row.destination,
+                    amount: BigInt(row.netBaseUnits),
+                    approvedNetworkFee: BigInt(
+                      (row.feeSnapshot as { networkFee?: string }).networkFee ??
+                        row.nativeFeeQuote,
+                    ),
+                    variancePercent:
+                      config.policy.withdrawal_fee_policy.platform_variance_pct,
+                    signedAtHeight: BigInt(latest.attempt.signedAtHeight),
+                    stuckBlocks:
+                      config.policy.crypto_monitor_policy.stuck_blocks,
+                  },
                 );
-            } else if (
-              active &&
-              !proof.contradiction &&
-              (!signed.validUntilHeight ||
-                (await chain.currentBlockHeight()) <= signed.validUntilHeight)
-            ) {
-              await chain.broadcastSigned(signed);
-              await store.broadcast(attempt.id);
+                if (prepared) {
+                  const signed = await signPrepared(
+                      prepared,
+                      prepared.intent.fee.nativeFee,
+                    ),
+                    [nativeAvailable, assetAvailable] = await Promise.all([
+                      chain.getNativeBalance(sender, true),
+                      chain.getBalance(asset, sender, true),
+                    ]);
+                  saved = await store.persistEvmReplacement(
+                    latest.attempt.id,
+                    prepared,
+                    signed,
+                    await chain.currentBlockHeight(),
+                    nativeAvailable,
+                    assetAvailable,
+                  );
+                }
+              }
+              const send = saved ?? {
+                  id: latest.attempt.id,
+                  signed: latest.signed,
+                },
+                unexpired =
+                  asset.chain === "tron"
+                    ? BigInt(
+                        JSON.parse(send.signed.bytes).raw_data.expiration,
+                      ) > BigInt(Date.now())
+                    : !send.signed.validUntilHeight ||
+                      (await chain.currentBlockHeight()) <=
+                        send.signed.validUntilHeight;
+              if (unexpired && !stopping) {
+                await chain.broadcastSigned(send.signed);
+                await store.broadcast(send.id);
+              }
             }
           }
           processed++;
+          continue;
+        }
+        if (row.quoteExpiresAt <= new Date()) {
+          await store.pauseUnsigned(row.id);
+          paused++;
           continue;
         }
         if (
@@ -190,8 +317,11 @@ export async function runSignerOnce() {
               (row.feeSnapshot as { accountSetupCost?: string })
                 .accountSetupCost ?? "0",
             )
-        )
-          throw new Error("FEE_REQUOTE_REQUIRED");
+        ) {
+          await store.pauseUnsigned(row.id);
+          paused++;
+          continue;
+        }
         const nonce =
             "pendingNonce" in chain
               ? await (
@@ -206,6 +336,7 @@ export async function runSignerOnce() {
             nonce,
             nativeAvailable,
             fee.nativeFee,
+            assetAvailable,
           );
         if (stopping) break;
         const prepared = await chain.buildTransfer({
@@ -217,7 +348,12 @@ export async function runSignerOnce() {
             fee,
           }),
           signed = await signPrepared(prepared, fee.nativeFee),
-          saved = await store.persist(claim, prepared, signed);
+          saved = await store.persist(
+            claim,
+            prepared,
+            signed,
+            await chain.currentBlockHeight(),
+          );
         // Only a successfully persisted attempt may cross the broadcast boundary.
         if (!stopping) {
           await chain.broadcastSigned(saved.signed);

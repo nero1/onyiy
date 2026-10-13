@@ -79,12 +79,14 @@ export type PreparedTransfer = {
   intent: TransferIntent;
   payload: unknown;
   validUntilHeight?: bigint;
+  expiresAt?: Date;
 };
 export type SignedTransfer = {
   hash: string;
   bytes: string;
   nonce?: bigint;
   validUntilHeight?: bigint;
+  expiresAt?: Date;
 };
 export interface ChainAdapter {
   validateAddress(address: string): Promise<boolean>;
@@ -100,7 +102,11 @@ export interface ChainAdapter {
     address: string,
     fresh?: boolean,
   ): Promise<bigint>;
-  findTransferIndex(hash:string,sender:string,destination:string):Promise<number|undefined>;
+  findTransferIndex(
+    hash: string,
+    sender: string,
+    destination: string,
+  ): Promise<number | undefined>;
   verifyTransfer(expected: Transfer): Promise<TransferEvidence>;
   estimateFee(intent: Omit<TransferIntent, "fee">): Promise<FeeQuote>;
   buildTransfer(intent: TransferIntent): Promise<PreparedTransfer>;
@@ -109,6 +115,10 @@ export interface ChainAdapter {
     asset: AssetRegistry,
     signed: SignedTransfer,
   ): Promise<TransferEvidence>;
+  proveExpiry?(
+    hash: string,
+    validity: { lastValidHeight?: bigint; expiresAt?: Date },
+  ): Promise<boolean>;
   getFinality(): Promise<bigint>;
   currentBlockHeight(): Promise<bigint>;
 }

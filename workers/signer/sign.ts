@@ -203,7 +203,11 @@ export async function signPrepared(
       const signed = await tron.trx.sign(tx, privateHex);
       if (typeof signed === "string" || !signed.signature?.length)
         throw new Error("SIGNED_INTENT_INVALID");
-      return { bytes: JSON.stringify(signed), hash: signed.txID };
+      return {
+        bytes: JSON.stringify(signed),
+        hash: signed.txID,
+        expiresAt: prepared.expiresAt,
+      };
     },
   );
 }

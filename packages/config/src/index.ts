@@ -125,12 +125,13 @@ export function validateRuntimeEnv(env = process.env) {
   if(!['simulation','testnet'].includes(appEnv))throw new Error('Mainnet is disabled');
   const simulationSelectors = {
     PAYMENT_PROVIDER: 'giv_simulation',
-    WALLET_PROVIDER: 'dummy', SIGNER_PROVIDER: 'disabled', CAPTCHA_PROVIDER: 'dummy',
+    WALLET_PROVIDER: 'dummy', SIGNER_PROVIDER: 'disabled',
     REALTIME_PROVIDER: 'none', PRICE_PROVIDER: 'manual_simulation', ALERT_PROVIDER: 'none',
     DEPLOYMENT_PROFILE: 'test_iteration',
   };
-  const testnetSelectors:Record<string,string[]>={PAYMENT_PROVIDER:['chain_rpc'],WALLET_PROVIDER:['wallet_standard'],SIGNER_PROVIDER:['disabled'],CAPTCHA_PROVIDER:['turnstile'],REALTIME_PROVIDER:['none'],PRICE_PROVIDER:['manual_signed','coinmarketcap'],ALERT_PROVIDER:['https_webhook'],DEPLOYMENT_PROFILE:['test_iteration']};
+  const testnetSelectors:Record<string,string[]>={PAYMENT_PROVIDER:['chain_rpc'],WALLET_PROVIDER:['wallet_standard'],SIGNER_PROVIDER:['disabled'],CAPTCHA_PROVIDER:['turnstile','none'],REALTIME_PROVIDER:['none'],PRICE_PROVIDER:['manual_signed','coinmarketcap'],ALERT_PROVIDER:['https_webhook'],DEPLOYMENT_PROFILE:['test_iteration']};
   if(appEnv==='testnet'){for(const [name,choices]of Object.entries(testnetSelectors))if(env[name]&&!choices.includes(env[name]!))throw new Error('Unsupported testnet provider');if(env.AUTH_PROVIDER!=='google'||env.SIMULATION_TOOL_AUTH_KEY)throw new Error('Testnet requires verified Google identity and prohibits fixture authority');if(env.CHAIN_FIXTURE_MODE)throw new Error('Fixture mode is simulation only');}
+  if(env.CAPTCHA_PROVIDER&&!(appEnv==='simulation'?['dummy','none']:['turnstile','none']).includes(env.CAPTCHA_PROVIDER))throw new Error('Unsupported CAPTCHA provider');
   for (const [name, supported] of Object.entries(appEnv==='simulation'?simulationSelectors:{})) {
     if (env[name] !== undefined && env[name] !== supported) throw new Error(`Unsupported ${name} for the current simulation build`);
   }

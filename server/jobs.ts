@@ -1,3 +1,4 @@
+import {recordProofFailure} from './bot-check';
 import {observationPayload,enqueueObservation} from "./crypto-observer";
 import {exportJob,buildExportPage} from './own-data';
 import crypto from 'node:crypto';
@@ -147,6 +148,7 @@ export async function failJob(id:string,token:string,generation:number,error:unk
       completedAt:retry?null:sql`clock_timestamp()`,lastErrorCode:transient(error)?'TRANSIENT_FAILURE':error instanceof Error && error.message==='INVALID_JOB'?'INVALID_JOB':'PERMANENT_FAILURE',updatedAt:sql`clock_timestamp()`})
       .where(and(eq(jobs.id,id),eq(jobs.leaseToken,token),eq(jobs.leaseGeneration,generation),sql`${jobs.leaseUntil}>clock_timestamp()`)).returning({id:jobs.id});
     if(!changed.length)throw new Error('LEASE_LOST');
+    if(!retry&&row.kind==='chain_observation'&&error instanceof Error&&['TRANSFER_MISMATCH','WRONG_TOKEN','INVALID_PROOF'].includes(error.message)){const parsed=observationPayload.safeParse(row.payload);if(parsed.success)await recordProofFailure(database,parsed.data.user_id,parsed.data.invoice_id+':'+parsed.data.tx_hash+':'+parsed.data.event_index);}
     if(!retry&&row.kind==='own_export'){const parsed=exportJob.safeParse(row.payload);if(parsed.success)await database.update(dataExports).set({status:'failed',errorCode:'BUILD_FAILED',completedAt:sql`clock_timestamp()`}).where(and(eq(dataExports.id,parsed.data.export_id),eq(dataExports.status,'building')));}
     await fence(database,run);
   });
