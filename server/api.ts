@@ -1,3 +1,6 @@
+import {quoteLiabilityRecovery,confirmLiabilityRecovery,cancelLiabilityRecovery,issueRecoveryView,recoveryQuote,recoveryProof} from './liability-recovery';
+import {beginBotCheck,verifyBotCheck,botProof} from './bot-check';
+import {verifySignedExpiry} from './crypto-expiry';
 import {enqueueFinancialReminders,controlFinancialAlert,financialAlertList,scheduleDailyBusiness} from './financial-operations';
 import {prepareNativeInvoice} from './crypto-checkout';
 import {nativeFundingStatement,bookNativeFunding,nativeFundingInput} from './native-funding';
@@ -83,6 +86,7 @@ function fail(error: unknown) {
   const statusMap: Record<string, number> = {
     TRANSFER_ALREADY_ALLOCATED:409,OPERATIONAL_ASSET_ONLY:409,REGISTRY_VERSION_CONFLICT:409,REGISTRY_NOT_PROVISIONED:503,REGISTRY_UNVERIFIED:503,RPC_UNAVAILABLE:503,FINANCIAL_ENVIRONMENT_DENIED:403,PRICE_STALE:503,TRANSFER_MISMATCH:400,WRONG_TOKEN:400,WRONG_NETWORK:400,MAINNET_DENIED:403,
     EXPORT_EXPIRED:410,EXPORT_LIMIT_EXCEEDED:413,
+    CAPTCHA_REQUIRED:403,CAPTCHA_REJECTED:403,CAPTCHA_REPLAY:409,CAPTCHA_UNAVAILABLE:503,
     UNAUTHENTICATED: 401,
     FORBIDDEN: 403,
     ACCOUNT_RESTRICTED: 403,
@@ -155,7 +159,8 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
     if(method==='GET'&&route==='/crypto/catalog'){const value=await getPublicNativeCatalog();return publicOk(value.data,value.ttlSeconds,request);}
     if(method==='GET'&&route==='/me/crypto'){const actor=await current(request);return ok(await withContext({access:'service',actorId:actor.id},tx=>ownNativePortfolio(tx,actor.id)));}
     if(method==='POST'&&route==='/internal/financial'){
-      const input=z.discriminatedUnion('action',[z.object({action:z.literal('settle'),attempt_id:z.string().uuid(),event_index:z.number().int().min(0).max(1000)}).strict(),z.object({action:z.literal('verify'),user_id:z.string().uuid(),invoice_id:z.string().uuid(),tx_hash:z.string().min(20).max(128),event_index:z.number().int().min(-1).max(1000)}).strict(),z.object({action:z.literal('alerts')}).strict(),z.object({action:z.literal('cleanup')}).strict(),z.object({action:z.literal('monitor')}).strict(),z.object({action:z.literal('business_daily')}).strict(),z.object({action:z.literal('reminders')}).strict()]).parse(await authenticateWorker(request,'financial'));
+      const input=z.discriminatedUnion('action',[z.object({action:z.literal('expiry'),attempt_id:z.string().uuid()}).strict(),z.object({action:z.literal('settle'),attempt_id:z.string().uuid(),event_index:z.number().int().min(0).max(1000)}).strict(),z.object({action:z.literal('verify'),user_id:z.string().uuid(),invoice_id:z.string().uuid(),tx_hash:z.string().min(20).max(128),event_index:z.number().int().min(-1).max(1000)}).strict(),z.object({action:z.literal('alerts')}).strict(),z.object({action:z.literal('cleanup')}).strict(),z.object({action:z.literal('monitor')}).strict(),z.object({action:z.literal('business_daily')}).strict(),z.object({action:z.literal('reminders')}).strict()]).parse(await authenticateWorker(request,'financial'));
+      if(input.action==='expiry')return ok(await withContext({access:'service'},tx=>verifySignedExpiry(tx,input.attempt_id)));
       if(input.action==='monitor')return ok(await monitorFinancials());
       if(input.action==='business_daily')return ok(await scheduleDailyBusiness());
       if(input.action==='reminders')return ok(await withContext({access:'service'},enqueueFinancialReminders));
@@ -163,6 +168,10 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
       if(input.action==='alerts')return ok(await deliverFinancialAlert());
       return ok(await withContext<unknown>({access:'service'},tx=>input.action==='settle'?settleCryptoAttempt(tx,input.attempt_id,input.event_index):verifyCryptoDeposit(tx,input.user_id,input)));
     }
+    if(method==='POST'&&route==='/admin/crypto/recovery/link'){const actor=await admin(request),input=z.object({recovery_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>issueRecoveryView(tx,actor.id,input.recovery_id)));}
+    if(method==='POST'&&route==='/admin/crypto/recovery/cancel'){const actor=await admin(request),input=z.object({recovery_id:z.string().uuid(),reason:z.string().trim().min(10).max(500)}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>cancelLiabilityRecovery(tx,actor.id,input.recovery_id,input.reason)));}
+    if(method==='POST'&&route==='/admin/crypto/recovery/quote'){const actor=await admin(request),input=recoveryQuote.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>quoteLiabilityRecovery(tx,actor.id,input,idempotencyKey(request))));}
+    if(method==='POST'&&route==='/admin/crypto/recovery/confirm'){const actor=await admin(request),input=recoveryProof.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>confirmLiabilityRecovery(tx,actor.id,input)));}
     if(method==='GET'&&route==='/admin/crypto/alerts'){const actor=await admin(request);return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},financialAlertList));}
     if(method==='POST'&&route==='/admin/crypto/alerts'){const actor=await admin(request),input=z.object({alert_id:z.string().uuid(),action:z.enum(['acknowledge','resolve']),reason:z.string().trim().min(5).max(500)}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>controlFinancialAlert(tx,actor.id,input.alert_id,input.action,input.reason)));}
     if(method==='POST'&&route==='/admin/crypto/funding/statement'){const actor=await admin(request),input=nativeFundingInput.omit({signature:true,reason:true}).parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},async tx=>{const value=await nativeFundingStatement(tx,actor.id,input,idempotencyKey(request));return {message:value.message,hash:value.hash,sender:value.sender,destination:value.destination}}));}
@@ -173,9 +182,10 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
     if(method==='POST'&&route==='/admin/crypto/business'){const actor=await admin(request),input=businessInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>holdBusinessSettlement(tx,actor.id,input,idempotencyKey(request))));}
     if(method==='POST'&&route==='/admin/crypto/prices'){const actor=await admin(request),input=signedPriceInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>ingestSignedPrice(tx,input)));}
     if(method==='POST'&&route==='/admin/crypto/alert-probe'){const actor=await admin(request),body=z.object({asset_key:z.string().max(30)}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},async tx=>{const config=await financialConfiguration(tx,registryAsset(body.asset_key));const alert=await openFinancialAlert(tx,`activation:${config.hash}`,'activation_probe','critical',{configuration_hash:config.hash});return {alert_id:alert.id,configuration_hash:config.hash}}));}
+    if(method==='POST'&&route==='/me/bot-check'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=z.object({surface:z.enum(['consent','suspicious_checkout'])}).strict().parse(await json(request));if(identity.user.status==='pending_consent'&&input.surface!=='consent')throw new Error('CONSENT_REQUIRED');return ok(await withContext({access:'service',actorId:identity.user.id},tx=>beginBotCheck(tx,identity.user.id,identity.session!.generation,input.surface)));}
     if(method==='POST'&&route==='/me/wallets/challenge'){const identity=await authenticate(request);const input=walletChallengeInput.parse(await json(request));if(input.session_generation!==identity.session?.generation)throw new Error('VERSION_CONFLICT');return ok(await withContext({access:'service',actorId:identity.user.id},tx=>challengeWallet(tx,identity.user.id,input)));}
     if(method==='POST'&&route==='/me/wallets/proof'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=walletProofInput.parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},tx=>proveWallet(tx,identity.user.id,identity.session!.generation,input)));}
-    if(method==='POST'&&route==='/gifts/crypto/invoices'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=cryptoInvoiceInput.parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},tx=>quoteCryptoInvoice(tx,identity.user.id,identity.session!.generation,input,idempotencyKey(request))));}
+    if(method==='POST'&&route==='/gifts/crypto/invoices'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=cryptoInvoiceInput.extend({bot_proof:botProof.optional()}).parse(await json(request)),key=idempotencyKey(request);return ok(await withContext({access:'service',actorId:identity.user.id},async tx=>{await verifyBotCheck(tx,identity.user.id,identity.session!.generation,'suspicious_checkout',input.bot_proof,key);return quoteCryptoInvoice(tx,identity.user.id,identity.session!.generation,{asset_key:input.asset_key,plan_id:input.plan_id},key)}));}
     if(method==='POST'&&route==='/gifts/crypto/prepare'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=z.object({invoice_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},tx=>prepareNativeInvoice(tx,identity.user.id,identity.session!.generation,input.invoice_id)));}
     if(method==='POST'&&route==='/gifts/crypto/transaction'){const actor=await current(request),input=cryptoSubmission.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id},tx=>submitCryptoDeposit(tx,actor.id,input)));}
     if(method==='POST'&&route==='/me/withdrawals/crypto/requote'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=z.object({obligation_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},tx=>requoteCryptoWithdrawal(tx,identity.user.id,identity.session!.generation,input.obligation_id,idempotencyKey(request))));}
@@ -227,8 +237,8 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
       return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>resolveIncoming(tx,actor.id,id,body.action,body.reason,idempotencyKey(request))));
     }
     if(method==='POST' && route==='/gifts/invoices') {
-      const user=await current(request);const body=z.object({plan_id:z.string().uuid()}).strict().parse(await json(request));
-      return ok(await withContext({access:'service',actorId:user.id},tx=>quoteIncoming(tx,user.id,body.plan_id,idempotencyKey(request))));
+      const identity=await authenticate(request),user=identity.user,body=z.object({plan_id:z.string().uuid(),bot_proof:botProof.optional()}).strict().parse(await json(request)),key=idempotencyKey(request);
+      return ok(await withContext({access:'service',actorId:user.id},async tx=>{if(!identity.tool)await verifyBotCheck(tx,user.id,identity.session!.generation,'suspicious_checkout',body.bot_proof,key);return quoteIncoming(tx,user.id,body.plan_id,key)}));
     }
     if(method==='POST' && route==='/gifts/invoices/transaction') {
       const user=await current(request);z.object({}).strict().parse(await json(request));
@@ -338,11 +348,12 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
 
     if(method==='POST'&&route==='/me/consent'){
       const identity=await authenticate(request);const user=identity.user;
-      const input=z.object({accepted:z.literal(true),referral_code:z.string().uuid().optional(),terms_version:z.string().max(100).optional(),adult:z.literal(true).optional(),minimum_age:z.number().int().positive().optional(),username:z.string().max(64).optional()}).strict().parse(await json(request));
+      const input=z.object({accepted:z.literal(true),referral_code:z.string().uuid().optional(),terms_version:z.string().max(100).optional(),adult:z.literal(true).optional(),minimum_age:z.number().int().positive().optional(),username:z.string().max(64).optional(),bot_proof:botProof.optional()}).strict().parse(await json(request));
       const result=await withContext({access:'service',actorId:user.id},async tx=>{
         await tx.select({id:users.id}).from(users).where(eq(users.id,user.id)).for('no key update');
         if(!identity.tool){const [family]=await tx.select({id:authSessions.id}).from(authSessions).where(and(eq(authSessions.id,identity.session!.id),eq(authSessions.accessHash,identity.accessHash!),sql`${authSessions.revokedAt} is null and ${authSessions.accessExpiresAt}>clock_timestamp()`)).for('share');if(!family)throw new Error('UNAUTHENTICATED');}
         const manifest=await readManifest(tx);
+        if(!identity.tool)await verifyBotCheck(tx,user.id,identity.session!.generation,'consent',input.bot_proof,idempotencyKey(request));
         if(!identity.tool&&(input.terms_version!==manifest.terms_content.version||!input.adult||input.minimum_age!==manifest.eligibility_min_age||!input.username))throw new Error('CONSENT_REQUIRED');
         let username=user.username;
         if(!identity.tool&&user.status==='pending_consent')await validateUsername(tx,input.username!);
@@ -460,12 +471,12 @@ export async function handleApiRequest(method:string,path:string[],request:Reque
   if(['/manifest','/plans','/help','/sim/users','/internal/tick','/internal/financial','/crypto/catalog'].includes(route))return await dispatchApiRequest(method,path,request);
   const identity=await authenticate(request);
   const account=request.headers.get('x-client-account');const generation=request.headers.get('x-client-session');if(!identity.tool&&((account&&account!==identity.user.username)||(generation&&generation!==identity.session!.generation)))throw new Error('VERSION_CONFLICT');
-  if(identity.user.status==='pending_consent'&&route!=='/me/consent')throw new Error('CONSENT_REQUIRED');
+  if(identity.user.status==='pending_consent'&&!['/me/consent','/me/bot-check'].includes(route))throw new Error('CONSENT_REQUIRED');
   const restricted=['/me/account','/me/reports','/me/appeals','/me/appeals/token','/me/exports','/me/exports/download','/me/data'].includes(route);
   if(identity.user.status==='suspended'&&(!restricted||(method!=='GET'&&route==='/me/account')))throw new Error('ACCOUNT_RESTRICTED');
   if(method!=='GET')csrf(request,identity);
   let exportReplay=false;if(route==='/me/exports'&&method==='POST'){z.object({}).strict().parse(await json(request.clone()));const key=`own-export:${identity.user.id}:${idempotencyKey(request)}`;exportReplay=!!(await withContext({access:'service'},async tx=>(await tx.select({key:operationKeys.businessKey}).from(operationKeys).where(eq(operationKeys.businessKey,key)).limit(1))[0]));}
-  if(!identity.tool){const family=(route.startsWith('/admin/')||route.startsWith('/moderation/'))?'staff':route.includes('/reports')||route.includes('/appeals')?'reports':((route.startsWith('/me/exports')||route==='/me/data')&&method!=='GET'&&!exportReplay)?'own_data':route==='/me/consent'?'consent':route.startsWith('/gifts/')?(route.endsWith('/transaction')?'payment_proof':'invoice'):route.includes('/notifications')?'notifications':route.includes('/wallets')?'wallet':route.includes('/withdrawals')?'withdrawal':method==='GET'?'reads':'mutation';await enforceRate(request,family,identity.user.id);}
+  if(!identity.tool){const family=route==='/me/bot-check'?'consent':(route.startsWith('/admin/')||route.startsWith('/moderation/'))?'staff':route.includes('/reports')||route.includes('/appeals')?'reports':((route.startsWith('/me/exports')||route==='/me/data')&&method!=='GET'&&!exportReplay)?'own_data':route==='/me/consent'?'consent':route.startsWith('/gifts/')?(route.endsWith('/transaction')?'payment_proof':'invoice'):route.includes('/notifications')?'notifications':route.includes('/wallets')?'wallet':route.includes('/withdrawals')?'withdrawal':method==='GET'?'reads':'mutation';await enforceRate(request,family,identity.user.id);}
   if(identity.tool||route==='/me/consent'||(route==='/me/account'&&method==='POST'))return await dispatchApiRequest(method,path,request);
   return await withSessionScope({userId:identity.user.id,sessionId:identity.session!.id,accessHash:identity.accessHash!,version:identity.user.sessionVersion,allowSuspended:restricted,requiresAdult:route.startsWith('/gifts/'),requiresWithdrawalProof:route==='/me/withdrawals/confirm'||route==='/me/withdrawals/crypto/confirm'},()=>dispatchApiRequest(method,path,request));
  }catch(error){return fail(error);}

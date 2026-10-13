@@ -30,6 +30,7 @@ export function assertIsolated() {
     "DATA_EXPORT_KEY",
     "EXPORT_ENCRYPTION_KEY",
     "GOOGLE_CLIENT_SECRET",
+    "CAPTCHA_SECRET_KEY",
     "DATABASE_MIGRATION_URL",
     "SIMULATION_TOOL_AUTH_KEY",
   ])

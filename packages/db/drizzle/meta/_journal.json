@@ -8,6 +8,13 @@
       "when": 1791870745516,
       "tag": "0000_strange_eddie_brock",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791887949443,
+      "tag": "0001_dizzy_penance",
+      "breakpoints": true
     }
   ]
 }

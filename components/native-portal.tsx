@@ -14,7 +14,9 @@ import {
   clearActiveUserScope,
 } from "@/lib/storage";
 import AuthPanel from "./auth-panel";
+import type {BotProof} from "./bot-check";
 import dynamic from "next/dynamic";
+const BotCheck=dynamic(()=>import("./bot-check"));
 const NativeAdmin = dynamic(() => import("./native-admin"));
 const AdminPanel = dynamic(() => import("./admin-panel"));
 import { formatBaseUnits, decimalToBaseUnits } from "@gifters/domain";
@@ -44,6 +46,7 @@ export default function NativePortal() {
     [data, setData] = useState<any>(null),
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState("");
+  const [botReady,setBotReady]=useState(false),[botProof,setBotProof]=useState<BotProof|undefined>(),[botReset,setBotReset]=useState(0);
   const [payment, setPayment] = useState<PreparedPayment | null>(null),
     [withdrawal, setWithdrawal] = useState<any>(null),
     [gross, setGross] = useState("");
@@ -77,6 +80,7 @@ export default function NativePortal() {
     setPayment(null);
     setWithdrawal(null);
     setGross("");
+    setBotReady(false);setBotProof(undefined);setBotReset(v=>v+1);
     setNotice("");
     setBusy(false);
     setSession(value);
@@ -106,6 +110,7 @@ export default function NativePortal() {
       setPayment(null);
       setWithdrawal(null);
       setGross("");
+      setBotReady(false);setBotProof(undefined);setBotReset(v=>v+1);
       setNotice("");
       setBusy(false);
       void api<SessionResult>("/auth/session", "")
@@ -241,7 +246,7 @@ export default function NativePortal() {
       const invoice = await mutation<{ id: string }>(
         "/gifts/crypto/invoices",
         owner,
-        { plan_id: plan.id, asset_key: currency.key },
+        { plan_id: plan.id, asset_key: currency.key,...(botProof?{bot_proof:botProof}:{}) },
       );
       if (epoch.current !== active) return;
       const prepared = await mutation<PreparedPayment>(
@@ -249,7 +254,7 @@ export default function NativePortal() {
         owner,
         { invoice_id: invoice.id },
       );
-      if (epoch.current === active) setPayment(prepared);
+      if (epoch.current === active) {setPayment(prepared);setBotReset(v=>v+1);}
     });
   }
   async function pay() {
@@ -409,6 +414,7 @@ export default function NativePortal() {
               />
             </>
           )}
+          {manifest?.feature_gifts && user.status === "active" && session?.generation && <BotCheck owner={user.username} generation={session.generation} surface="suspicious_checkout" locale={locale} reset={botReset} onReady={(ready,value)=>{setBotReady(ready);setBotProof(value)}}/>}
           {catalog?.plans
             .filter((plan) => plan.status === "active")
             .map((plan) => (
@@ -425,7 +431,7 @@ export default function NativePortal() {
                 </p>
                 <button
                   disabled={
-                    busy || !catalog.execution_enabled || !navigator.onLine
+                    busy || !botReady || !catalog.execution_enabled || !navigator.onLine
                   }
                   onClick={() => void quoteGift(plan)}
                 >

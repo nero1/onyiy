@@ -1,3 +1,4 @@
+import {recoveryStatementView} from './liability-recovery';
 import { and,eq,sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { users,authSessions,authFactors,readManifest,withContext } from '@gifters/db';
@@ -17,6 +18,7 @@ export async function handleAuthRequest(method:string,path:string,request:Reques
  if(method==='GET'&&path==='/auth/google/start')return startGoogle(request);
  if(method==='GET'&&path==='/auth/google/callback')return finishGoogle(request);
  if(method!=='POST')throw new Error('NOT_FOUND');
+ if(path==='/auth/recovery/statement'){csrf(request);const input=z.object({recovery_id:z.string().uuid(),token:z.string().regex(/^[A-Za-z0-9_-]{43}$/)}).strict().parse(await body(request));await enforceRate(request,'auth',hash(input.token));return authResponse(await withContext({access:'service'},tx=>recoveryStatementView(tx,input.recovery_id,input.token)));}
  if(path==='/auth/cancel'){csrf(request);const response=authResponse({user:null,provider:process.env.AUTH_PROVIDER??'simulation'});setCookie(response,request,'gw_pre_auth','','/api/v1/auth',0);return response;}
  if(path==='/auth/refresh'){await enforceRate(request,'auth',hash(cookie(request,'gw_refresh')));return refreshSession(request);}
  if(path==='/auth/simulation/session'||path==='/auth/simulation/signup'){

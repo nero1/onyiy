@@ -1,3 +1,4 @@
+import { canonicalTransactionHash } from "./hash";
 import { selectEventIndex } from "./event-index";
 import { reconcileEvidence } from "./evidence";
 import crypto from "node:crypto";
@@ -278,6 +279,9 @@ export class TronAdapter implements ChainAdapter {
       network: intent.asset.network,
       intent,
       payload: tx,
+      expiresAt: new Date(
+        parseInt(integer(tx.raw_data.expiration).toString(), 10),
+      ),
     };
   }
   async broadcastSigned(signed: SignedTransfer) {
@@ -475,6 +479,49 @@ export class TronAdapter implements ChainAdapter {
     )
       throw new Error("TRANSFER_MISMATCH");
     return result;
+  }
+  async proveExpiry(
+    hash: string,
+    validity: { lastValidHeight?: bigint; expiresAt?: Date },
+  ) {
+    hash = canonicalTransactionHash("tron", hash);
+    if (!validity.expiresAt || !Number.isFinite(validity.expiresAt.getTime()))
+      return false;
+    const identities = await Promise.all(
+      ([0, 1] as const).map((side) =>
+        this.rpc.post(
+          side,
+          "jsonrpc",
+          { jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] },
+          true,
+        ),
+      ),
+    );
+    if (identities.some((v) => BigInt(v) !== chainIds[this.asset.network]))
+      throw new Error("WRONG_NETWORK");
+    const observations = await Promise.all(
+      ([0, 1] as const).map(async (side) => {
+        const [transaction, current, solid, block] = await Promise.all([
+          this.rpc.post(side, "wallet/gettransactionbyid", { value: hash }),
+          this.rpc.post(side, "wallet/gettransactioninfobyid", { value: hash }),
+          this.rpc.post(side, "walletsolidity/gettransactioninfobyid", {
+            value: hash,
+          }),
+          this.rpc.post(side, "walletsolidity/getnowblock", {}),
+        ]);
+        return (
+          !!transaction &&
+          !!current &&
+          !!solid &&
+          !transaction.txID &&
+          !current.id &&
+          !solid.id &&
+          integer(block.block_header.raw_data.timestamp) >
+            BigInt(validity.expiresAt!.getTime())
+        );
+      }),
+    );
+    return observations.every(Boolean);
   }
   async getTransactionStatus(asset: AssetRegistry, signed: SignedTransfer) {
     const tx = JSON.parse(signed.bytes);

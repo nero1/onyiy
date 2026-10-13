@@ -70,8 +70,20 @@ export async function quoteCryptoWithdrawal(
   generation: string,
   input: z.infer<typeof cryptoWithdrawal>,
   requestKey: string,
+  support?: { actorId: string; proofReference: string; reason: string },
 ) {
   assertFinancialEnvironment();
+  if (support) {
+    for (const id of [...new Set([userId, support.actorId])].sort())
+      await lockUser(tx, id);
+    const actor = await lockUser(tx, support.actorId);
+    if (
+      actor.role !== "admin" ||
+      actor.status !== "active" ||
+      !/^[-A-Za-z0-9:_]{5,200}$/.test(support.proofReference)
+    )
+      throw new Error("FORBIDDEN");
+  }
   const registry = registryAsset(input.asset_key);
   await assertExternalActivation(
     tx,
@@ -80,7 +92,12 @@ export async function quoteCryptoWithdrawal(
   const user = await lockUser(tx, userId),
     policy = await readManifest(tx);
   if (!policy.feature_wallets) throw new Error("FEATURE_DISABLED");
-  if (!["active", "deactivated"].includes(user.status) || !user.consentedAt)
+  if (support && !policy.feature_admin) throw new Error("FEATURE_DISABLED");
+  if (
+    (!support && !["active", "deactivated"].includes(user.status)) ||
+    user.status === "pending_consent" ||
+    !user.consentedAt
+  )
     throw new Error("ACCOUNT_RESTRICTED");
   const [asset] = await tx
     .select()
@@ -96,10 +113,21 @@ export async function quoteCryptoWithdrawal(
     .limit(1);
   if (!asset) throw new Error("PLAN_UNAVAILABLE");
   assertRegistryBinding(asset, registry);
-  const businessKey = `crypto-withdrawal:${userId}:${requestKey}`,
+  const businessKey = `${support ? "crypto-recovery" : "crypto-withdrawal"}:${userId}:${requestKey}`,
     requestHash = crypto
       .createHash("sha256")
-      .update(JSON.stringify(input))
+      .update(
+        JSON.stringify(
+          support
+            ? {
+                ...input,
+                actor_id: support.actorId,
+                proof_reference: support.proofReference,
+                reason: support.reason,
+              }
+            : input,
+        ),
+      )
       .digest("hex");
   const [old] = await tx
     .select()
@@ -216,12 +244,13 @@ export async function quoteCryptoWithdrawal(
         userId,
         previousObligationId: input.previous_obligation_id,
         assetId: asset.id,
-        kind: "withdrawal",
+        kind: support ? "recovery" : "withdrawal",
         businessKey,
         requestHash,
         environment: "testnet",
         chain: registry.chain,
         treasuryFingerprint: config.treasuryFingerprint,
+        treasurySender: sender,
         configurationHash: config.hash,
         registryHash: config.registryHash,
         registrySnapshot: registry,
@@ -464,14 +493,49 @@ async function closeFailedWithdrawal(
   row: typeof cryptoObligations.$inferSelect,
   attempts: (typeof signedAttemptStatus.$inferSelect)[],
 ) {
-  if (attempts.length > 20 || attempts.some((v) => v.status !== "failed"))
+  if (
+    attempts.length > 20 ||
+    attempts.some(
+      (v) => !["failed", "superseded", "expired"].includes(v.status!),
+    ) ||
+    !attempts.some((v) => ["failed", "expired"].includes(v.status!))
+  )
     throw new Error("FINANCIAL_SAFETY_PAUSE");
   const registry =
       row.registrySnapshot as import("@gifters/chains").AssetRegistry,
     chain = await adapter(registry),
-    sender = await platformAddress(registry, "RECEIVING");
+    sender =
+      row.treasurySender ??
+      (() => {
+        throw new Error("HISTORICAL_SENDER_REQUIRED");
+      })();
   let actualCharge = 0n;
   for (const attempt of attempts) {
+    if (attempt.status === "expired") {
+      if (
+        attempt.actualNativeFee !== "0" ||
+        !chain.proveExpiry ||
+        !(await chain.proveExpiry(attempt.txHash, {
+          lastValidHeight:
+            attempt.validUntilHeight === null
+              ? undefined
+              : BigInt(attempt.validUntilHeight),
+          expiresAt: attempt.expiresAt ?? undefined,
+        }))
+      )
+        throw new Error("FINANCIAL_SAFETY_PAUSE");
+      continue;
+    }
+    if (attempt.status === "superseded") {
+      if (
+        attempt.actualNativeFee !== "0" ||
+        !attempts.some(
+          (v) => v.status === "failed" && v.nonce === attempt.nonce,
+        )
+      )
+        throw new Error("FINANCIAL_SAFETY_PAUSE");
+      continue;
+    }
     const proof = await chain.verifyTransfer({
       asset: registry,
       hash: attempt.txHash,
@@ -551,16 +615,14 @@ async function closeFailedWithdrawal(
     charge_base_units: charge.toString(),
     released_base_units: released.toString(),
   };
-  await tx
-    .insert(operationKeys)
-    .values({
-      businessKey: `crypto-failed-close:${row.id}`,
-      requestHash: crypto
-        .createHash("sha256")
-        .update(JSON.stringify(result))
-        .digest("hex"),
-      result,
-    });
+  await tx.insert(operationKeys).values({
+    businessKey: `crypto-failed-close:${row.id}`,
+    requestHash: crypto
+      .createHash("sha256")
+      .update(JSON.stringify(result))
+      .digest("hex"),
+    result,
+  });
   await tx
     .update(cryptoObligations)
     .set({ completedAt: sql`clock_timestamp()` })

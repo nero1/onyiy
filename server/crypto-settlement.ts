@@ -61,7 +61,11 @@ export async function settleCryptoAttempt(
     asset: registry,
     hash: attempt.txHash,
     index: eventIndex,
-    sender: await platformAddress(registry, "RECEIVING"),
+    sender:
+      obligation.treasurySender ??
+      (() => {
+        throw new Error("HISTORICAL_SENDER_REQUIRED");
+      })(),
     destination: obligation.destination,
     amount: BigInt(obligation.netBaseUnits),
   });
@@ -166,6 +170,72 @@ export async function settleCryptoAttempt(
         recipient: obligation.destination,
       },
     );
+  }
+  const approvedNetwork = BigInt(
+      (obligation.feeSnapshot as { networkFee?: string }).networkFee ??
+        obligation.nativeFeeQuote,
+    ),
+    approvedSetup = BigInt(
+      (obligation.feeSnapshot as { accountSetupCost?: string })
+        .accountSetupCost ?? "0",
+    );
+  // Reclassify measured excess expense; cash was reduced only by GAS_OUT/setup.
+  // Valuation metadata creates no token conversion or extra beneficiary debit.
+  for (const [label, actual, approved, purpose] of [
+    ["network", networkCost, approvedNetwork, "network_fee_expense"],
+    ["setup", setupCost, approvedSetup, "recipient_account_setup_expense"],
+  ] as const) {
+    if (actual > approved) {
+      const variance = await account(
+          tx,
+          native.id,
+          "platform",
+          null,
+          "fee_variance_expense",
+          "debit",
+        ),
+        expense = await account(
+          tx,
+          native.id,
+          "platform",
+          null,
+          purpose,
+          "debit",
+        );
+      await postJournal(
+        tx,
+        "GAS_VARIANCE",
+        `gas-variance:${registry.chain}:${attempt.txHash}:${label}`,
+        [
+          {
+            accountId: variance.id,
+            direction: "debit",
+            amount: actual - approved,
+          },
+          {
+            accountId: expense.id,
+            direction: "credit",
+            amount: actual - approved,
+          },
+        ],
+        {
+          obligation_id: obligation.id,
+          attempt_id: attempt.id,
+          component: label,
+          quoted_native: approved.toString(),
+          actual_native: actual.toString(),
+          withdrawal_asset_id: asset.id,
+          approved_charge: obligation.chargeBaseUnits,
+          actual_at_pinned_rate: (
+            nativeFeeInAsset(
+              networkCost,
+              obligation.rateSnapshot as RateSnapshot,
+            ) +
+            nativeFeeInAsset(setupCost, obligation.rateSnapshot as RateSnapshot)
+          ).toString(),
+        },
+      );
+    }
   }
   if (proof.state === "failed") {
     await tx

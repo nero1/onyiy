@@ -1,4 +1,6 @@
 'use client';
+import type {BotProof} from './bot-check';
+const BotCheck=dynamic(()=>import('./bot-check'));
 
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { copy, type Locale } from '@/lib/i18n';
@@ -44,6 +46,7 @@ export default function DashboardApp() {
   const [requiresMfa,setRequiresMfa]=useState(false);
   const [authProvider,setAuthProvider]=useState('simulation');
   const [authReady,setAuthReady]=useState(false);
+  const [botReady,setBotReady]=useState(false),[botProof,setBotProof]=useState<BotProof|undefined>(),[botReset,setBotReset]=useState(0);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [dash, setDash] = useState<Dashboard | null>(null);
   const [manifest, setManifest] = useState<any>(null);
@@ -147,7 +150,7 @@ export default function DashboardApp() {
   },[username,dash?.user.username]);
 
   useEffect(()=>{if(!authUser||!sessionGeneration)return;
-    function purge(){setClientSession('','');refreshGeneration.current++;currentUser.current='';clearActiveUserScope(username);setAuthUser(null);setSessionGeneration('');setDash(null);setGiftQuote(null);setWithdrawalQuote(null);setQueue(null);setRequiresMfa(false);}
+    function purge(){setClientSession('','');refreshGeneration.current++;currentUser.current='';clearActiveUserScope(username);setAuthUser(null);setSessionGeneration('');setDash(null);setGiftQuote(null);setWithdrawalQuote(null);setQueue(null);setRequiresMfa(false);setBotReady(false);setBotProof(undefined);}
     const storage=(event:StorageEvent)=>{if((event.key===null||event.key==='gw:v3:active-user'||event.key==='gw:v3:active-session')&&activeSessionGeneration(username)!==sessionGeneration)purge();};
     let channel:BroadcastChannel|null=null;try{channel=new BroadcastChannel('gw-session-scope-v1');channel.onmessage=event=>{const value=event.data;if(value?.type==='GW_SCOPE'&&value.tab!==tabId.current&&(value.owner!==username||value.generation!==sessionGeneration))purge();};}catch{}
     addEventListener('storage',storage);return()=>{removeEventListener('storage',storage);channel?.close();};
@@ -159,7 +162,7 @@ export default function DashboardApp() {
     try{const channel=new BroadcastChannel('gw-session-scope-v1');channel.postMessage({type:'GW_SCOPE',tab:tabId.current,owner:value.user?.username??'',generation:value.generation??''});channel.close()}catch{}
     setAuthReady(true);setRequiresMfa(value.requires_mfa??false);if(value.provider)setAuthProvider(value.provider);
     const same=value.user?.id===authUser?.id&&value.generation===sessionGeneration;
-    if(!same){if(!value.user||activeSessionGeneration(value.user.username)!==value.generation)clearActiveUserScope();setDash(null);setGiftQuote(null);setWithdrawalQuote(null);}
+    if(!same){setBotReady(false);setBotProof(undefined);setBotReset(v=>v+1);if(!value.user||activeSessionGeneration(value.user.username)!==value.generation)clearActiveUserScope();setDash(null);setGiftQuote(null);setWithdrawalQuote(null);}
     setAuthUser(value.user);setSessionGeneration(value.generation??'');
     if(value.user){currentUser.current=value.user.username;setUsername(value.user.username);activateUserScope(value.user.username,value.generation??'');if(same)void refresh();}
   }
@@ -223,7 +226,7 @@ export default function DashboardApp() {
 
   async function requestGift(planId:string){
     if(!online || busy)return;const existing=dash?.pending_invoices?.find(item=>item.plan_id===planId && item.status==='quoted' && new Date(item.expires_at).getTime()>Date.now());if(existing){setGiftQuote({...existing,owner:username});return}const owner=username;setBusy(true);setGiftQuote(null);
-    try{const quote=await mutation<Omit<GiftQuote,'owner'>>('/gifts/invoices',owner,{plan_id:planId});if(owner===currentUser.current && navigator.onLine)setGiftQuote({...quote,owner});}
+    try{const quote=await mutation<Omit<GiftQuote,'owner'>>('/gifts/invoices',owner,{plan_id:planId,...(botProof?{bot_proof:botProof}:{})});if(owner===currentUser.current && navigator.onLine){setGiftQuote({...quote,owner});setBotReset(v=>v+1);}}
     catch(error){if(owner===currentUser.current)setNotice({kind:'error',text:error instanceof ApiError?error.code:t.error});}
     finally{setBusy(false);}
   }
@@ -297,10 +300,11 @@ export default function DashboardApp() {
           <div className="gift-tiles">{plans.map((plan) => <a href={`#plan-${plan.id}`} className="gift-tile" key={plan.id}><span>🎁</span><strong>{plan.amount_giv}</strong><small>{t.expected}: {plan.expected_giv}</small></a>)}</div>
         </section>
 
+        {manifest.feature_gifts&&sessionGeneration&&<BotCheck key={username+sessionGeneration} owner={username} generation={sessionGeneration} surface="suspicious_checkout" locale={locale} reset={botReset} onReady={(ready,value)=>{setBotReady(ready);setBotProof(value)}}/>}
         <section className="plan-list">{plans.map((plan) => (
           <article className="card plan" id={`plan-${plan.id}`} key={plan.id}>
             <div><h3>{plan.name}</h3><p>{plan.amount_giv} GIV · ≈ ${plan.usd_reference}</p><strong>{t.expected}: {plan.expected_giv} GIV</strong><p className="muted">{t.status}: {plan.status}</p></div>
-            <button className="primary" disabled={busy || dash.user.status !== 'active' || plan.status !== 'active' || dash.financial_review || dash.cycles.some(cycle=>cycle.plan_id===plan.id && cycle.queue_paused) || manifest.entitlements_member?.send_enabled_gifts===false || !!dash.consent?.required || !online} onClick={() => requestGift(plan.id)}>{t.send}</button>
+            <button className="primary" disabled={busy || !botReady || dash.user.status !== 'active' || plan.status !== 'active' || dash.financial_review || dash.cycles.some(cycle=>cycle.plan_id===plan.id && cycle.queue_paused) || manifest.entitlements_member?.send_enabled_gifts===false || !!dash.consent?.required || !online} onClick={() => requestGift(plan.id)}>{t.send}</button>
           </article>
         ))}</section>
 

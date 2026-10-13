@@ -142,11 +142,12 @@ export async function reserveOriginalRefund(
     .where(eq(ledgerPostings.accountId, source.id));
   if (BigInt(available.amount) < refundable)
     throw new Error("INSUFFICIENT_BALANCE");
+  const sender = await platformAddress(registry, "RECEIVING");
   const fee = await (
       await adapter(registry)
     ).estimateFee({
       asset: registry,
-      sender: await platformAddress(registry, "RECEIVING"),
+      sender,
       destination: invoice.sender,
       amount: refundable,
     }),
@@ -161,6 +162,7 @@ export async function reserveOriginalRefund(
         environment: "testnet",
         chain: registry.chain,
         treasuryFingerprint: config.treasuryFingerprint,
+        treasurySender: sender,
         configurationHash: config.hash,
         registryHash: config.registryHash,
         registrySnapshot: registry,

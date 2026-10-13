@@ -190,6 +190,7 @@ export async function holdBusinessSettlement(
         environment: "testnet",
         chain: registry.chain,
         treasuryFingerprint: config.treasuryFingerprint,
+        treasurySender: sender,
         configurationHash: config.hash,
         registryHash: config.registryHash,
         registrySnapshot: registry,
