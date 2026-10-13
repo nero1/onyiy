@@ -116,6 +116,40 @@ export class TronAdapter implements ChainAdapter {
       }),
     );
   }
+  async getCanonicalBlock(height: bigint) {
+    const number = jsonInteger(height);
+    if (height < 0n) throw new Error("INVALID_INPUT");
+    const values = await Promise.all(
+      ([0, 1] as const).map(async (side) => {
+        const identity = await this.rpc.post(
+          side,
+          "jsonrpc",
+          { jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] },
+          true,
+        );
+        if (BigInt(identity) !== chainIds[this.asset.network])
+          throw new Error("WRONG_NETWORK");
+        const [block, solid] = await Promise.all([
+          this.rpc.post(side, "walletsolidity/getblockbynum", { num: number }),
+          this.rpc.post(side, "walletsolidity/getnowblock", {}),
+        ]);
+        if (
+          integer(block.block_header.raw_data.number) !== height ||
+          !/^[0-9a-f]{64}$/i.test(block.blockID) ||
+          integer(solid.block_header.raw_data.number) < height
+        )
+          throw new Error("FINALITY_UNAVAILABLE");
+        return {
+          height,
+          hash: String(block.blockID).toLowerCase(),
+          finalized: true,
+        };
+      }),
+    );
+    if (values[0].hash !== values[1].hash)
+      throw new Error("RPC_EVIDENCE_INVALID");
+    return values[0];
+  }
   async getFinality() {
     await this.network();
     const values = (await this.pair("walletsolidity/getnowblock", {})).map(
@@ -159,6 +193,7 @@ export class TronAdapter implements ChainAdapter {
     return values.map((v) => BigInt("0x" + v.constant_result[0]));
   }
   private async token(asset: AssetRegistry) {
+    if (asset.kind !== "token") return;
     const values = await this.constant(asset, "decimals()");
     if (values.some((v) => v !== BigInt(asset.decimals)))
       throw new Error("TOKEN_REGISTRY_MISMATCH");
@@ -198,6 +233,40 @@ export class TronAdapter implements ChainAdapter {
   async estimateFee(intent: Omit<TransferIntent, "fee">): Promise<FeeQuote> {
     await this.network();
     await this.token(intent.asset);
+    if (intent.asset.kind === "native") {
+      if (intent.asset.key !== "trx" || intent.amount <= 0n)
+        throw new Error("INVALID_INPUT");
+      const [parameters, accounts] = await Promise.all([
+        this.pair("wallet/getchainparameters", {}),
+        this.pair("wallet/getaccount", {
+          address: addressHex(intent.destination),
+          visible: false,
+        }),
+      ]);
+      const parameter = (value: any, key: string) =>
+        integer(value.chainParameter?.find((p: any) => p.key === key)?.value);
+      const bytePrice = parameters
+          .map((v) => parameter(v, "getTransactionFee"))
+          .reduce((a, b) => (a > b ? a : b)),
+        setup = accounts.some((v) => !v.address)
+          ? parameters
+              .map((v) =>
+                parameter(v, "getCreateNewAccountFeeInSystemContract"),
+              )
+              .reduce((a, b) => (a > b ? a : b))
+          : 0n;
+      // Bound serialized bandwidth, including one signature. No energy is used
+      // by the sole TransferContract; activation is a separate approved cost.
+      const network = 1024n * bytePrice;
+      return {
+        nativeFee: network + setup,
+        networkFee: network,
+        accountSetupCost: setup,
+        gasLimit: 1024n,
+        unitPrice: bytePrice,
+        observedAt: new Date().toISOString(),
+      };
+    }
     const estimates = await this.pair("wallet/estimateenergy", {
       owner_address: addressHex(intent.sender),
       contract_address: addressHex(intent.asset.contract!),
@@ -230,6 +299,50 @@ export class TronAdapter implements ChainAdapter {
       observedAt: new Date().toISOString(),
     };
   }
+  async assertReference(payload: unknown) {
+    const tx = payload as any,
+      bytes = tx.raw_data?.ref_block_bytes,
+      hash = tx.raw_data?.ref_block_hash;
+    if (
+      !/^[0-9a-f]{4}$/i.test(bytes) ||
+      !/^[0-9a-f]{16}$/i.test(hash) ||
+      tx.raw_data.data ||
+      tx.raw_data.scripts ||
+      tx.raw_data.auths?.length ||
+      Buffer.byteLength(tx.raw_data_hex ?? "", "hex") + 193 > 1024
+    )
+      throw new Error("SIGNED_INTENT_INVALID");
+    const values = await Promise.all(
+      ([0, 1] as const).map(async (side) => {
+        const identity = await this.rpc.post(
+          side,
+          "jsonrpc",
+          { jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] },
+          true,
+        );
+        if (BigInt(identity) !== chainIds[this.asset.network])
+          throw new Error("WRONG_NETWORK");
+        const current = await this.rpc.post(side, "wallet/getnowblock", {}),
+          tip = integer(current.block_header.raw_data.number);
+        let height = (tip / 65536n) * 65536n + BigInt("0x" + bytes);
+        if (height > tip) height -= 65536n;
+        if (height < 0n || tip - height > 512n)
+          throw new Error("SIGNED_INTENT_INVALID");
+        const block = await this.rpc.post(side, "wallet/getblockbynum", {
+          num: jsonInteger(height),
+        });
+        if (
+          integer(block.block_header.raw_data.number) !== height ||
+          !/^[0-9a-f]{64}$/i.test(block.blockID) ||
+          String(block.blockID).slice(16, 32).toLowerCase() !==
+            hash.toLowerCase()
+        )
+          throw new Error("SIGNED_INTENT_INVALID");
+        return String(block.blockID).toLowerCase();
+      }),
+    );
+    if (values[0] !== values[1]) throw new Error("SIGNED_INTENT_INVALID");
+  }
   async buildTransfer(intent: TransferIntent): Promise<PreparedTransfer> {
     await this.network();
     if (
@@ -237,6 +350,52 @@ export class TronAdapter implements ChainAdapter {
       intent.asset.network !== this.asset.network
     )
       throw new Error("WRONG_NETWORK");
+    if (intent.asset.kind === "native") {
+      if (
+        intent.asset.key !== "trx" ||
+        intent.amount <= 0n ||
+        intent.fee.nativeFee < 0n
+      )
+        throw new Error("INVALID_INPUT");
+      const tx = await this.rpc.post(0, "wallet/createtransaction", {
+          owner_address: addressHex(intent.sender),
+          to_address: addressHex(intent.destination),
+          amount: jsonInteger(intent.amount),
+          visible: false,
+        }),
+        contract = tx.raw_data?.contract?.[0];
+      if (
+        !tx.raw_data_hex ||
+        !utils.transaction.txCheck(tx) ||
+        tx.raw_data.contract.length !== 1 ||
+        contract.type !== "TransferContract" ||
+        integer(contract.Permission_id ?? 0) !== 0n ||
+        contract.parameter.value.owner_address.toLowerCase() !==
+          addressHex(intent.sender) ||
+        contract.parameter.value.to_address.toLowerCase() !==
+          addressHex(intent.destination) ||
+        integer(contract.parameter.value.amount) !== intent.amount ||
+        integer(tx.raw_data.expiration) <= BigInt(Date.now()) ||
+        integer(tx.raw_data.expiration) > BigInt(Date.now() + 600000) ||
+        tx.txID !==
+          crypto
+            .createHash("sha256")
+            .update(Buffer.from(tx.raw_data_hex, "hex"))
+            .digest("hex")
+      )
+        throw new Error("SIGNED_INTENT_INVALID");
+      await this.assertReference(tx);
+      return {
+        family: "tron",
+        environment: "testnet",
+        network: intent.asset.network,
+        intent,
+        payload: tx,
+        expiresAt: new Date(
+          parseInt(integer(tx.raw_data.expiration).toString(), 10),
+        ),
+      };
+    }
     const response = await this.rpc.post(0, "wallet/triggersmartcontract", {
       owner_address: addressHex(intent.sender),
       contract_address: addressHex(intent.asset.contract!),
@@ -273,6 +432,7 @@ export class TronAdapter implements ChainAdapter {
       integer(tx.raw_data.fee_limit) > intent.fee.nativeFee
     )
       throw new Error("SIGNED_INTENT_INVALID");
+    await this.assertReference(tx);
     return {
       family: "tron",
       environment: "testnet",
@@ -374,6 +534,8 @@ export class TronAdapter implements ChainAdapter {
         destination: normalized(TronWeb.address.fromHex(value.to_address)),
         amount: integer(value.amount),
         actualNativeFee,
+        actualNetworkFee: integer(info.receipt?.net_fee ?? 0),
+        accountSetupCost: actualNativeFee - integer(info.receipt?.net_fee ?? 0),
       };
     }
     let eventIndex = index;

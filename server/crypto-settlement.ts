@@ -261,7 +261,9 @@ export async function settleCryptoAttempt(
     );
   await postJournal(
     tx,
-    obligation.kind === "business"
+    obligation.kind === "sweep"
+      ? "TREASURY_SWEEP_SETTLE"
+      : obligation.kind === "business"
       ? "BUSINESS_SETTLEMENT_SETTLE"
       : obligation.kind === "refund"
         ? "REFUND_SETTLE"
@@ -273,6 +275,10 @@ export async function settleCryptoAttempt(
     ],
     { obligation_id: obligation.id, attempt_id: attempt.id },
   );
+  if(obligation.kind==="sweep") {
+    const reserve=await account(tx,asset.id,"system",null,"reserve_treasury_asset","debit"),clearing=await account(tx,asset.id,"system",null,"treasury_sweep_clearing","debit");
+    await postJournal(tx,"TREASURY_SWEEP_MOVE",`treasury-sweep-move:${obligation.id}`,[{accountId:reserve.id,direction:"debit",amount:net},{accountId:clearing.id,direction:"credit",amount:net}],{obligation_id:obligation.id,attempt_id:attempt.id});
+  }
   if (charge > 0n) {
     const recovery = await account(
       tx,

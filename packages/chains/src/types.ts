@@ -119,6 +119,10 @@ export interface ChainAdapter {
     hash: string,
     validity: { lastValidHeight?: bigint; expiresAt?: Date },
   ): Promise<boolean>;
+  assertReference?(payload: unknown): Promise<void>;
+  getCanonicalBlock(
+    height: bigint,
+  ): Promise<{ height: bigint; hash: string; finalized: boolean }>;
   getFinality(): Promise<bigint>;
   currentBlockHeight(): Promise<bigint>;
 }

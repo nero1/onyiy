@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import {
+  cryptoReorgReviews,cryptoReorgResolutions,
   assets,
   walletLinks,
   ledgerAccounts,
@@ -111,6 +112,7 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
       asset: assets.symbol,
       network: assets.chainId,
       decimals: assets.decimals,
+      under_review:sql<boolean>`exists(select 1 from ${cryptoReorgReviews} r left join ${cryptoReorgResolutions} s on s.review_id=r.id where r.asset_id=${assets.id} and s.review_id is null)`,
       purpose: ledgerAccounts.purpose,
       amount: sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='credit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`,
     })
@@ -209,6 +211,7 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
       asset: assets.symbol,
       network: assets.chainId,
       status: cycles.status,
+      under_review:sql<boolean>`exists(select 1 from ${cryptoReorgReviews} r left join ${cryptoReorgResolutions} s on s.review_id=r.id where r.asset_id=${assets.id} and s.review_id is null)`,
       credited_count: cycles.creditedCount,
       receipts_required: cycles.receiptsRequired,
       ticket: queueEntries.ticket,

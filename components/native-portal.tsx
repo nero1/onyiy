@@ -578,6 +578,7 @@ export default function NativePortal() {
                     )}{" "}
                     {currency.symbol}
                   </p>
+                  {balance?.under_review&&<p role="status">{fr?"Monnaie en cours de révision réseau. Les soldes sont conservés.":"Currency under chain review. Balances are retained."}</p>}
                   {wallet ? (
                     <>
                       <p>
@@ -634,6 +635,7 @@ export default function NativePortal() {
                       !wallet ||
                       !currency.enabled ||
                       !gross ||
+                      balance?.under_review ||
                       !navigator.onLine
                     }
                     onClick={() => void quoteWithdrawal(currency)}
@@ -652,6 +654,7 @@ export default function NativePortal() {
                 {t.credited}: {row.credited_count}/{row.receipts_required} ·{" "}
                 {row.status}
               </p>
+              {row.under_review&&<p>{fr?"Financement sous révision — position historique conservée.":"Funding under review — historical position retained."}</p>}
               {row.display_position && (
                 <p>
                   {t.position}: {row.display_position}

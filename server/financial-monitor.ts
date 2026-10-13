@@ -61,6 +61,8 @@ export async function monitorFinancials() {
                 "available_payable",
                 "held_payable",
                 "refund_payable",
+              "incoming_payable",
+              "unallocated_payable",
                 "marketing_payable",
                 "developer_payable",
                 "bootstrap_developer_payable",
@@ -118,6 +120,8 @@ export async function monitorFinancials() {
             asset_key: item.key,
             reason: "NATIVE_GAS_LOW",
           });
+        const hotCap=String((policy[`crypto_risk_${asset.id}`] as {hot_wallet_cap_usd?:number}|undefined)?.hot_wallet_cap_usd??1000),hot=!!rate&&physical*priceUnits(rate.assetUsd)>priceUnits(hotCap)*10n**BigInt(asset.decimals);
+        if(hot)await openFinancialAlert(tx,`hot:${label}:${asset.id}`,"hot_wallet_cap","warning",{asset_key:item.key,reason:"HOT_WALLET_CAP_EXCEEDED"});
         const stale =
           !health?.heartbeatAt ||
           Date.now() - health.heartbeatAt.getTime() >
@@ -138,6 +142,7 @@ export async function monitorFinancials() {
           native_physical: nativePhysical.toString(),
           native_reserved: reserved.toString(),
           shortage: shortages,
+          hot_wallet_above_cap:hot,
           gas_low: gasLow,
           signer_stale: stale,
         };

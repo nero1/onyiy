@@ -15,6 +15,13 @@
       "when": 1791887949443,
       "tag": "0001_dizzy_penance",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791896712677,
+      "tag": "0002_rapid_ronan",
+      "breakpoints": true
     }
   ]
 }

@@ -266,3 +266,15 @@ Consent/flagged checkout requests obtain a scoped five-minute CAPTCHA challenge.
 For a reviewed banned/deleted claimant, staff with fresh MFA prepares exact costs and the original linked destination, creates a temporary claimant link and reviews the returned original-wallet statement signature. The claimant page removes its URL fragment and asks for message approval only. Confirmation holds once; unsigned cancellation returns held funds once. It cannot restore login or select a new address. Signed attempts must be reconciled before another action. Owner-only last-admin maintenance follows SETUP, with external identity review and workers disabled.
 
 Repeat named provider/ledger/browser procedures in isolated generated namespaces; wrong wallet/token/family/network, changed replay, provider outage and insufficient finality must leave money unchanged. Record actual results in status. Current native archive retains59 tables/69 schema resources; challenge/session/view capability data is excluded. Restore remains inactive pending trusted checkpoint reconciliation.
+
+## Native reorg, reserve and operational recovery
+
+Staff opens a native review only after both pinned providers prove the current finalized anchor was replaced. Missing data alone moves nothing. Cash loss preserves original balances/allocations/tickets; new currency activity pauses. Reconfirmation of the exact transfer restores cash/points once and saves the new anchor. Subsequent review checks that anchor.
+
+Staff reviews a reserve sweep quote against recorded/physical surplus, all beneficiary obligations and reserved gas/floor. The server chooses the environment-only destination. Confirmation holds company principal; successful signing/settlement moves it into reserve custody without member changes. Unsigned or positively failed/expired recovery returns principal once and retains gas. No automatic above-cap sweep occurs.
+
+Business and original-sender refunds use the same positive recovery rule. A renewed request links its closed parent and creates a new exact hold; missing hashes never prove nonbroadcast. Refunds preserve the original sender despite ban/deletion. Actor MFA and current scope are mandatory. Native/GIV reconciliation compares both families of holds/refunds and reports native review/negative balances.
+
+Own history/export includes native invoices/events/payout requests; twelve bounded encrypted sections preserve the original cutoff and exclude auth/signer/config secrets. Native settled withdrawal receipts identify the canonical journal-linked hash and actual member cost after refund. Staff lists are privately paginated and mask destinations.
+
+Repeat named procedures on isolated sources, preserve first failures, then compare journals/rights and current71-resource/61-retained encrypted inactive roundtrip. A known inconsistent fixture is evidence of the reproduced failure, never a clean restore/release source. Trusted cold scanning remains required before live resume.

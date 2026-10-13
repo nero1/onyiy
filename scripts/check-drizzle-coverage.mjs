@@ -8,7 +8,7 @@ const schemaTables = new Set([...schemaText.matchAll(/pgTable\(['"]([^'"]+)['"]/
 const migrationTables = new Set();
 for (const file of fs.readdirSync(migrationDir).filter((f) => f.endsWith('.sql'))) {
   const text = fs.readFileSync(path.join(migrationDir, file), 'utf8');
-  for (const m of text.matchAll(/create\s+table\s+if\s+not\s+exists\s+(?:public\.)?([a-zA-Z0-9_]+)/gi)) migrationTables.add(m[1]);
+  for (const m of text.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-zA-Z0-9_]+)/gi)) migrationTables.add(m[1]);
 }
 const missing = [...migrationTables].filter((name) => !schemaTables.has(name));
 if (missing.length) {
