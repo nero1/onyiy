@@ -1,6 +1,6 @@
 # Gifters World — autonomous remediation handover v30
 
-Updated: **14 October 2026 at 12:39:39 AM WAT**.
+Updated: **14 October 2026 at 12:42:08 AM WAT**.
 
 Read in order: docs/PRD.md, docs/PROJECT-STATUS_v30.md, docs/SETUP.md, docs/HOW-IT-WORKS.md, actual AGENTS.md, docs/custom-bugs-report_v30.md, docs/custom-bugs-fix-plan_v30.md. Read relevant installed Next guides before code changes.
 
@@ -30,6 +30,8 @@ Use Node22 at /workspace/work/tooling/node-v22.23.3-linux-x64/bin; NPM_CONFIG_CA
 
 Local check:all/build/bundle are complete. Maintain the ledger, create the coherent PR and merge after both exact-head CI events pass. Immediately continue remaining Round One packages, prioritizing P1-005/006/007/008/009/013, then complete all other findings. Repeat the full audit/plan/fix process for Rounds Two/Three and any remaining known bugs, implement all §32 Phase Two milestones, and final bug fixes before deferred tests. No owner plan review or acceptance pause remains.
 
-Signed: **14 October 2026 at 12:39:39 AM WAT**
+PR29 https://github.com/nero1/onyiy/pull/29 is open. Initial head4e9333d failed push38485592440 and PR38485625731 because the lockfile omitted the nested optional utf-8-validate5.0.10 peer. A clean Node22/npm10 dependency tree regenerated the lockfile; both dry-run and fresh npm ci were required before repush. Do not merge using the failed initial head.
+
+Signed: **14 October 2026 at 12:42:08 AM WAT**
 
 v30

@@ -1,6 +1,6 @@
 # Custom bugs report — Gifters World Phase One
 
-Updated: **14 October 2026 at 12:39:39 AM WAT** · Documentation version **v30**
+Updated: **14 October 2026 at 12:42:08 AM WAT** · Documentation version **v30**
 
 ## Complete one-line findings list
 
@@ -702,4 +702,6 @@ Bug reports and fix plans must use the same _vN filename version as current stat
 ---
 
 Prepared by Codex — Round One remediation v30.
-Signed: **14 October 2026 at 12:39:39 AM WAT**
+PR29 https://github.com/nero1/onyiy/pull/29 is open. Initial head4e9333d failed push38485592440 and PR38485625731 because the lockfile omitted the nested optional utf-8-validate5.0.10 peer. A clean Node22/npm10 dependency tree regenerated the lockfile; both dry-run and fresh npm ci were required before repush. Do not merge using the failed initial head.
+
+Signed: **14 October 2026 at 12:42:08 AM WAT**

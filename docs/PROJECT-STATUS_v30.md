@@ -1,6 +1,6 @@
 # Gifters World — implementation and bug remediation status v30
 
-Updated: **14 October 2026 at 12:39:39 AM WAT**.
+Updated: **14 October 2026 at 12:42:08 AM WAT**.
 
 The owner approved all Round One fixes, autonomous Rounds Two/Three and continued remediation, every Phase Two milestone, and final bug fixes before deferred testing. Continue without plan or milestone acceptance pauses. Use best recommendations, complete substantial verified batches, and merge only after BOTH push and pull-request CI succeed for the exact final head. Both financial readiness gates remain false; mainnet remains prohibited. CRON frequency and test-only issues remain excluded.
 
@@ -34,6 +34,8 @@ Automatic approval review previously rejected enabling web/signer financial read
 
 Finish this batch's exact-head checks and PR merge, then continue recovery binding/fee attribution/positive expiry/historical treasury inventory and bounded scans, followed by all remaining operational, storage, portability, UX/i18n/SEO findings. Run fresh full-codebase Rounds Two and Three, fix any new/reopened findings, then implement P2.0 settings/profile, P2.1 bootstrap/priority options, P2.2 copy/activity/sharing, P2.3 transition/recovery and P2.4 readiness record. Complete final bug remediation before deferred tests; do not pause for milestone acceptance.
 
-Signed: **14 October 2026 at 12:39:39 AM WAT**
+PR29 https://github.com/nero1/onyiy/pull/29 is open. Initial head4e9333d failed push38485592440 and PR38485625731 because the lockfile omitted the nested optional utf-8-validate5.0.10 peer. A clean Node22/npm10 dependency tree regenerated the lockfile; both dry-run and fresh npm ci were required before repush. Do not merge using the failed initial head.
+
+Signed: **14 October 2026 at 12:42:08 AM WAT**
 
 v30
