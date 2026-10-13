@@ -1,3 +1,4 @@
+import {nativeCatalog} from './crypto-reads';
 import { and,asc,eq,sql } from 'drizzle-orm';
 import { MemoryCache } from '@gifters/cache';
 import { loadManifest,publicManifest,validateRuntimeEnv,type Manifest } from '@gifters/config';
@@ -11,7 +12,7 @@ const seed=loadManifest();
 let budget={maxEntries:seed.cache_policy.max_memory_entries,maxBytes:seed.cache_policy.max_memory_mb*1024*1024};
 let memory=new MemoryCache(budget);
 let generation=0;
-const pending=new Map<'manifest'|'catalog'|'help:en'|'help:fr',Promise<Entry>>();
+const pending=new Map<'manifest'|'catalog'|'native-catalog'|'help:en'|'help:fr',Promise<Entry>>();
 
 function captured(data:unknown,manifest:Manifest,publicSeconds:number,fallback=false):Loaded {
  const policy=manifest.cache_policy;
@@ -45,7 +46,7 @@ async function catalogLoader():Promise<Loaded> {
   expected_giv:formatBaseUnits((BigInt(row.amount_base_units)*BigInt(row.receiver_bps)/10000n)*BigInt(row.receipts_required))}));
  return captured(data,manifest,manifest.cache_policy.catalog_seconds);
 }
-async function read(key:'manifest'|'catalog'|'help:en'|'help:fr',loader:()=>Promise<Loaded>):Promise<PublicResponse> {
+async function read(key:'manifest'|'catalog'|'native-catalog'|'help:en'|'help:fr',loader:()=>Promise<Loaded>):Promise<PublicResponse> {
  // Warm public DTOs never bypass environment/provider configuration validation.
  validateRuntimeEnv();
  let entry=await memory.get<Entry>(key);
@@ -81,3 +82,5 @@ export function getPublicHelp(locale:'en'|'fr'){return read(`help:${locale}`,asy
  const rows=await withContext({access:'public',snapshot:true},async tx=>{await tx.execute(sql`set local statement_timeout='5000ms'`);return tx.select({locale:helpArticles.locale,slug:helpArticles.slug,title:helpArticles.title,body:helpArticles.body}).from(helpArticles).where(eq(helpArticles.locale,locale)).orderBy(asc(helpArticles.slug)).limit(101)});if(rows.length>100||Buffer.byteLength(JSON.stringify(rows))>3*1024*1024)throw new Error('CONFIGURATION_INVALID');return captured(rows,manifest,manifest.cache_policy.catalog_seconds);
  });}
 export async function publicHelpSlug(locale:'en'|'fr',slug:string){return withContext({access:'public'},async tx=>{const [direct]=await tx.select({slug:helpArticles.slug}).from(helpArticles).where(sql`${helpArticles.locale}=${locale} and ${helpArticles.slug}=${slug} and ${helpArticles.published}`).limit(1);if(direct)return direct.slug;const [redirect]=await tx.select({slug:helpArticles.slug}).from(slugRedirects).innerJoin(helpArticles,eq(helpArticles.id,slugRedirects.articleId)).where(sql`${slugRedirects.locale}=${locale} and ${slugRedirects.oldSlug}=${slug} and ${helpArticles.published}`).limit(1);if(!redirect)throw new Error('NOT_FOUND');return redirect.slug;});}
+
+export function getPublicNativeCatalog(){return read('native-catalog',async()=>withContext({access:'service',snapshot:true},async tx=>{await tx.execute(sql`set local statement_timeout='5000ms'`);const policy=await readManifest(tx),data=await nativeCatalog(tx);if(Buffer.byteLength(JSON.stringify(data))>1024*1024)throw new Error('CONFIGURATION_INVALID');return captured(data,policy,policy.cache_policy.catalog_seconds)}));}

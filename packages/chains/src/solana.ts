@@ -1,3 +1,4 @@
+import { selectEventIndex } from "./event-index";
 import { reconcileEvidence } from "./evidence";
 import crypto from "node:crypto";
 import { PublicKey, Transaction, SystemProgram } from "@solana/web3.js";
@@ -269,9 +270,12 @@ export class SolanaAdapter implements ChainAdapter {
       .filter((v) => v?.value !== null && v !== null)
       .map((v) => integer(v.value));
     if (!costs.length) throw new Error("FEE_UNAVAILABLE");
-    const nativeFee = costs.reduce((a, b) => (a > b ? a : b)) + rent;
+    const networkFee = costs.reduce((a, b) => (a > b ? a : b)),
+      nativeFee = networkFee + rent;
     return {
       nativeFee,
+      networkFee,
+      accountSetupCost: rent,
       gasLimit: 1n,
       unitPrice: nativeFee,
       observedAt: new Date().toISOString(),
@@ -373,6 +377,8 @@ export class SolanaAdapter implements ChainAdapter {
         height: integer(tx.slot),
         blockHash: block.blockhash,
         actualNativeFee: integer(tx.meta.fee),
+        actualNetworkFee: integer(tx.meta.fee),
+        accountSetupCost: 0n,
       };
     }
     const instruction = tx.transaction.message.instructions?.[index];
@@ -420,7 +426,8 @@ export class SolanaAdapter implements ChainAdapter {
     if (feePayer !== sender) throw new Error("FEE_PAYER_MISMATCH");
     const debit =
       integer(tx.meta.preBalances[0]) - integer(tx.meta.postBalances[0]);
-    const actualNativeFee = debit - (asset.kind === "native" ? amount : 0n);
+    const actualNetworkFee = integer(tx.meta.fee),
+      actualNativeFee = debit - (asset.kind === "native" ? amount : 0n);
     if (actualNativeFee < integer(tx.meta.fee))
       throw new Error("RPC_EVIDENCE_INVALID");
     const final = status.value?.[0]?.confirmationStatus === "finalized";
@@ -443,7 +450,58 @@ export class SolanaAdapter implements ChainAdapter {
       destination,
       amount,
       actualNativeFee,
+      actualNetworkFee,
+      accountSetupCost: actualNativeFee - actualNetworkFee,
     };
+  }
+  async findTransferIndex(hash: string, sender: string, destination: string) {
+    await this.network();
+    const from =
+        this.asset.kind === "token"
+          ? getAssociatedTokenAddressSync(
+              new PublicKey(this.asset.mint!),
+              new PublicKey(sender),
+            ).toBase58()
+          : sender,
+      to =
+        this.asset.kind === "token"
+          ? getAssociatedTokenAddressSync(
+              new PublicKey(this.asset.mint!),
+              new PublicKey(destination),
+            ).toBase58()
+          : destination,
+      values = await this.rpc.pair("getTransaction", [
+        hash,
+        {
+          encoding: "jsonParsed",
+          commitment: "confirmed",
+          maxSupportedTransactionVersion: 0,
+        },
+      ]);
+    return selectEventIndex(
+      values.map((tx) =>
+        tx
+          ? (tx.transaction?.message?.instructions ?? [])
+              .map((instruction: any, index: number) => ({
+                instruction,
+                index,
+              }))
+              .filter(
+                ({ instruction }: any) =>
+                  instruction.programId ===
+                    (this.asset.kind === "native"
+                      ? SystemProgram.programId
+                      : TOKEN_PROGRAM_ID
+                    ).toBase58() &&
+                  instruction.parsed?.info?.source === from &&
+                  instruction.parsed?.info?.destination === to &&
+                  (this.asset.kind === "native" ||
+                    instruction.parsed.info.mint === this.asset.mint),
+              )
+              .map(({ index }: any) => index)
+          : null,
+      ),
+    );
   }
   async verifyTransfer(expected: Transfer) {
     if (

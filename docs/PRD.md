@@ -1,6 +1,6 @@
 # Gifters World — MVP Product Requirements Document
 
-Date: 12 October 2026 · Scope: Phase One test iteration and Phase Two transparency specification
+Date: 13 October 2026 · Scope: Phase One test iteration and Phase Two transparency specification
 
 > **IMPORTANT — TEST ITERATION NOTICE**
 > Phase One uses ordinary-looking bootstrap positions, displayed joining order independent of administrative serving priority, and rotating illustrative activity statements for test iterations. It does not specify those elements as acceptable deceptive behaviour for a public real-money service: system-controlled positions, actual payment priority, and illustrative payout activity require an accurate public presentation before live use. This is one document-level notice, not an instruction to add frontend badges, repeated warnings, presentation-approval endpoints, or extra runtime release gates to the test build.
@@ -1057,7 +1057,7 @@ uj*****p3 just received $9.5 referral commission
 
 ## §33. Financial implementation checkpoint — 13 October 2026
 
-The owner delivery directive in §31 applies to every milestone and handover: continue M0–M8 irrespective of earlier acceptance, toward100% implementation in a few substantial verified iterations. PROJECT-STATUS_v24 records79.30% implementation; this is not release permission or proof of hosted/live acceptance. Continue remaining work immediately.
+The owner delivery directive in §31 applies to every milestone and handover: continue M0–M8 irrespective of earlier acceptance, toward100% implementation in a few substantial verified iterations. PROJECT-STATUS_v25 records84.20% implementation; this is not release permission or proof of hosted/live acceptance. Continue remaining work immediately.
 
 Native staged contracts now include bounded dual RPCs, generated EVM/SOL/TRON ownership/signing/finality, immutable registry identity/history, first-seen submissions, custody-preserving admission/refunds, exact quoted/held/settled withdrawal arithmetic, manual/daily business holds, original-sender refund holds, isolated encrypted attempts/nonces/leases/caps, workload replay/retention and authenticated alert ACK. Native simulation/testnet recovery preserves56 retained inventories/63 schema definitions. GIV is spendable only in simulation. Actual currencies remain owner-empty/disabled until official registry provisioning; real addresses and acceptance results shall never be invented.
 
@@ -1066,3 +1066,7 @@ Treat CHAIN_IN as the verified external treasury inflow and GIFT_IN as subsequen
 Configuration fingerprints include current payout/fee/rate/cooling/business/intake policies plus registry/treasury addresses/hard limits/alert binding. Decimal USD ceilings do not use floating money. Nonces advance only with durable encrypted signed bytes; presign crash/retry must not create holes. Broadcast may use only those bytes. A worker must recover status if ledger settlement committed before its own confirmation metadata, without replaying principal or fee journals.
 
 Alert acceptance shall require receiver-authenticated payload-hash/delivery-key ACK and committed recent evidence for the exact fingerprint; HTTP200 or approval environment strings alone are insufficient. No financial gate shall open while the web/signer implementation code gates are false. Native top-up/setup-fee/failure/requote/replacement/expiry/reorg/checkpoint/sweep/hot-cap/scheduler/reminder/provider and wallet/product closure remain required. Local generated receipts and balanced journals shall not be represented as actual native prefunding/custody. Deferred live inputs do not block implementation of these remaining contracts.
+
+### §33.1 Continued implementation directive and v25 contracts
+
+Continue every M0–M8 toward100% irrespective of earlier acceptance. v25 implements verified native asset/plan provisioning, explicit injected-wallet ownership/payment review, bounded unknown-index observation, contributed native reserve accounting, separate recipient account setup and failed-fee closure/requote lineage. A positively failed attempt may close only after every known hash is independently reverified; unresolved/expired/replaced attempts retain their hold. Replacement/expiry/reorg/checkpoint/sweep and remaining identity/portability/operational/product requirements stay required. Provider absence shall not stop independent implementation, and local generated evidence shall not be called live custody or release acceptance.

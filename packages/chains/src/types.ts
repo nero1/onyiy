@@ -6,7 +6,8 @@ export type AssetKey =
   | "usdt_bnb"
   | "usdt_sol"
   | "usdt_tron"
-  | "jaga_bnb";
+  | "jaga_bnb"
+  | "trx";
 export type AssetRegistry = {
   key: AssetKey;
   chain: Chain;
@@ -44,12 +45,16 @@ export type TransferEvidence = {
   destination?: string;
   amount?: bigint;
   actualNativeFee?: bigint;
+  actualNetworkFee?: bigint;
+  accountSetupCost?: bigint;
   index: number;
   observedAt: string;
   contradiction?: boolean;
 };
 export type FeeQuote = {
   nativeFee: bigint;
+  networkFee?: bigint;
+  accountSetupCost?: bigint;
   gasLimit: bigint;
   unitPrice: bigint;
   priorityPrice?: bigint;
@@ -95,6 +100,7 @@ export interface ChainAdapter {
     address: string,
     fresh?: boolean,
   ): Promise<bigint>;
+  findTransferIndex(hash:string,sender:string,destination:string):Promise<number|undefined>;
   verifyTransfer(expected: Transfer): Promise<TransferEvidence>;
   estimateFee(intent: Omit<TransferIntent, "fee">): Promise<FeeQuote>;
   buildTransfer(intent: TransferIntent): Promise<PreparedTransfer>;

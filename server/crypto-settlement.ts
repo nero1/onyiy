@@ -44,6 +44,8 @@ export async function settleCryptoAttempt(
     .from(cryptoObligations)
     .where(eq(cryptoObligations.id, lookup.id))
     .for("update");
+  if (obligation.status === "exception" && obligation.completedAt)
+    return { status: "failed_closed" };
   if (["settled", "cancelled"].includes(obligation.status))
     return { status: obligation.status };
   if (!["signing", "broadcast", "exception"].includes(obligation.status))
@@ -66,6 +68,14 @@ export async function settleCryptoAttempt(
   if (!["confirmed", "failed"].includes(proof.state) || proof.contradiction)
     return { status: "pending" };
   if (proof.actualNativeFee === undefined || proof.actualNativeFee < 0n)
+    throw new Error("INVALID_PROOF");
+  const networkCost = proof.actualNetworkFee ?? proof.actualNativeFee,
+    setupCost = proof.accountSetupCost ?? 0n;
+  if (
+    networkCost < 0n ||
+    setupCost < 0n ||
+    networkCost + setupCost !== proof.actualNativeFee
+  )
     throw new Error("INVALID_PROOF");
   // Failed/replacement attempts are never principal payouts. A resolved failed
   // attempt remains held for reviewed recovery until its lineage is closed.
@@ -110,7 +120,7 @@ export async function settleCryptoAttempt(
       "network_fee_expense",
       "debit",
     );
-  if (proof.actualNativeFee > 0n)
+  if (networkCost > 0n)
     await postJournal(
       tx,
       "GAS_OUT",
@@ -119,12 +129,12 @@ export async function settleCryptoAttempt(
         {
           accountId: gasExpense.id,
           direction: "debit",
-          amount: proof.actualNativeFee,
+          amount: networkCost,
         },
         {
           accountId: gasCash.id,
           direction: "credit",
-          amount: proof.actualNativeFee,
+          amount: networkCost,
         },
       ],
       {
@@ -133,6 +143,30 @@ export async function settleCryptoAttempt(
         block_hash: proof.blockHash,
       },
     );
+  if (setupCost > 0n) {
+    const setup = await account(
+      tx,
+      native.id,
+      "platform",
+      null,
+      "recipient_account_setup_expense",
+      "debit",
+    );
+    await postJournal(
+      tx,
+      "ACCOUNT_SETUP_OUT",
+      `account-setup:${registry.chain}:${attempt.txHash}`,
+      [
+        { accountId: setup.id, direction: "debit", amount: setupCost },
+        { accountId: gasCash.id, direction: "credit", amount: setupCost },
+      ],
+      {
+        attempt_id: attempt.id,
+        obligation_id: obligation.id,
+        recipient: obligation.destination,
+      },
+    );
+  }
   if (proof.state === "failed") {
     await tx
       .update(cryptoObligations)
@@ -191,8 +225,9 @@ export async function settleCryptoAttempt(
     if (obligation.userId) {
       const refund = attributableRefund(
         charge,
-        proof.actualNativeFee,
+        networkCost,
         obligation.rateSnapshot as RateSnapshot,
+        setupCost,
       );
       if (refund > 0n) {
         const available = await account(

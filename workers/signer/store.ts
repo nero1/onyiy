@@ -126,23 +126,26 @@ export class SignerStore {
       return fn(tx);
     });
   }
+  private async configurationIn(tx: DbExecutor, asset: AssetRegistry) {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock_shared(hashtextextended('financial-policy',0))`,
+    );
+    const rows = await tx
+      .select({ key: xManifest.key, value: xManifest.value })
+      .from(xManifest)
+      .limit(1001);
+    if (rows.length > 1000) throw new Error("CONFIGURATION_INVALID");
+    const values: Record<string, unknown> = {};
+    for (const row of rows) values[row.key] = row.value;
+    const policy = parseManifest(values);
+    validateSecurityCeilings(policy);
+    return {
+      policy,
+      ...(await configurationSnapshot(asset, financialPolicySnapshot(policy))),
+    };
+  }
   async configuration(asset: AssetRegistry) {
-    return this.context(async (tx) => {
-      const rows = await tx
-        .select({ key: xManifest.key, value: xManifest.value })
-        .from(xManifest);
-      const values: Record<string, unknown> = {};
-      for (const row of rows) values[row.key] = row.value;
-      const policy = parseManifest(values);
-      validateSecurityCeilings(policy);
-      return {
-        policy,
-        ...(await configurationSnapshot(
-          asset,
-          financialPolicySnapshot(policy),
-        )),
-      };
-    });
+    return this.context((tx) => this.configurationIn(tx, asset));
   }
   async activation(hash: string) {
     return this.context(async (tx) => {
@@ -205,6 +208,18 @@ export class SignerStore {
         !["approved", "signing"].includes(row.status) ||
         row.configurationHash !== fingerprint
       )
+        throw new Error("SIGNER_INTENT_DENIED");
+      const [activeAsset] = await tx
+        .select({ enabled: assets.enabled })
+        .from(assets)
+        .where(eq(assets.id, row.assetId))
+        .limit(1);
+      if (!activeAsset?.enabled) throw new Error("SIGNER_INTENT_DENIED");
+      const live = await this.configurationIn(
+        tx,
+        row.registrySnapshot as AssetRegistry,
+      );
+      if (live.hash !== fingerprint || !live.policy.feature_wallets)
         throw new Error("SIGNER_INTENT_DENIED");
       await tx
         .insert(signerStates)
@@ -395,11 +410,33 @@ export class SignerStore {
         prepared.intent.amount !== BigInt(obligation.netBaseUnits) ||
         prepared.intent.asset.chain !== obligation.chain ||
         prepared.environment !== "testnet" ||
-        prepared.intent.fee.nativeFee >
-          (BigInt(obligation.nativeFeeQuote) * 125n) / 100n ||
+        (prepared.intent.fee.networkFee ?? prepared.intent.fee.nativeFee) *
+          100n >
+          BigInt(
+            (obligation.feeSnapshot as { networkFee?: string }).networkFee ??
+              obligation.nativeFeeQuote,
+          ) *
+            125n ||
+        (prepared.intent.fee.accountSetupCost ?? 0n) >
+          BigInt(
+            (obligation.feeSnapshot as { accountSetupCost?: string })
+              .accountSetupCost ?? "0",
+          ) ||
         (["eth", "bnb"].includes(obligation.chain) &&
           (prepared.intent.nonce !== claim.nonce ||
             signed.nonce !== claim.nonce))
+      )
+        throw new Error("SIGNER_INTENT_DENIED");
+      const [activeAsset] = await tx
+        .select({ enabled: assets.enabled })
+        .from(assets)
+        .where(eq(assets.id, obligation.assetId))
+        .limit(1);
+      if (!activeAsset?.enabled) throw new Error("SIGNER_INTENT_DENIED");
+      const live = await this.configurationIn(tx, prepared.intent.asset);
+      if (
+        live.hash !== obligation.configurationHash ||
+        !live.policy.feature_wallets
       )
         throw new Error("SIGNER_INTENT_DENIED");
       const [state] = await tx

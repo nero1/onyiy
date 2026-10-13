@@ -9,3 +9,4 @@
 .inbox-panel{position:fixed;right:.5rem;top:calc(var(--header-height,6rem) + .5rem);width:min(340px,calc(100vw - 1rem));box-sizing:border-box}
 
 .account-portal{overflow-wrap:anywhere}.account-portal .card{margin-block:1rem;min-width:0}.account-portal label{display:flex;flex-direction:column;gap:.5rem;margin-block:1rem}.account-portal input,.account-portal select,.account-portal textarea{font:inherit;min-width:0;max-width:100%;width:100%;padding:.6rem;border:1px solid var(--border);border-radius:.5rem;background:var(--surface);color:var(--text)}.account-portal article{margin-block:1rem}.account-portal nav{display:flex;flex-wrap:wrap;gap:1rem;align-items:center}
+.wallet-address{overflow-wrap:anywhere;word-break:break-word}

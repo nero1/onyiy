@@ -12,6 +12,7 @@ const schema = z
       "usdt_sol",
       "usdt_tron",
       "jaga_bnb",
+      "trx",
     ]),
     chain: z.enum(["eth", "bnb", "sol", "tron"]),
     environment: z.literal("testnet"),
@@ -65,9 +66,10 @@ const families: Record<
   usdt_sol: ["sol", "token"],
   usdt_tron: ["tron", "token"],
   jaga_bnb: ["bnb", "token"],
+  trx: ["tron", "native"],
 };
 export function validateRegistry(value: unknown): AssetRegistry[] {
-  const rows = z.array(schema).max(7).parse(value);
+  const rows = z.array(schema).max(8).parse(value);
   const seen = new Set<string>();
   for (const row of rows) {
     const family = families[row.key];
@@ -83,12 +85,18 @@ export function validateRegistry(value: unknown): AssetRegistry[] {
       throw new Error("MAINNET_DENIED");
     if (
       row.kind === "native" &&
-      row.decimals !== (row.chain === "sol" ? 9 : 18)
+      row.decimals !== (row.chain === "sol" ? 9 : row.chain === "tron" ? 6 : 18)
     )
       throw new Error("REGISTRY_INVALID");
     if (
       row.kind === "token" &&
       !(row.chain === "sol" ? row.mint : row.contract)
+    )
+      throw new Error("REGISTRY_INVALID");
+    if (
+      (row.kind === "native" && (row.contract || row.mint)) ||
+      (row.chain === "sol" && row.contract) ||
+      (row.chain !== "sol" && row.mint)
     )
       throw new Error("REGISTRY_INVALID");
     if (row.enabled && !row.verified) throw new Error("REGISTRY_UNVERIFIED");

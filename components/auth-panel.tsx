@@ -3,8 +3,8 @@ import {useEffect,useState,useRef} from 'react';
 import {api,mutation,ApiError,clientSessionMatches} from '@/lib/api-client';
 import {copy,type Locale} from '@/lib/i18n';
 import type {AuthUser,SessionResult} from '@/lib/auth-client';
-type Props={scope?:string;securityReady?:boolean;locale:Locale;user:AuthUser|null;requiresMfa:boolean;provider:string;accounts:{username:string}[];manifest:any;onSession:(value:SessionResult)=>void};
-export default function AuthPanel({scope,securityReady=true,locale,user,requiresMfa,provider,accounts,manifest,onSession}:Props){
+type Props={environment?:'simulation'|'testnet';scope?:string;securityReady?:boolean;locale:Locale;user:AuthUser|null;requiresMfa:boolean;provider:string;accounts:{username:string}[];manifest:any;onSession:(value:SessionResult)=>void};
+export default function AuthPanel({environment='simulation',scope,securityReady=true,locale,user,requiresMfa,provider,accounts,manifest,onSession}:Props){
  const renderScope=(user?.id??'anonymous')+':'+(scope??'')+':'+requiresMfa;const scopeRef=useRef(renderScope);scopeRef.current=renderScope;const mounted=useRef(true);useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);const valid=()=>mounted.current&&scopeRef.current===renderScope&&clientSessionMatches(user?.username??'',scope);
  const t=copy[locale];const [username,setUsername]=useState(user?.username??'member_01');const [newName,setNewName]=useState('');const [accepted,setAccepted]=useState(false);const [adult,setAdult]=useState(false);const [referral,setReferral]=useState('');const [code,setCode]=useState('');const [recovery,setRecovery]=useState(false);const [secret,setSecret]=useState<string|null>(null);const [codes,setCodes]=useState<string[]>([]);const [enrolled,setEnrolled]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState('');
  useEffect(()=>{try{const url=new URL(location.href);const referral=url.searchParams.get('ref');if(referral&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(referral))setReferral(referral);if(url.searchParams.get('auth_error')==='1'){setError(t.signInFailed);url.searchParams.delete('auth_error');history.replaceState(null,'',url.pathname+url.search+url.hash)}}catch{}},[]);
@@ -20,7 +20,7 @@ export default function AuthPanel({scope,securityReady=true,locale,user,requires
    <details><summary>{t.createTestAccount}</summary><label>{t.username}<input value={newName} onChange={e=>setNewName(e.target.value.toLowerCase())} autoComplete="username" maxLength={64}/></label><button disabled={busy||!newName} onClick={()=>run(async()=>session(await mutation<SessionResult>('/auth/simulation/signup','',{username:newName,locale})))}>{t.createTestAccount}</button></details>
   </>)}
   {user&&(user.status==='pending_consent'||!user.age_confirmed||user.consent_version!==manifest?.terms_content?.version)&&<>
-   <h3>{t.consentTitle}</h3><p>{t.consentBody}</p><div className="terms-body">{manifest?.terms_content?.body?.[locale]}</div>
+   <h3>{environment==='testnet'?t.consentTitleNative:t.consentTitle}</h3><p>{environment==='testnet'?t.consentBodyNative:t.consentBody}</p><div className="terms-body">{manifest?.terms_content?.body?.[locale]}</div>
    <label>{t.username}<input value={username} disabled={!!user.consent_version} onChange={e=>setUsername(e.target.value.toLowerCase())} autoComplete="username" maxLength={64}/></label>
    <label className="checkbox-label"><input type="checkbox" checked={accepted} onChange={e=>setAccepted(e.target.checked)}/>{t.acceptTerms}</label>
    <label className="checkbox-label"><input type="checkbox" checked={adult} onChange={e=>setAdult(e.target.checked)}/>{t.ageConfirmation.replace('{age}',String(manifest?.eligibility_min_age??''))}</label>

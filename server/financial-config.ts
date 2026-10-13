@@ -10,6 +10,7 @@ import {
   assertActive,
   type AssetRegistry,
 } from "@gifters/chains";
+import { sql } from "drizzle-orm";
 import { readManifest, type DbExecutor } from "@gifters/db";
 const addressRoles = [
   "RECEIVING",
@@ -43,6 +44,9 @@ export async function financialConfiguration(
   tx: DbExecutor,
   asset: AssetRegistry,
 ) {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock_shared(hashtextextended('financial-policy',0))`,
+  );
   return configurationSnapshot(
     asset,
     financialPolicySnapshot(await readManifest(tx)),

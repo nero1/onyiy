@@ -173,6 +173,8 @@ export async function reserveOriginalRefund(
         rateSnapshot: rate,
         feeSnapshot: {
           nativeFee: fee.nativeFee.toString(),
+          networkFee: (fee.networkFee ?? fee.nativeFee).toString(),
+          accountSetupCost: (fee.accountSetupCost ?? 0n).toString(),
           gasLimit: fee.gasLimit.toString(),
           unitPrice: fee.unitPrice.toString(),
           observedAt: fee.observedAt,

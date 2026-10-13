@@ -428,7 +428,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
       await enqueueNotification(database, `notice:${opKey}:received`, {
         user_id: recipient.beneficiaryUserId,
         title_key: 'gift_received',
-        body: `You received ${formatBaseUnits(split.receiver)} GIV from a subsequent gift.${fulfilled ? ' Your cycle is complete.' : ''}`,
+        body: `You received ${formatBaseUnits(split.receiver,asset.decimals)} ${asset.symbol}${asset.environment==='testnet'?' ('+asset.chainId+' testnet)':''} from a subsequent gift.${fulfilled ? ' Your cycle is complete.' : ''}`,
       });
     }
   }
@@ -463,7 +463,8 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
     plan_id: v.planId,
     ticket,
     amount_base_units: amount.toString(),
-    amount_giv: formatBaseUnits(amount),
+    amount_giv:asset.environment==='simulation'?formatBaseUnits(amount):undefined,
+    asset:asset.symbol,network:asset.chainId,environment:asset.environment,
     receiver_allocation_base_units: split.receiver.toString(),
   };
   await database.insert(operationKeys).values({ businessKey: opKey, requestHash, result });
