@@ -1070,3 +1070,22 @@ Public statistics shall be cached, environment-specific and exclude system payme
 CI shall enforce initial JavaScript, API trace and lazy-wallet bounds plus a deliberate10% regression baseline. Local trace bounds are not hosted artifact sizes, provider latency, mobile LCP or production capacity evidence. Record those unrun acceptance items separately.
 
 The web and signer readiness gates remain disabled. Automatic approval review rejected changing them to true because it could enable real testnet operations. Keep that decision visible in status/handover; enabling them requires explicit approval of that concrete change in addition to owner registry, address/key, configuration fingerprint and authenticated alert-ACK release inputs. Mainnet remains prohibited.
+
+
+## §34. Phase One bug audit, remediation and Phase Two continuation
+
+Owner directive recorded **13 October 2026 at 09:31:02 PM UTC**: analyze the full Phase One codebase in three complementary passes, deliver docs/custom-bugs-report.md and docs/custom-bugs-fix-plan.md with a complete initial one-line numbered list followed by affected files and recommended fixes, qualitative current/projected ratings, and current date/time in 12-hour format in custom report headers/footers. Include defects, missing Phase One requirements and evidenced suboptimal code; distinguish confirmed source failures from conditional hardening. Exclude CRON frequency and test-only issues.
+
+**Explicit review boundary:** “DO NOT FIX THE BUGS YET UNTIL I REVIEW THE PLAN!!!” Audit/documentation work proceeds now; application, schema, dependency and runtime bug fixes wait for review/authorization of this concrete plan. A documentation PR merge does not satisfy that review. This boundary takes precedence over prior generic continuation messages and does not add a routine milestone acceptance gate.
+
+Round1 audit v29 identifies70 open findings (15 High,49 Medium,6 Low;43 defects,14 requirement gaps,10 hardening recommendations,3 maintenance issues); zero fixes applied. The prior v28 checklist of100% implementation is historical feature coverage, not current bug-free/100% PRD acceptance. Do not assign invented remediation percentages or silently retain an unconditional completion claim.
+
+After plan approval, execute all in-scope fixes in substantial verified batches without waiting for M1/M2 or other completed-milestone acceptance. Preserve exact financial arithmetic, immutable evidence, globally bound idempotency, signed-send recovery and beneficiary rights. Resolve ordinary choices using the recommended plan; maintain a complete numbered tracker with actual verification and unresolved limitations.
+
+Perform up to three bug-finding/fixing rounds. The three present analysis passes are one audit round. Re-audit after fixes for rounds2/3 if new bugs continue; a closing round with no new bugs may end early only when prior in-scope work is resolved. Never count a planned fix as completed or use “no new bugs” to excuse an old unresolved defect.
+
+After this Phase One remediation exit, implement the whole §32 Phase Two sequence without waiting for milestone acceptance. Technical dependencies remain; no mainnet/live financial operation, gate bypass or secret/retained-history deletion is authorized by that continuation. Existing readiness approval decisions and hosted release evidence requirements remain binding.
+
+Supabase's explicit Data API grant policy shall be addressed in the same creating migration for every new public table. Use deliberate least-privilege GRANT/REVOKE/RLS by resource classification; do not apply blanket anon/authenticated/service_role access to financial/signing data. Application access remains Drizzle/PostgreSQL, not an implied switch to browser Data API use.
+
+Each implementation/documentation iteration remains a PR with BOTH exact-final-head push and pull-request CI success before merge; never direct-push main. Current status/handover are docs/PROJECT-STATUS_v29.md and docs/LLM-HANDOVER_v29.md.

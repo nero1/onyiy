@@ -780,3 +780,16 @@ Configure SITE_IMPORT_STAGING_DIR only as a dedicated private0700 directory. UI 
 Local final artifacts are v28-native-final.gwbackup (70 retained inventories/80 schemas/73 migrations) and the matching fresh inactive restore. Earlier v28/v27 archives are bound to their original migration fingerprints. Signing/payload encryption keys must be transferred/reprovisioned through their private operator process, never as manifest content or plaintext UI exports.
 
 Automatic approval review rejected enabling the two readiness gates because that could permit real testnet operations. Leave them false until explicit approval of that change and independent owner/provider acceptance. Hosted OAuth/Turnstile/RPC, actual custody/wallet/broadcast, external ACK, mobile installation/LCP, quota/latency/capacity and release observation periods remain separate unrun acceptance items. Coding completion does not assert those outcomes.
+
+
+## v29 audit status and current review boundary
+
+Updated **13 October 2026 at 09:31:02 PM UTC**. PR27 is merged at ee50068; its final exact-head push and PR CI both passed. This v29 iteration changes documentation only. Phase One Round1 audit reports70 open findings; no application/migration/dependency fix has been made. Current reports: [custom-bugs-report.md](custom-bugs-report.md) and [custom-bugs-fix-plan.md](custom-bugs-fix-plan.md); current status/handover: [PROJECT-STATUS_v29.md](PROJECT-STATUS_v29.md), [LLM-HANDOVER_v29.md](LLM-HANDOVER_v29.md).
+
+The owner explicitly requires review of the fix plan before bug fixes. Once authorized, continue substantial remediation batches without milestone acceptance waits, complete the audit/fix-round exit, then execute all Phase Two milestones without waiting for milestone acceptance. Existing financial gates remain false and restore targets inactive.
+
+Earlier contract descriptions/local successful probes are retained history, not proof that all edge cases work. The audit specifically reopens invoice/send retry, limits/liability/fees, connection-mode binding and Solana cutoff/expiry, prior treasury monitoring, session/rate/retention, monitoring/polling/pagination, hosted file limits and product/SEO requirements. Use the complete numbered reports before relying on these paths.
+
+In particular, the existing generic scheduler client is simulation-only; testnet generic work dispatch needs remediation. Local filesystem staging is not a durable Vercel storage service; a50MiB advertised application cap does not override Vercel's function request-body cap. Use only the existing private owner CLI backup/restore path where hosted web staging is unsupported, and preserve failed staging evidence. No workaround enables sending.
+
+All new-table migrations must explicitly classify grants/revokes and RLS, preserving restricted PostgreSQL/Drizzle access and no broad financial Data API exposure. No applied migration checksum, retained financial history, factor or readiness gate was changed by this audit.
