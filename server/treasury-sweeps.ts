@@ -1,3 +1,4 @@
+import {beneficiaryLiabilityPurposes} from '@gifters/domain';
 import crypto from "node:crypto";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -41,17 +42,7 @@ export const sweepInput = z
     reason: z.string().trim().min(10).max(500),
   })
   .strict();
-const liabilityPurposes = [
-  "available_payable",
-  "held_payable",
-  "incoming_payable",
-  "unallocated_payable",
-  "refund_payable",
-  "marketing_payable",
-  "developer_payable",
-  "bootstrap_developer_payable",
-  "bootstrap_marketing_payable",
-];
+const liabilityPurposes = beneficiaryLiabilityPurposes;
 async function staff(tx: DbExecutor, id: string) {
   assertFinancialEnvironment();
   const actor = await lockUser(tx, id),

@@ -1,80 +1,80 @@
 # Custom bugs report — Gifters World Phase One
 
-Prepared: **13 October 2026 at 09:31:02 PM UTC** · Documentation version **v29**
+Updated: **14 October 2026 at 12:42:08 AM WAT** · Documentation version **v30**
 
 ## Complete one-line findings list
 
-1. **P1-001 — Expired or dismissed native invoices prevent another checkout.** (High; defect)
-2. **P1-002 — A successful wallet send followed by a failed submission can prompt a second payment.** (High; defect)
-3. **P1-003 — Native TRX status observation rejects its own event index.** (High; defect)
-4. **P1-004 — Signer reservations ignore tighter runtime payout limits.** (High; defect)
-5. **P1-005 — Recovery binding distinguishes pooler and signer endpoints for the same database.** (High; defect)
-6. **P1-006 — Recovery can journal the same transaction fees more than once.** (High; defect)
-7. **P1-007 — Solana fee attribution treats other transfers as account setup cost.** (High; defect)
-8. **P1-008 — Saved expired Solana or TRON attempts can indefinitely block a recovery scan.** (Medium; defect)
-9. **P1-009 — Previous receiving addresses have no complete recovery monitoring inventory.** (High; requirement gap)
-10. **P1-010 — Pausing a plan rejects payments already committed under its frozen terms.** (High; defect)
-11. **P1-011 — Accepted bootstrap destinations have no complete liability and payout support.** (High; defect)
-12. **P1-012 — The signer's oldest fixed candidate batch can starve later payable work.** (Medium; defect)
-13. **P1-013 — Recovery pages have row bounds without a feasible total RPC/time budget.** (High; defect)
-14. **P1-014 — The generic scheduler client signs only simulation and leaves testnet jobs undrained.** (High; defect)
-15. **P1-015 — The hosted deploy workflow cannot migrate the selected testnet binding.** (Medium; requirement gap)
-16. **P1-016 — Safe cancellation and unallocated-refund recovery are unreachable in the UI.** (Medium; defect)
-17. **P1-017 — Import and business operations use the generic staff rate policy.** (Medium; defect)
-18. **P1-018 — Rate budgets fragment across raw resource paths.** (Medium; defect)
-19. **P1-019 — Public database reads and OAuth callbacks bypass explicit rate budgets.** (Medium; hardening)
-20. **P1-020 — A combined factor/IP bucket does not bound distributed MFA guesses.** (Medium; hardening)
-21. **P1-021 — Wallet changes lack the PRD's fresh authentication and domain-bound challenge.** (High; defect)
-22. **P1-022 — Ordinary API reads can return data from the previous client identity.** (High; defect)
-23. **P1-023 — Concurrent browser tabs can revoke a valid refresh family.** (Medium; defect)
-24. **P1-024 — Secondary portals show login instead of using an available refresh session.** (Medium; defect)
-25. **P1-025 — Concurrent Google registrations can collide and fallback names violate configured lengths.** (Medium; defect)
-26. **P1-026 — Account deletion leaves private message content in notifications and job payloads.** (Medium; defect)
-27. **P1-027 — Expired authentication and rate records have no bounded cleanup lifecycle.** (Medium; defect)
-28. **P1-028 — Declared notification, terminal-job, ledger and audit retention is not implemented.** (Medium; requirement gap)
-29. **P1-029 — Pending chain observation ignores poll policy and creates a new durable job each round.** (Medium; defect)
-30. **P1-030 — Configured DLQ, backlog, lock-wait and quota alert thresholds have no complete alert path.** (Medium; requirement gap)
-31. **P1-031 — Acknowledged or resolved alerts can still send queued reminders.** (Medium; defect)
-32. **P1-032 — Old low-priority alert retries can consume the budget before a new critical alert.** (Medium; defect)
-33. **P1-033 — A permanent alert delivery key does not bind an immutable payload.** (Medium; defect)
-34. **P1-034 — Reopened alert escalation uses lifetime delivery count as the interval index.** (Low; defect)
-35. **P1-035 — Request IDs do not correlate API, audit, job and error records.** (Medium; requirement gap)
-36. **P1-036 — Expected failures become generic nonretryable errors and raw codes reach users.** (Medium; defect)
-37. **P1-037 — The shared JSON byte cap has no elapsed read deadline.** (Medium; hardening)
-38. **P1-038 — Ordinary database work lacks a complete query, queue and request time budget.** (Medium; hardening)
-39. **P1-039 — Balances and reconciliation repeatedly aggregate full ledger history.** (Medium; requirement gap)
-40. **P1-040 — Expired public statistics can create an advisory-lock request herd.** (Medium; hardening)
-41. **P1-041 — RPC cache misses are not coalesced and throttle waiting is outside the timeout.** (Medium; hardening)
-42. **P1-042 — Deployment-controlled RPC, alert and cache URLs lack an explicit SSRF destination policy.** (Medium; hardening)
-43. **P1-043 — Remote cache adapters lack equivalent timeout, response and lifecycle bounds.** (Medium; hardening)
-44. **P1-044 — Global activity remains visible when feature_activity is disabled.** (Medium; defect)
-45. **P1-045 — There is no shared visible authenticated snapshot poll.** (Medium; requirement gap)
-46. **P1-046 — Notification load-more permanently stops at 100 items.** (Medium; defect)
-47. **P1-047 — Staff lists hide older users, jobs and recovery cases without search or cursors.** (Medium; requirement gap)
-48. **P1-048 — Latest-history caps can omit older active cycles and pending withdrawals.** (Medium; defect)
-49. **P1-049 — Public catalog and help lack the Phase One SEO rendering and metadata contract.** (Medium; requirement gap)
-50. **P1-050 — Several private portals lack noindex metadata.** (Low; requirement gap)
-51. **P1-051 — Stored locale and product copy are not consistently applied across portals.** (Medium; defect)
-52. **P1-052 — Dark-mode primary button text fails normal-text contrast.** (Medium; defect)
-53. **P1-053 — Mobile navigation and the testnet home omit required product surfaces.** (Medium; requirement gap)
-54. **P1-054 — The native wallet summary omits held and withdrawn/net-income totals.** (Medium; requirement gap)
-55. **P1-055 — Closed historical exceptions can prevent plan editing forever.** (Medium; defect)
-56. **P1-056 — Native activation ignores the configured fixed-token pricing mode.** (Medium; defect)
-57. **P1-057 — Accepted provider and finality selectors have no matching implementation.** (Medium; defect)
-58. **P1-058 — Advertised single-request archive uploads exceed the Vercel function body limit.** (Medium; defect)
-59. **P1-059 — Filesystem archive staging is not durable or consistently reachable across serverless instances.** (Medium; requirement gap)
-60. **P1-060 — Archive stream creation precedes the final session fence and permits a file-lifecycle race.** (Low; hardening)
-61. **P1-061 — Failed staging files consume quota without a complete failure inventory.** (Medium; defect)
-62. **P1-062 — Paged own-data exports are not a single point-in-time snapshot.** (Low; hardening)
-63. **P1-063 — Drizzle table coverage does not describe all deployed constraints and defaults.** (Medium; maintenance)
-64. **P1-064 — Large tightly coupled services and untyped UI contracts make changes fragile.** (Low; maintenance)
-65. **P1-065 — Help search lacks the specified locale full-text and trigram ranking.** (Medium; requirement gap)
-66. **P1-066 — Published help cache does not remove withdrawn or renamed saved articles.** (Low; defect)
-67. **P1-067 — Solana custody reconciliation requires identical live response slots.** (Medium; defect)
-68. **P1-068 — Production dependencies include unresolved security advisories.** (High; maintenance)
-69. **P1-069 — Native quote expiry and cooldown use the web clock instead of database time.** (Medium; defect)
+1. **P1-001 — Expired or dismissed native invoices prevent another checkout.** (High; defect) — Implemented; local checks passed.
+2. **P1-002 — A successful wallet send followed by a failed submission can prompt a second payment.** (High; defect) — Implemented; local checks passed.
+3. **P1-003 — Native TRX status observation rejects its own event index.** (High; defect) — Implemented; local checks passed.
+4. **P1-004 — Signer reservations ignore tighter runtime payout limits.** (High; defect) — Implemented; local checks passed.
+5. **P1-005 — Recovery binding distinguishes pooler and signer endpoints for the same database.** (High; defect) — Open.
+6. **P1-006 — Recovery can journal the same transaction fees more than once.** (High; defect) — Open.
+7. **P1-007 — Solana fee attribution treats other transfers as account setup cost.** (High; defect) — Open.
+8. **P1-008 — Saved expired Solana or TRON attempts can indefinitely block a recovery scan.** (Medium; defect) — Open.
+9. **P1-009 — Previous receiving addresses have no complete recovery monitoring inventory.** (High; requirement gap) — Open.
+10. **P1-010 — Pausing a plan rejects payments already committed under its frozen terms.** (High; defect) — Implemented; local checks passed.
+11. **P1-011 — Accepted bootstrap destinations have no complete liability and payout support.** (High; defect) — Implemented; local checks passed.
+12. **P1-012 — The signer's oldest fixed candidate batch can starve later payable work.** (Medium; defect) — Open.
+13. **P1-013 — Recovery pages have row bounds without a feasible total RPC/time budget.** (High; defect) — Open.
+14. **P1-014 — The generic scheduler client signs only simulation and leaves testnet jobs undrained.** (High; defect) — Implemented; local checks passed.
+15. **P1-015 — The hosted deploy workflow cannot migrate the selected testnet binding.** (Medium; requirement gap) — Open.
+16. **P1-016 — Safe cancellation and unallocated-refund recovery are unreachable in the UI.** (Medium; defect) — Implemented; local checks passed.
+17. **P1-017 — Import and business operations use the generic staff rate policy.** (Medium; defect) — Implemented; local checks passed.
+18. **P1-018 — Rate budgets fragment across raw resource paths.** (Medium; defect) — Implemented; local checks passed.
+19. **P1-019 — Public database reads and OAuth callbacks bypass explicit rate budgets.** (Medium; hardening) — Open.
+20. **P1-020 — A combined factor/IP bucket does not bound distributed MFA guesses.** (Medium; hardening) — Implemented; local checks passed.
+21. **P1-021 — Wallet changes lack the PRD's fresh authentication and domain-bound challenge.** (High; defect) — Implemented; local checks passed.
+22. **P1-022 — Ordinary API reads can return data from the previous client identity.** (High; defect) — Implemented; local checks passed.
+23. **P1-023 — Concurrent browser tabs can revoke a valid refresh family.** (Medium; defect) — Implemented; local checks passed.
+24. **P1-024 — Secondary portals show login instead of using an available refresh session.** (Medium; defect) — Implemented; local checks passed.
+25. **P1-025 — Concurrent Google registrations can collide and fallback names violate configured lengths.** (Medium; defect) — Implemented; local checks passed.
+26. **P1-026 — Account deletion leaves private message content in notifications and job payloads.** (Medium; defect) — Open.
+27. **P1-027 — Expired authentication and rate records have no bounded cleanup lifecycle.** (Medium; defect) — Open.
+28. **P1-028 — Declared notification, terminal-job, ledger and audit retention is not implemented.** (Medium; requirement gap) — Open.
+29. **P1-029 — Pending chain observation ignores poll policy and creates a new durable job each round.** (Medium; defect) — Open.
+30. **P1-030 — Configured DLQ, backlog, lock-wait and quota alert thresholds have no complete alert path.** (Medium; requirement gap) — Open.
+31. **P1-031 — Acknowledged or resolved alerts can still send queued reminders.** (Medium; defect) — Open.
+32. **P1-032 — Old low-priority alert retries can consume the budget before a new critical alert.** (Medium; defect) — Open.
+33. **P1-033 — A permanent alert delivery key does not bind an immutable payload.** (Medium; defect) — Open.
+34. **P1-034 — Reopened alert escalation uses lifetime delivery count as the interval index.** (Low; defect) — Open.
+35. **P1-035 — Request IDs do not correlate API, audit, job and error records.** (Medium; requirement gap) — Open.
+36. **P1-036 — Expected failures become generic nonretryable errors and raw codes reach users.** (Medium; defect) — Open.
+37. **P1-037 — The shared JSON byte cap has no elapsed read deadline.** (Medium; hardening) — Implemented; local checks passed.
+38. **P1-038 — Ordinary database work lacks a complete query, queue and request time budget.** (Medium; hardening) — Open.
+39. **P1-039 — Balances and reconciliation repeatedly aggregate full ledger history.** (Medium; requirement gap) — Open.
+40. **P1-040 — Expired public statistics can create an advisory-lock request herd.** (Medium; hardening) — Open.
+41. **P1-041 — RPC cache misses are not coalesced and throttle waiting is outside the timeout.** (Medium; hardening) — Open.
+42. **P1-042 — Deployment-controlled RPC, alert and cache URLs lack an explicit SSRF destination policy.** (Medium; hardening) — Open.
+43. **P1-043 — Remote cache adapters lack equivalent timeout, response and lifecycle bounds.** (Medium; hardening) — Open.
+44. **P1-044 — Global activity remains visible when feature_activity is disabled.** (Medium; defect) — Implemented; local checks passed.
+45. **P1-045 — There is no shared visible authenticated snapshot poll.** (Medium; requirement gap) — Open.
+46. **P1-046 — Notification load-more permanently stops at 100 items.** (Medium; defect) — Implemented; local checks passed.
+47. **P1-047 — Staff lists hide older users, jobs and recovery cases without search or cursors.** (Medium; requirement gap) — Open.
+48. **P1-048 — Latest-history caps can omit older active cycles and pending withdrawals.** (Medium; defect) — Open.
+49. **P1-049 — Public catalog and help lack the Phase One SEO rendering and metadata contract.** (Medium; requirement gap) — Open.
+50. **P1-050 — Several private portals lack noindex metadata.** (Low; requirement gap) — Open.
+51. **P1-051 — Stored locale and product copy are not consistently applied across portals.** (Medium; defect) — Open.
+52. **P1-052 — Dark-mode primary button text fails normal-text contrast.** (Medium; defect) — Implemented; local checks passed.
+53. **P1-053 — Mobile navigation and the testnet home omit required product surfaces.** (Medium; requirement gap) — Open.
+54. **P1-054 — The native wallet summary omits held and withdrawn/net-income totals.** (Medium; requirement gap) — Open.
+55. **P1-055 — Closed historical exceptions can prevent plan editing forever.** (Medium; defect) — Implemented; local checks passed.
+56. **P1-056 — Native activation ignores the configured fixed-token pricing mode.** (Medium; defect) — Implemented; local checks passed.
+57. **P1-057 — Accepted provider and finality selectors have no matching implementation.** (Medium; defect) — Implemented; local checks passed.
+58. **P1-058 — Advertised single-request archive uploads exceed the Vercel function body limit.** (Medium; defect) — Open.
+59. **P1-059 — Filesystem archive staging is not durable or consistently reachable across serverless instances.** (Medium; requirement gap) — Open.
+60. **P1-060 — Archive stream creation precedes the final session fence and permits a file-lifecycle race.** (Low; hardening) — Open.
+61. **P1-061 — Failed staging files consume quota without a complete failure inventory.** (Medium; defect) — Open.
+62. **P1-062 — Paged own-data exports are not a single point-in-time snapshot.** (Low; hardening) — Open.
+63. **P1-063 — Drizzle table coverage does not describe all deployed constraints and defaults.** (Medium; maintenance) — Open.
+64. **P1-064 — Large tightly coupled services and untyped UI contracts make changes fragile.** (Low; maintenance) — Open.
+65. **P1-065 — Help search lacks the specified locale full-text and trigram ranking.** (Medium; requirement gap) — Open.
+66. **P1-066 — Published help cache does not remove withdrawn or renamed saved articles.** (Low; defect) — Open.
+67. **P1-067 — Solana custody reconciliation requires identical live response slots.** (Medium; defect) — Open.
+68. **P1-068 — Production dependencies include unresolved security advisories.** (High; maintenance) — Implemented; local checks passed.
+69. **P1-069 — Native quote expiry and cooldown use the web clock instead of database time.** (Medium; defect) — Implemented; local checks passed.
 
-70. **P1-070 — A valid multi-asset plan catalog fails after 100 active versions.** (Medium; defect)
+70. **P1-070 — A valid multi-asset plan catalog fails after 100 active versions.** (Medium; defect) — Implemented; local checks passed.
 
 ## Review, scope and evidence
 
@@ -682,9 +682,26 @@ The production dependency audit reports **15 affected package nodes**, not 15 se
 
 [Vercel function limits](https://vercel.com/docs/functions/limitations) document the 4.5 MB request/response body limit relevant to P1-058. Local-function body limits are distinct from advertised archive size, execution duration and free-plan quota. Existing PRD hosting/commercial-use constraints remain; no claim of guaranteed free operation is made.
 
-The complete remediation mapping, verification checks and three-round exit rule are in [custom-bugs-fix-plan.md](custom-bugs-fix-plan.md). Current handover: [LLM-HANDOVER_v29.md](LLM-HANDOVER_v29.md).
+The complete remediation mapping, verification checks and three-round exit rule are in [custom-bugs-fix-plan_v30.md](custom-bugs-fix-plan_v30.md). Current handover: [LLM-HANDOVER_v30.md](LLM-HANDOVER_v30.md).
+
+
+## Current v30 remediation ledger
+
+The owner approved all Round One fixes, autonomous Rounds Two/Three and continued remediation, every Phase Two milestone, and final bug fixes before deferred testing. Continue without plan or milestone acceptance pauses. Use best recommendations, complete substantial verified batches, and merge only after BOTH push and pull-request CI succeed for the exact final head. Both financial readiness gates remain false; mainnet remains prohibited. CRON frequency and test-only issues remain excluded.
+
+26 of 70 Round One items implemented and locally verified; 44 remain open. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. P1-019 and P1-036 have partial improvements but remain open. No bug-free or hosted acceptance claim is made.
+
+Implemented: P1-001, P1-002, P1-003, P1-004, P1-010, P1-011, P1-014, P1-016, P1-017, P1-018, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-037, P1-044, P1-046, P1-052, P1-055, P1-056, P1-057, P1-068, P1-069, P1-070.
+
+Open: P1-005, P1-006, P1-007, P1-008, P1-009, P1-012, P1-013, P1-015, P1-019, P1-026, P1-027, P1-028, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-038, P1-039, P1-040, P1-041, P1-042, P1-043, P1-045, P1-047, P1-048, P1-049, P1-050, P1-051, P1-053, P1-054, P1-058, P1-059, P1-060, P1-061, P1-062, P1-063, P1-064, P1-065, P1-066, P1-067.
+
+Local verification: required check:all; production build and bundle budget checks; production npm audit now zero advisories. Named isolated manual-contracts, manual-money and manual-quotes-r5 passed. The last validates quote cancellation/expiry/payload replay/DB clock, late-fund refunds, frozen pre-pause admission, custom bootstrap destination, positively refunded plan edit, and independent lower live per-transaction/daily signer caps without reservations or signed bytes. Initial quote-probe failures (invalid price TTL, missing scoped fixture binding, missing operational gas asset) remain retained and were corrected only in fresh r2/r3/r5 databases. No external RPC or broadcast occurred.
+
+Bug reports and fix plans must use the same _vN filename version as current status/handover; earlier versions are retained in Git history.
 
 ---
 
-Prepared by Codex — Round 1 audit, documentation only.
-Signed: **13 October 2026 at 09:31:02 PM UTC**
+Prepared by Codex — Round One remediation v30.
+PR29 https://github.com/nero1/onyiy/pull/29 is open. Initial head4e9333d failed push38485592440 and PR38485625731 because the lockfile omitted the nested optional utf-8-validate5.0.10 peer. A clean Node22/npm10 dependency tree regenerated the lockfile; both dry-run and fresh npm ci were required before repush. Do not merge using the failed initial head.
+
+Signed: **14 October 2026 at 12:42:08 AM WAT**

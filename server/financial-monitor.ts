@@ -1,3 +1,4 @@
+import {beneficiaryLiabilityPurposes} from '@gifters/domain';
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
   assets,cryptoObligations,signedAttemptStatus,
@@ -57,17 +58,7 @@ export async function monitorFinancials(assetKey?:string) {
           .where(
             and(
               eq(ledgerAccounts.assetId, asset.id),
-              inArray(ledgerAccounts.purpose, [
-                "available_payable",
-                "held_payable",
-                "refund_payable",
-              "incoming_payable",
-              "unallocated_payable",
-                "marketing_payable",
-                "developer_payable",
-                "bootstrap_developer_payable",
-                "bootstrap_marketing_payable",
-              ]),
+              inArray(ledgerAccounts.purpose, beneficiaryLiabilityPurposes),
             ),
           );
         const [health] = await tx

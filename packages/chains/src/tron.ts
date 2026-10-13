@@ -716,13 +716,14 @@ export class TronAdapter implements ChainAdapter {
     )
       throw new Error("SIGNED_INTENT_INVALID");
     await this.network();
+    const index = asset.kind === "native" ? 0 : -1;
     return reconcileEvidence(
       await Promise.allSettled([
-        this.observe(asset, signed.hash, -1, 0),
-        this.observe(asset, signed.hash, -1, 1),
+        this.observe(asset, signed.hash, index, 0),
+        this.observe(asset, signed.hash, index, 1),
       ]),
       signed.hash,
-      -1,
+      index,
     );
   }
 }

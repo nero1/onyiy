@@ -7,7 +7,7 @@
   "dependencies": {
     "@gifters/config": "0.1.0",
     "@gifters/domain": "0.1.0",
-    "drizzle-orm": "0.44.5",
+    "drizzle-orm": "0.45.4",
     "postgres": "3.4.5"
   }
 }

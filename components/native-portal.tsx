@@ -1,4 +1,6 @@
 "use client";
+import {loadSession} from '@/lib/auth-client';
+import {rememberPayment,pendingPayment,forgetPayment,beginPayment,endPayment} from '@/lib/payment-receipts';
 import { useEffect, useState, useRef } from "react";
 import {
   api,
@@ -48,9 +50,12 @@ export default function NativePortal() {
     [notice, setNotice] = useState("");
   const [botReady,setBotReady]=useState(false),[botProof,setBotProof]=useState<BotProof|undefined>(),[botReset,setBotReset]=useState(0);
   const [payment, setPayment] = useState<PreparedPayment | null>(null),
+    [sentHash,setSentHash]=useState(''),
+    [existingInvoice,setExistingInvoice]=useState(''),[existingHash,setExistingHash]=useState(''),
     [withdrawal, setWithdrawal] = useState<any>(null),
     [gross, setGross] = useState("");
   const current = useRef<SessionResult | null>(null),
+    financialFlight = useRef(false),
     epoch = useRef(0),
     mounted = useRef(true),
     user = session?.user ?? null,
@@ -77,9 +82,11 @@ export default function NativePortal() {
       channel.close();
     }
     setData(null);
-    setPayment(null);
+    const retained=value.user?pendingPayment(value.user.id):null;
+    setPayment(retained?.prepared??null);setSentHash(retained?.hash??'');
     setWithdrawal(null);
     setGross("");
+    setExistingInvoice('');setExistingHash('');
     setBotReady(false);setBotProof(undefined);setBotReset(v=>v+1);
     setNotice("");
     setBusy(false);
@@ -91,7 +98,7 @@ export default function NativePortal() {
     void Promise.all([
       api<any>("/manifest", ""),
       api<Catalog>("/crypto/catalog", ""),
-      api<SessionResult>("/auth/session", ""),
+      loadSession(),
     ])
       .then(([m, c, s]) => {
         if (mounted.current && epoch.current === active) {
@@ -113,7 +120,7 @@ export default function NativePortal() {
       setBotReady(false);setBotProof(undefined);setBotReset(v=>v+1);
       setNotice("");
       setBusy(false);
-      void api<SessionResult>("/auth/session", "")
+      void loadSession()
         .then((value) => {
           if (mounted.current && epoch.current === version) receive(value);
         })
@@ -219,8 +226,9 @@ export default function NativePortal() {
       if (valid()) setBusy(false);
     }
   }
-  async function financial(action: () => Promise<void>) {
-    if (!user || !catalog?.execution_enabled || !navigator.onLine) return;
+  async function financial(action: () => Promise<void>, safeRecovery=false) {
+    if (!user || (!catalog?.execution_enabled&&!safeRecovery) || !navigator.onLine || busy || financialFlight.current) return;
+    financialFlight.current=true;
     const active = epoch.current;
     setBusy(true);
     setNotice("");
@@ -234,6 +242,7 @@ export default function NativePortal() {
             : "Action was not confirmed. Check wallet history before trying again.",
         );
     } finally {
+      financialFlight.current=false;
       if (epoch.current === active) setBusy(false);
     }
   }
@@ -266,7 +275,10 @@ export default function NativePortal() {
     await financial(async () => {
       const wallet = await import("@/lib/native-wallet");
       if (epoch.current !== active) return;
-      const hash = await wallet.sendNativePayment(
+      beginPayment(user.id);
+      try{
+      const retained=pendingPayment(user.id);
+      const hash = retained?.prepared.invoice_id===prepared.invoice_id?retained.hash:await wallet.sendNativePayment(
         currency,
         prepared,
         () =>
@@ -274,13 +286,16 @@ export default function NativePortal() {
           epoch.current === active &&
           clientSessionMatches(owner, session!.generation!),
       );
+      rememberPayment(user.id,prepared,hash);
       if (epoch.current !== active) return;
+      setSentHash(hash);
       await mutation("/gifts/crypto/transaction", owner, {
         invoice_id: prepared.invoice_id,
         tx_hash: hash,
         event_index: -1,
       });
       if (epoch.current === active) {
+        forgetPayment(user.id,prepared.invoice_id);setSentHash('');
         setPayment(null);
         setNotice(
           fr
@@ -289,7 +304,18 @@ export default function NativePortal() {
         );
         await load();
       }
-    });
+      }finally{endPayment(user.id);}
+    },!!sentHash);
+  }
+  async function cancelPayment(){
+    if(!user||!payment||sentHash)return;
+    const id=payment.invoice_id,active=epoch.current;
+    await financial(async()=>{await mutation('/gifts/crypto/cancel',user.username,{invoice_id:id});if(epoch.current===active)setPayment(null)},true);
+  }
+  async function submitExisting(){
+    if(!user||!existingInvoice||!existingHash)return;
+    const active=epoch.current;
+    await financial(async()=>{await mutation('/gifts/crypto/transaction',user.username,{invoice_id:existingInvoice.trim(),tx_hash:existingHash.trim(),event_index:-1});if(active===epoch.current){setExistingInvoice('');setExistingHash('');await load()}},true);
   }
   async function quoteWithdrawal(currency: NativeCurrency) {
     if (!user) return;
@@ -353,7 +379,7 @@ export default function NativePortal() {
           network: row.network,
         });
       await load();
-    });
+    },!requote);
   }
   return (
     <main className="app account-portal">
@@ -480,9 +506,10 @@ export default function NativePortal() {
                 disabled={busy || !navigator.onLine}
                 onClick={() => void pay()}
               >
-                {fr ? "Approuver dans le portefeuille" : "Approve in wallet"}
+                {sentHash?(fr?"Soumettre le transfert déjà envoyé":"Submit the transfer already sent"):(fr ? "Approuver dans le portefeuille" : "Approve in wallet")}
               </button>
-              <button disabled={busy} onClick={() => setPayment(null)}>
+              {sentHash&&<p className="wallet-address">{sentHash}</p>}
+              <button disabled={busy||!!sentHash} onClick={() => void cancelPayment()}>
                 {t.cancel}
               </button>
             </section>
@@ -544,6 +571,13 @@ export default function NativePortal() {
               </button>
             </section>
           )}
+          <section className="card">
+            <h2>{fr?'Soumettre un paiement déjà envoyé':'Submit an existing payment'}</h2>
+            <p>{fr?'Copiez le hash depuis votre portefeuille. Cette action ne demande aucun nouvel envoi.':'Copy the transaction hash from your wallet. This action requests no new transfer.'}</p>
+            <label>{fr?'Identifiant du paiement':'Invoice ID'}<input value={existingInvoice} maxLength={36} onChange={e=>setExistingInvoice(e.target.value)}/></label>
+            <label>{fr?'Hash de la transaction':'Transaction hash'}<input value={existingHash} maxLength={128} onChange={e=>setExistingHash(e.target.value)}/></label>
+            <button disabled={busy||!navigator.onLine||!existingInvoice||!existingHash} onClick={()=>void submitExisting()}>{fr?'Soumettre le hash':'Submit hash'}</button>
+          </section>
           <button disabled={busy} onClick={() => void load()}>
             {fr ? "Actualiser" : "Refresh"}
           </button>
@@ -685,7 +719,7 @@ export default function NativePortal() {
                 ].includes(row.status) && (
                   <>
                     <button
-                      disabled={busy || !catalog?.execution_enabled}
+                      disabled={busy || !navigator.onLine}
                       onClick={() => void recoverWithdrawal(row, false)}
                     >
                       {fr

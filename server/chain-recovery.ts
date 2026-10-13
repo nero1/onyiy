@@ -1,5 +1,6 @@
+import {beneficiaryLiabilityPurposes} from '@gifters/domain';
 import crypto from "node:crypto";
-import { and, asc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   databaseScopeFingerprint,
@@ -489,7 +490,7 @@ export async function recoverScanPage(tx: DbExecutor, id: string) {
         .where(
           and(
             eq(ledgerAccounts.assetId, checkpoint.assetId),
-            sql`${ledgerAccounts.purpose} in ('available_payable','held_payable','refund_payable','incoming_payable','unallocated_payable','marketing_payable','developer_payable','bootstrap_developer_payable','bootstrap_marketing_payable')`,
+            inArray(ledgerAccounts.purpose,beneficiaryLiabilityPurposes),
           ),
         );
       if (physical < BigInt(owed.amount)) {

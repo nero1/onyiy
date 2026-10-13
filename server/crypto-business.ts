@@ -16,6 +16,8 @@ import {
   priceUnits,
   assertFreshRates,
   type RateSnapshot,
+  businessSettlementRoles,
+  businessAddressRole,
 } from "@gifters/domain";
 import {
   registryAsset,
@@ -30,12 +32,7 @@ import { account, postJournal, lockUser } from "./core";
 export const businessInput = z
   .object({
     asset_key: z.string().max(30),
-    role: z.enum([
-      "marketing",
-      "developer",
-      "bootstrap_developer",
-      "bootstrap_marketing",
-    ]),
+    role: z.enum(businessSettlementRoles),
     previous_obligation_id:z.string().uuid().optional(),
     reason: z.string().min(5).max(500),
   })
@@ -159,7 +156,7 @@ export async function holdBusinessSettlement(
     throw new Error("FINANCIAL_SAFETY_PAUSE");
   const destination = await platformAddress(
       registry,
-      input.role.endsWith("developer") ? "DEV" : "MARKETING",
+      businessAddressRole(sourcePurpose),
     ),
     sender = await platformAddress(registry, "RECEIVING"),
     chain = await adapter(registry),

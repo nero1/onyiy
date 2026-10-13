@@ -90,8 +90,8 @@ export async function nativeCatalog(tx: DbExecutor) {
       ),
     )
     .orderBy(asc(plans.name), asc(assets.symbol))
-    .limit(101);
-  if (versions.length > 100) throw new Error("CONFIGURATION_INVALID");
+    .limit(801);
+  if (versions.length > 800) throw new Error("CONFIGURATION_INVALID");
   return {
     mode,
     execution_enabled: financialImplementationComplete,

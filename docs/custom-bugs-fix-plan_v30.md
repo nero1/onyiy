@@ -1,80 +1,80 @@
 # Custom bugs fix plan — Gifters World Phase One
 
-Prepared: **13 October 2026 at 09:31:02 PM UTC** · Documentation version **v29**
+Updated: **14 October 2026 at 12:42:08 AM WAT** · Documentation version **v30**
 
 ## Complete one-line remediation list
 
-1. **P1-001 — Expired or dismissed native invoices prevent another checkout.** Planned; high priority; package A.
-2. **P1-002 — A successful wallet send followed by a failed submission can prompt a second payment.** Planned; high priority; package A.
-3. **P1-003 — Native TRX status observation rejects its own event index.** Planned; high priority; package A.
-4. **P1-004 — Signer reservations ignore tighter runtime payout limits.** Planned; high priority; package A.
-5. **P1-005 — Recovery binding distinguishes pooler and signer endpoints for the same database.** Planned; high priority; package B.
-6. **P1-006 — Recovery can journal the same transaction fees more than once.** Planned; high priority; package B.
-7. **P1-007 — Solana fee attribution treats other transfers as account setup cost.** Planned; high priority; package B.
-8. **P1-008 — Saved expired Solana or TRON attempts can indefinitely block a recovery scan.** Planned; medium priority; package B.
-9. **P1-009 — Previous receiving addresses have no complete recovery monitoring inventory.** Planned; high priority; package B.
-10. **P1-010 — Pausing a plan rejects payments already committed under its frozen terms.** Planned; high priority; package A.
-11. **P1-011 — Accepted bootstrap destinations have no complete liability and payout support.** Planned; high priority; package A.
-12. **P1-012 — The signer's oldest fixed candidate batch can starve later payable work.** Planned; medium priority; package C.
-13. **P1-013 — Recovery pages have row bounds without a feasible total RPC/time budget.** Planned; high priority; package B.
-14. **P1-014 — The generic scheduler client signs only simulation and leaves testnet jobs undrained.** Planned; high priority; package C.
-15. **P1-015 — The hosted deploy workflow cannot migrate the selected testnet binding.** Planned; medium priority; package C.
-16. **P1-016 — Safe cancellation and unallocated-refund recovery are unreachable in the UI.** Planned; medium priority; package D.
-17. **P1-017 — Import and business operations use the generic staff rate policy.** Planned; medium priority; package D.
-18. **P1-018 — Rate budgets fragment across raw resource paths.** Planned; medium priority; package D.
-19. **P1-019 — Public database reads and OAuth callbacks bypass explicit rate budgets.** Planned; medium priority; package D.
-20. **P1-020 — A combined factor/IP bucket does not bound distributed MFA guesses.** Planned; medium priority; package D.
-21. **P1-021 — Wallet changes lack the PRD's fresh authentication and domain-bound challenge.** Planned; high priority; package D.
-22. **P1-022 — Ordinary API reads can return data from the previous client identity.** Planned; high priority; package D.
-23. **P1-023 — Concurrent browser tabs can revoke a valid refresh family.** Planned; medium priority; package D.
-24. **P1-024 — Secondary portals show login instead of using an available refresh session.** Planned; medium priority; package D.
-25. **P1-025 — Concurrent Google registrations can collide and fallback names violate configured lengths.** Planned; medium priority; package D.
-26. **P1-026 — Account deletion leaves private message content in notifications and job payloads.** Planned; medium priority; package E.
-27. **P1-027 — Expired authentication and rate records have no bounded cleanup lifecycle.** Planned; medium priority; package E.
-28. **P1-028 — Declared notification, terminal-job, ledger and audit retention is not implemented.** Planned; medium priority; package E.
-29. **P1-029 — Pending chain observation ignores poll policy and creates a new durable job each round.** Planned; medium priority; package C.
-30. **P1-030 — Configured DLQ, backlog, lock-wait and quota alert thresholds have no complete alert path.** Planned; medium priority; package C.
-31. **P1-031 — Acknowledged or resolved alerts can still send queued reminders.** Planned; medium priority; package C.
-32. **P1-032 — Old low-priority alert retries can consume the budget before a new critical alert.** Planned; medium priority; package C.
-33. **P1-033 — A permanent alert delivery key does not bind an immutable payload.** Planned; medium priority; package C.
-34. **P1-034 — Reopened alert escalation uses lifetime delivery count as the interval index.** Planned; low priority; package C.
-35. **P1-035 — Request IDs do not correlate API, audit, job and error records.** Planned; medium priority; package C.
-36. **P1-036 — Expected failures become generic nonretryable errors and raw codes reach users.** Planned; medium priority; package D.
-37. **P1-037 — The shared JSON byte cap has no elapsed read deadline.** Planned; medium priority; package C.
-38. **P1-038 — Ordinary database work lacks a complete query, queue and request time budget.** Planned; medium priority; package C.
-39. **P1-039 — Balances and reconciliation repeatedly aggregate full ledger history.** Planned; medium priority; package E.
-40. **P1-040 — Expired public statistics can create an advisory-lock request herd.** Planned; medium priority; package C.
-41. **P1-041 — RPC cache misses are not coalesced and throttle waiting is outside the timeout.** Planned; medium priority; package C.
-42. **P1-042 — Deployment-controlled RPC, alert and cache URLs lack an explicit SSRF destination policy.** Planned; medium priority; package D.
-43. **P1-043 — Remote cache adapters lack equivalent timeout, response and lifecycle bounds.** Planned; medium priority; package C.
-44. **P1-044 — Global activity remains visible when feature_activity is disabled.** Planned; medium priority; package F.
-45. **P1-045 — There is no shared visible authenticated snapshot poll.** Planned; medium priority; package F.
-46. **P1-046 — Notification load-more permanently stops at 100 items.** Planned; medium priority; package F.
-47. **P1-047 — Staff lists hide older users, jobs and recovery cases without search or cursors.** Planned; medium priority; package F.
-48. **P1-048 — Latest-history caps can omit older active cycles and pending withdrawals.** Planned; medium priority; package F.
-49. **P1-049 — Public catalog and help lack the Phase One SEO rendering and metadata contract.** Planned; medium priority; package G.
-50. **P1-050 — Several private portals lack noindex metadata.** Planned; low priority; package G.
-51. **P1-051 — Stored locale and product copy are not consistently applied across portals.** Planned; medium priority; package F.
-52. **P1-052 — Dark-mode primary button text fails normal-text contrast.** Planned; medium priority; package F.
-53. **P1-053 — Mobile navigation and the testnet home omit required product surfaces.** Planned; medium priority; package F.
-54. **P1-054 — The native wallet summary omits held and withdrawn/net-income totals.** Planned; medium priority; package F.
-55. **P1-055 — Closed historical exceptions can prevent plan editing forever.** Planned; medium priority; package A.
-56. **P1-056 — Native activation ignores the configured fixed-token pricing mode.** Planned; medium priority; package A.
-57. **P1-057 — Accepted provider and finality selectors have no matching implementation.** Planned; medium priority; package C.
-58. **P1-058 — Advertised single-request archive uploads exceed the Vercel function body limit.** Planned; medium priority; package H.
-59. **P1-059 — Filesystem archive staging is not durable or consistently reachable across serverless instances.** Planned; medium priority; package H.
-60. **P1-060 — Archive stream creation precedes the final session fence and permits a file-lifecycle race.** Planned; low priority; package H.
-61. **P1-061 — Failed staging files consume quota without a complete failure inventory.** Planned; medium priority; package H.
-62. **P1-062 — Paged own-data exports are not a single point-in-time snapshot.** Planned; low priority; package H.
-63. **P1-063 — Drizzle table coverage does not describe all deployed constraints and defaults.** Planned; medium priority; package E.
-64. **P1-064 — Large tightly coupled services and untyped UI contracts make changes fragile.** Planned; low priority; package I.
-65. **P1-065 — Help search lacks the specified locale full-text and trigram ranking.** Planned; medium priority; package G.
-66. **P1-066 — Published help cache does not remove withdrawn or renamed saved articles.** Planned; low priority; package G.
-67. **P1-067 — Solana custody reconciliation requires identical live response slots.** Planned; medium priority; package B.
-68. **P1-068 — Production dependencies include unresolved security advisories.** Planned; high priority; package E.
-69. **P1-069 — Native quote expiry and cooldown use the web clock instead of database time.** Planned; medium priority; package A.
+1. **P1-001 — Expired or dismissed native invoices prevent another checkout.** Implemented; local checks passed; high priority; package A.
+2. **P1-002 — A successful wallet send followed by a failed submission can prompt a second payment.** Implemented; local checks passed; high priority; package A.
+3. **P1-003 — Native TRX status observation rejects its own event index.** Implemented; local checks passed; high priority; package A.
+4. **P1-004 — Signer reservations ignore tighter runtime payout limits.** Implemented; local checks passed; high priority; package A.
+5. **P1-005 — Recovery binding distinguishes pooler and signer endpoints for the same database.** Open; high priority; package B.
+6. **P1-006 — Recovery can journal the same transaction fees more than once.** Open; high priority; package B.
+7. **P1-007 — Solana fee attribution treats other transfers as account setup cost.** Open; high priority; package B.
+8. **P1-008 — Saved expired Solana or TRON attempts can indefinitely block a recovery scan.** Open; medium priority; package B.
+9. **P1-009 — Previous receiving addresses have no complete recovery monitoring inventory.** Open; high priority; package B.
+10. **P1-010 — Pausing a plan rejects payments already committed under its frozen terms.** Implemented; local checks passed; high priority; package A.
+11. **P1-011 — Accepted bootstrap destinations have no complete liability and payout support.** Implemented; local checks passed; high priority; package A.
+12. **P1-012 — The signer's oldest fixed candidate batch can starve later payable work.** Open; medium priority; package C.
+13. **P1-013 — Recovery pages have row bounds without a feasible total RPC/time budget.** Open; high priority; package B.
+14. **P1-014 — The generic scheduler client signs only simulation and leaves testnet jobs undrained.** Implemented; local checks passed; high priority; package C.
+15. **P1-015 — The hosted deploy workflow cannot migrate the selected testnet binding.** Open; medium priority; package C.
+16. **P1-016 — Safe cancellation and unallocated-refund recovery are unreachable in the UI.** Implemented; local checks passed; medium priority; package D.
+17. **P1-017 — Import and business operations use the generic staff rate policy.** Implemented; local checks passed; medium priority; package D.
+18. **P1-018 — Rate budgets fragment across raw resource paths.** Implemented; local checks passed; medium priority; package D.
+19. **P1-019 — Public database reads and OAuth callbacks bypass explicit rate budgets.** Open; medium priority; package D.
+20. **P1-020 — A combined factor/IP bucket does not bound distributed MFA guesses.** Implemented; local checks passed; medium priority; package D.
+21. **P1-021 — Wallet changes lack the PRD's fresh authentication and domain-bound challenge.** Implemented; local checks passed; high priority; package D.
+22. **P1-022 — Ordinary API reads can return data from the previous client identity.** Implemented; local checks passed; high priority; package D.
+23. **P1-023 — Concurrent browser tabs can revoke a valid refresh family.** Implemented; local checks passed; medium priority; package D.
+24. **P1-024 — Secondary portals show login instead of using an available refresh session.** Implemented; local checks passed; medium priority; package D.
+25. **P1-025 — Concurrent Google registrations can collide and fallback names violate configured lengths.** Implemented; local checks passed; medium priority; package D.
+26. **P1-026 — Account deletion leaves private message content in notifications and job payloads.** Open; medium priority; package E.
+27. **P1-027 — Expired authentication and rate records have no bounded cleanup lifecycle.** Open; medium priority; package E.
+28. **P1-028 — Declared notification, terminal-job, ledger and audit retention is not implemented.** Open; medium priority; package E.
+29. **P1-029 — Pending chain observation ignores poll policy and creates a new durable job each round.** Open; medium priority; package C.
+30. **P1-030 — Configured DLQ, backlog, lock-wait and quota alert thresholds have no complete alert path.** Open; medium priority; package C.
+31. **P1-031 — Acknowledged or resolved alerts can still send queued reminders.** Open; medium priority; package C.
+32. **P1-032 — Old low-priority alert retries can consume the budget before a new critical alert.** Open; medium priority; package C.
+33. **P1-033 — A permanent alert delivery key does not bind an immutable payload.** Open; medium priority; package C.
+34. **P1-034 — Reopened alert escalation uses lifetime delivery count as the interval index.** Open; low priority; package C.
+35. **P1-035 — Request IDs do not correlate API, audit, job and error records.** Open; medium priority; package C.
+36. **P1-036 — Expected failures become generic nonretryable errors and raw codes reach users.** Open; medium priority; package D.
+37. **P1-037 — The shared JSON byte cap has no elapsed read deadline.** Implemented; local checks passed; medium priority; package C.
+38. **P1-038 — Ordinary database work lacks a complete query, queue and request time budget.** Open; medium priority; package C.
+39. **P1-039 — Balances and reconciliation repeatedly aggregate full ledger history.** Open; medium priority; package E.
+40. **P1-040 — Expired public statistics can create an advisory-lock request herd.** Open; medium priority; package C.
+41. **P1-041 — RPC cache misses are not coalesced and throttle waiting is outside the timeout.** Open; medium priority; package C.
+42. **P1-042 — Deployment-controlled RPC, alert and cache URLs lack an explicit SSRF destination policy.** Open; medium priority; package D.
+43. **P1-043 — Remote cache adapters lack equivalent timeout, response and lifecycle bounds.** Open; medium priority; package C.
+44. **P1-044 — Global activity remains visible when feature_activity is disabled.** Implemented; local checks passed; medium priority; package F.
+45. **P1-045 — There is no shared visible authenticated snapshot poll.** Open; medium priority; package F.
+46. **P1-046 — Notification load-more permanently stops at 100 items.** Implemented; local checks passed; medium priority; package F.
+47. **P1-047 — Staff lists hide older users, jobs and recovery cases without search or cursors.** Open; medium priority; package F.
+48. **P1-048 — Latest-history caps can omit older active cycles and pending withdrawals.** Open; medium priority; package F.
+49. **P1-049 — Public catalog and help lack the Phase One SEO rendering and metadata contract.** Open; medium priority; package G.
+50. **P1-050 — Several private portals lack noindex metadata.** Open; low priority; package G.
+51. **P1-051 — Stored locale and product copy are not consistently applied across portals.** Open; medium priority; package F.
+52. **P1-052 — Dark-mode primary button text fails normal-text contrast.** Implemented; local checks passed; medium priority; package F.
+53. **P1-053 — Mobile navigation and the testnet home omit required product surfaces.** Open; medium priority; package F.
+54. **P1-054 — The native wallet summary omits held and withdrawn/net-income totals.** Open; medium priority; package F.
+55. **P1-055 — Closed historical exceptions can prevent plan editing forever.** Implemented; local checks passed; medium priority; package A.
+56. **P1-056 — Native activation ignores the configured fixed-token pricing mode.** Implemented; local checks passed; medium priority; package A.
+57. **P1-057 — Accepted provider and finality selectors have no matching implementation.** Implemented; local checks passed; medium priority; package C.
+58. **P1-058 — Advertised single-request archive uploads exceed the Vercel function body limit.** Open; medium priority; package H.
+59. **P1-059 — Filesystem archive staging is not durable or consistently reachable across serverless instances.** Open; medium priority; package H.
+60. **P1-060 — Archive stream creation precedes the final session fence and permits a file-lifecycle race.** Open; low priority; package H.
+61. **P1-061 — Failed staging files consume quota without a complete failure inventory.** Open; medium priority; package H.
+62. **P1-062 — Paged own-data exports are not a single point-in-time snapshot.** Open; low priority; package H.
+63. **P1-063 — Drizzle table coverage does not describe all deployed constraints and defaults.** Open; medium priority; package E.
+64. **P1-064 — Large tightly coupled services and untyped UI contracts make changes fragile.** Open; low priority; package I.
+65. **P1-065 — Help search lacks the specified locale full-text and trigram ranking.** Open; medium priority; package G.
+66. **P1-066 — Published help cache does not remove withdrawn or renamed saved articles.** Open; low priority; package G.
+67. **P1-067 — Solana custody reconciliation requires identical live response slots.** Open; medium priority; package B.
+68. **P1-068 — Production dependencies include unresolved security advisories.** Implemented; local checks passed; high priority; package E.
+69. **P1-069 — Native quote expiry and cooldown use the web clock instead of database time.** Implemented; local checks passed; medium priority; package A.
 
-70. **P1-070 — A valid multi-asset plan catalog fails after 100 active versions.** Planned; medium priority; package F.
+70. **P1-070 — A valid multi-asset plan catalog fails after 100 active versions.** Implemented; local checks passed; medium priority; package F.
 
 ## Approval boundary and execution rule
 
@@ -190,7 +190,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** An expired/dismissed unpaid quote permits a fresh quote; submitted/late funds retain one recoverable invoice.
 
-**STATUS:** [ ] Open; package A; High priority.
+**STATUS:** [x] Implemented and locally verified in v30; package A; High priority.
 
 ### 2: BUG P1-002: A successful wallet send followed by a failed submission can prompt a second payment
 
@@ -200,7 +200,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Force submission failure after one successful wallet send: retry submits the same hash and sends no second payment.
 
-**STATUS:** [ ] Open; package A; High priority.
+**STATUS:** [x] Implemented and locally verified in v30; package A; High priority.
 
 ### 3: BUG P1-003: Native TRX status observation rejects its own event index
 
@@ -210,7 +210,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** A saved native TRX transaction traverses pending, confirmed, failed and positive-expiry cases using the canonical index.
 
-**STATUS:** [ ] Open; package A; High priority.
+**STATUS:** [x] Implemented and locally verified in v30; package A; High priority.
 
 ### 4: BUG P1-004: Signer reservations ignore tighter runtime payout limits
 
@@ -220,7 +220,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Lower each live cap below the hard cap: all obligation kinds stop at the lower value under concurrent claims.
 
-**STATUS:** [ ] Open; package A; High priority.
+**STATUS:** [x] Implemented and locally verified in v30; package A; High priority.
 
 ### 5: BUG P1-005: Recovery binding distinguishes pooler and signer endpoints for the same database
 
@@ -280,7 +280,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Submit before pause, confirm afterward: frozen eligible terms are honored; new checkout remains blocked.
 
-**STATUS:** [ ] Open; package A; High priority.
+**STATUS:** [x] Implemented and locally verified in v30; package A; High priority.
 
 ### 11: BUG P1-011: Accepted bootstrap destinations have no complete liability and payout support
 
@@ -290,7 +290,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Every accepted bootstrap purpose is payable and excluded from sweep surplus; unsupported choices fail before allocation.
 
-**STATUS:** [ ] Open; package A; High priority.
+**STATUS:** [x] Implemented and locally verified in v30; package A; High priority.
 
 ### 12: BUG P1-012: The signer's oldest fixed candidate batch can starve later payable work
 
@@ -320,7 +320,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** A signed testnet generic tick processes notification/export/observation work; wrong-environment signatures reject.
 
-**STATUS:** [ ] Open; package C; High priority.
+**STATUS:** [x] Implemented and locally verified in v30; package C; High priority.
 
 ### 15: BUG P1-015: The hosted deploy workflow cannot migrate the selected testnet binding
 
@@ -340,7 +340,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** With execution disabled, eligible unsigned cancellation and unallocated-refund recovery remain reachable.
 
-**STATUS:** [ ] Open; package D; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v30; package D; Medium priority.
 
 ### 17: BUG P1-017: Import and business operations use the generic staff rate policy
 
@@ -350,7 +350,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Staging and business routes select their specific budgets; ordinary staff requests keep the staff policy.
 
-**STATUS:** [ ] Open; package D; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v30; package D; Medium priority.
 
 ### 18: BUG P1-018: Rate budgets fragment across raw resource paths
 
@@ -360,7 +360,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Different resource IDs share the same operation budget while distinct operation families remain independent.
 
-**STATUS:** [ ] Open; package D; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v30; package D; Medium priority.
 
 ### 19: BUG P1-019: Public database reads and OAuth callbacks bypass explicit rate budgets
 
@@ -380,7 +380,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Changing client IP does not reset the account/factor guessing allowance; legitimate recovery stays possible.
 
-**STATUS:** [ ] Open; package D; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v30; package D; Medium priority.
 
 ### 21: BUG P1-021: Wallet changes lack the PRD's fresh authentication and domain-bound challenge
 
@@ -390,7 +390,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Old authentication cannot change a wallet; wrong-domain or stale revision proof rejects without touching broadcast destinations.
 
-**STATUS:** [ ] Open; package D; High priority.
+**STATUS:** [x] Implemented and locally verified in v30; package D; High priority.
 
 ### 22: BUG P1-022: Ordinary API reads can return data from the previous client identity
 
@@ -400,7 +400,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Delay private reads across owner/generation changes: old success/error responses cannot repopulate current UI.
 
-**STATUS:** [ ] Open; package D; High priority.
+**STATUS:** [x] Implemented and locally verified in v30; package D; High priority.
 
 ### 23: BUG P1-023: Concurrent browser tabs can revoke a valid refresh family
 
@@ -410,7 +410,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Two tabs refreshing together preserve one valid family; actual refresh-token reuse still revokes it.
 
-**STATUS:** [ ] Open; package D; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v30; package D; Medium priority.
 
 ### 24: BUG P1-024: Secondary portals show login instead of using an available refresh session
 
@@ -420,7 +420,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Open each portal after access expiry with valid refresh: it resumes the session without skipping required MFA.
 
-**STATUS:** [ ] Open; package D; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v30; package D; Medium priority.
 
 ### 25: BUG P1-025: Concurrent Google registrations can collide and fallback names violate configured lengths
 
@@ -430,7 +430,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Different Google subjects with the same stem both receive unique names under short and long valid policies.
 
-**STATUS:** [ ] Open; package D; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v30; package D; Medium priority.
 
 ### 26: BUG P1-026: Account deletion leaves private message content in notifications and job payloads
 
@@ -550,7 +550,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** A silent/aborted/oversized body ends within the total read budget and releases its reader.
 
-**STATUS:** [ ] Open; package C; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v30; package C; Medium priority.
 
 ### 38: BUG P1-038: Ordinary database work lacks a complete query, queue and request time budget
 
@@ -620,7 +620,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Disable activity/statistics while a prior fetch is delayed: stale content cannot reappear.
 
-**STATUS:** [ ] Open; package F; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v30; package F; Medium priority.
 
 ### 45: BUG P1-045: There is no shared visible authenticated snapshot poll
 
@@ -640,7 +640,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Read beyond the 100th notification without losing continuation, unread state or identity isolation.
 
-**STATUS:** [ ] Open; package F; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v30; package F; Medium priority.
 
 ### 47: BUG P1-047: Staff lists hide older users, jobs and recovery cases without search or cursors
 
@@ -700,7 +700,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Both themes' normal primary text reaches at least 4.5:1, with visible focus and readable disabled states.
 
-**STATUS:** [ ] Open; package F; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v30; package F; Medium priority.
 
 ### 53: BUG P1-053: Mobile navigation and the testnet home omit required product surfaces
 
@@ -730,7 +730,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** A fully refunded historical exception does not block editing; any remaining economic right still does.
 
-**STATUS:** [ ] Open; package A; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v30; package A; Medium priority.
 
 ### 56: BUG P1-056: Native activation ignores the configured fixed-token pricing mode
 
@@ -740,7 +740,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Configured native fixed-token base units determine activation or are explicitly rejected before any version is made.
 
-**STATUS:** [ ] Open; package A; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v30; package A; Medium priority.
 
 ### 57: BUG P1-057: Accepted provider and finality selectors have no matching implementation
 
@@ -750,7 +750,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Unsupported price-provider/finality combinations fail validation; accepted settings select the implemented behavior.
 
-**STATUS:** [ ] Open; package C; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v30; package C; Medium priority.
 
 ### 58: BUG P1-058: Advertised single-request archive uploads exceed the Vercel function body limit
 
@@ -860,7 +860,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Production dependency audit has no unresolved reachable high advisory; reviewed exceptions list reachability and compensating limits.
 
-**STATUS:** [ ] Open; package E; High priority.
+**STATUS:** [x] Implemented and locally verified in v30; package E; High priority.
 
 ### 69: BUG P1-069: Native quote expiry and cooldown use the web clock instead of database time
 
@@ -870,7 +870,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Injected web/DB clock skew does not change database-authoritative native quote expiry or cooldown eligibility.
 
-**STATUS:** [ ] Open; package A; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v30; package A; Medium priority.
 
 ### 70: BUG P1-070: A valid multi-asset plan catalog fails after 100 active versions
 
@@ -880,7 +880,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** A valid catalog with more than 100 active plan/asset versions remains publicly readable through bounded continuation, or activation rejects an explicit consistent limit before state changes.
 
-**STATUS:** [ ] Open; package F; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v30; package F; Medium priority.
 
 ## Verification and release discipline
 
@@ -906,9 +906,26 @@ Then execute the entire Phase Two milestone sequence without waiting for milesto
 
 ## Fixing-LLM handover
 
-Read [LLM-HANDOVER_v29.md](LLM-HANDOVER_v29.md), then the mandatory project docs and [custom-bugs-report.md](custom-bugs-report.md). Confirm whether the owner has reviewed/authorized this plan in the active conversation before editing application code. If not, keep the review hold. Once authorized, start with P1-068 plus packages A/B and the High identity issues P1-021/P1-022; preserve the complete 70-ID tracker and all release boundaries. Do not reinterpret historical v28 “100%” as current audit completion.
+Read [LLM-HANDOVER_v30.md](LLM-HANDOVER_v30.md), then the mandatory project docs and [custom-bugs-report_v30.md](custom-bugs-report_v30.md). The owner has authorized this plan. Continue without further approval pauses; prioritize remaining P1-068 plus packages A/B and the High identity issues P1-021/P1-022; preserve the complete 70-ID tracker and all release boundaries. Do not reinterpret historical v28 “100%” as current audit completion.
+
+
+## Current v30 remediation ledger
+
+The owner approved all Round One fixes, autonomous Rounds Two/Three and continued remediation, every Phase Two milestone, and final bug fixes before deferred testing. Continue without plan or milestone acceptance pauses. Use best recommendations, complete substantial verified batches, and merge only after BOTH push and pull-request CI succeed for the exact final head. Both financial readiness gates remain false; mainnet remains prohibited. CRON frequency and test-only issues remain excluded.
+
+26 of 70 Round One items implemented and locally verified; 44 remain open. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. P1-019 and P1-036 have partial improvements but remain open. No bug-free or hosted acceptance claim is made.
+
+Implemented: P1-001, P1-002, P1-003, P1-004, P1-010, P1-011, P1-014, P1-016, P1-017, P1-018, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-037, P1-044, P1-046, P1-052, P1-055, P1-056, P1-057, P1-068, P1-069, P1-070.
+
+Open: P1-005, P1-006, P1-007, P1-008, P1-009, P1-012, P1-013, P1-015, P1-019, P1-026, P1-027, P1-028, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-038, P1-039, P1-040, P1-041, P1-042, P1-043, P1-045, P1-047, P1-048, P1-049, P1-050, P1-051, P1-053, P1-054, P1-058, P1-059, P1-060, P1-061, P1-062, P1-063, P1-064, P1-065, P1-066, P1-067.
+
+Local verification: required check:all; production build and bundle budget checks; production npm audit now zero advisories. Named isolated manual-contracts, manual-money and manual-quotes-r5 passed. The last validates quote cancellation/expiry/payload replay/DB clock, late-fund refunds, frozen pre-pause admission, custom bootstrap destination, positively refunded plan edit, and independent lower live per-transaction/daily signer caps without reservations or signed bytes. Initial quote-probe failures (invalid price TTL, missing scoped fixture binding, missing operational gas asset) remain retained and were corrected only in fresh r2/r3/r5 databases. No external RPC or broadcast occurred.
+
+Bug reports and fix plans must use the same _vN filename version as current status/handover; earlier versions are retained in Git history.
 
 ---
 
-Prepared by Codex — Round 1 remediation plan, no application changes.
-Signed: **13 October 2026 at 09:31:02 PM UTC**
+Prepared by Codex — Round One remediation v30.
+PR29 https://github.com/nero1/onyiy/pull/29 is open. Initial head4e9333d failed push38485592440 and PR38485625731 because the lockfile omitted the nested optional utf-8-validate5.0.10 peer. A clean Node22/npm10 dependency tree regenerated the lockfile; both dry-run and fresh npm ci were required before repush. Do not merge using the failed initial head.
+
+Signed: **14 October 2026 at 12:42:08 AM WAT**

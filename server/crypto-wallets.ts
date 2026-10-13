@@ -50,6 +50,8 @@ export async function challengeWallet(
     expires = new Date(now.getTime() + 300000);
   const message = [
     "Gifters World wallet ownership",
+    "Origin: " + new URL(process.env.WEB_ORIGIN ?? "").origin,
+    "Operation: link_wallet",
     "Environment: testnet",
     "Network: " + asset.network,
     "Chain: " + asset.chain,

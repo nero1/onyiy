@@ -283,6 +283,8 @@ export async function activateNativePlan(
       .values({ businessKey: key, requestHash: digest, result });
     return result;
   }
+  const planPolicy=policy[`plan_config_${plan.id}`] as {pricing_mode?:string}|undefined;
+  if(planPolicy?.pricing_mode==="fixed_token")throw new Error("PRICING_MODE_UNSUPPORTED");
   const [price] = await tx
     .select()
     .from(priceQuotes)
