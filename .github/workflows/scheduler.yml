@@ -21,6 +21,7 @@ jobs:
           node-version-file: .nvmrc
       - name: Signed bounded notification tick
         env:
+          APP_ENV: ${{ vars.APP_ENV || 'simulation' }}
           SCHEDULER_ORIGIN: ${{ vars.SCHEDULER_ORIGIN }}
           SCHEDULER_HMAC_KEY: ${{ secrets.SCHEDULER_HMAC_KEY }}
         run: node scripts/scheduler-tick.mjs

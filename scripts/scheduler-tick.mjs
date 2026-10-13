@@ -3,6 +3,8 @@ import crypto from 'node:crypto';
 // Use secure environment bindings; no credential or response payload is logged.
 const origin=process.env.SCHEDULER_ORIGIN;
 const rawKey=process.env.SCHEDULER_HMAC_KEY;
+const environment=process.env.APP_ENV??'simulation';
+if(!['simulation','testnet'].includes(environment))throw Error('Invalid scheduler environment');
 if (!origin || !rawKey) throw new Error('Scheduler origin and key bindings are required');
 const url=new URL('/api/v1/internal/tick',origin);
 if (url.protocol!=='https:' || new URL(origin).origin!==origin || url.username || url.password) throw new Error('Scheduler requires an exact HTTPS origin');
@@ -12,7 +14,7 @@ if (key.length<32 || key.toString('base64url')!==rawKey) throw new Error('Invali
 const body='{}';
 const timestamp=String(Math.floor(Date.now()/1000));
 const nonce=crypto.randomUUID();
-const canonical=['v1','POST',url.pathname,'simulation','current',timestamp,nonce,crypto.createHash('sha256').update(body).digest('hex')].join('\n');
+const canonical=['v1','POST',url.pathname,environment,'current',timestamp,nonce,crypto.createHash('sha256').update(body).digest('hex')].join('\n');
 const controller=new AbortController();
 const shutdown=()=>controller.abort();
 process.once('SIGTERM',shutdown);process.once('SIGINT',shutdown);

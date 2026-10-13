@@ -312,7 +312,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
     .where(and(eq(plans.id, planId), eq(planVersions.active, true), eq(assets.environment,asset.environment),eq(assets.id,asset.id)))
     .limit(1);
   const v = versions[0];
-  if (!v || v.planStatus !== 'active' || (expectedVersionId && v.id!==expectedVersionId)) throw new Error('PLAN_UNAVAILABLE');
+  if (!v || (!expectedVersionId&&v.planStatus !== 'active') || (expectedVersionId && v.id!==expectedVersionId)) throw new Error('PLAN_UNAVAILABLE');
   if (v.assetId !== asset.id) throw new Error('PLAN_UNAVAILABLE');
 
   const replayAfterLock = (await database.select().from(operationKeys).where(eq(sql<string>`lower(${operationKeys.businessKey})`,opKey)).limit(1))[0];

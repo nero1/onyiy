@@ -1074,9 +1074,9 @@ The web and signer readiness gates remain disabled. Automatic approval review re
 
 ## §34. Phase One bug audit, remediation and Phase Two continuation
 
-Owner directive recorded **13 October 2026 at 09:31:02 PM UTC**: analyze the full Phase One codebase in three complementary passes, deliver docs/custom-bugs-report.md and docs/custom-bugs-fix-plan.md with a complete initial one-line numbered list followed by affected files and recommended fixes, qualitative current/projected ratings, and current date/time in 12-hour format in custom report headers/footers. Include defects, missing Phase One requirements and evidenced suboptimal code; distinguish confirmed source failures from conditional hardening. Exclude CRON frequency and test-only issues.
+Owner directive recorded **13 October 2026 at 09:31:02 PM UTC**: analyze the full Phase One codebase in three complementary passes, deliver docs/custom-bugs-report_v30.md and docs/custom-bugs-fix-plan_v30.md with a complete initial one-line numbered list followed by affected files and recommended fixes, qualitative current/projected ratings, and current date/time in 12-hour format in custom report headers/footers. Include defects, missing Phase One requirements and evidenced suboptimal code; distinguish confirmed source failures from conditional hardening. Exclude CRON frequency and test-only issues.
 
-**Explicit review boundary:** “DO NOT FIX THE BUGS YET UNTIL I REVIEW THE PLAN!!!” Audit/documentation work proceeds now; application, schema, dependency and runtime bug fixes wait for review/authorization of this concrete plan. A documentation PR merge does not satisfy that review. This boundary takes precedence over prior generic continuation messages and does not add a routine milestone acceptance gate.
+**Historical initial review boundary, satisfied by §34.1 approval:** “DO NOT FIX THE BUGS YET UNTIL I REVIEW THE PLAN!!!” This was the initial audit boundary. The owner subsequently authorized all fixes and autonomous continuation in §34.1; no further plan-review or milestone acceptance hold remains.
 
 Round1 audit v29 identifies70 open findings (15 High,49 Medium,6 Low;43 defects,14 requirement gaps,10 hardening recommendations,3 maintenance issues); zero fixes applied. The prior v28 checklist of100% implementation is historical feature coverage, not current bug-free/100% PRD acceptance. Do not assign invented remediation percentages or silently retain an unconditional completion claim.
 
@@ -1088,4 +1088,12 @@ After this Phase One remediation exit, implement the whole §32 Phase Two sequen
 
 Supabase's explicit Data API grant policy shall be addressed in the same creating migration for every new public table. Use deliberate least-privilege GRANT/REVOKE/RLS by resource classification; do not apply blanket anon/authenticated/service_role access to financial/signing data. Application access remains Drizzle/PostgreSQL, not an implied switch to browser Data API use.
 
-Each implementation/documentation iteration remains a PR with BOTH exact-final-head push and pull-request CI success before merge; never direct-push main. Current status/handover are docs/PROJECT-STATUS_v29.md and docs/LLM-HANDOVER_v29.md.
+Each implementation/documentation iteration remains a PR with BOTH exact-final-head push and pull-request CI success before merge; never direct-push main. Current status/handover are docs/PROJECT-STATUS_v30.md and docs/LLM-HANDOVER_v30.md.
+
+
+### §34.1 Approved autonomous continuation — 13 October 2026 at 11:17:35 PM WAT
+
+The owner has reviewed and approved the complete Round One plan. Fix all70 findings, perform the same full-codebase audit/plan/fix process for Rounds Two and Three, and continue further remediation if new/reopened bugs remain. Then implement every Phase Two milestone to complete technical implementation and perform final bug fixes before the deferred test phase. Do not wait for new plan or completed-milestone approval. Resolve routine questions using best recommendations; maximize useful verified scope per iteration. Maintain reports, plans, status and handovers. Create/merge each coherent PR after BOTH exact-final-head push and PR CI success. This approval supersedes the initial §34 plan-review hold, but preserves explicit financial readiness/mainnet restrictions and honest separately unrun hosted acceptance. Current status/handover filenames are PROJECT-STATUS_v30.md and LLM-HANDOVER_v30.md.
+
+
+Bug reports and fix plans shall also have matching versioned filenames for every current iteration (initial remediation: custom-bugs-report_v30.md and custom-bugs-fix-plan_v30.md). Update status/handover/cross-links together; retain earlier evidence in Git history and do not leave stale current-file references.

@@ -8,6 +8,7 @@ import {
   type DbExecutor,
 } from "@gifters/db";
 import { readRegistry } from "@gifters/chains";
+import {businessSettlementRoles} from '@gifters/domain';
 import { holdBusinessSettlement } from "./crypto-business";
 import { lockUser } from "./core";
 /** At most 100 due reminders per invocation; each ordinal is permanent. */
@@ -170,12 +171,7 @@ export async function scheduleDailyBusiness() {
         )
         .limit(1);
       if (!asset) continue;
-      for (const role of [
-        "marketing",
-        "developer",
-        "bootstrap_developer",
-        "bootstrap_marketing",
-      ] as const) {
+      for (const role of businessSettlementRoles) {
         const [previous] = await tx
           .select({ key: operationKeys.businessKey })
           .from(operationKeys)

@@ -294,14 +294,6 @@ Staff selected-user JSON/CSV exports use a closed field allowlist and audit reas
 Build reports bound every API trace below3MiB compressed and conservatively bound each lazy wallet by all client chunks below2MiB. Baseline regression is10%; hosted measurements remain separate. The financial readiness gates stay disabled pending explicit approval and independent release inputs.
 
 
-## v29 audit status and current review boundary
+## Current v30 remediation and continuation
 
-Updated **13 October 2026 at 09:31:02 PM UTC**. PR27 is merged at ee50068; its final exact-head push and PR CI both passed. This v29 iteration changes documentation only. Phase One Round1 audit reports70 open findings; no application/migration/dependency fix has been made. Current reports: [custom-bugs-report.md](custom-bugs-report.md) and [custom-bugs-fix-plan.md](custom-bugs-fix-plan.md); current status/handover: [PROJECT-STATUS_v29.md](PROJECT-STATUS_v29.md), [LLM-HANDOVER_v29.md](LLM-HANDOVER_v29.md).
-
-The owner explicitly requires review of the fix plan before bug fixes. Once authorized, continue substantial remediation batches without milestone acceptance waits, complete the audit/fix-round exit, then execute all Phase Two milestones without waiting for milestone acceptance. Existing financial gates remain false and restore targets inactive.
-
-Earlier contract descriptions/local successful probes are retained history, not proof that all edge cases work. The audit specifically reopens invoice/send retry, limits/liability/fees, connection-mode binding and Solana cutoff/expiry, prior treasury monitoring, session/rate/retention, monitoring/polling/pagination, hosted file limits and product/SEO requirements. Use the complete numbered reports before relying on these paths.
-
-In particular, the existing generic scheduler client is simulation-only; testnet generic work dispatch needs remediation. Local filesystem staging is not a durable Vercel storage service; a50MiB advertised application cap does not override Vercel's function request-body cap. Use only the existing private owner CLI backup/restore path where hosted web staging is unsupported, and preserve failed staging evidence. No workaround enables sending.
-
-All new-table migrations must explicitly classify grants/revokes and RLS, preserving restricted PostgreSQL/Drizzle access and no broad financial Data API exposure. No applied migration checksum, retained financial history, factor or readiness gate was changed by this audit.
+The owner approved all fixes and autonomous audit/plan/fix rounds through Phase Two and final bug fixes. Round One has 26 implemented and locally verified findings, with 44 still open. See [custom-bugs-report_v30.md](custom-bugs-report_v30.md), [custom-bugs-fix-plan_v30.md](custom-bugs-fix-plan_v30.md), [PROJECT-STATUS_v30.md](PROJECT-STATUS_v30.md) and [LLM-HANDOVER_v30.md](LLM-HANDOVER_v30.md). All four current filenames use matching versions; maintain cross-links together. Continue substantial batches without milestone acceptance waits, merge only after both exact-head CI events pass, retain financial gates disabled and tests deferred. Historical v29 review holds are satisfied. Phase One remediation and Phase Two are incomplete.

@@ -187,6 +187,8 @@ export default function NativeAdmin({
               "marketing",
               "bootstrap_developer",
               "bootstrap_marketing",
+              "bootstrap_platform",
+              "bootstrap_custom_bootstrap",
             ].map((v) => (
               <option key={v}>{v}</option>
             ))}
@@ -588,7 +590,7 @@ export default function NativeAdmin({
             </p>
             <p className="wallet-address">{row.destination}</p>
             <small>{row.id}</small>
-            {!row.completed_at && ["business", "refund"].includes(row.kind) && (
+            {!row.completed_at && ["business", "refund", "unallocated_refund"].includes(row.kind) && (
               <button
                 disabled={busy || !enabled || reason.trim().length < 10}
                 onClick={() =>

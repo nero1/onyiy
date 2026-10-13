@@ -1,4 +1,5 @@
 import {databaseScopeFingerprint} from '../../packages/db/src/binding-fingerprint';
+import {beneficiaryLiabilityPurposes,businessAddressRole} from '../../packages/domain/src/liabilities';
 import { Transaction } from "ethers";
 import type { DbExecutor } from "../../packages/db/src/index";
 import crypto from "node:crypto";
@@ -22,6 +23,7 @@ import {
 import { databaseConnectionOptions } from "../../packages/db/src/connection-options";
 import {
   principalUsdMicros,
+  usdLimitMicros,
   type RateSnapshot,
 } from "../../packages/domain/src/fees";
 import { assertIsolated } from "./keys";
@@ -115,6 +117,7 @@ export class SignerStore {
   }
   private async context<T>(fn: (tx: DbExecutor) => Promise<T>) {
     return this.database.transaction(async (tx) => {
+      await tx.execute(sql.raw('set local search_path=pg_catalog,public,pg_temp'));
       await tx.execute(sql`select set_config('gw.environment','testnet',true),set_config('gw.database_binding',${databaseScopeFingerprint(process.env.SIGNER_DATABASE_URL??'')},true)`);
       const [role] = await tx.execute<{
         safe: boolean;
@@ -229,6 +232,7 @@ export class SignerStore {
       );
       if(live.hash!==fingerprint)throw new Error("SIGNER_CONFIGURATION_CHANGED");
       if(!live.policy.feature_wallets)throw new Error("SIGNER_FEATURE_PAUSED");
+      if(row.kind==='business'&&live.addresses[businessAddressRole(row.sourcePurpose)]!==row.destination)throw new Error('SIGNER_INTENT_DENIED');
       const approvedNetwork = BigInt(
           (row.feeSnapshot as { networkFee?: string }).networkFee ??
             row.nativeFeeQuote,
@@ -261,17 +265,7 @@ export class SignerStore {
         .where(
           and(
             eq(ledgerAccounts.assetId, row.assetId),
-            inArray(ledgerAccounts.purpose, [
-              "available_payable",
-              "held_payable",
-              "refund_payable",
-              "incoming_payable",
-              "unallocated_payable",
-              "marketing_payable",
-              "developer_payable",
-              "bootstrap_developer_payable",
-              "bootstrap_marketing_payable",
-            ]),
+            inArray(ledgerAccounts.purpose, beneficiaryLiabilityPurposes),
           ),
         );
       if (assetAvailable < BigInt(assetLiability.amount))
@@ -308,11 +302,15 @@ export class SignerStore {
           BigInt(row.netBaseUnits),
           row.rateSnapshot as RateSnapshot,
         ),
-        perTx = BigInt(process.env.SIGNER_HARD_PER_TX_USD ?? "5000") * 1000000n,
-        daily =
-          BigInt(process.env.SIGNER_HARD_DAILY_PER_ASSET_USD ?? "10000") *
-          1000000n;
+        hardPerTx = BigInt(process.env.SIGNER_HARD_PER_TX_USD ?? "5000") * 1000000n,
+        hardDaily = BigInt(process.env.SIGNER_HARD_DAILY_PER_ASSET_USD ?? "10000") * 1000000n,
+        policyPerTx = usdLimitMicros(live.policy.payout_limits.signer_per_tx_usd),
+        policyDaily = usdLimitMicros(live.policy.payout_limits.daily_per_asset_usd),
+        perTx = hardPerTx < policyPerTx ? hardPerTx : policyPerTx,
+        daily = hardDaily < policyDaily ? hardDaily : policyDaily;
       if (usd > perTx) throw new Error("SIGNER_CAP_EXCEEDED");
+      // A receiving-address rotation must not reset the asset's daily budget.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${'signer-daily:'+row.assetId+':'+now.day},0))`);
       const [spent] = await tx
         .select({
           total: sql<string>`coalesce(sum(${signerReservations.principalUsdMicros}),0)::text`,
@@ -320,7 +318,6 @@ export class SignerStore {
         .from(signerReservations)
         .where(
           and(
-            eq(signerReservations.treasuryFingerprint, row.treasuryFingerprint),
             eq(signerReservations.assetId, row.assetId),
             eq(signerReservations.signingDay, now.day),
           ),
@@ -377,17 +374,7 @@ export class SignerStore {
         .where(
           and(
             eq(ledgerAccounts.assetId, native.id),
-            inArray(ledgerAccounts.purpose, [
-              "available_payable",
-              "held_payable",
-              "refund_payable",
-              "incoming_payable",
-              "unallocated_payable",
-              "marketing_payable",
-              "developer_payable",
-              "bootstrap_developer_payable",
-              "bootstrap_marketing_payable",
-            ]),
+            inArray(ledgerAccounts.purpose, beneficiaryLiabilityPurposes),
           ),
         );
       nativeAvailable -=
@@ -733,17 +720,7 @@ export class SignerStore {
         .where(
           and(
             inArray(ledgerAccounts.assetId, [native.id, row.assetId]),
-            inArray(ledgerAccounts.purpose, [
-              "available_payable",
-              "held_payable",
-              "refund_payable",
-              "incoming_payable",
-              "unallocated_payable",
-              "marketing_payable",
-              "developer_payable",
-              "bootstrap_developer_payable",
-              "bootstrap_marketing_payable",
-            ]),
+            inArray(ledgerAccounts.purpose, beneficiaryLiabilityPurposes),
           ),
         )
         .groupBy(ledgerAccounts.assetId);

@@ -104,7 +104,8 @@ export function validateRegistry(value: unknown): AssetRegistry[] {
       throw new Error("REGISTRY_INVALID");
     if (
       (row.chain === "tron" && row.finality.mode !== "solidified") ||
-      (row.chain === "sol" && row.finality.mode !== "finalized")
+      (row.chain === "sol" && row.finality.mode !== "finalized") ||
+      (["eth", "bnb"].includes(row.chain) && !["depth", "finalized"].includes(row.finality.mode))
     )
       throw new Error("REGISTRY_INVALID");
   }

@@ -15,6 +15,8 @@ for (const name of fs.readdirSync(root)) {
 const docs = path.join(root, 'docs');
 let statusFiles = [];
 let handoverFiles = [];
+let bugReportFiles = [];
+let bugPlanFiles = [];
 
 if (!fs.existsSync(docs)) {
   errors.push('missing required docs directory');
@@ -28,6 +30,11 @@ if (!fs.existsSync(docs)) {
 
   statusFiles = names.filter((n) => /^PROJECT-STATUS_v\d+\.md$/i.test(n));
   handoverFiles = names.filter((n) => /^LLM-HANDOVER_v\d+\.md$/i.test(n));
+  bugReportFiles = names.filter((n) => /^custom-bugs-report_v\d+\.md$/i.test(n));
+  bugPlanFiles = names.filter((n) => /^custom-bugs-fix-plan_v\d+\.md$/i.test(n));
+  for (const obsolete of ['custom-bugs-report.md', 'custom-bugs-fix-plan.md']) {
+    if (names.includes(obsolete)) errors.push(`bug documentation must use a versioned filename: docs/${obsolete}`);
+  }
 
   if (!statusFiles.length) errors.push('missing versioned project status doc: docs/PROJECT-STATUS_vN.md');
   if (!handoverFiles.length) errors.push('missing versioned LLM handover doc: docs/LLM-HANDOVER_vN.md');
@@ -54,6 +61,15 @@ const latestHandover = handoverFiles
 
 if (latestStatus && latestHandover && latestStatus.version !== latestHandover.version) {
   warnings.push(`current filename versions differ (${latestStatus.name} vs ${latestHandover.name}); matching versions are preferred but not required`);
+}
+
+if (bugReportFiles.length || bugPlanFiles.length) {
+  for (const [prefix, files] of [['custom-bugs-report', bugReportFiles], ['custom-bugs-fix-plan', bugPlanFiles]]) {
+    const latest = files.map((name) => ({ name, version: versionOf(name, prefix) })).sort((a, b) => b.version - a.version)[0];
+    if (!latest || latest.version !== latestStatus?.version || latest.version !== latestHandover?.version) {
+      errors.push(`current ${prefix} filename version must match current status and handover`);
+    }
+  }
 }
 
 for (const current of [latestStatus, latestHandover].filter(Boolean)) {

@@ -10,6 +10,7 @@ import { startGoogle,finishGoogle } from './google-auth';
 async function body(request:Request){try{return await boundedJson(request)}catch{throw new Error('INVALID_INPUT')}}
 export async function handleAuthRequest(method:string,path:string,request:Request):Promise<Response>{
  if(method==='GET'&&path==='/auth/session'){
+  await enforceRate(request,'auth','session-bootstrap');
   origin(request);let identity;try{identity=await authenticate(request)}catch{/* An anonymous bootstrap has no authority. */}
   const response=authResponse(identity?{user:userDto(identity.user),generation:identity.session?.generation??'tool',requires_mfa:false,provider:process.env.AUTH_PROVIDER??'simulation'}:{user:null,requires_mfa:!!cookie(request,'gw_pre_auth'),provider:process.env.AUTH_PROVIDER??'simulation',can_refresh:!!cookie(request,'gw_refresh')});
   if(!identity&&!cookie(request,'gw_csrf'))setCookie(response,request,'gw_csrf',randomToken(),'/',300,false);

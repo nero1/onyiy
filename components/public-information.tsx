@@ -9,7 +9,8 @@ export default function PublicInformation() {
     [fr, setFr] = useState(false),
     [stats, setStats] = useState<any>(null);
   useEffect(() => {
-    let active = true;
+    let active = true, revision = 0;
+    let controller: AbortController | undefined;
     const language = () => setFr(document.documentElement.lang === "fr"),
       observer = new MutationObserver(language);
     language();
@@ -23,21 +24,23 @@ export default function PublicInformation() {
     motion.addEventListener("change", change);
     const load = () => {
       if (document.visibilityState !== "visible") return;
-      void fetch("/api/v1/manifest", { credentials: "omit" })
+      controller?.abort(); controller = new AbortController();
+      const current = ++revision, signal = controller.signal;
+      void fetch("/api/v1/manifest", { credentials: "omit", signal })
         .then((r) => (r.ok ? r.json() : null))
         .then(async (value) => {
-          if (!active || !value) return;
+          if (!active || current !== revision || !value) return;
           const data = value.data;
-          setStatements(data.activity_statements ?? []);
+          setStatements(data.feature_activity ? (data.activity_statements ?? []) : []);
           setSeconds(data.ui_rotation_policy?.activity_seconds ?? 10);
           if (!data.public_stats_policy?.enabled) setStats(null);
           if (data.public_stats_policy?.enabled) {
             const response = await fetch("/api/v1/statistics", {
-              credentials: "omit",
+              credentials: "omit", signal,
             });
             if (response.ok) {
               const value = await response.json();
-              if (active) setStats(value.data);
+              if (active && current === revision) setStats(value.data);
             }
           }
         })
@@ -47,7 +50,7 @@ export default function PublicInformation() {
     const refresh = setInterval(load, 60000);
     document.addEventListener("visibilitychange", load);
     return () => {
-      active = false;
+      active = false; controller?.abort(); revision++;
       clearInterval(refresh);
       document.removeEventListener("visibilitychange", load);
       observer.disconnect();

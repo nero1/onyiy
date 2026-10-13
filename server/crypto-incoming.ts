@@ -60,6 +60,15 @@ export async function quoteCryptoInvoice(
   );
   const user = await lockUser(tx, userId),
     manifest = await readManifest(tx);
+  const [clock] = await tx.execute<{now:Date}>(sql`select clock_timestamp() as now`);
+  const now = new Date(clock.now);
+  const aliasKey=`native-invoice-quote:${userId}:${key}`,digest=crypto.createHash("sha256").update(JSON.stringify({plan_id:input.plan_id,asset_key:input.asset_key})).digest("hex");
+  const [alias]=await tx.select().from(operationKeys).where(eq(operationKeys.businessKey,aliasKey)).limit(1);
+  if(alias){
+    if(alias.requestHash!==digest)throw new Error("VERSION_CONFLICT");
+    const [quoted]=await tx.select().from(cryptoInvoices).where(and(eq(cryptoInvoices.id,String((alias.result as {invoice_id:string}).invoice_id)),eq(cryptoInvoices.userId,userId))).limit(1);
+    if(!quoted)throw new Error("FINANCIAL_SAFETY_PAUSE");return quoted;
+  }
   if (
     !manifest.feature_gifts ||
     !manifest.entitlements_member.send_enabled_gifts
@@ -162,7 +171,7 @@ export async function quoteCryptoInvoice(
     .limit(1);
   if (
     recent?.at &&
-    Date.now() - recent.at.getTime() <
+    now.getTime() - recent.at.getTime() <
       manifest.cycle_rejoin_cooldown_hours * 3600000
   )
     throw new Error("COOLDOWN_ACTIVE");
@@ -196,10 +205,28 @@ export async function quoteCryptoInvoice(
       ),
     )
     .limit(1);
-  if (!wallet || (wallet.coolingUntil && wallet.coolingUntil > new Date()))
+  if (!wallet || (wallet.coolingUntil && wallet.coolingUntil > now))
     throw new Error("INVALID_ADDRESS");
   const config = await financialConfiguration(tx, registry);
-  return (
+  // Expiration closes checkout eligibility, never the ability to account for a
+  // later transfer. Submitted invoices remain under observation.
+  await tx.update(cryptoInvoices).set({status:"expired"}).where(and(
+    eq(cryptoInvoices.userId,userId),eq(cryptoInvoices.status,"quoted"),
+    sql`${cryptoInvoices.expiresAt}<=${now.toISOString()}::timestamptz`,
+    sql`not exists(select 1 from ${cryptoSubmissions} s where s.invoice_id=${cryptoInvoices.id})`,
+  ));
+  const [openInvoice] = await tx.select().from(cryptoInvoices).where(and(
+    eq(cryptoInvoices.userId,userId),eq(cryptoInvoices.planVersionId,version.version.id),
+    inArray(cryptoInvoices.status,["quoted","submitted"]),
+  )).limit(1);
+  if(openInvoice){
+    if(openInvoice.status==="submitted")throw new Error("ACTIVE_INVOICE_EXISTS");
+    if(openInvoice.sessionGeneration===generation&&openInvoice.walletId===wallet.id&&openInvoice.walletRevision===wallet.revision){
+      await tx.insert(operationKeys).values({businessKey:aliasKey,requestHash:digest,result:{invoice_id:openInvoice.id}});return openInvoice;
+    }
+    await tx.update(cryptoInvoices).set({status:"cancelled"}).where(eq(cryptoInvoices.id,openInvoice.id));
+  }
+  const created=(
     await tx
       .insert(cryptoInvoices)
       .values({
@@ -218,10 +245,12 @@ export async function quoteCryptoInvoice(
         sender: wallet.address,
         expectedBaseUnits: version.version.amountBaseUnits,
         usdReference: version.version.usdReference,
-        expiresAt: new Date(Date.now() + manifest.quote_ttl_minutes * 60000),
+        expiresAt: new Date(now.getTime() + manifest.quote_ttl_minutes * 60000),
       })
       .returning()
   )[0];
+  await tx.insert(operationKeys).values({businessKey:aliasKey,requestHash:digest,result:{invoice_id:created.id}});
+  return created;
 }
 export async function verifyCryptoDeposit(
   tx: DbExecutor,
@@ -497,8 +526,6 @@ export async function submitCryptoDeposit(
       input.tx_hash,
     ),
   };
-  if (!["quoted", "submitted"].includes(invoice.status))
-    throw new Error("VERSION_CONFLICT");
   const [old] = await tx
     .select()
     .from(cryptoSubmissions)
@@ -511,6 +538,7 @@ export async function submitCryptoDeposit(
     )
     .limit(1);
   if (old) return { id: old.id, status: "submitted" };
+  if (!["quoted", "submitted", "expired", "cancelled"].includes(invoice.status))throw new Error("VERSION_CONFLICT");
   const [counts] = await tx
     .select({ count: sql<string>`count(*)::text` })
     .from(cryptoSubmissions)
@@ -524,7 +552,7 @@ export async function submitCryptoDeposit(
       eventIndex: input.event_index,
     })
     .returning();
-  await tx
+  if(["quoted","submitted"].includes(invoice.status))await tx
     .update(cryptoInvoices)
     .set({ status: "submitted" })
     .where(eq(cryptoInvoices.id, invoice.id));
@@ -534,4 +562,15 @@ export async function submitCryptoDeposit(
     status: "submitted",
     first_seen_at: row.firstSeenAt.toISOString(),
   };
+}
+/** Cancelling an unsubmitted quote grants no authority over late chain funds. */
+export async function cancelNativeInvoice(tx:DbExecutor,userId:string,id:string){
+ assertFinancialEnvironment();await lockUser(tx,userId);
+ const [invoice]=await tx.select().from(cryptoInvoices).where(and(eq(cryptoInvoices.id,id),eq(cryptoInvoices.userId,userId))).for("update");
+ if(!invoice)throw new Error("NOT_FOUND");
+ if(["cancelled","expired"].includes(invoice.status))return {id,status:invoice.status};
+ const [submitted]=await tx.select({id:cryptoSubmissions.id}).from(cryptoSubmissions).where(eq(cryptoSubmissions.invoiceId,id)).limit(1);
+ if(invoice.status!=="quoted"||submitted)throw new Error("FINANCIAL_SAFETY_PAUSE");
+ await tx.update(cryptoInvoices).set({status:"cancelled"}).where(eq(cryptoInvoices.id,id));
+ return {id,status:"cancelled"};
 }

@@ -1,4 +1,5 @@
 'use client';
+import {loadSession} from '@/lib/auth-client';
 import type {BotProof} from './bot-check';
 const BotCheck=dynamic(()=>import('./bot-check'));
 
@@ -82,7 +83,7 @@ export default function DashboardApp() {
     });
     setManifest(cachedManifest);
     setDash(null);
-    void api<SessionResult>('/auth/session','').then(async value=>{if(!value.user&&!value.requires_mfa&&value.can_refresh){try{value=await mutation<SessionResult>('/auth/refresh','',{})}catch{/* Expired/revoked families require login. */}}if(mounted)receiveSession(value)}).catch(()=>{if(mounted)setAuthReady(true)});
+    void loadSession().then(async value=>{if(mounted)receiveSession(value)}).catch(()=>{if(mounted)setAuthReady(true)});
     setOnline(navigator.onLine);
     return ()=>{mounted=false;};
   }, []);
@@ -260,7 +261,7 @@ export default function DashboardApp() {
       <header className="topbar" ref={headerElement}>
         <div><div className="brand">🎁 {t.brand}</div><div className="tagline">{t.tagline}</div></div>
         <div className="top-actions">
-          {manifest.feature_notifications&&<NotificationInbox user={username} locale={locale} initial={dash.notifications} badge={!!dash.notification_badge?.has_new} onChange={()=>void refresh()}/>}
+          {manifest.feature_notifications&&<NotificationInbox key={username+':'+sessionGeneration} user={username} locale={locale} initial={dash.notifications} badge={!!dash.notification_badge?.has_new} onChange={()=>void refresh()}/>}
           <span className="env">{manifest.payment_environment==='testnet'?'Testnet':t.simulation}</span>
           {authProvider==='simulation'&&<select aria-label={t.chooseUser} value={username} disabled={busy} onChange={event=>void switchAccount(event.target.value)}>
             {users.map((user) => <option key={user.id} value={user.username}>{user.username} · {user.role} · {user.status}</option>)}
@@ -334,7 +335,7 @@ export default function DashboardApp() {
 
         {manifest.feature_notifications&&<section><h2>{t.notifications}</h2><div className="stack">{dash.notifications.map((item) => <article className="card note" key={item.id}><strong>{item.title_key.replaceAll('_', ' ')}</strong><p>{item.body}</p><small>{new Date(item.created_at).toLocaleString(locale)}</small></article>)}</div></section>}
 
-        {dash.user.role==='admin'&&<AdminPanel user={username} locale={locale} plans={plans} enabled={manifest.feature_admin} priorityEnabled={manifest.feature_priority} helpEnabled={manifest.feature_help}/>}
+        {dash.user.role==='admin'&&<AdminPanel key={username+':'+sessionGeneration} user={username} locale={locale} plans={plans} enabled={manifest.feature_admin} priorityEnabled={manifest.feature_priority} helpEnabled={manifest.feature_help}/>}
         {dash.user.role === 'admin' && <section><h2>{t.admin}</h2><div className="card admin-grid">
           <div><h3>Plans</h3>{plans.map((plan) => <div className="admin-row" key={plan.id}><span>{plan.name} · {plan.status}</span><div><button disabled={busy || plan.status === 'active'} onClick={() => act(() => mutation(`/admin/plans/${plan.id}/activate`, username, {}))}>{t.activate}</button><button onClick={async () => setQueue(await api(`/admin/queue/${plan.id}`, username))}>{t.queue}</button></div></div>)}</div>
           <div><h3>Ledger</h3><button disabled={busy || !online} onClick={()=>void inspectReconciliation()}>{t.reconcile}</button>{queue && <pre className="queue">{JSON.stringify(queue, null, 2)}</pre>}</div>
