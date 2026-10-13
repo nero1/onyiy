@@ -13,7 +13,7 @@ Updated: 13 October 2026. **84.20% implemented / 15.80% remaining.** Weighted im
 | M4 — responsive product | 15% | 92% | 13.80% | Actual390px EN/FR native ownership/payment browser observations; profile routes and explicit fee review. Complete native history/receipts/admin UX/accessibility remains. |
 | M5 — admin/portability/recovery | 10% | 84% | 8.40% | Updated native archive57 retained/64 schemas and exact inactive restore. Selected-user/site UI and recovery closure remain. |
 | M6 — remaining adapters | 8% | 75% | 6.00% | Generated EVM/SPL/TRC20 wallet sends, SPL setup separation/refund and canonical adapter evidence. Full operational TRX/expiry/replacement/provider closure remains. |
-| M7 — bounded prototype release | 7% | 40% | 2.80% | Homepage193.49KiB/9scripts within200KiB; PWA inherited. Hosted/mobile/provider/capacity evidence unrun. |
+| M7 — bounded prototype release | 7% | 40% | 2.80% | Homepage193.51KiB/9scripts within200KiB; PWA inherited. Hosted/mobile/provider/capacity evidence unrun. |
 | M8 — financial acceptance tooling | 5% | 70% | 3.50% | Native funding/observer/failed closure/reminder probes; isolated signer and non-signing financial scheduler. Replacement, checkpoints, sweeps, operational recovery remain. |
 
 ## v25 verified batch
@@ -38,7 +38,7 @@ Named work probes: manual-v25-provision-r3; manual-v25-native-funding; manual-v2
 
 Source gw_v25_native uses verified TLS55433. It preserves staged/submitted hashes, contributed reserve, credited gifts, failed signing lineage/expense/closure and work. Encrypted native archive work/backups/v25-native.gwbackup has57 retained inventories/64 schema definitions; gw_v25_native_restore verifies exact rows/schema/RLS/grants and remains inactive. Earlier v24 sources/archives remain unchanged. Source fixture is simulation with isolated chain mode; archive format is explicitly testnet and retains labeled GIV fixtures. Never interpret it as physical custody or live recovery.
 
-Local check:all/build/bundle/grants/secrets passed;109 EN/FR keys and193.49KiB homepage gzip/9scripts. Exact-head push/PR CI must both pass before merge. No broad automated suite, hosted providers, real browser wallet popup, live RPC, external ACK channel, mobile installation or production scale evidence is claimed.
+Local check:all/build/bundle/grants/secrets passed;109 EN/FR keys and193.51KiB homepage gzip/9scripts. Exact-head push/PR CI must both pass before merge. No broad automated suite, hosted providers, real browser wallet popup, live RPC, external ACK channel, mobile installation or production scale evidence is claimed.
 
 ## Continue immediately
 
