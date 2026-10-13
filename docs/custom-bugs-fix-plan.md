@@ -910,6 +910,5 @@ Read [LLM-HANDOVER_v29.md](LLM-HANDOVER_v29.md), then the mandatory project docs
 
 ---
 
-Prepared by Codex — Round 1 remediation plan, no application changes.  
+Prepared by Codex — Round 1 remediation plan, no application changes.
 Signed: **13 October 2026 at 09:31:02 PM UTC**
-

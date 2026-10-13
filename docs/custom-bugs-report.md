@@ -686,6 +686,5 @@ The complete remediation mapping, verification checks and three-round exit rule 
 
 ---
 
-Prepared by Codex — Round 1 audit, documentation only.  
+Prepared by Codex — Round 1 audit, documentation only.
 Signed: **13 October 2026 at 09:31:02 PM UTC**
-
