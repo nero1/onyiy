@@ -1,6 +1,15 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { pinnedPost } from '../../config/src/outbound-http';
 import { MemoryCache } from "@gifters/cache";
 import type { RpcOptions } from "./types";
+type RpcBudget={deadline:number;remaining:number};
+const budgets=new AsyncLocalStorage<RpcBudget>();
+export function withRpcBudget<T>(fn:()=>Promise<T>,milliseconds=18000,requests=24){
+  if(!Number.isSafeInteger(milliseconds)||milliseconds<100||milliseconds>20000||!Number.isSafeInteger(requests)||requests<1||requests>32)throw new Error('RPC_CONFIGURATION_INVALID');
+  const inherited=budgets.getStore();
+  if(inherited)return fn();
+  return budgets.run({deadline:Date.now()+milliseconds,remaining:requests},fn);
+}
 const cache = new MemoryCache({ maxEntries: 100, maxBytes: 5 * 1024 * 1024 });
 type Lane = {
   next: number;
@@ -98,12 +107,15 @@ export class DualRpc {
     body: unknown,
     jsonRpc = false,
   ): Promise<any> {
+    const budget=budgets.getStore();
+    if(budget&&(budget.remaining--<=0||budget.deadline<=Date.now()))throw new Error('RPC_BUDGET_EXCEEDED');
+    const timeout=Math.min(this.options.timeoutMs,budget?Math.max(1,budget.deadline-Date.now()):this.options.timeoutMs);
     const root = side === 0 ? this.options.primary : this.options.secondary;
     const target = path
       ? new URL(path, root.endsWith("/") ? root : root + "/").toString()
       : root;
     const controller = new AbortController(),
-      timer = setTimeout(() => controller.abort(), this.options.timeoutMs);
+      timer = setTimeout(() => controller.abort(), timeout);
     let dispatched = false;
     try {
       const circuit = failures.get(root);

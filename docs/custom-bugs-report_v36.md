@@ -1,6 +1,6 @@
 # Custom bugs report — Gifters World Phase One
 
-Updated: **14 October 2026 at 05:14:19 AM WAT** · Documentation version **v35**
+Updated: **14 October 2026 at 05:50:09 AM WAT** · Documentation version **v36**
 
 ## Complete one-line findings list
 
@@ -16,7 +16,7 @@ Updated: **14 October 2026 at 05:14:19 AM WAT** · Documentation version **v35**
 10. **P1-010 — Pausing a plan rejects payments already committed under its frozen terms.** (High; defect) — Implemented; local checks passed.
 11. **P1-011 — Accepted bootstrap destinations have no complete liability and payout support.** (High; defect) — Implemented; local checks passed.
 12. **P1-012 — The signer's oldest fixed candidate batch can starve later payable work.** (Medium; defect) — Implemented; local checks passed.
-13. **P1-013 — Recovery pages have row bounds without a feasible total RPC/time budget.** (High; defect) — Open.
+13. **P1-013 — Recovery pages have row bounds without a feasible total RPC/time budget.** (High; defect) — Implemented; local checks passed.
 14. **P1-014 — The generic scheduler client signs only simulation and leaves testnet jobs undrained.** (High; defect) — Implemented; local checks passed.
 15. **P1-015 — The hosted deploy workflow cannot migrate the selected testnet binding.** (Medium; requirement gap) — Implemented; local checks passed.
 16. **P1-016 — Safe cancellation and unallocated-refund recovery are unreachable in the UI.** (Medium; defect) — Implemented; local checks passed.
@@ -208,6 +208,8 @@ Paths below are relative to repository root `/workspace/onyiy`. “Defect” mea
 **FIX:** Persist per-block/event/transaction progress, apply an overall elapsed/RPC budget, and return resumable partial pages without prematurely declaring an asset reconciled.
 
 **High · Defect.** A five-block page can individually verify 100 events; TRON token scanning may inspect up to 1,000 unrelated transactions per block. At the configured RPC throttle, the page can exceed its HTTP/transaction budget. There is no durable within-block/event cursor to make an oversized page progress.
+
+**CURRENT STATUS:** Implemented and locally verified in v36; original audit evidence above is retained.
 
 ### 14: BUG P1-014: The generic scheduler client signs only simulation and leaves testnet jobs undrained
 
@@ -715,22 +717,22 @@ The production dependency audit reports **15 affected package nodes**, not 15 se
 
 [Vercel function limits](https://vercel.com/docs/functions/limitations) document the 4.5 MB request/response body limit relevant to P1-058. Local-function body limits are distinct from advertised archive size, execution duration and free-plan quota. Existing PRD hosting/commercial-use constraints remain; no claim of guaranteed free operation is made.
 
-The complete remediation mapping, verification checks and three-round exit rule are in [custom-bugs-fix-plan_v35.md](custom-bugs-fix-plan_v35.md). Current handover: [LLM-HANDOVER_v35.md](LLM-HANDOVER_v35.md).
+The complete remediation mapping, verification checks and three-round exit rule are in [custom-bugs-fix-plan_v36.md](custom-bugs-fix-plan_v36.md). Current handover: [LLM-HANDOVER_v36.md](LLM-HANDOVER_v36.md).
 
 
-## Current v35 remediation ledger
+## Current v36 remediation ledger
 
 The owner approved all Round One fixes, autonomous Rounds Two/Three and continued remediation, every Phase Two milestone, and final bug fixes before deferred testing. Continue without plan or milestone acceptance pauses. Use best recommendations, complete substantial verified batches, and merge only after BOTH push and pull-request CI succeed for the exact final head. Both financial readiness gates remain false; mainnet remains prohibited. CRON frequency and test-only issues remain excluded.
 
-53 of 71 tracked items implemented and locally verified; 18 remain open. The initial Round One audit had70 findings; P1-071 was discovered and fixed during remediation. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. P1-019 has partial improvements but remains open. No bug-free or hosted acceptance claim is made.
+54 of 71 tracked items implemented and locally verified; 17 remain open. The initial Round One audit had70 findings; P1-071 was discovered and fixed during remediation. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. P1-019 has partial improvements but remains open. No bug-free or hosted acceptance claim is made.
 
-Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-014, P1-015, P1-016, P1-017, P1-018, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-026, P1-027, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-037, P1-040, P1-041, P1-042, P1-043, P1-044, P1-046, P1-050, P1-052, P1-055, P1-056, P1-057, P1-058, P1-059, P1-060, P1-061, P1-066, P1-068, P1-069, P1-070, P1-071.
+Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-013, P1-014, P1-015, P1-016, P1-017, P1-018, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-026, P1-027, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-037, P1-040, P1-041, P1-042, P1-043, P1-044, P1-046, P1-050, P1-052, P1-055, P1-056, P1-057, P1-058, P1-059, P1-060, P1-061, P1-066, P1-068, P1-069, P1-070, P1-071.
 
-Open: P1-009, P1-013, P1-019, P1-028, P1-038, P1-039, P1-045, P1-047, P1-048, P1-049, P1-051, P1-053, P1-054, P1-062, P1-063, P1-064, P1-065, P1-067.
+Open: P1-009, P1-019, P1-028, P1-038, P1-039, P1-045, P1-047, P1-048, P1-049, P1-051, P1-053, P1-054, P1-062, P1-063, P1-064, P1-065, P1-067.
 
 Local verification: required check:all; production build and bundle budget checks; production npm audit now zero advisories. Named isolated manual-contracts, manual-money and manual-quotes-r5 passed. The last validates quote cancellation/expiry/payload replay/DB clock, late-fund refunds, frozen pre-pause admission, custom bootstrap destination, positively refunded plan edit, and independent lower live per-transaction/daily signer caps without reservations or signed bytes. Initial quote-probe failures (invalid price TTL, missing scoped fixture binding, missing operational gas asset) remain retained and were corrected only in fresh r2/r3/r5 databases. No external RPC or broadcast occurred.
 
-Bug reports and fix plans must use the same _vN filename version as current status/handover; earlier versions are retained in Git history. Current artifacts use_v35.
+Bug reports and fix plans must use the same _vN filename version as current status/handover; earlier versions are retained in Git history. Current artifacts use_v36.
 
 
 V31 evidence: manual-money-r2 passed; manual-contracts-r2 passed shared fees, different-endpoint checkpoint identity and fair dispatch past20 blocked rows without signing/reservations; manual-solana-costs-r2 passed two principals/one fee, positively identified ATA rent and ambiguous-debit rejection; preserved failed SOL expiry source resumed through forward-only migration078 and passed positive expiry/held principal/closure/replay/fresh scan. Non-signing hosted migration/seed/runtime path passed on gw_v31_testnet_seed:0 users/0 assets/12 plans/0 versions/16 help rows/one testnet namespace. Archive version preflight and clone proof are recorded in current status. P1-009/P1-013/P1-067 remain open.
@@ -753,9 +755,16 @@ V35 evidence: Named manual-destinations passed private/link-local/mapped/tunnel/
 
 Required check:all, production build and bundle checks pass (homepage198.96KiB/200; API1.452MiB/3; clients0.643MiB). Evidence is recorded in /workspace/work/remediation-v35. No schema/migration changes:86 tables,88 migrations (001–087 plus053a),73 retained archive inventories. Existing exact archives/signed histories/failed sources remain untouched. Both financial gates remain false and no broad automated test suite or live send ran.
 
+
+V36 evidence: Named manual-paged-recovery-r2 passed two exact incoming journals through discover/verify/book/known/balance steps, replay fencing and retained progress inventories; a generated1001-transaction tail cursor completed and canonical conflict rejected; a hung provider obeyed one overall deadline. Manual-paged-scanners passed SOL50+50 instruction slices followed by event101, paired five-slot empty/gap inventories and skipped finalized slots, and TRON1001-transaction tail/log pagination with one receipt per provider per page; contradictions reject. The tail cases use generated retained positions, not a hosted throughput measurement.
+
+Manual-sol-expiry-r3 passed staged known-attempt processing, positive dual-finalized expiry, held6000000 principal until audited closure, full release exactly once with no gas/principal-send journal, and a fresh reconciled scan. Both financial gates remain false; no external provider or broadcast was used. Preserved failed sources gw_v36_recovery and gw_v36_sol_expiry_r2 retain their unspent holds/reservations/history. An initial fixture argument-shape failure and the newly required simulation-only loopback scope were corrected without resetting any source. The successful isolated signer fixture’s encrypted payload key is retained privately outside Git.
+
+Required check:all/build/bundle pass (homepage198.96KiB/200; maximum API1.419MiB/3; client aggregate0.643MiB). Evidence is under /workspace/work/remediation-v36. New financial archive site-financial-final_v36.gwbackup captures73 retained inventories/86 tables/90 migrations (001–089 plus053a) and verifies exact restore into fresh inactive gw_v36_restore. Discovery/verification progress, canonical proof, original expired signed bytes, financial IDs and audits remain exact. Database nonce and ephemeral authentication/dispatch data remain omitted. Forward089/current decoder also passed a rollback-only active scan and database rejection of a mismatched cursor-height shape, leaving the archived source unchanged. No broad automated suite or live financial execution ran.
+
 ---
 
-Prepared by Codex — Round One remediation v35.
-PR29 merged at e1463fa after push38485886774 and PR38485891336 succeeded for exact final head ab1d7b5509fd215645448641065a2705cdf389ba. Initial failed head/run evidence remains in v30 Git history. PR30 merged at fa5d71b after push38500938562 and PR38500945296 succeeded for9bb4004e964c38ef2e31c884545e5ba2c70433ba. PR31 merged at59a8289 after exact head2ca05c2390fd1aefe516415f83aed15449b509ce passed push38507705481/PR38507767963. PR32 merged at523ba12 after exact a258d7a passed push38509097039/PR38509102087; v35 awaits its own final-head dual CI/PR merge.
+Prepared by Codex — Round One remediation v36.
+PR29 merged at e1463fa after push38485886774 and PR38485891336 succeeded for exact final head ab1d7b5509fd215645448641065a2705cdf389ba. Initial failed head/run evidence remains in v30 Git history. PR30 merged at fa5d71b after push38500938562 and PR38500945296 succeeded for9bb4004e964c38ef2e31c884545e5ba2c70433ba. PR31 merged at59a8289 after exact head2ca05c2390fd1aefe516415f83aed15449b509ce passed push38507705481/PR38507767963. PR32 merged at523ba12 after exact a258d7a passed push38509097039/PR38509102087; PR34 merged atcab8a95 after head805f3d3 passed push38510489870/PR38510495165; v36 awaits its own final-head dual CI/PR merge.
 
-Signed: **14 October 2026 at 05:14:19 AM WAT**
+Signed: **14 October 2026 at 05:50:09 AM WAT**

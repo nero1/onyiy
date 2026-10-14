@@ -22,7 +22,8 @@ import {
   readManifest,
   type DbExecutor,
 } from "@gifters/db";
-import type { AssetRegistry, ScannedTransfer } from "@gifters/chains";
+import {withRpcBudget} from "@gifters/chains";
+import type { AssetRegistry, ScannedTransfer,TransferEvidence,TransferScanCursor } from "@gifters/chains";
 import {
   registryAsset,
   adapter,
@@ -259,75 +260,59 @@ async function bookUnmatched(
   return true;
 }
 /** One five-block page per authenticated invocation. No signing or admission. */
-export async function recoverScanPage(tx: DbExecutor, id: string) {
+const scanCursorSchema=z.object({height:z.string().regex(/^(0|[1-9][0-9]{0,77})$/),transaction:z.number().int().min(0).max(100000),event:z.number().int().min(0).max(100000),blockHash:z.string().min(1).max(100).optional()}).strict();
+const scanCandidateSchema=z.object({hash:z.string().min(1).max(100),index:z.number().int().min(0).max(2147483647),sender:z.string().min(1).max(128),destination:z.string().min(1).max(128),
+amount:z.string().regex(/^[1-9][0-9]{0,77}$/),height:z.string().regex(/^(0|[1-9][0-9]{0,77})$/),blockHash:z.string().min(1).max(100),direction:z.enum(['incoming','outgoing'])}).strict();
+const storedEvidenceSchema=z.object({state:z.enum(['confirmed','failed']),hash:z.string().min(1).max(100),index:z.number().int().min(0).max(2147483647),
+observedAt:z.string().datetime(),blockHash:z.string().min(1).max(100),height:z.string().regex(/^(0|[1-9][0-9]{0,77})$/),sender:z.string().max(128).optional(),destination:z.string().max(128).optional(),
+amount:z.string().regex(/^(0|[1-9][0-9]{0,77})$/).optional(),actualNativeFee:z.string().regex(/^(0|[1-9][0-9]{0,77})$/).optional(),actualNetworkFee:z.string().regex(/^(0|[1-9][0-9]{0,77})$/).optional(),accountSetupCost:z.string().regex(/^(0|[1-9][0-9]{0,77})$/).optional(),contradiction:z.literal(false).optional()}).strict();
+const scanProgressSchema=z.object({stage:z.enum(['discover','verify','book','known_next','known_index','known_settle','known_expiry','balance']),cursor:scanCursorSchema,candidate:scanCandidateSchema.optional(),afterCursor:scanCursorSchema.optional(),afterHeight:z.string().regex(/^(0|[1-9][0-9]{0,77})$/).optional(),proof:storedEvidenceSchema.optional(),attemptId:z.string().uuid().optional(),eventIndex:z.number().int().min(0).max(2147483647).optional()}).strict().superRefine((value,context)=>{
+ if(['verify','book'].includes(value.stage)&&(!value.candidate||!value.afterCursor||value.afterHeight===undefined))context.addIssue({code:'custom',message:'SCAN_PROGRESS_INVALID'});
+ if(value.stage==='book'&&!value.proof)context.addIssue({code:'custom',message:'SCAN_PROGRESS_INVALID'});
+ if(['known_index','known_settle','known_expiry'].includes(value.stage)&&!value.attemptId)context.addIssue({code:'custom',message:'SCAN_PROGRESS_INVALID'});
+ if(value.stage==='known_settle'&&value.eventIndex===undefined)context.addIssue({code:'custom',message:'SCAN_PROGRESS_INVALID'});
+});
+type ScanProgress=z.infer<typeof scanProgressSchema>;
+const stored=(value:unknown)=>JSON.parse(JSON.stringify(value,(_key,v)=>typeof v==='bigint'?v.toString():v));
+function evidence(value:z.infer<typeof storedEvidenceSchema>):TransferEvidence{return {...value,height:BigInt(value.height),amount:value.amount===undefined?undefined:BigInt(value.amount),actualNativeFee:value.actualNativeFee===undefined?undefined:BigInt(value.actualNativeFee),actualNetworkFee:value.actualNetworkFee===undefined?undefined:BigInt(value.actualNetworkFee),accountSetupCost:value.accountSetupCost===undefined?undefined:BigInt(value.accountSetupCost)}}
+export function recoverScanPage(tx:DbExecutor,id:string){return withRpcBudget(()=>recoverPagedStep(tx,id))}
+async function recoverPagedStep(tx:DbExecutor,id:string){
   assertFinancialEnvironment();
-  const [lookup] = await tx
-    .select()
-    .from(chainRecoveryRuns)
-    .where(eq(chainRecoveryRuns.id, id))
-    .limit(1);
-  if (!lookup) throw new Error("NOT_FOUND");
-  if (lookup.bindingFingerprint !== await binding(tx))
-    throw new Error("RECOVERY_TARGET_MISMATCH");
-  const [checkpoint] = await tx
-    .select()
-    .from(chainCheckpoints)
-    .where(eq(chainCheckpoints.id, lookup.checkpointId))
-    .limit(1);
-  const registry = checkpoint.registrySnapshot as AssetRegistry,
-    chain = await adapter(registry),
-    anchor = await chain.getCanonicalBlock(BigInt(checkpoint.height));
-  if (anchor.hash !== checkpoint.blockHash)
-    throw new Error("CHECKPOINT_REORGED");
-  const before = BigInt(lookup.cursorHeight),
-    end =
-      before + 5n < BigInt(lookup.throughHeight)
-        ? before + 5n
-        : BigInt(lookup.throughHeight);
-  if (lookup.state === "reconciled")
-    return { status: lookup.state, run_id: id };
-  const page =
-    before < end
-      ? await chain.scanTransfers(checkpoint.treasurySender, before, end)
-      : { through: end, transfers: [] };
-  const verified = [];
-  for (const candidate of page.transfers) {
-    const proof = await chain.verifyTransfer({
-      asset: registry,
-      hash: candidate.hash,
-      index: candidate.index,
-      sender: candidate.sender,
-      destination: candidate.destination,
-      amount: candidate.amount,
-    });
-    if (proof.state === "failed") {
-      verified.push({ candidate, proof });
-      continue;
+  const [lookup]=await tx.select().from(chainRecoveryRuns).where(eq(chainRecoveryRuns.id,id)).limit(1);
+  if(!lookup)throw new Error('NOT_FOUND');
+  if(lookup.bindingFingerprint!==await binding(tx))throw new Error('RECOVERY_TARGET_MISMATCH');
+  if(lookup.state==='reconciled')return {status:lookup.state,run_id:id};
+  const [checkpoint]=await tx.select().from(chainCheckpoints).where(eq(chainCheckpoints.id,lookup.checkpointId)).limit(1);
+  const registry=checkpoint.registrySnapshot as AssetRegistry,chain=await adapter(registry),anchor=await chain.getCanonicalBlock(BigInt(checkpoint.height));
+  if(anchor.hash!==checkpoint.blockHash)throw new Error('CHECKPOINT_REORGED');
+  const before=BigInt(lookup.cursorHeight),target=BigInt(lookup.throughHeight);
+  let progress:ScanProgress=lookup.scanProgress?scanProgressSchema.parse(lookup.scanProgress):{stage:before<target?'discover':'known_next',cursor:{height:(before+1n).toString(),transaction:0,event:0}};
+  if(before===target&&lookup.state==='review')return {status:'review',run_id:id,reason:lookup.reasonCode,cursor_height:lookup.cursorHeight};
+  const priorProgress=stored(progress);
+  let end=before,pageEvidence:unknown=priorProgress;
+  const verified:Array<{candidate:ScannedTransfer;proof:TransferEvidence}>=[];
+  if(progress.stage==='discover'){
+    if(before===target)progress={stage:'known_next',cursor:progress.cursor};
+    else{
+      const page=await chain.scanTransferPage(checkpoint.treasurySender,before,target,progress.cursor);pageEvidence=page;
+      if(page.transfers.length>1||page.through<before||page.through>target)throw new Error('SCAN_INCOMPLETE');
+      if(page.transfers.length){progress={stage:'verify',cursor:progress.cursor,candidate:scanCandidateSchema.parse(stored(page.transfers[0])),afterCursor:page.cursor,afterHeight:page.through.toString()}}
+      else {end=page.through;progress={stage:end===target?'known_next':'discover',cursor:page.cursor}}
     }
-    if (
-      proof.state !== "confirmed" ||
-      proof.contradiction ||
-      proof.blockHash !== candidate.blockHash ||
-      proof.height !== candidate.height ||
-      proof.amount !== candidate.amount
-    )
-      throw new Error("SCAN_INCOMPLETE");
-    verified.push({ candidate, proof });
+  }else if(progress.stage==='verify'){
+    const candidate=scanCandidateSchema.parse(progress.candidate),proof=await chain.verifyTransfer({asset:registry,hash:candidate.hash,index:candidate.index,sender:candidate.sender,destination:candidate.destination,amount:BigInt(candidate.amount)});
+    if(!['confirmed','failed'].includes(proof.state)||proof.contradiction||proof.hash!==candidate.hash||proof.index!==candidate.index||proof.blockHash!==candidate.blockHash||proof.height!==BigInt(candidate.height)||(proof.state==='confirmed'&&(proof.amount!==BigInt(candidate.amount)||proof.sender!==candidate.sender||proof.destination!==candidate.destination)))throw new Error('SCAN_INCOMPLETE');
+    progress={...progress,stage:'book',proof:storedEvidenceSchema.parse(stored(proof))};pageEvidence=progress.proof;
+  }else if(progress.stage==='book'){
+    const candidate=scanCandidateSchema.parse(progress.candidate),proof=evidence(storedEvidenceSchema.parse(progress.proof));
+    const current=await chain.getCanonicalBlock(BigInt(candidate.height));
+    if(current.hash!==candidate.blockHash||proof.blockHash!==candidate.blockHash||proof.height!==BigInt(candidate.height))throw new Error('RPC_SCAN_CONTRADICTION');
+    verified.push({candidate:{...candidate,amount:BigInt(candidate.amount),height:BigInt(candidate.height)},proof});
+    end=BigInt(progress.afterHeight!);progress={stage:end===target?'known_next':'discover',cursor:scanCursorSchema.parse(progress.afterCursor)};pageEvidence={candidate,proof};
   }
-  const [run] = await tx
-    .select()
-    .from(chainRecoveryRuns)
-    .where(eq(chainRecoveryRuns.id, id))
-    .for("update");
-  if (run.state === "reconciled") return { status: "reconciled", run_id: id };
-  if (
-    run.revision !== lookup.revision ||
-    run.cursorHeight !== lookup.cursorHeight
-  )
-    throw new Error("VERSION_CONFLICT");
-  let incoming = 0,
-    outgoing = 0,
-    unexplained = false;
+  const [run]=await tx.select().from(chainRecoveryRuns).where(eq(chainRecoveryRuns.id,id)).for('update');
+  if(run.revision!==lookup.revision||run.cursorHeight!==lookup.cursorHeight)throw new Error('VERSION_CONFLICT');
+  let incoming=0,outgoing=0,unexplained=false;
   for (const { candidate, proof } of verified) {
     if (candidate.direction === "incoming") {
       if (
@@ -358,7 +343,7 @@ export async function recoverScanPage(tx: DbExecutor, id: string) {
         obligation.destination === candidate.destination &&
         BigInt(obligation.netBaseUnits) === candidate.amount
       ) {
-        await settleCryptoAttempt(tx, attempt.id, candidate.index);
+        await settleCryptoAttempt(tx, attempt.id, candidate.index, proof);
         obligationId = obligation.id;
       }
     }
@@ -393,144 +378,40 @@ export async function recoverScanPage(tx: DbExecutor, id: string) {
       .onConflictDoNothing();
     outgoing++;
   }
-  const revision = run.revision + 1;
-  if (before < end)
-    await tx.insert(chainScanPages).values({
-      runId: id,
-      revision,
-      fromHeight: before.toString(),
-      throughHeight: end.toString(),
-      evidenceHash: digest(page),
-      incomingCount: incoming,
-      outgoingCount: outgoing,
-    });
-  const terminal = end === BigInt(run.throughHeight);
-  let state = unexplained || run.state === "review" ? "review" : "scanning",
-    reason = unexplained ? "UNKNOWN_OUTFLOW" : run.reasonCode;
-  let knownCursor = run.knownAttemptCursor,
-    knownComplete = false;
-  let expiredAttempt: {attempt_id:string;obligation_id:string;kind:string}|undefined;
-  if (terminal && state !== "review") {
-    const known = await tx
-      .select({
-        id: signedAttemptStatus.id,
-        hash: signedAttemptStatus.txHash,
-        sender: cryptoObligations.treasurySender,
-        destination: cryptoObligations.destination,
-        status: cryptoObligations.status,
-        completed: cryptoObligations.completedAt,
-        obligationId: cryptoObligations.id,
-        kind: cryptoObligations.kind,
-      })
-      .from(signedAttemptStatus)
-      .innerJoin(
-        cryptoObligations,
-        eq(cryptoObligations.id, signedAttemptStatus.obligationId),
-      )
-      .where(
-        and(
-          eq(cryptoObligations.assetId, checkpoint.assetId),
-          eq(cryptoObligations.treasurySender, checkpoint.treasurySender),
-          knownCursor ? gt(signedAttemptStatus.id, knownCursor) : undefined,
-        ),
-      )
-      .orderBy(asc(signedAttemptStatus.id))
-      .limit(100);
-    let pending = false;
-    for (const attempt of known) {
-      if (
-        !["settled", "cancelled"].includes(attempt.status) &&
-        !attempt.completed
-      ) {
-        const index = await chain.findTransferIndex(
-          attempt.hash,
-          attempt.sender!,
-          attempt.destination,
-        );
-        const result = await settleCryptoAttempt(tx, attempt.id, index ?? 0);
-        if (result.status === "pending") {
-          const expiry=await verifySignedExpiry(tx,attempt.id);
-          pending=true;
-          if(expiry.status==='expiry_verified'){
-            state='review';reason='KNOWN_ATTEMPT_EXPIRY_VERIFIED';
-            expiredAttempt={attempt_id:attempt.id,obligation_id:attempt.obligationId,kind:attempt.kind};
-          }else reason='KNOWN_ATTEMPT_PENDING';
-          break;
-        }
-      }
-      knownCursor = attempt.id;
+
+  let state=unexplained||run.state==='review'?'review':'scanning',reason=unexplained?'UNKNOWN_OUTFLOW':run.reasonCode,knownCursor=run.knownAttemptCursor;
+  let expiredAttempt:{attempt_id:string;obligation_id:string;kind:string}|undefined;
+  // Discovery, verification and booking are separate committed steps. Terminal
+  // known-attempt verification and expiry also retain their own bounded stages.
+  if(priorProgress.stage==='known_next'&&state!=='review'){
+    const [attempt]=await tx.select({id:signedAttemptStatus.id,status:cryptoObligations.status,completed:cryptoObligations.completedAt}).from(signedAttemptStatus).innerJoin(cryptoObligations,eq(cryptoObligations.id,signedAttemptStatus.obligationId)).where(and(eq(cryptoObligations.assetId,checkpoint.assetId),eq(cryptoObligations.treasurySender,checkpoint.treasurySender),knownCursor?gt(signedAttemptStatus.id,knownCursor):undefined)).orderBy(asc(signedAttemptStatus.id)).limit(1);
+    if(!attempt)progress={stage:'balance',cursor:progress.cursor};
+    else if(['settled','cancelled'].includes(attempt.status)||attempt.completed)knownCursor=attempt.id;
+    else progress={stage:'known_index',cursor:progress.cursor,attemptId:attempt.id};
+  }else if(['known_index','known_settle','known_expiry'].includes(priorProgress.stage)&&state!=='review'){
+    const [attempt]=await tx.select({id:signedAttemptStatus.id,hash:signedAttemptStatus.txHash,sender:cryptoObligations.treasurySender,destination:cryptoObligations.destination,obligationId:cryptoObligations.id,kind:cryptoObligations.kind}).from(signedAttemptStatus).innerJoin(cryptoObligations,eq(cryptoObligations.id,signedAttemptStatus.obligationId)).where(and(eq(signedAttemptStatus.id,progress.attemptId!),eq(cryptoObligations.assetId,checkpoint.assetId),eq(cryptoObligations.treasurySender,checkpoint.treasurySender))).limit(1);
+    if(!attempt)throw new Error('INVALID_PROOF');
+    if(progress.stage==='known_index')progress={stage:'known_settle',cursor:progress.cursor,attemptId:attempt.id,eventIndex:await chain.findTransferIndex(attempt.hash,attempt.sender!,attempt.destination)??0};
+    else if(progress.stage==='known_settle'){
+      const result=await settleCryptoAttempt(tx,attempt.id,progress.eventIndex!);
+      if(result.status==='pending'){progress={stage:'known_expiry',cursor:progress.cursor,attemptId:attempt.id};reason='KNOWN_ATTEMPT_PENDING'}
+      else {knownCursor=attempt.id;progress={stage:'known_next',cursor:progress.cursor}}
+    }else{
+      const expiry=await verifySignedExpiry(tx,attempt.id);
+      if(expiry.status==='expiry_verified'){state='review';reason='KNOWN_ATTEMPT_EXPIRY_VERIFIED';expiredAttempt={attempt_id:attempt.id,obligation_id:attempt.obligationId,kind:attempt.kind}}
+      else {reason='KNOWN_ATTEMPT_PENDING';progress={stage:'known_index',cursor:progress.cursor,attemptId:attempt.id}}
     }
-    knownComplete = !pending && known.length < 100;
-  }
-  if (terminal && state !== "review" && knownComplete) {
-    const physical = await chain.getReconciledBalance(
-        registry,
-        checkpoint.treasurySender,
-        BigInt(run.throughHeight),
-      ),
-      [book] = await tx
-        .select({
-          amount: sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='debit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`,
-        })
-        .from(ledgerAccounts)
-        .leftJoin(
-          ledgerPostings,
-          eq(ledgerPostings.accountId, ledgerAccounts.id),
-        )
-        .where(
-          and(
-            eq(ledgerAccounts.assetId, checkpoint.assetId),
-            eq(ledgerAccounts.purpose, "treasury_asset"),
-          ),
-        );
-    if (physical !== BigInt(book.amount)) {
-      state = "review";
-      reason = "UNEXPLAINED_BALANCE";
-    } else {
-      const [owed] = await tx
-        .select({
-          amount: sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='credit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`,
-        })
-        .from(ledgerAccounts)
-        .leftJoin(
-          ledgerPostings,
-          eq(ledgerPostings.accountId, ledgerAccounts.id),
-        )
-        .where(
-          and(
-            eq(ledgerAccounts.assetId, checkpoint.assetId),
-            inArray(ledgerAccounts.purpose,beneficiaryLiabilityPurposes),
-          ),
-        );
-      if (physical < BigInt(owed.amount)) {
-        state = "review";
-        reason = "CUSTODY_BELOW_LIABILITIES";
-      } else state = "reconciled";
+  }else if(priorProgress.stage==='balance'&&state!=='review'){
+    const physical=await chain.getReconciledBalance(registry,checkpoint.treasurySender,target),[book]=await tx.select({amount:sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='debit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`}).from(ledgerAccounts).leftJoin(ledgerPostings,eq(ledgerPostings.accountId,ledgerAccounts.id)).where(and(eq(ledgerAccounts.assetId,checkpoint.assetId),eq(ledgerAccounts.purpose,'treasury_asset')));
+    if(physical!==BigInt(book.amount)){state='review';reason='UNEXPLAINED_BALANCE'}else{
+      const [owed]=await tx.select({amount:sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='credit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`}).from(ledgerAccounts).leftJoin(ledgerPostings,eq(ledgerPostings.accountId,ledgerAccounts.id)).where(and(eq(ledgerAccounts.assetId,checkpoint.assetId),inArray(ledgerAccounts.purpose,beneficiaryLiabilityPurposes)));
+      if(physical<BigInt(owed.amount)){state='review';reason='CUSTODY_BELOW_LIABILITIES'}else{state='reconciled';reason=null}
     }
   }
-  await tx
-    .update(chainRecoveryRuns)
-    .set({
-      cursorHeight: end.toString(),
-      revision,
-      knownAttemptCursor: knownCursor,
-      incomingCount: run.incomingCount + incoming,
-      outgoingCount: run.outgoingCount + outgoing,
-      state,
-      reasonCode: reason,
-      completedAt:
-        terminal && state !== "scanning" ? sql`clock_timestamp()` : null,
-    })
-    .where(eq(chainRecoveryRuns.id, id));
-  return {
-    run_id: id,
-    status: state,
-    cursor_height: end.toString(),
-    incoming,
-    outgoing,
-    reason,
-    ...(expiredAttempt?{expiry_closure:expiredAttempt}:{}),
-  };
+  const revision=run.revision+1;
+  await tx.insert(chainScanPages).values({runId:id,revision,fromHeight:before.toString(),throughHeight:end.toString(),evidenceHash:digest(pageEvidence),progressBefore:priorProgress,progressAfter:stored(progress),incomingCount:incoming,outgoingCount:outgoing});
+  await tx.update(chainRecoveryRuns).set({cursorHeight:end.toString(),revision,scanProgress:stored(progress),knownAttemptCursor:knownCursor,incomingCount:run.incomingCount+incoming,outgoingCount:run.outgoingCount+outgoing,state,reasonCode:reason,completedAt:end===target&&state!=='scanning'?sql`clock_timestamp()`:null}).where(eq(chainRecoveryRuns.id,id));
+  return {run_id:id,status:state,cursor_height:end.toString(),scan_stage:progress.stage,scan_cursor:progress.cursor,incoming,outgoing,reason,...(expiredAttempt?{expiry_closure:expiredAttempt}:{})};
 }
 export const outflowResolutionInput = z
   .object({

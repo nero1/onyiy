@@ -1,3 +1,5 @@
+import {scanTransferPage as boundedScanPage} from './scan-page';
+import type {TransferScanCursor} from './types';
 import { canonicalTransactionHash } from "./hash";
 import { selectEventIndex } from "./event-index";
 import { reconcileEvidence } from "./evidence";
@@ -51,6 +53,7 @@ export class TronAdapter implements ChainAdapter {
       throw new Error("WRONG_NETWORK");
     this.rpc = new DualRpc(options);
   }
+  scanTransferPage(address:string,after:bigint,through:bigint,cursor?:TransferScanCursor){return boundedScanPage(this.asset,this.rpc,address,after,through,cursor)}
   async scanTransfers(address:string,after:bigint,through:bigint):Promise<TransferScan> {
     if(after<0n||through<=after||through-after>5n)throw new Error("SCAN_RANGE_INVALID");jsonInteger(through);const account=normalized(address);
     const results=await Promise.all(([0,1] as const).map(async side=>{

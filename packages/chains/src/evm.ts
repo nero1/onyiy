@@ -1,3 +1,5 @@
+import {scanTransferPage as boundedScanPage} from './scan-page';
+import type {TransferScanCursor} from './types';
 import { selectEventIndex } from "./event-index";
 import { reconcileEvidence } from "./evidence";
 import { getAddress, Interface, id, verifyMessage, Transaction } from "ethers";
@@ -35,6 +37,7 @@ export class EvmAdapter implements ChainAdapter {
       throw new Error("REGISTRY_INVALID");
     this.rpc = new DualRpc(options);
   }
+  scanTransferPage(address:string,after:bigint,through:bigint,cursor?:TransferScanCursor){return boundedScanPage(this.asset,this.rpc,address,after,through,cursor)}
   async scanTransfers(address:string,after:bigint,through:bigint):Promise<TransferScan> {
     if(after<0n||through<=after||through-after>5n)throw new Error("SCAN_RANGE_INVALID");const account=await this.normalizeAddress(address),topic="0x"+account.slice(2).toLowerCase().padStart(64,"0");
     const results=await Promise.all(([0,1] as const).map(async side=>{
