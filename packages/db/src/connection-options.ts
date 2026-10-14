@@ -47,7 +47,7 @@ export function databaseConnectionOptions(value: string, env: NodeJS.ProcessEnv 
     },
     max: boundedInteger(env,'DATABASE_POOL_MAX',serverless ? 1 : 10,20),
     idle_timeout: boundedInteger(env,'DATABASE_IDLE_TIMEOUT_SECONDS',20,300),
-    connect_timeout: boundedInteger(env,'DATABASE_CONNECT_TIMEOUT_SECONDS',10,30),
+    connect_timeout: Math.min(5,boundedInteger(env,'DATABASE_CONNECT_TIMEOUT_SECONDS',5,30)),
     prepare: (env.DB_PROVIDER ?? 'supabase') !== 'supabase',
   };
 }

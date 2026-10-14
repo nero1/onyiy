@@ -8,3 +8,5 @@ export async function POST(request: Request) {
     request,
   );
 }
+
+export const maxDuration=60;

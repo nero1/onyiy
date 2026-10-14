@@ -4,6 +4,7 @@ import { loadManifest, parseManifest, manifestDefinition, validateManifestValue,
 import { schema, xManifest } from './schema';
 import { databaseConnectionOptions } from './connection-options';
 import { withContext } from './context';
+import { drainAdmission } from './work-budget';
 
 export type Database = PostgresJsDatabase<typeof schema>;
 export type DbExecutor = Pick<Database, 'select' | 'insert' | 'update' | 'delete' | 'execute'>;
@@ -25,6 +26,7 @@ export function db(): Database {
 }
 
 export async function closeDb() {
+  if (runtimeDb) drainAdmission(runtimeDb);
   if (runtimeClient) await runtimeClient.end({ timeout: 3 });
   runtimeClient = undefined;
   runtimeDb = undefined;

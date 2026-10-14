@@ -6,3 +6,5 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   return handleApiRequest('POST', ['me', 'wallets', 'simulate'], request);
 }
+
+export const maxDuration=60;

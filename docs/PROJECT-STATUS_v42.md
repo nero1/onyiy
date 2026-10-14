@@ -1,16 +1,14 @@
-# Gifters World — autonomous remediation handover v41
+# Gifters World — implementation and bug remediation status v42
 
-Updated: **14 October 2026 at 10:08:34 AM WAT**.
-
-Read in order: docs/PRD.md, docs/PROJECT-STATUS_v41.md, docs/SETUP.md, docs/HOW-IT-WORKS.md, AGENTS.md, docs/custom-bugs-report_v41.md, docs/custom-bugs-fix-plan_v41.md. Read relevant installed Next guides before code changes.
+Updated: **14 October 2026 at 11:43:15 AM WAT**.
 
 The owner approved all Round One fixes, autonomous Rounds Two/Three and continued remediation, every Phase Two milestone and final bug fixes before deferred tests. Continue without plan or milestone acceptance pauses. Use best recommendations and substantial verified batches. Merge only after BOTH push and pull-request CI succeed for the exact final head. No delegation requested. CRON frequency and test-only issues remain excluded.
 
 Round One: **60/72 tracked findings implemented and locally verified;12 open**. The original audit had70 findings; P1-071/P1-072 were discovered and fixed during remediation. This is item accounting, not a weighted Phase One percentage. Phase One remediation is incomplete; Phase Two has not started.
 
-PR39 merged at4558fe619738de55f1263b2678bedd8d13cf968a after push38534378166 and pull_request38534388168 both succeeded for exact head9304e67d71d4e7b605642761271703649723dd2e. Current branch feat/phase-one-remediation-round1l awaits its own final-head dual CI/PR merge.
+PR39 merged at4558fe619738de55f1263b2678bedd8d13cf968a after push38534378166 and pull_request38534388168 both succeeded for exact head9304e67d71d4e7b605642761271703649723dd2e. PR40 merged at1b2fa3b592c1b5c2bf0dc85dfc806868fe348401 after push38540185905 and pull_request38540196203 succeeded for exact head3bd6595c337afc07889e22fed5710e8d2a93cdd3. Current branch feat/phase-one-remediation-round1m awaits final-head dual CI and merge.
 
-Read [custom-bugs-report_v41.md](custom-bugs-report_v41.md) and [custom-bugs-fix-plan_v41.md](custom-bugs-fix-plan_v41.md) for every finding and acceptance. All four current filenames match_v41; earlier versions remain in Git history. Rename all four together in the next batch and update cross-links, WAT12-hour headers/footers and mirrored markers.
+Read [custom-bugs-report_v42.md](custom-bugs-report_v42.md) and [custom-bugs-fix-plan_v42.md](custom-bugs-fix-plan_v42.md) for every finding and acceptance. All four current filenames match_v42; earlier versions remain in Git history. Rename all four together in the next batch and update cross-links, WAT12-hour headers/footers and mirrored markers.
 
 Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-013, P1-014, P1-015, P1-016, P1-017, P1-018, P1-019, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-026, P1-027, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-037, P1-040, P1-041, P1-042, P1-043, P1-044, P1-045, P1-046, P1-047, P1-048, P1-050, P1-052, P1-054, P1-055, P1-056, P1-057, P1-058, P1-059, P1-060, P1-061, P1-066, P1-068, P1-069, P1-070, P1-071, P1-072.
 
@@ -32,6 +30,15 @@ Continue the12 remaining IDs, with historical address inventory/SOL cutoff and s
 
 Node22.23.3 at /workspace/work/tooling/node-v22.23.3-linux-x64/bin; npm cache /workspace/work/npm-cache. Verified TLS PG17 port55433 and CA /workspace/work/v20-tls/root.pem. Network/listener/tsx need network permission; Git metadata writes need /workspace/onyiy/.git. Never print secrets/cookies/signed bytes/raw driver parameters. Preserve immutable migration checksums and financial histories, positive evidence/holds and original-sender refunds. Corrections append compensating journals.
 
-Signed: **14 October 2026 at 10:08:34 AM WAT**
 
-v41
+## V42 partial database-budget remediation
+
+P1-038 remains open. Standard driver transactions now have per-pool bounded FIFO admission (at most twice the pool size waiting,1.5-second expiry), transient-failure cooldown capped at2 seconds,3-second public/5-second other SQL statement limits and1.5-second lock limits. Connection establishment is capped at5 seconds. API route declarations expose a60-second platform ceiling; this is not a proven whole-callback cancellation guarantee. Closing the runtime drains pending admission. No economic mutation is automatically retried.
+
+The named manual-safe-admission_v42 procedure passed against inactive gw_v40_staff: capacity/expiry without queued callback dispatch, a real row-lock timeout, future-admission cooldown and drain rejection. User and financial rows were unchanged. Typechecking passed. Required check:all, build and bundle checks passed. Final-head dual CI and merge are pending at this update. No schema or migration changes.
+
+Earlier whole-pool deadline experiments failed with a postgres-js callback/closed-socket race. Automatic approval review rejected never-resolving callbacks (pool exhaustion) and manual reserved-connection transactions/whole-pool closure (service disruption). Those approaches were removed; failed evidence is retained privately under remediation-v42. Total callback/request and signer shutdown budgeting still require a safe solution; do not mark P1-038 complete. Counts remain60/72 with12 open. Rounds Two/Three and Phase Two have not started.
+
+Signed: **14 October 2026 at 11:43:15 AM WAT**
+
+v42

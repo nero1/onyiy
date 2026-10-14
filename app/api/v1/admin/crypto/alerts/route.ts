@@ -5,3 +5,5 @@ export const GET = (request: Request) =>
   handleApiRequest("GET", ["admin", "crypto", "alerts"], request);
 export const POST = (request: Request) =>
   handleApiRequest("POST", ["admin", "crypto", "alerts"], request);
+
+export const maxDuration=60;

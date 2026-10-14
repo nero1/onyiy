@@ -1,6 +1,10 @@
 import {ZodError} from 'zod';
 
 export const errorStatus={
+ DB_CAPACITY_EXCEEDED:503,
+ DB_DEADLINE_EXCEEDED:503,
+ DB_CIRCUIT_OPEN:503,
+ DB_DRAINING:503,
  ACCOUNT_RESTRICTED:403,
  ACTIVE_CYCLE_EXISTS:409,
  ACTIVE_INVOICE_EXISTS:409,
@@ -97,7 +101,7 @@ export const errorStatus={
  WRONG_TOKEN:400,
 } as const;
 export type ErrorCode=keyof typeof errorStatus;
-const retryable=new Set<ErrorCode>(['ALERT_UNAVAILABLE','FEE_UNAVAILABLE','FINALITY_UNAVAILABLE','OBSERVATION_UNAVAILABLE','PRICE_STALE','PROVIDER_UNAVAILABLE','RECONCILIATION_TIMEOUT','RECOVERY_UNAVAILABLE','REQUEST_TIMEOUT','RPC_BALANCE_CONTRADICTION','RPC_CAPACITY','RPC_CAPACITY_EXCEEDED','RPC_EVIDENCE_INVALID','RPC_SCAN_CONTRADICTION','RPC_UNAVAILABLE','RPC_BUDGET_EXCEEDED','SCAN_INCOMPLETE','SCHEDULER_UNAVAILABLE','TEMPORARY_FAILURE','TRANSFER_NOT_FOUND']);
+const retryable=new Set<ErrorCode>(['DB_CAPACITY_EXCEEDED','DB_DEADLINE_EXCEEDED','DB_CIRCUIT_OPEN','DB_DRAINING','ALERT_UNAVAILABLE','FEE_UNAVAILABLE','FINALITY_UNAVAILABLE','OBSERVATION_UNAVAILABLE','PRICE_STALE','PROVIDER_UNAVAILABLE','RECONCILIATION_TIMEOUT','RECOVERY_UNAVAILABLE','REQUEST_TIMEOUT','RPC_BALANCE_CONTRADICTION','RPC_CAPACITY','RPC_CAPACITY_EXCEEDED','RPC_EVIDENCE_INVALID','RPC_SCAN_CONTRADICTION','RPC_UNAVAILABLE','RPC_BUDGET_EXCEEDED','SCAN_INCOMPLETE','SCHEDULER_UNAVAILABLE','TEMPORARY_FAILURE','TRANSFER_NOT_FOUND']);
 export class AppError extends Error{
  constructor(public readonly code:ErrorCode){super(code);this.name='AppError'}
  get status(){return errorStatus[this.code]}
@@ -109,7 +113,7 @@ export function applicationError(error:unknown,depth=0):AppError{
  if(error instanceof ZodError)return new AppError('INVALID_INPUT');
  if(error instanceof Error&&Object.hasOwn(errorStatus,error.message))return new AppError(error.message as ErrorCode);
  const value=error&&typeof error==='object'?error as {code?:unknown;cause?:unknown}:undefined;
- if(value&&typeof value.code==='string'&&(['40001','40P01','55P03','57014','53300','57P01','57P02','57P03','CONNECTION_CLOSED','CONNECT_TIMEOUT','CONNECTION_ENDED','ECONNRESET','ETIMEDOUT'].includes(value.code)||/^08/.test(value.code)))return new AppError('TEMPORARY_FAILURE');
+ if(value&&typeof value.code==='string'&&(['40001','40P01','55P03','57014','25P03','25P04','53300','57P01','57P02','57P03','CONNECTION_CLOSED','CONNECT_TIMEOUT','CONNECTION_ENDED','ECONNRESET','ETIMEDOUT'].includes(value.code)||/^08/.test(value.code)))return new AppError('TEMPORARY_FAILURE');
  if(value?.cause&&value.cause!==error){const nested=applicationError(value.cause,depth+1);if(nested.code!=='INTERNAL_ERROR')return nested;}
  return new AppError('INTERNAL_ERROR');
 }
