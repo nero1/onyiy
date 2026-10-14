@@ -1,6 +1,6 @@
 # Custom bugs fix plan — Gifters World Phase One
 
-Updated: **14 October 2026 at 02:25:24 PM WAT**.
+Updated: **14 October 2026 at 02:58:13 PM WAT**.
 
 ## Complete one-line remediation list
 
@@ -67,10 +67,10 @@ Updated: **14 October 2026 at 02:25:24 PM WAT**.
 61. **P1-061 — Failed staging files consume quota without a complete failure inventory.** Implemented and locally verified in v35; medium priority; package H.
 62. **P1-062 — Paged own-data exports are not a single point-in-time snapshot.** Implemented and locally verified in v43.
 63. **P1-063 — Drizzle table coverage does not describe all deployed constraints and defaults.** Implemented/locally verified in v44; medium priority; package E.
-64. **P1-064 — Large tightly coupled services and untyped UI contracts make changes fragile.** Open; low priority; package I.
+64. **P1-064 — Large tightly coupled services and untyped UI contracts make changes fragile.** Implemented/locally verified in v45; low priority; package I.
 65. **P1-065 — Help search lacks the specified locale full-text and trigram ranking.** Implemented/locally verified in v44; medium priority; package G.
 66. **P1-066 — Published help cache does not remove withdrawn or renamed saved articles.** Implemented and locally verified in v33; low priority; package G.
-67. **P1-067 — Solana custody reconciliation requires identical live response slots.** Open; medium priority; package B.
+67. **P1-067 — Solana custody reconciliation requires identical live response slots.** Implemented/locally verified in v45; medium priority; package B.
 68. **P1-068 — Production dependencies include unresolved security advisories.** Implemented; local checks passed; high priority; package E.
 69. **P1-069 — Native quote expiry and cooldown use the web clock instead of database time.** Implemented; local checks passed; medium priority; package A.
 
@@ -78,6 +78,7 @@ Updated: **14 October 2026 at 02:25:24 PM WAT**.
 71. **P1-071 — Financial archives can claim the current migration version while source migrations are pending.** Implemented; local checks passed; medium priority; package B.
 72. **P1-072 — Same-address native/token transfers can manufacture incoming principal.** (High; defect) — Implemented; local checks passed.
 73. **P1-073 — Testnet identity and rate infrastructure remains simulation-only.** (High; requirement gap) — Implemented and locally verified in v43.
+74. **P1-074 — TRON reconciliation accepts live balances beyond the declared scan cutoff.** (Medium; defect) — Implemented and locally verified in v45.
 
 ## Approval boundary and execution rule
 
@@ -833,7 +834,9 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Typed DTOs replace critical any boundaries, services retain transaction ownership, and imports obey explicit layering.
 
-**STATUS:** [ ] Open; package I; Low priority.
+**STATUS:** [x] Implemented and locally verified in v45; package I; Low priority.
+
+**CURRENT STATUS:** Implemented and locally verified in v45; original audit evidence above is retained.
 
 ### 65: BUG P1-065: Help search lacks the specified locale full-text and trigram ranking
 
@@ -865,7 +868,9 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Different healthy finalized SOL response slots cannot be mislabeled as one historical cutoff; true disagreement remains paused.
 
-**STATUS:** [ ] Open; package B; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v45; package B; Medium priority.
+
+**CURRENT STATUS:** Implemented and locally verified in v45; original audit evidence above is retained.
 
 ### 68: BUG P1-068: Production dependencies include unresolved security advisories
 
@@ -933,7 +938,7 @@ Then execute the entire Phase Two milestone sequence without waiting for milesto
 
 ## Fixing-LLM handover
 
-Read [LLM-HANDOVER_v44.md](LLM-HANDOVER_v44.md), then the mandatory project docs and [custom-bugs-report_v44.md](custom-bugs-report_v44.md). The owner has authorized this plan. Continue without further approval pauses; prioritize the open findings in the current ledger; preserve all73 tracked IDs and all release boundaries. Do not reinterpret historical v28 “100%” as current audit completion.
+Read [LLM-HANDOVER_v45.md](LLM-HANDOVER_v45.md), then the mandatory project docs and [custom-bugs-report_v45.md](custom-bugs-report_v45.md). The owner has authorized this plan. Continue without further approval pauses; prioritize the open findings in the current ledger; preserve all73 tracked IDs and all release boundaries. Do not reinterpret historical v28 “100%” as current audit completion.
 
 
 ### 72: BUG P1-072: Same-address native/token transfers can manufacture incoming principal
@@ -962,15 +967,27 @@ Read [LLM-HANDOVER_v44.md](LLM-HANDOVER_v44.md), then the mandatory project docs
 
 **VERIFICATION:** manual-supported-identity-r3 passed real testnet runtime writes and unsupported/member scope denial with all generated records rolled back. A correctly rejected undersized cipher fixture was corrected using the real sealing format. manual-public-http-final-r2 passed real native anonymous catalog, published rename308, draft-map/API exclusion and available-only language alternates, in addition to the earlier public-page checks.
 
-## Current v44 remediation ledger
+### 74: BUG P1-074: TRON reconciliation accepts live balances beyond the declared scan cutoff
+
+**FILES:** `packages/chains/src/tron.ts`, `server/chain-recovery.ts`, `packages/db/src/migrations/095_recovery_balance_cutoff_witness.sql`
+
+**FIX:** Capture and retain a jointly observed stable solidified balance before scanning, bind the scan to that exact cutoff, and reject later live responses for retained legacy runs.
+
+**Medium · Defect.** The original implementation checks matching provider tips and balances but only requires each tip to be at least the requested height. Two matching later live responses could be compared with an earlier recovery scan, incorporating transfers outside the declared range.
+
+**ACCEPTANCE:** Only exact common-cutoff evidence can authorize reconciliation; different slots/tips remain unknown even when amounts match, contradictory common-cutoff evidence is rejected, and retry/recovery preserves the original witness.
+
+**STATUS:** [x] Implemented and locally verified in v45. Generated dual-provider native/TRC20 checks passed common-cutoff capture, later-tip legacy denial, divergence bounds, amount/canonical contradiction denial; shared stored-cutoff/database replay behavior passed the actual recovery procedure. No real provider or signing was used.
+
+## Current v45 remediation ledger
 
 The owner approved all Round One fixes, autonomous Rounds Two/Three and continued remediation, every Phase Two milestone, and final bug fixes before deferred testing. Continue without plan or milestone acceptance pauses. Use best recommendations, complete substantial verified batches, and merge only after BOTH push and pull-request CI succeed for the exact final head. Both financial readiness gates remain false; mainnet remains prohibited. CRON frequency and test-only issues remain excluded.
 
 65 of 73 tracked items implemented and locally verified; 8 remain open. The initial Round One audit had70 findings; P1-071/P1-072/P1-073 were discovered and fixed during remediation. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. No bug-free or hosted acceptance claim is made.
 
-Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-013, P1-014, P1-015, P1-016, P1-017, P1-018, P1-019, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-026, P1-027, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-037, P1-040, P1-041, P1-042, P1-043, P1-044, P1-045, P1-046, P1-047, P1-048, P1-049, P1-050, P1-051, P1-052, P1-053, P1-054, P1-055, P1-056, P1-057, P1-058, P1-059, P1-060, P1-061, P1-062, P1-063, P1-065, P1-066, P1-068, P1-069, P1-070, P1-071, P1-072, P1-073.
+Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-013, P1-014, P1-015, P1-016, P1-017, P1-018, P1-019, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-026, P1-027, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-037, P1-040, P1-041, P1-042, P1-043, P1-044, P1-045, P1-046, P1-047, P1-048, P1-049, P1-050, P1-051, P1-052, P1-053, P1-054, P1-055, P1-056, P1-057, P1-058, P1-059, P1-060, P1-061, P1-062, P1-063, P1-064, P1-065, P1-066, P1-067, P1-068, P1-069, P1-070, P1-071, P1-072, P1-073, P1-074.
 
-Open: P1-009, P1-028, P1-038, P1-039, P1-064, P1-067.
+Open: P1-009, P1-028, P1-038, P1-039.
 
 Local verification: required check:all; production build and bundle budget checks; production npm audit now zero advisories. Named isolated manual-contracts, manual-money and manual-quotes-r5 passed. The last validates quote cancellation/expiry/payload replay/DB clock, late-fund refunds, frozen pre-pause admission, custom bootstrap destination, positively refunded plan edit, and independent lower live per-transaction/daily signer caps without reservations or signed bytes. Initial quote-probe failures (invalid price TTL, missing scoped fixture binding, missing operational gas asset) remain retained and were corrected only in fresh r2/r3/r5 databases. No external RPC or broadcast occurred.
 
@@ -1056,14 +1073,14 @@ Named procedures passed: manual-public-http-final-r2 (real production French ini
 
 Required check:all, production build and bundle reporting passed after forward093. Exact-head dual CI and merge remain pending. Latest measured homepage180.22KiB/200, API1.429MiB/3, all clients0.661MiB. Schema remains86 tables;94 migrations and73 retained inventories. The initial encrypted site-financial-final_v43 archive (93 migrations) exactly restored into fresh inactive gw_v43_restore. After P1-073, a new site-financial-final_v43-r2 archive (94 migrations) exactly restored into fresh inactive gw_v43_restore_r2 with schema/RLS/grants/history verified. The presentation source is gw_v43_presentation; the separate gw_v43_public search experiment is preserved and is not the release/archive source. Original sources, archives, keys and financial histories are intact; both implementation gates remain false.
 
-Historical v43 limitation, superseded by explicit v44 approval: P1-065 was blocked specifically by automatic approval review. Search/index prototypes passed rollback checks in a fresh inactive clone, but two proposed production search/recovery changes were rejected due migration/restore compatibility risk and a requirement for explicit owner approval of that exact change. No extension/index/restore-validator change is in this active batch. Read custom-bugs-search-approval_v44.md for the concrete proposal. P1-038 remains partial/open. Historical v43 total65/73 implemented,8 open; Rounds Two/Three and Phase Two have not started. Continue all unaffected findings without milestone pauses.
+Historical v43 limitation, superseded by explicit v44 approval: P1-065 was blocked specifically by automatic approval review. Search/index prototypes passed rollback checks in a fresh inactive clone, but two proposed production search/recovery changes were rejected due migration/restore compatibility risk and a requirement for explicit owner approval of that exact change. No extension/index/restore-validator change is in this active batch. Read custom-bugs-search-approval_v45.md for the concrete proposal. P1-038 remains partial/open. Historical v43 total65/73 implemented,8 open; Rounds Two/Three and Phase Two have not started. Continue all unaffected findings without milestone pauses.
 
 
 ## V44 approved search and schema congruence
 
 Updated: **14 October 2026 at 02:25:24 PM WAT**. The owner explicitly approved the concrete P1-065 search/backup proposal after its restore compatibility risk was explained, and instructed: **“approve this change and any other necessary change. dont stop, keep going.”** This resolves the earlier search approval hold. Continue remaining fixes, Rounds Two/Three, Phase Two and final remediation without milestone acceptance pauses; retain disabled financial/mainnet gates.
 
-Implemented P1-063/P1-065. Drizzle declarations now match all810 columns/defaults,261 check constraints and102 standalone indexes against the forward-migrated PostgreSQL catalog. Three missing UNIQUE declarations are included. Both deferred FK targets remain modeled; their deferred timing and22 constraint triggers are explicitly inventoried in [custom-bugs-schema-contract_v44.json](custom-bugs-schema-contract_v44.json). SQL migrations remain authoritative for policies, grants, functions, views and trigger behavior; Drizzle-generated SQL alone is not a deployable security schema. Required coverage checks reject a changed declaration or migration set until catalog congruence is re-verified. All86 table select/insert/delete query shapes remained unchanged, and the complete app typechecks. Original applied migration checksums are intact.
+Implemented P1-063/P1-065. Drizzle declarations now match all810 columns/defaults,261 check constraints and102 standalone indexes against the forward-migrated PostgreSQL catalog. Three missing UNIQUE declarations are included. Both deferred FK targets remain modeled; their deferred timing and22 constraint triggers are explicitly inventoried in [custom-bugs-schema-contract_v45.json](custom-bugs-schema-contract_v45.json). SQL migrations remain authoritative for policies, grants, functions, views and trigger behavior; Drizzle-generated SQL alone is not a deployable security schema. Required coverage checks reject a changed declaration or migration set until catalog congruence is re-verified. All86 table select/insert/delete query shapes remained unchanged, and the complete app typechecks. Original applied migration checksums are intact.
 
 Forward094 adds pinned public pg_trgm1.6 and three published-only GIN indexes. Bounded EN/FR search uses exact-title/full-text/relevance/trigram/slug ordering; query values are bound, normalized and capped, results limited20, concurrent public cache flights limited32. Browser search is debounced/cancellable with explicit saved-text fallback/retry. Closed recovery dependencies retain pgcrypto-only packet validation and optional pg_trgm, rejecting unknown/duplicate/version/schema entries; existing incompatible extensions are rejected before provisioning. Signatures, archive checksums, empty-target checks and exact restored inventories remain mandatory.
 
@@ -1071,6 +1088,19 @@ Named rollback checks passed EN/FR stemming, exact priority, typo fallback, dete
 
 Current accounting: **67/73 implemented and locally verified;6 open**: P1-009/P1-028/P1-038/P1-039/P1-064/P1-067. Rounds Two/Three and Phase Two have not started. Keep progressing; do not interpret item accounting as a completion percentage.
 
-Signed: **14 October 2026 at 02:28:27 PM WAT**.
 
-v44
+## V45 financial transport and immutable balance cutoffs
+
+Updated: **14 October 2026 at 02:58:13 PM WAT**. Continue without approval waits under the owner's explicit necessary-change directive. PR43 is merged after both exact-head CI events succeeded. Implemented P1-064/P1-067 and discovered/fixed P1-074. Current accounting is **70/74 locally verified,4 open**: P1-009/P1-028/P1-038/P1-039. Rounds Two/Three and Phase Two remain pending. Do not stop at this batch or call the project complete.
+
+Critical dashboard/native portfolio/balance/cycle/withdrawal review DTOs now derive from service results through type-only JSON transport contracts. Dates and big integers have explicit wire forms; nullable cached wallets are declared. Public manifest keys retain the same runtime projection with explicit types excluding private/staff keys. Private snapshot callbacks preserve the path-specific contract. Withdrawal quote/requote responses use a narrow validated member review projection; exact approved charges remain strings and malformed persisted charges fail closed. Internal registry/configuration evidence remains in the service. New AST import checks prohibit client executable imports/re-exports/dynamic imports of server, isolated worker, DB or chain services, while erased type-only contracts are allowed. Public/export modules extracted in earlier batches and the new financial transport module preserve original transaction ownership and money algorithms.
+
+Forward095 adds nullable immutable balance_witness evidence. New SOL/TRON recovery starts capture a jointly observed finalized/solidified balance before scanning, retain its height/hash/amount/asset/address/checkpoint/database binding and return the actual through_height. The requested height is a minimum for this start; the captured height becomes the scan's immutable upper bound. Capture requires matching common provider cutoff/amount/canonical block, with bounded convergence attempts under the existing RPC budget. Completion re-verifies the canonical cutoff and uses the stored amount; it never samples a later live balance. Live book mismatches remain review-required. Retained runs without witnesses are not rewritten and require exact-height evidence or stay unknown. Different cutoff amounts are never silently treated as a same-cutoff contradiction or accepted solely because amounts match. Witness update grants remain absent and the existing immutable-row guard covers the new field. Restored-clone binding fences remain intact.
+
+Named generated-provider checks pass SOL/native/SPL and TRON/native/TRC20 convergence, divergent-cutoff unknown state, amount/canonical contradiction denial, exact legacy success and later legacy rejection. Actual rollback DB/start/replay/completion checks pass stored cutoff102 from requested100, replay without new RPC, immutable/SQL-invalid witness denial, and stored1000 use despite later110/2000 while holding unexplained book mismatch. Typed transport checks pass large exact integers, no internal source fields in member review, unchanged source evidence, invalid-charge fail-closed and public-only policy projection. These are isolated named procedures, not hosted evidence or the deferred broad test suite.
+
+Fresh model congruence: all811 columns,262 checks,102 indexes; same documented22 SQL-only constraint triggers/two deferred FK timing exceptions. Schema86 tables/96 migrations/73 retained inventories. Source gw_v45_contracts and fresh restore gw_v45_restore remain inactive. Original sources/archives/keys/signed histories remain preserved. Both financial implementation gates remain false; no signing/broadcast ran. Required check:all, production build and bundle budgets passed (homepage180.35KiB/200; maximum API1.442MiB/3; clients0.661MiB). Actual Chromium appearance/navigation checks passed on the new build. The new cutoff-final_v45 encrypted archive exactly restored73 retained inventories into fresh inactive gw_v45_restore, including financial rows/schema/RLS/grants/history. Both exact-final-head CI events and merge remain pending.
+
+Signed: **14 October 2026 at 02:58:13 PM WAT**.
+
+v45

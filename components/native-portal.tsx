@@ -1,4 +1,6 @@
 "use client";
+import type {PublicManifestDto,NativePortfolioDto,NativeWithdrawalQuote,NativeWithdrawalReview,NativeWithdrawalRow} from '@/lib/financial-contracts';
+import type {MemberRecord} from '@/lib/member-records';
 import {useAppearance,useNavigationIdentity} from './appearance-provider';
 import {errorMessage} from "@/lib/error-messages";
 import {loadSession} from '@/lib/auth-client';
@@ -51,15 +53,15 @@ export default function NativePortal() {
   const {locale,setLocale}=useAppearance();
   const [session, setSession] = useState<SessionResult | null>(null),
     [catalog, setCatalog] = useState<Catalog | null>(null),
-    [manifest, setManifest] = useState<any>(null),
-    [data, setData] = useState<any>(null),
+    [manifest, setManifest] = useState<PublicManifestDto|null>(null),
+    [data, setData] = useState<NativePortfolioDto|null>(null),
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState("");
   const [botReady,setBotReady]=useState(false),[botProof,setBotProof]=useState<BotProof|undefined>(),[botReset,setBotReset]=useState(0);
   const [payment, setPayment] = useState<PreparedPayment | null>(null),
     [sentHash,setSentHash]=useState(''),
     [existingInvoice,setExistingInvoice]=useState(''),[existingHash,setExistingHash]=useState(''),
-    [withdrawal, setWithdrawal] = useState<any>(null),
+    [withdrawal, setWithdrawal] = useState<NativeWithdrawalReview|null>(null),
     [gross, setGross] = useState("");
   const current = useRef<SessionResult | null>(null),
     financialFlight = useRef(false),
@@ -105,7 +107,7 @@ export default function NativePortal() {
     mounted.current = true;
     const active = ++epoch.current;
     void Promise.all([
-      api<any>("/manifest", ""),
+      api<PublicManifestDto>("/manifest", ""),
       api<Catalog>("/crypto/catalog", ""),
       loadSession(),
     ])
@@ -164,13 +166,13 @@ export default function NativePortal() {
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
-  function applyPortfolio(value:any){setData(value);if(value.manifest)setManifest((old:any)=>({...old,...value.manifest}));if(value.user)setSession(old=>old?.user?{...old,user:{...old.user,...value.user}}:old);}
+  function applyPortfolio(value:NativePortfolioDto){setData(value);if(value.manifest)setManifest(old=>old?({...old,...value.manifest}):old);if(value.user)setSession(old=>old?.user?{...old,user:{...old.user,...value.user}}:old);}
   async function load() {
     if (!user || session?.requires_mfa || user.status === "pending_consent")
       return;
     const active = epoch.current,serial=++readGeneration.current;
     try {
-      const result = await api<any>("/me/crypto", user.username);
+      const result = await api<NativePortfolioDto>("/me/crypto", user.username);
       if (mounted.current && epoch.current === active&&serial===readGeneration.current) applyPortfolio(result);
     } catch (error) {
       if (epoch.current === active&&serial===readGeneration.current) setNotice(errorMessage(error,locale));
@@ -327,7 +329,7 @@ export default function NativePortal() {
     const active = epoch.current,
       owner = user.username;
     await financial(async () => {
-      const value = await mutation<any>(
+      const value = await mutation<NativeWithdrawalQuote>(
         "/me/withdrawals/crypto/quotes",
         owner,
         {
@@ -363,12 +365,12 @@ export default function NativePortal() {
       }
     });
   }
-  async function recoverWithdrawal(row: any, requote: boolean) {
+  async function recoverWithdrawal(row: NativeWithdrawalRow|MemberRecord, requote: boolean) {
     if (!user) return;
     const active = epoch.current,
       owner = user.username;
     await financial(async () => {
-      const value = await mutation<any>(
+      const value = await mutation<NativeWithdrawalQuote>(
         requote
           ? "/me/withdrawals/crypto/requote"
           : "/me/withdrawals/crypto/cancel",
@@ -593,19 +595,19 @@ export default function NativePortal() {
             .filter(
               (asset) =>
                 asset.enabled ||
-                (data?.summary ?? []).some((row:any)=>row.asset_id===asset.id && BigInt(row.withdrawn_net_base_units)!==0n) ||
+                (data?.summary ?? []).some((row)=>row.asset_id===asset.id && BigInt(row.withdrawn_net_base_units)!==0n) ||
                 (data?.balances ?? []).some(
-                  (row: any) =>
+                  (row) =>
                     row.asset_id === asset.id && BigInt(row.amount) !== 0n,
                 ),
             )
             .map((currency) => {
               const wallet = data?.wallets?.find(
-                  (row: any) => row.network === currency.network,
+                  (row) => row.network === currency.network,
                 ),
-                summary = data?.summary?.find((row:any)=>row.asset_id===currency.id),
+                summary = data?.summary?.find((row)=>row.asset_id===currency.id),
                 balance = data?.balances?.find(
-                  (row: any) =>
+                  (row) =>
                     row.asset_id === currency.id &&
                     row.purpose === "available_payable",
                 );
@@ -691,7 +693,7 @@ export default function NativePortal() {
               );
             })}
           {user&&session?.generation&&manifest&&(manifest.feature_gifts||manifest.feature_wallets)&&<MemberRecords key={user.username+session.generation} owner={user.username} generation={session.generation} environment="testnet" locale={locale} collections={[...(manifest.feature_gifts?['cycles','invoices'] as const:[]),...(manifest.feature_wallets?['withdrawals'] as const:[])]} history={!!manifest.entitlements_member?.history} disabled={busy} revision={data} onInvoice={row=>setExistingInvoice(row.id)} onCancelInvoice={row=>void financial(async()=>{await mutation('/gifts/crypto/cancel',user.username,{invoice_id:row.id});await load()},true)} onWithdrawal={row=>void recoverWithdrawal(row,false)}/>}
-          {data?.cycles?.map((row: any) => (
+          {data?.cycles?.map((row) => (
             <article className="card" key={row.id}>
               <h2>
                 {row.name} · {row.asset} · {row.network}
@@ -708,7 +710,7 @@ export default function NativePortal() {
               )}
             </article>
           ))}
-          {data?.withdrawals?.map((row: any) => (
+          {data?.withdrawals?.map((row) => (
             <article className="card" key={row.id}>
               <p>
                 {row.status} · {row.asset} · {row.network}

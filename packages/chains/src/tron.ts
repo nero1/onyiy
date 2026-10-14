@@ -216,11 +216,30 @@ export class TronAdapter implements ChainAdapter {
     if (values.some((v) => v !== BigInt(asset.decimals)))
       throw new Error("TOKEN_REGISTRY_MISMATCH");
   }
-  async getReconciledBalance(asset:AssetRegistry,address:string,height:bigint){
+  private async finalizedBalancePair(asset:AssetRegistry,address:string,height:bigint){
     assertActive(asset);if(asset.key!==this.asset.key||height<0n)throw new Error("INVALID_INPUT");const account=normalized(address);
     const values=await Promise.all(([0,1] as const).map(async side=>{const identity=await this.rpc.post(side,"jsonrpc",{jsonrpc:"2.0",id:1,method:"eth_chainId",params:[]},true);if(BigInt(identity)!==chainIds[asset.network])throw new Error("WRONG_NETWORK");const before=await this.rpc.post(side,"walletsolidity/getnowblock",{}),tip=integer(before.block_header.raw_data.number);if(tip<height||!/^[0-9a-f]{64}$/i.test(before.blockID))throw new Error("FINALITY_UNAVAILABLE");let amount:bigint;
     if(asset.kind==="native"){const result=await this.rpc.post(side,"walletsolidity/getaccount",{address:addressHex(account),visible:false});amount=integer(result.balance??0)}else{const result=await this.rpc.post(side,"walletsolidity/triggerconstantcontract",{owner_address:addressHex(account),contract_address:addressHex(asset.contract!),function_selector:"balanceOf(address)",parameter:addressHex(account).slice(-40).padStart(64,"0"),visible:false});if(!result.result?.result||!Array.isArray(result.constant_result)||result.constant_result.length!==1||! /^[0-9a-f]{64}$/i.test(result.constant_result[0]))throw new Error("RPC_EVIDENCE_INVALID");amount=BigInt("0x"+result.constant_result[0])}
-    const after=await this.rpc.post(side,"walletsolidity/getnowblock",{});if(after.blockID!==before.blockID||integer(after.block_header.raw_data.number)!==tip)throw new Error("FINALITY_UNAVAILABLE");return {tip,hash:before.blockID,amount}}));if(values[0].tip!==values[1].tip||values[0].hash!==values[1].hash||values[0].amount!==values[1].amount)throw new Error("RPC_BALANCE_CONTRADICTION");return values[0].amount;
+    const after=await this.rpc.post(side,"walletsolidity/getnowblock",{});if(after.blockID!==before.blockID||integer(after.block_header.raw_data.number)!==tip)throw new Error("FINALITY_UNAVAILABLE");return {tip,hash:String(before.blockID).toLowerCase(),amount}}));return values;
+  }
+  async getFinalizedBalanceSnapshot(asset:AssetRegistry,address:string,minimumHeight:bigint){
+    for(let round=0;round<2;round++){
+      const values=await this.finalizedBalancePair(asset,address,minimumHeight);
+      if(values[0].tip!==values[1].tip)continue;
+      if(values[0].hash!==values[1].hash)throw new Error("RPC_EVIDENCE_INVALID");
+      if(values[0].amount!==values[1].amount)throw new Error("RPC_BALANCE_CONTRADICTION");
+      const block=await this.getCanonicalBlock(values[0].tip);
+      if(!block.finalized||block.hash!==values[0].hash)throw new Error("RPC_EVIDENCE_INVALID");
+      return {height:values[0].tip,blockHash:block.hash,amount:values[0].amount};
+    }
+    throw new Error("FINALITY_UNAVAILABLE");
+  }
+  async getReconciledBalance(asset:AssetRegistry,address:string,height:bigint){
+    const values=await this.finalizedBalancePair(asset,address,height);
+    if(values.some(value=>value.tip!==height))throw new Error("FINALITY_UNAVAILABLE");
+    if(values[0].hash!==values[1].hash)throw new Error("RPC_EVIDENCE_INVALID");
+    if(values[0].amount!==values[1].amount)throw new Error("RPC_BALANCE_CONTRADICTION");
+    return values[0].amount;
   }
   async getBalance(asset: AssetRegistry, address: string, fresh = false) {
     assertActive(asset);

@@ -231,9 +231,42 @@ export class SolanaAdapter implements ChainAdapter {
     )
       throw new Error("TOKEN_REGISTRY_MISMATCH");
   }
+  private async finalizedBalancePair(asset:AssetRegistry,address:string,height:bigint){
+    assertActive(asset);
+    if(asset.key!==this.asset.key||height<0n||height>9007199254740991n)throw new Error("INVALID_INPUT");
+    const account=normalized(address),target=asset.kind==="native"?account:getAssociatedTokenAddressSync(new PublicKey(asset.mint!),new PublicKey(account)).toBase58();
+    return Promise.all(([0,1] as const).map(async side=>{
+      if(await this.rpc.request(side,"getGenesisHash",[])!==genesis)throw new Error("WRONG_NETWORK");
+      const result=await this.rpc.request(side,asset.kind==="native"?"getBalance":"getTokenAccountBalance",[target,{commitment:"finalized",minContextSlot:parseInt(height.toString(),10)}]);
+      const slot=integer(result.context?.slot);
+      if(slot<height)throw new Error("FINALITY_UNAVAILABLE");
+      if(asset.kind==="token"&&result.value?.decimals!==asset.decimals)throw new Error("TOKEN_REGISTRY_MISMATCH");
+      return {slot,amount:integer(asset.kind==="native"?result.value:result.value.amount)};
+    }));
+  }
+  async getFinalizedBalanceSnapshot(asset:AssetRegistry,address:string,minimumHeight:bigint){
+    let floor=minimumHeight;
+    // Different finalized slots describe different states. Retry a bounded
+    // common observation; equal amounts at different slots are never proof.
+    for(let round=0;round<3;round++){
+      const values=await this.finalizedBalancePair(asset,address,floor);
+      if(values[0].slot===values[1].slot){
+        if(values[0].amount!==values[1].amount)throw new Error("RPC_BALANCE_CONTRADICTION");
+        const block=await this.getCanonicalBlock(values[0].slot);
+        if(!block.finalized)throw new Error("FINALITY_UNAVAILABLE");
+        return {height:values[0].slot,amount:values[0].amount,blockHash:block.hash};
+      }
+      floor=values[0].slot>values[1].slot?values[0].slot:values[1].slot;
+    }
+    throw new Error("FINALITY_UNAVAILABLE");
+  }
   async getReconciledBalance(asset:AssetRegistry,address:string,height:bigint){
-    assertActive(asset);if(asset.key!==this.asset.key||height<0n||height>9007199254740991n)throw new Error("INVALID_INPUT");const account=normalized(address),target=asset.kind==="native"?account:getAssociatedTokenAddressSync(new PublicKey(asset.mint!),new PublicKey(account)).toBase58();
-    const values=await Promise.all(([0,1] as const).map(async side=>{if(await this.rpc.request(side,"getGenesisHash",[])!==genesis)throw new Error("WRONG_NETWORK");const result=await this.rpc.request(side,asset.kind==="native"?"getBalance":"getTokenAccountBalance",[target,{commitment:"finalized",minContextSlot:parseInt(height.toString(),10)}]);const slot=integer(result.context?.slot);if(slot<height)throw new Error("FINALITY_UNAVAILABLE");if(asset.kind==="token"&&result.value?.decimals!==asset.decimals)throw new Error("TOKEN_REGISTRY_MISMATCH");return {slot,amount:integer(asset.kind==="native"?result.value:result.value.amount)}}));if(values[0].slot!==values[1].slot||values[0].amount!==values[1].amount)throw new Error("RPC_BALANCE_CONTRADICTION");return values[0].amount;
+    const values=await this.finalizedBalancePair(asset,address,height);
+    // Legacy runs have no pre-scan witness. A lower-bound response cannot
+    // impersonate their historical accounting cutoff, even if amounts agree.
+    if(values.some(value=>value.slot!==height))throw new Error("FINALITY_UNAVAILABLE");
+    if(values[0].amount!==values[1].amount)throw new Error("RPC_BALANCE_CONTRADICTION");
+    return values[0].amount;
   }
   async getBalance(asset: AssetRegistry, address: string, fresh = false) {
     assertActive(asset);
