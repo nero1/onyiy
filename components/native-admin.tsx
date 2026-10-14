@@ -29,7 +29,8 @@ export default function NativeAdmin({
   const [sweepGross, setSweepGross] = useState(""),
     [sweep, setSweep] = useState<any>(null);
   const [eventId, setEventId] = useState(""),
-    [reviews, setReviews] = useState<any[]>([]);
+    [reviews, setReviews] = useState<any[]>([]),[reviewCursor,setReviewCursor]=useState<string|null>(null),[reviewView,setReviewView]=useState<'current'|'history'>('current');
+  async function loadReviews(cursor?:string){const query=new URLSearchParams({view:reviewView});if(cursor)query.set('cursor',cursor);const page=await api<any>('/admin/crypto/reorg?'+query,owner);setReviews(page.rows);setReviewCursor(page.next_cursor);}
   const fr = locale === "fr",
     [reason, setReason] = useState(""),
     [currency, setCurrency] = useState(assets[0]?.key ?? "bnb"),
@@ -37,6 +38,7 @@ export default function NativeAdmin({
     [revision, setRevision] = useState("1"),
     [plans, setPlans] = useState<any[]>([]),
     [alerts, setAlerts] = useState<any[]>([]),
+    [alertCursor,setAlertCursor]=useState<string|null>(null),[alertView,setAlertView]=useState<'current'|'history'>('current'),
     [role, setRole] = useState("developer"),
     [obligation, setObligation] = useState(""),
     [message, setMessage] = useState(""),
@@ -79,8 +81,8 @@ export default function NativeAdmin({
         onClick={() =>
           void run(async () => {
             setPlans(await api<any[]>("/admin/plans", owner));
-            setAlerts(await api<any[]>("/admin/crypto/alerts", owner));
-            setReviews(await api<any[]>("/admin/crypto/reorg", owner));
+            const alertPage=await api<any>("/admin/crypto/alerts?view="+alertView,owner);setAlerts(alertPage.rows);setAlertCursor(alertPage.next_cursor);
+            await loadReviews();
             const page = await api<any>("/admin/crypto/obligations", owner);
             setObligations(page.rows);
             setObligationCursor(page.next_after);
@@ -420,6 +422,9 @@ export default function NativeAdmin({
           </>
         )}
       </fieldset>
+      <label>{fr?'Vue des révisions de finalité':'Finality review view'}<select value={reviewView} disabled={busy} onChange={event=>{setReviewView(event.target.value as 'current'|'history');setReviews([]);setReviewCursor(null);}}><option value="current">{fr?'Non résolues':'Unresolved'}</option><option value="history">{fr?'Tout l’historique':'All history'}</option></select></label>
+      <button disabled={busy} onClick={()=>void run(()=>loadReviews())}>{fr?'Actualiser les révisions / première page':'Refresh reviews / first page'}</button>
+      {reviewCursor&&<button disabled={busy} onClick={()=>void run(()=>loadReviews(reviewCursor))}>{fr?'Révisions suivantes':'Next reviews'}</button>}
       <fieldset disabled={busy || !enabled || reason.trim().length < 10}>
         <legend>{fr ? "Révision de finalité" : "Finality review"}</legend>
         <p>
@@ -439,7 +444,7 @@ export default function NativeAdmin({
                 event_id: eventId,
                 reason,
               });
-              setReviews(await api<any[]>("/admin/crypto/reorg", owner));
+              await loadReviews();
             })
           }
         >
@@ -465,7 +470,7 @@ export default function NativeAdmin({
                       review_id: row.review_id,
                       reason,
                     });
-                    setReviews(await api<any[]>("/admin/crypto/reorg", owner));
+                    await loadReviews();
                   })
                 }
               >
@@ -635,6 +640,9 @@ export default function NativeAdmin({
           </button>
         )}
       </section>
+      <label>{fr?'Vue des alertes':'Alert view'}<select value={alertView} disabled={busy} onChange={event=>{setAlertView(event.target.value as 'current'|'history');setAlerts([]);setAlertCursor(null);}}><option value="current">{fr?'Non résolues':'Unresolved'}</option><option value="history">{fr?'Tout l’historique':'All history'}</option></select></label>
+      <button disabled={busy} onClick={()=>void run(async()=>{const page=await api<any>('/admin/crypto/alerts?view='+alertView,owner);setAlerts(page.rows);setAlertCursor(page.next_cursor);})}>{fr?'Actualiser les alertes / première page':'Refresh alerts / first page'}</button>
+      {alertCursor&&<button disabled={busy} onClick={()=>void run(async()=>{const page=await api<any>('/admin/crypto/alerts?view='+alertView+'&cursor='+encodeURIComponent(alertCursor),owner);setAlerts(page.rows);setAlertCursor(page.next_cursor);})}>{fr?'Alertes suivantes':'Next alerts'}</button>}
       {alerts.map((row) => (
         <article key={row.id}>
           <p>

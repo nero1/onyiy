@@ -32,6 +32,11 @@ export default function ChainRecoveryAdmin({
     [result, setResult] = useState<any>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const [view,setView]=useState<'current'|'history'>('current'),[lookup,setLookup]=useState('');
+  async function loadRecords(kind?:'runs'|'inflows'|'outflows',cursor?:string){
+    const query=new URLSearchParams({view});if(lookup.trim())query.set('id',lookup.trim());if(kind&&cursor)query.set('cursor_'+kind,cursor);
+    await act(async()=>{const value=await api<any>('/admin/crypto/recovery-state?'+query,owner,{signal:AbortSignal.timeout(10000)});setRows((old:any)=>kind?{...old,[kind]:value[kind],['next_'+kind]:value['next_'+kind]}:value);return {status:'loaded'};});
+  }
   async function act(fn: () => Promise<unknown>) {
     if (busy) return;
     setBusy(true);
@@ -63,18 +68,10 @@ export default function ChainRecoveryAdmin({
         {fr?'Expiration confirmée : clôturez cette obligation via la récupération appropriée, puis lancez un nouveau rapprochement. Les fonds restent réservés.':'Expiry verified: close this obligation through its recovery action, then start a fresh reconciliation. Funds remain held.'}
         {' '}{result.expiry_closure.obligation_id} · {result.expiry_closure.kind}
       </p>}
-      <button
-        disabled={busy}
-        onClick={() =>
-          void act(async () => {
-            const value = await api<any>("/admin/crypto/recovery-state", owner);
-            setRows(value);
-            return { status: "loaded" };
-          })
-        }
-      >
-        {fr ? "Charger les dossiers" : "Load recovery records"}
-      </button>
+      <label>{fr?'Vue des dossiers':'Records view'}<select value={view} disabled={busy} onChange={event=>{setView(event.target.value as 'current'|'history');setRows(null);}}><option value="current">{fr?'Non résolus':'Unresolved'}</option><option value="history">{fr?'Tout l’historique':'All history'}</option></select></label>
+      <label>{fr?'UUID exact du dossier':'Exact record UUID'}<input value={lookup} disabled={busy} maxLength={36} onChange={event=>{setLookup(event.target.value);setRows(null);}}/></label>
+      <button disabled={busy} onClick={()=>void loadRecords()}>{fr?'Charger / première page':'Load / first page'}</button>
+      {rows&&<div>{(['runs','inflows','outflows'] as const).map(kind=>rows['next_'+kind]&&<button key={kind} disabled={busy} onClick={()=>void loadRecords(kind,rows['next_'+kind])}>{kind==='runs'?(fr?'Rapprochements suivants':'Next scans'):kind==='inflows'?(fr?'Entrées suivantes':'Next inflows'):(fr?'Sorties suivantes':'Next outflows')}</button>)}</div>}
       {rows && (
         <div className="stack">
           {rows.runs.map((r: any) => (
