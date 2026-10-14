@@ -1,4 +1,5 @@
 "use client";
+import {errorMessage} from "@/lib/error-messages";
 import { useState } from "react";
 import {
   api,
@@ -38,7 +39,7 @@ export default function PortabilityAdmin({
     try {
       await fn();
     } catch (e) {
-      setNotice(e instanceof ApiError ? e.code : "INTERNAL_ERROR");
+      setNotice(errorMessage(e, locale));
     } finally {
       setBusy(false);
     }

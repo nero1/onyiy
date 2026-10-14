@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, asc, eq, lte, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   operationalAlerts,operationKeys,readManifest,
@@ -22,12 +22,18 @@ const detailsSchema = z
       .optional(),
   })
   .strict();
+export async function enqueueAlertDelivery(tx: DbExecutor, alert: typeof operationalAlerts.$inferSelect, ordinal: number) {
+  const businessKey=`alert:${alert.id}:${ordinal}`;
+  const payloadText=JSON.stringify({version:1,environment:alert.environment,delivery_key:businessKey,severity:alert.severity,category:alert.category,details:detailsSchema.parse(alert.safeDetails)});
+  await tx.insert(alertDeliveries).values({alertId:alert.id,businessKey,occurrence:alert.occurrence,payloadText,payloadHash:crypto.createHash('sha256').update(payloadText).digest('hex')}).onConflictDoNothing();
+}
 export async function openFinancialAlert(
   tx: DbExecutor,
   conditionKey: string,
   category: string,
   severity: "critical" | "warning",
   details: z.infer<typeof detailsSchema>,
+  environment: 'simulation'|'testnet'='testnet',
 ) {
   if (
     !/^[a-z0-9:_-]{1,180}$/.test(conditionKey) ||
@@ -40,6 +46,7 @@ export async function openFinancialAlert(
       "balance_shortfall",
       "chain_exception",
       "fee_requote",
+      "job_backlog","job_dlq","lock_wait","quota_budget",
     ].includes(category)
   )
     throw new Error("INVALID_INPUT");
@@ -50,22 +57,25 @@ export async function openFinancialAlert(
     .where(eq(operationalAlerts.conditionKey, conditionKey))
     .for("update");
   if (existing) {
-    if (existing.status !== "resolved") return existing;
+    const changed=existing.severity!==(severity==='critical'?'P1':'P2')||existing.category!==category||JSON.stringify(detailsSchema.parse(existing.safeDetails))!==JSON.stringify(safe);
+    if (existing.status !== "resolved" && !(existing.status==='open'&&changed)) return existing;
     // Resume the same condition without recycling permanent delivery ordinals.
     // The dispatcher applies the daily HTTP budget to reopened alerts too.
     const ordinal=existing.reminders+1,policy=(await readManifest(tx)).alert_policy;
-    await tx.insert(alertDeliveries).values({alertId:existing.id,businessKey:`alert:${existing.id}:${ordinal}`}).onConflictDoNothing();
+    await tx.update(alertDeliveries).set({status:'cancelled',leaseToken:null,leaseUntil:null}).where(and(eq(alertDeliveries.alertId,existing.id),sql`${alertDeliveries.status} in ('pending','failed','sending')`));
     const [reopened] = await tx.update(operationalAlerts).set({
-      status: "open", safeDetails: safe, severity: severity === "critical" ? "P1" : "P2",
+      status: "open", safeDetails: safe, category, severity: severity === "critical" ? "P1" : "P2",
+      occurrence: existing.occurrence+1,occurrenceStartedAt:sql`clock_timestamp()`,escalationStep:0,
       acknowledgedAt: null, resolvedAt: null, reminders:ordinal,nextReminderAt: sql`clock_timestamp()+${policy.remind_minutes[0]}*interval '1 minute'`,
     }).where(eq(operationalAlerts.id, existing.id)).returning();
+    await enqueueAlertDelivery(tx,reopened,ordinal);
     return reopened;
   }
   const [alert] = await tx
     .insert(operationalAlerts)
     .values({
       conditionKey,
-      environment: "testnet",
+      environment,
       category,
       severity: severity === "critical" ? "P1" : "P2",
       safeDetails: safe,
@@ -80,9 +90,7 @@ export async function openFinancialAlert(
         .where(eq(operationalAlerts.conditionKey, conditionKey))
         .limit(1)
     )[0];
-  await tx
-    .insert(alertDeliveries)
-    .values({ alertId: alert.id, businessKey: `alert:${alert.id}:0` });
+  await enqueueAlertDelivery(tx,alert,0);
   return alert;
 }
 export async function acceptedAlert(tx: DbExecutor, configurationHash: string) {
@@ -98,7 +106,7 @@ export async function acceptedAlert(tx: DbExecutor, configurationHash: string) {
         eq(operationalAlerts.environment, "testnet"),
         eq(operationalAlerts.category, "activation_probe"),
         eq(alertDeliveries.status, "delivered"),
-        sql`${operationalAlerts.safeDetails}->>'configuration_hash'=${configurationHash}`,
+        sql`${alertDeliveries.payloadText}::jsonb->'details'->>'configuration_hash'=${configurationHash}`,
         sql`${alertDeliveries.deliveredAt}>clock_timestamp()-interval '24 hours'`,
       ),
     )
@@ -119,25 +127,27 @@ export async function deliverFinancialAlert() {
         now: Date;
       }>(sql`select clock_timestamp() as now`),
       now = new Date(clock.now);
-    const [delivery] = await tx
-      .select()
+    const [selected] = await tx
+      .select({delivery:alertDeliveries,alert:operationalAlerts})
       .from(alertDeliveries)
+      .innerJoin(operationalAlerts,eq(operationalAlerts.id,alertDeliveries.alertId))
       .where(
         and(
           sql`${alertDeliveries.status} in ('pending','failed','sending')`,
           sql`(${alertDeliveries.leaseUntil} is null or ${alertDeliveries.leaseUntil}<=clock_timestamp())`,
           sql`${alertDeliveries.attempts}<8`,
+          eq(operationalAlerts.status,'open'),
+          eq(alertDeliveries.occurrence,operationalAlerts.occurrence),
+          sql`${alertDeliveries.payloadText} is not null`,
         ),
       )
-      .orderBy(asc(alertDeliveries.createdAt), asc(alertDeliveries.id))
+      .orderBy(sql`case when ${operationalAlerts.severity}='P1' then 0 else 1 end`,sql`case when ${alertDeliveries.attempts}=0 then 0 else 1 end`,asc(alertDeliveries.createdAt),asc(alertDeliveries.id))
       .limit(1)
-      .for("update", { skipLocked: true });
-    if (!delivery) return null;
-    const [alert] = await tx
-      .select()
-      .from(operationalAlerts)
-      .where(eq(operationalAlerts.id, delivery.alertId))
-      .limit(1);
+      .for("update", { of: operationalAlerts, skipLocked: true });
+    if (!selected) return null;
+    const {alert}=selected;
+    const [delivery]=await tx.select().from(alertDeliveries).where(eq(alertDeliveries.id,selected.delivery.id)).limit(1).for('update',{skipLocked:true});
+    if(!delivery)return null;
     const token = crypto.randomUUID(),
       generation = delivery.leaseGeneration + 1;
     await tx.insert(operationKeys).values({businessKey:prefix+spent.n,requestHash:crypto.createHash('sha256').update(`${delivery.id}:${generation}`).digest('hex'),result:{delivery_id:delivery.id,generation}});
@@ -175,14 +185,7 @@ export async function deliverFinancialAlert() {
       throw new Error("ALERT_UNAVAILABLE");
     const key = environmentKey("ALERT_WEBHOOK_KEY");
     try {
-      const body = JSON.stringify({
-          version: 1,
-          environment: "testnet",
-          delivery_key: claim.delivery.businessKey,
-          severity: claim.alert.severity,
-          category: claim.alert.category,
-          details: detailsSchema.parse(claim.alert.safeDetails),
-        }),
+      const body = claim.delivery.payloadText!,
         digest = crypto.createHash("sha256").update(body).digest("hex"),
         signature = crypto
           .createHmac("sha256", key)
@@ -255,6 +258,7 @@ export async function deliverFinancialAlert() {
           eq(alertDeliveries.id, claim.delivery.id),
           eq(alertDeliveries.leaseToken, claim.token),
           eq(alertDeliveries.leaseGeneration, claim.generation),
+          eq(alertDeliveries.status,'sending'),
           sql`${alertDeliveries.leaseUntil}>clock_timestamp()`,
         ),
       )

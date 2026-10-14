@@ -1,3 +1,4 @@
+import {activeRequestId} from '@gifters/db';
 import {notificationBadge} from './notifications';
 import crypto from 'node:crypto';
 import { and, asc, desc, eq, inArray, isNull, isNotNull, gte, lt, sql } from 'drizzle-orm';
@@ -117,7 +118,7 @@ export async function postJournal(database: DbExecutor, type: string, businessKe
   if (debit !== credit) throw new Error(`unbalanced journal ${businessKey}: ${debit} != ${credit}`);
   if (debit === 0n) return null;
 
-  const inserted = await database.insert(ledgerJournals).values({ ledgerType: type, businessKey, metadata })
+  const inserted = await database.insert(ledgerJournals).values({ ledgerType: type, businessKey, metadata: {...metadata,...(activeRequestId()?{request_id:activeRequestId()}: {})} })
     .onConflictDoNothing({ target: ledgerJournals.businessKey })
     .returning({ id: ledgerJournals.id });
   if (!inserted[0]) return null;

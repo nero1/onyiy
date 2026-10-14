@@ -1,0 +1,29 @@
+import {ApiError} from './api-client';
+import {copy,type Locale} from './i18n';
+export function errorMessage(error:unknown,locale:Locale){
+ const t=copy[locale],code=error instanceof ApiError?error.code:error instanceof Error?error.message:'';
+ let message:string=t.errorGeneric;
+ if(code==='UNAUTHENTICATED')message=t.errorLogin;
+ else if(['FORBIDDEN','MAINNET_DENIED','FINANCIAL_ENVIRONMENT_DENIED'].includes(code))message=t.errorPermission;
+ else if(code==='ACCOUNT_RESTRICTED')message=t.errorRestricted;
+ else if(code==='CONSENT_REQUIRED')message=t.errorConsent;
+ else if(code==='NOT_FOUND')message=t.errorMissing;
+ else if(code==='FEATURE_DISABLED')message=t.errorFeature;
+ else if(code==='RATE_LIMITED')message=t.errorRate;
+ else if(['ACTIVE_CYCLE_EXISTS','CYCLE_LIMIT_REACHED'].includes(code))message=t.errorCycle;
+ else if(['PLAN_UNAVAILABLE','NO_RECEIVER_AVAILABLE'].includes(code))message=t.errorPlan;
+ else if(code==='COOLDOWN_ACTIVE')message=t.errorCooldown;
+ else if(code==='INSUFFICIENT_BALANCE')message=t.errorBalance;
+ else if(['QUOTE_EXPIRED','EXPORT_EXPIRED'].includes(code))message=t.errorExpired;
+ else if(['VERSION_CONFLICT','DESTINATION_CHANGED','REGISTRY_VERSION_CONFLICT'].includes(code))message=t.errorChanged;
+ else if(['TRANSFER_NOT_FOUND','AMBIGUOUS_TRANSFER','BROADCAST_AMBIGUOUS','ACTIVE_INVOICE_EXISTS'].includes(code))message=t.errorPending;
+ else if(['FEE_REQUOTE_REQUIRED','WITHDRAWAL_NOT_VIABLE'].includes(code))message=t.errorFee;
+ else if(['INVALID_PROOF','TRANSFER_MISMATCH','SENDER_PROOF_MISMATCH','WRONG_TOKEN','WRONG_NETWORK','FEE_PAYER_MISMATCH','TOKEN_ACCOUNT_MISMATCH'].includes(code))message=t.errorProof;
+ else if(['FINANCIAL_SAFETY_PAUSE','FEE_ATTRIBUTION_REVIEW_REQUIRED','CHAIN_FEE_EVIDENCE_CONFLICT','CHAIN_FEE_HISTORY_REVIEW_REQUIRED','PREVIOUS_OBLIGATION_NOT_CLOSED','OBSERVATION_REVIEW_REQUIRED'].includes(code))message=t.errorPaused;
+ else if(['STEP_UP_REQUIRED','CAPTCHA_REQUIRED','CAPTCHA_REJECTED','CAPTCHA_REPLAY','INVALID_INPUT','INVALID_ADDRESS','PRICE_INVALID','SCAN_RANGE_INVALID','RECOVERY_INPUT_INVALID','EXPORT_LIMIT_EXCEEDED'].includes(code))message=code==='STEP_UP_REQUIRED'?t.errorReauth:t.errorInput;
+ else if(['CONFIGURATION_INVALID','DESTINATION_NOT_CONFIGURED','REGISTRY_NOT_PROVISIONED','REGISTRY_UNVERIFIED','REGISTRY_INVALID','PRICING_MODE_UNSUPPORTED','RPC_CONFIGURATION_INVALID','RPC_ENDPOINTS_NOT_INDEPENDENT','HISTORICAL_SENDER_REQUIRED'].includes(code))message=t.errorSetup;
+ else if(['USER_REJECTED','ACTION_REJECTED'].includes(code))message=t.errorWallet;
+ else if(code.endsWith('_UNAVAILABLE')||code.startsWith('RPC_')||['REQUEST_TIMEOUT','PRICE_STALE','RECONCILIATION_TIMEOUT','TEMPORARY_FAILURE','SCAN_INCOMPLETE'].includes(code))message=t.errorUnavailable;
+ else if(['ACTIVE_CYCLE_EXISTS','CYCLE_LIMIT_REACHED','PLAN_UNAVAILABLE','NO_RECEIVER_AVAILABLE','LEASE_LOST','CHECKPOINT_REORGED','RECOVERY_TARGET_MISMATCH','RECOVERY_CONTENT_MISMATCH','RECOVERY_VERSION_MISMATCH'].includes(code))message=t.errorChanged;
+ return message+(error instanceof ApiError&&error.metadata.requestId?' '+t.errorReference+': '+error.metadata.requestId:'');
+}

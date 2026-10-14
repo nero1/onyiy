@@ -1,4 +1,5 @@
 "use client";
+import {errorMessage} from "@/lib/error-messages";
 import {loadSession} from '@/lib/auth-client';
 import {rememberPayment,pendingPayment,forgetPayment,beginPayment,endPayment} from '@/lib/payment-receipts';
 import { useEffect, useState, useRef } from "react";
@@ -15,7 +16,7 @@ import {
   activeSessionGeneration,
   clearActiveUserScope,
 } from "@/lib/storage";
-import AuthPanel from "./auth-panel";
+const AuthPanel=dynamic(()=>import('./auth-panel'),{ssr:false});
 import type {BotProof} from "./bot-check";
 import dynamic from "next/dynamic";
 const BotCheck=dynamic(()=>import("./bot-check"));
@@ -162,8 +163,8 @@ export default function NativePortal() {
     try {
       const result = await api<any>("/me/crypto", user.username);
       if (mounted.current && epoch.current === active) setData(result);
-    } catch {
-      if (epoch.current === active) setNotice(t.error);
+    } catch (error) {
+      if (epoch.current === active) setNotice(errorMessage(error,locale));
     }
   }
   useEffect(() => {
@@ -234,13 +235,8 @@ export default function NativePortal() {
     setNotice("");
     try {
       await action();
-    } catch {
-      if (mounted.current && epoch.current === active)
-        setNotice(
-          fr
-            ? "Action non confirmée. Vérifiez l’historique de votre portefeuille avant de réessayer."
-            : "Action was not confirmed. Check wallet history before trying again.",
-        );
+    } catch (error) {
+      if (mounted.current && epoch.current === active)setNotice(errorMessage(error,locale));
     } finally {
       financialFlight.current=false;
       if (epoch.current === active) setBusy(false);

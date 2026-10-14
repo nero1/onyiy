@@ -76,3 +76,5 @@ export { databaseHealthy } from './health';
 export { withSessionScope, withContext, scopedTransaction, type DatabaseContext } from './context';
 
 export {databaseScopeFingerprint, databaseBinding, scopedDatabaseBinding} from './binding-fingerprint';
+export {activeRequestId,currentRequestId,withRequestContext} from './request-context';
+export {workloadLockHealth} from './lock-health';

@@ -1,3 +1,5 @@
+import {applicationError} from './errors';
+import {readStaffOperations,reportProviderQuota,quotaReportInput} from './operational-diagnostics';
 import {selectedUserExport,selectedExportInput,portabilityStatus,downloadSiteSnapshot,stageSnapshot} from './portability';
 import {publicStatisticsRead} from './public-statistics';
 import {boundedJson} from './request-body';
@@ -33,6 +35,7 @@ import {accountAction,accountChange,reportInput,createReport,caseList,caseToken,
 import {editSetting,editPriority,editHelp,settings,settingInput,priorityInput,helpInput} from './administration';
 import {notificationPage,seeNotifications,readNotification} from './notifications';
 import crypto from 'node:crypto';
+import {currentRequestId as requestId,withRequestContext} from '@gifters/db';
 import { and, asc, desc, eq, gt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
@@ -76,7 +79,6 @@ import { authenticate,csrf,requireStepUp,requireWithdrawalAuth,issueSession,vali
 import { handleAuthRequest } from './auth-api';
 import { enforceRate } from './rate-limits';
 
-function requestId() { return crypto.randomUUID(); }
 
 function ok(data: unknown, status = 200) {
   return Response.json({ data, meta: { request_id: requestId() } }, { status, headers: { 'Cache-Control': 'private, no-store' } });
@@ -90,53 +92,10 @@ function publicOk(data:unknown,ttlSeconds:number,request:Request) {
   return Response.json({data,meta:{request_id:requestId()}},{headers});
 }
 
-function fail(error: unknown) {
-  const message = error instanceof z.ZodError ? 'INVALID_INPUT' : error instanceof Error ? error.message : 'INTERNAL_ERROR';
-  const statusMap: Record<string, number> = {
-    REQUEST_TIMEOUT:408,PRICING_MODE_UNSUPPORTED:409,WITHDRAWAL_NOT_VIABLE:409,PRICE_INVALID:400,RPC_CAPACITY_EXCEEDED:503,FEE_REQUOTE_REQUIRED:409,SCAN_RANGE_INVALID:400,SCAN_CAPACITY_EXCEEDED:409,RPC_SCAN_CONTRADICTION:503,RPC_BALANCE_CONTRADICTION:503,SCAN_INCOMPLETE:503,CHECKPOINT_REORGED:409,RECOVERY_TARGET_MISMATCH:409,RECOVERY_UNAVAILABLE:503,RECOVERY_INPUT_INVALID:400,RECOVERY_CONTENT_MISMATCH:409,RECOVERY_VERSION_MISMATCH:409,
-    TRANSFER_ALREADY_ALLOCATED:409,OPERATIONAL_ASSET_ONLY:409,REGISTRY_VERSION_CONFLICT:409,REGISTRY_NOT_PROVISIONED:503,REGISTRY_UNVERIFIED:503,RPC_UNAVAILABLE:503,FINANCIAL_ENVIRONMENT_DENIED:403,PRICE_STALE:503,TRANSFER_MISMATCH:400,WRONG_TOKEN:400,WRONG_NETWORK:400,MAINNET_DENIED:403,
-    EXPORT_EXPIRED:410,EXPORT_LIMIT_EXCEEDED:413,
-    CAPTCHA_REQUIRED:403,CAPTCHA_REJECTED:403,CAPTCHA_REPLAY:409,CAPTCHA_UNAVAILABLE:503,
-    UNAUTHENTICATED: 401,
-    FORBIDDEN: 403,
-    ACCOUNT_RESTRICTED: 403,
-    CONSENT_REQUIRED: 403,
-    NOT_FOUND: 404,
-    INVALID_INPUT: 400,
-    INVALID_ADDRESS: 400,
-    ACTIVE_CYCLE_EXISTS: 409,
-    ACTIVE_INVOICE_EXISTS: 409,
-    COOLDOWN_ACTIVE: 409,
-    PLAN_UNAVAILABLE: 409,
-    QUOTE_EXPIRED: 409,
-    VERSION_CONFLICT: 409,
-    INSUFFICIENT_BALANCE: 409,
-    CONFIGURATION_INVALID: 503,
-    RECONCILIATION_TIMEOUT: 503,
-    SCHEDULER_UNAVAILABLE: 503,
-    SCHEDULER_REPLAY: 409,
-    LEASE_LOST: 409,
-    STEP_UP_REQUIRED:403,
-    INVALID_PROOF:400,
-    RATE_LIMITED:429,
-    PROVIDER_UNAVAILABLE:503,
-    FEATURE_DISABLED: 404,
-    CYCLE_LIMIT_REACHED: 409,
-    DESTINATION_CHANGED: 409,
-    DESTINATION_NOT_CONFIGURED: 503,
-
-    RPC_CAPACITY: 503,
-    OBSERVATION_UNAVAILABLE: 503,
-
-    AMBIGUOUS_TRANSFER: 409,
-    NO_RECEIVER_AVAILABLE: 409,
-    FINANCIAL_SAFETY_PAUSE: 503,
-  };
-  const code = Object.hasOwn(statusMap, message) ? message : 'INTERNAL_ERROR';
-  return Response.json(
-    { error: { code, message_key: `errors.${code.toLowerCase()}`, help_slug: 'errors', retryable: code==='RECONCILIATION_TIMEOUT' }, meta: { request_id: requestId() } },
-    { status: statusMap[code] ?? 500, headers: { 'Cache-Control': 'private, no-store' } },
-  );
+function fail(error:unknown){
+ const typed=applicationError(error),id=requestId();
+ console.error(JSON.stringify({event:'api_failed',request_id:id,code:typed.code,status:typed.status,retryable:typed.retryable}));
+ return Response.json({error:{code:typed.code,message_key:'errors.'+typed.code.toLowerCase(),help_slug:'errors',retryable:typed.retryable},meta:{request_id:id}},{status:typed.status,headers:{'Cache-Control':'private, no-store'}});
 }
 
 async function current(request:Request){return (await authenticate(request)).user;}
@@ -145,7 +104,7 @@ async function admin(request:Request){const identity=await authenticate(request)
 async function moderator(request:Request){const identity=await authenticate(request);if(!['admin','moderator'].includes(identity.user.role)||identity.user.status!=='active')throw new Error('FORBIDDEN');await requireStepUp(identity);return identity.user;}
 
 async function json(request: Request) {
-  try { return await boundedJson(request); } catch { throw new Error('INVALID_INPUT'); }
+  return boundedJson(request);
 }
 
 function idempotencyKey(request: Request) {
@@ -312,6 +271,9 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
           .from(maintenanceResults).orderBy(desc(maintenanceResults.checkedAt),desc(maintenanceResults.id)).limit(Math.min(pagination.default_size,pagination.max_size,100));
       }));
     }
+
+    if(method==='GET'&&route==='/admin/operations'){const actor=await admin(request);return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},readStaffOperations));}
+    if(method==='POST'&&route==='/admin/operations/quota'){const actor=await admin(request),input=quotaReportInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>reportProviderQuota(tx,actor.id,input)));}
 
     if (method === 'GET' && route === '/admin/jobs') {
       const actor=await admin(request);
@@ -495,7 +457,7 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
 }
 
 
-export async function handleApiRequest(method:string,path:string[],request:Request){
+async function routeApiRequest(method:string,path:string[],request:Request){
  try{
   const route='/'+path.join('/');
   if(route.startsWith('/auth/'))return await handleAuthRequest(method,route,request);
@@ -512,4 +474,12 @@ export async function handleApiRequest(method:string,path:string[],request:Reque
   if(identity.tool||route==='/me/consent'||(route==='/me/account'&&method==='POST'))return await dispatchApiRequest(method,path,request);
   return await withSessionScope({userId:identity.user.id,sessionId:identity.session!.id,accessHash:identity.accessHash!,version:identity.user.sessionVersion,allowSuspended:restricted,requiresAdult:route.startsWith('/gifts/'),requiresWithdrawalProof:route==='/me/withdrawals/confirm'||route==='/me/withdrawals/crypto/confirm'||route==='/me/wallets/challenge'||route==='/me/wallets/proof'},()=>dispatchApiRequest(method,path,request));
  }catch(error){return fail(error);}
+}
+
+export async function handleApiRequest(method:string,path:string[],request:Request){
+ return withRequestContext(async()=>{
+  const response=await routeApiRequest(method,path,request),headers=new Headers(response.headers);
+  headers.set('X-Request-ID',requestId());
+  return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
+ });
 }

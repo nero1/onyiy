@@ -1,4 +1,5 @@
 "use client";
+import {errorMessage} from "@/lib/error-messages";
 import { useState } from "react";
 import { api, mutation, ApiError } from "@/lib/api-client";
 import type { Locale } from "@/lib/i18n";
@@ -38,7 +39,7 @@ export default function ChainRecoveryAdmin({
     try {
       setResult(await fn());
     } catch (e) {
-      setError(e instanceof ApiError ? e.code : "INTERNAL_ERROR");
+      setError(errorMessage(e, locale));
     } finally {
       setBusy(false);
     }

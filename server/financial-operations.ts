@@ -11,6 +11,7 @@ import { readRegistry } from "@gifters/chains";
 import {businessSettlementRoles} from '@gifters/domain';
 import { holdBusinessSettlement } from "./crypto-business";
 import { lockUser } from "./core";
+import {enqueueAlertDelivery} from './financial-alerts';
 /** At most 100 due reminders per invocation; each ordinal is permanent. */
 export async function enqueueFinancialReminders(tx: DbExecutor) {
   await tx.execute(
@@ -50,26 +51,24 @@ export async function enqueueFinancialReminders(tx: DbExecutor) {
     // Initial delivery is ordinal zero; next reminder starts at the first interval.
     const interval =
       policy.remind_minutes[
-        Math.min(row.reminders, policy.remind_minutes.length - 1)
+        Math.min(row.escalationStep, policy.remind_minutes.length - 1)
       ];
     if (
-      row.reminders === 0 &&
-      new Date(clock.now).getTime() - row.createdAt.getTime() < interval * 60000
+      row.escalationStep === 0 &&
+      new Date(clock.now).getTime() - row.occurrenceStartedAt.getTime() < interval * 60000
     )
       continue;
     const ordinal = row.reminders + 1;
-    await tx
-      .insert(alertDeliveries)
-      .values({ alertId: row.id, businessKey: `alert:${row.id}:${ordinal}` })
-      .onConflictDoNothing();
+    await enqueueAlertDelivery(tx,row,ordinal);
     await tx
       .update(operationalAlerts)
       .set({
         reminders: ordinal,
+        escalationStep:row.escalationStep+1,
         nextReminderAt: new Date(
           new Date(clock.now).getTime() +
             policy.remind_minutes[
-              Math.min(ordinal, policy.remind_minutes.length - 1)
+              Math.min(row.escalationStep+1, policy.remind_minutes.length - 1)
             ] *
               60000,
         ),
@@ -113,6 +112,7 @@ export async function controlFinancialAlert(
         : { resolvedAt: sql`clock_timestamp()` }),
     })
     .where(eq(operationalAlerts.id, id));
+  await tx.update(alertDeliveries).set({status:'cancelled',leaseToken:null,leaseUntil:null}).where(and(eq(alertDeliveries.alertId,id),sql`${alertDeliveries.status} in ('pending','failed','sending')`));
   await tx
     .insert(auditEvents)
     .values({

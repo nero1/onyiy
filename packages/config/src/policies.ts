@@ -49,7 +49,7 @@ export const policyFields = {
   cache_policy: z.object({ manifest_server_seconds:positive, manifest_public_seconds:positive, catalog_seconds:positive, identity_seconds:positive, private_snapshot_seconds:positive, client_poll_seconds:positive, max_memory_entries:positive, max_memory_mb:positive.max(100), max_public_help_mb:positive.max(100) }).strict(),
   retention_policy: z.object({ financial_archive_after_days:positive, financial_keep_years:positive, audit_hot_days:positive, job_terminal_days:positive, http_replay_days:positive, export_hours:positive, notification_days:positive }).strict(),
   backup_policy: z.object({ interval_hours:positive, keep_days:positive, restore_check_days:positive, rpo_hours:positive, rto_hours:positive }).strict(),
-  alert_policy: z.object({ backlog:positive, dlq:positive, signer_stale_minutes:positive, lock_wait_ms:positive, quota_warning_fraction:z.number().gt(0).lte(1), public_rpc_minutes:positive, remind_minutes:z.array(positive).min(1).max(10), daily_limit:positive }).strict(),
+  alert_policy: z.object({ backlog:positive.max(10000), dlq:positive.max(10000), signer_stale_minutes:positive, lock_wait_ms:positive.max(60000), quota_warning_fraction:z.number().gt(0).lte(1), public_rpc_minutes:positive, remind_minutes:z.array(positive).min(1).max(10), daily_limit:positive.max(10000) }).strict(),
   export_import_limits: z.object({ upload_mb:positive.max(50), chunk_rows:positive.max(1000), max_message_chars:positive.max(5000), max_provider_metadata_kb:positive.max(16) }).strict(),
   api_deprecation_days: positive,
 };

@@ -1,7 +1,8 @@
 import { clearActiveUserScope,activeSessionGeneration } from './storage';
 import {withRefreshLock} from './refresh-lock';
 const BASE='/api/v1';
-export class ApiError extends Error{constructor(public code:string,message?:string){super(message??code);}}
+export class ApiError extends Error{constructor(public code:string,message?:string,public metadata:{retryable?:boolean;messageKey?:string;requestId?:string}={}){super(message??code);}}
+function responseError(body:any,fallback='INTERNAL_ERROR'){const code=/^[A-Z_]{1,100}$/.test(body?.error?.code??'')?body.error.code:fallback;return new ApiError(code,undefined,{retryable:body?.error?.retryable===true,messageKey:typeof body?.error?.message_key==='string'?body.error.message_key:undefined,requestId:/^[0-9a-f-]{36}$/i.test(body?.meta?.request_id??'')?body.meta.request_id:undefined});}
 let refreshing:Promise<{user:{username:string}|null;generation?:string}>|undefined;
 let clientScope:{owner:string;generation:string}|null=null;
 let scopeRevision=0;
@@ -16,7 +17,7 @@ async function coordinatedRefresh(){
   const snapshot=await present.json().catch(()=>null);
   if(present.ok&&snapshot?.data?.user&&!snapshot.data.requires_mfa)return snapshot.data;
   const r=await request('/auth/refresh','',{method:'POST',body:'{}',signal});const body=await r.json().catch(()=>null);
-  if(!r.ok)throw new ApiError(body?.error?.code??'UNAUTHENTICATED');return body.data;
+  if(!r.ok)throw responseError(body,'UNAUTHENTICATED');return body.data;
  });const current=refreshing;void current.finally(()=>{if(refreshing===current)refreshing=undefined}).catch(()=>{});}
  return refreshing;
 }
@@ -30,7 +31,7 @@ export async function api<T>(path:string,username:string,init:RequestInit={}){
  if(response.status===401&&!path.startsWith('/auth/')){
   try{const refreshed=await coordinatedRefresh();assertScope();if(username&&(refreshed.user?.username!==username||(generation&&refreshed.generation!==generation)))throw new ApiError('VERSION_CONFLICT');response=await request(path,username,init);}catch(error){if(username&&revision===scopeRevision)clearActiveUserScope(username,generation??undefined);throw error;}
  }
- assertScope();if(response.status===401&&username)clearActiveUserScope(username,generation??undefined);const body=await response.json().catch(()=>null);assertScope();if(!response.ok)throw new ApiError(body?.error?.code??(response.status===401?'UNAUTHENTICATED':'INTERNAL_ERROR'));if(!body)throw new ApiError('INTERNAL_ERROR');return body.data as T;
+ assertScope();if(response.status===401&&username)clearActiveUserScope(username,generation??undefined);const body=await response.json().catch(()=>null);assertScope();if(!response.ok)throw responseError(body,response.status===401?'UNAUTHENTICATED':'INTERNAL_ERROR');if(!body)throw new ApiError('INTERNAL_ERROR');return body.data as T;
 }
 export function mutation<T>(path:string,username:string,body:unknown,method='POST'){return api<T>(path,username,{method,headers:{'Idempotency-Key':crypto.randomUUID()},body:JSON.stringify(body)});}
 
@@ -40,7 +41,7 @@ export async function privateTransfer(path:string,username:string,init:RequestIn
  const check=()=>{if(revision!==scopeRevision||!clientSessionMatches(username,generation??undefined))throw new ApiError('VERSION_CONFLICT');};
  check();const response=await request(path,username,init);
  try{check()}catch(error){await response.body?.cancel();throw error;}
- if(!response.ok){const body=await response.json().catch(()=>null);check();throw new ApiError(body?.error?.code??'INTERNAL_ERROR');}
+ if(!response.ok){const body=await response.json().catch(()=>null);check();throw responseError(body);}
  const body=response.body?.pipeThrough(new TransformStream<Uint8Array,Uint8Array>({transform(chunk,controller){check();controller.enqueue(chunk)},flush(){check()}}));
  return new Response(body??null,{status:response.status,statusText:response.statusText,headers:response.headers});
 }

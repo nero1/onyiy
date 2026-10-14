@@ -1,4 +1,5 @@
 "use client";
+import {errorMessage} from "@/lib/error-messages";
 import ChainRecoveryAdmin from "./chain-recovery-admin";
 import { decimalToBaseUnits, formatBaseUnits } from "@gifters/domain";
 import { useState } from "react";
@@ -58,7 +59,7 @@ export default function NativeAdmin({
       await fn();
       setMessage(fr ? "Action enregistrée." : "Action recorded.");
     } catch (e) {
-      setMessage(e instanceof ApiError ? e.code : "INTERNAL_ERROR");
+      setMessage(errorMessage(e, locale));
     } finally {
       setBusy(false);
     }

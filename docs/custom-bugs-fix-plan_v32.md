@@ -1,6 +1,6 @@
 # Custom bugs fix plan — Gifters World Phase One
 
-Updated: **14 October 2026 at 03:24:53 AM WAT** · Documentation version **v31**
+Updated: **14 October 2026 at 04:33:09 AM WAT** · Documentation version **v32**
 
 ## Complete one-line remediation list
 
@@ -29,17 +29,17 @@ Updated: **14 October 2026 at 03:24:53 AM WAT** · Documentation version **v31**
 23. **P1-023 — Concurrent browser tabs can revoke a valid refresh family.** Implemented; local checks passed; medium priority; package D.
 24. **P1-024 — Secondary portals show login instead of using an available refresh session.** Implemented; local checks passed; medium priority; package D.
 25. **P1-025 — Concurrent Google registrations can collide and fallback names violate configured lengths.** Implemented; local checks passed; medium priority; package D.
-26. **P1-026 — Account deletion leaves private message content in notifications and job payloads.** Open; medium priority; package E.
-27. **P1-027 — Expired authentication and rate records have no bounded cleanup lifecycle.** Open; medium priority; package E.
+26. **P1-026 — Account deletion leaves private message content in notifications and job payloads.** Implemented; local checks passed; medium priority; package E.
+27. **P1-027 — Expired authentication and rate records have no bounded cleanup lifecycle.** Implemented; local checks passed; medium priority; package E.
 28. **P1-028 — Declared notification, terminal-job, ledger and audit retention is not implemented.** Open; medium priority; package E.
-29. **P1-029 — Pending chain observation ignores poll policy and creates a new durable job each round.** Open; medium priority; package C.
-30. **P1-030 — Configured DLQ, backlog, lock-wait and quota alert thresholds have no complete alert path.** Open; medium priority; package C.
-31. **P1-031 — Acknowledged or resolved alerts can still send queued reminders.** Open; medium priority; package C.
-32. **P1-032 — Old low-priority alert retries can consume the budget before a new critical alert.** Open; medium priority; package C.
-33. **P1-033 — A permanent alert delivery key does not bind an immutable payload.** Open; medium priority; package C.
-34. **P1-034 — Reopened alert escalation uses lifetime delivery count as the interval index.** Open; low priority; package C.
-35. **P1-035 — Request IDs do not correlate API, audit, job and error records.** Open; medium priority; package C.
-36. **P1-036 — Expected failures become generic nonretryable errors and raw codes reach users.** Open; medium priority; package D.
+29. **P1-029 — Pending chain observation ignores poll policy and creates a new durable job each round.** Implemented; local checks passed; medium priority; package C.
+30. **P1-030 — Configured DLQ, backlog, lock-wait and quota alert thresholds have no complete alert path.** Implemented; local checks passed; medium priority; package C.
+31. **P1-031 — Acknowledged or resolved alerts can still send queued reminders.** Implemented; local checks passed; medium priority; package C.
+32. **P1-032 — Old low-priority alert retries can consume the budget before a new critical alert.** Implemented; local checks passed; medium priority; package C.
+33. **P1-033 — A permanent alert delivery key does not bind an immutable payload.** Implemented; local checks passed; medium priority; package C.
+34. **P1-034 — Reopened alert escalation uses lifetime delivery count as the interval index.** Implemented; local checks passed; low priority; package C.
+35. **P1-035 — Request IDs do not correlate API, audit, job and error records.** Implemented; local checks passed; medium priority; package C.
+36. **P1-036 — Expected failures become generic nonretryable errors and raw codes reach users.** Implemented; local checks passed; medium priority; package D.
 37. **P1-037 — The shared JSON byte cap has no elapsed read deadline.** Implemented; local checks passed; medium priority; package C.
 38. **P1-038 — Ordinary database work lacks a complete query, queue and request time budget.** Open; medium priority; package C.
 39. **P1-039 — Balances and reconciliation repeatedly aggregate full ledger history.** Open; medium priority; package E.
@@ -441,7 +441,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Delete a user with a free-text admin message: permitted private copies are redacted and money/replay records remain intact.
 
-**STATUS:** [ ] Open; package E; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v32; package E; Medium priority.
 
 ### 27: BUG P1-027: Expired authentication and rate records have no bounded cleanup lifecycle
 
@@ -451,7 +451,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Expired flows/families/rate/replay rows drain in bounded batches; active dependencies and acceptance windows remain.
 
-**STATUS:** [ ] Open; package E; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v32; package E; Medium priority.
 
 ### 28: BUG P1-028: Declared notification, terminal-job, ledger and audit retention is not implemented
 
@@ -471,7 +471,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Normal pending observations honor persisted deadlines/backoff without spawning an immediate durable-job chain.
 
-**STATUS:** [ ] Open; package C; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v32; package C; Medium priority.
 
 ### 30: BUG P1-030: Configured DLQ, backlog, lock-wait and quota alert thresholds have no complete alert path
 
@@ -481,7 +481,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Cross a DLQ/backlog/age threshold: one bounded redacted alert and staff diagnostic appear without public identifiers.
 
-**STATUS:** [ ] Open; package C; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v32; package C; Medium priority.
 
 ### 31: BUG P1-031: Acknowledged or resolved alerts can still send queued reminders
 
@@ -491,7 +491,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Acknowledge/resolve before a queued reminder claim: it cannot dispatch an obsolete reminder.
 
-**STATUS:** [ ] Open; package C; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v32; package C; Medium priority.
 
 ### 32: BUG P1-032: Old low-priority alert retries can consume the budget before a new critical alert
 
@@ -501,7 +501,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** With older failing P2 work, a new P1 receives eligible budget priority without exceeding the shared cap.
 
-**STATUS:** [ ] Open; package C; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v32; package C; Medium priority.
 
 ### 33: BUG P1-033: A permanent alert delivery key does not bind an immutable payload
 
@@ -511,7 +511,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Retry after an ACK loss and condition reopen: the old key retains exactly its original payload hash.
 
-**STATUS:** [ ] Open; package C; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v32; package C; Medium priority.
 
 ### 34: BUG P1-034: Reopened alert escalation uses lifetime delivery count as the interval index
 
@@ -521,7 +521,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Reopen an escalated condition: fresh escalation starts at step zero while delivery ordinals never repeat.
 
-**STATUS:** [ ] Open; package C; Low priority.
+**STATUS:** [x] Implemented and locally verified in v32; package C; Low priority.
 
 ### 35: BUG P1-035: Request IDs do not correlate API, audit, job and error records
 
@@ -531,7 +531,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** One reported request ID joins response metadata/header to safe logs, audit causation and downstream job records.
 
-**STATUS:** [ ] Open; package C; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v32; package C; Medium priority.
 
 ### 36: BUG P1-036: Expected failures become generic nonretryable errors and raw codes reach users
 
@@ -541,7 +541,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Each thrown domain error maps to a localized actionable status; transient retries never resend money.
 
-**STATUS:** [ ] Open; package D; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v32; package D; Medium priority.
 
 ### 37: BUG P1-037: The shared JSON byte cap has no elapsed read deadline
 
@@ -919,29 +919,32 @@ Then execute the entire Phase Two milestone sequence without waiting for milesto
 
 ## Fixing-LLM handover
 
-Read [LLM-HANDOVER_v31.md](LLM-HANDOVER_v31.md), then the mandatory project docs and [custom-bugs-report_v31.md](custom-bugs-report_v31.md). The owner has authorized this plan. Continue without further approval pauses; prioritize remaining P1-068 plus packages A/B and the High identity issues P1-021/P1-022; preserve the complete 70-ID tracker and all release boundaries. Do not reinterpret historical v28 “100%” as current audit completion.
+Read [LLM-HANDOVER_v32.md](LLM-HANDOVER_v32.md), then the mandatory project docs and [custom-bugs-report_v32.md](custom-bugs-report_v32.md). The owner has authorized this plan. Continue without further approval pauses; prioritize remaining P1-068 plus packages A/B and the High identity issues P1-021/P1-022; preserve the complete 70-ID tracker and all release boundaries. Do not reinterpret historical v28 “100%” as current audit completion.
 
 
-## Current v31 remediation ledger
+## Current v32 remediation ledger
 
 The owner approved all Round One fixes, autonomous Rounds Two/Three and continued remediation, every Phase Two milestone, and final bug fixes before deferred testing. Continue without plan or milestone acceptance pauses. Use best recommendations, complete substantial verified batches, and merge only after BOTH push and pull-request CI succeed for the exact final head. Both financial readiness gates remain false; mainnet remains prohibited. CRON frequency and test-only issues remain excluded.
 
-33 of 71 tracked items implemented and locally verified; 38 remain open. The initial Round One audit had70 findings; P1-071 was discovered and fixed during remediation. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. P1-019 and P1-036 have partial improvements but remain open. No bug-free or hosted acceptance claim is made.
+43 of 71 tracked items implemented and locally verified; 28 remain open. The initial Round One audit had70 findings; P1-071 was discovered and fixed during remediation. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. P1-019 has partial improvements but remains open. No bug-free or hosted acceptance claim is made.
 
-Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-014, P1-015, P1-016, P1-017, P1-018, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-037, P1-044, P1-046, P1-052, P1-055, P1-056, P1-057, P1-068, P1-069, P1-070, P1-071.
+Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-014, P1-015, P1-016, P1-017, P1-018, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-026, P1-027, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-037, P1-044, P1-046, P1-052, P1-055, P1-056, P1-057, P1-068, P1-069, P1-070, P1-071.
 
-Open: P1-009, P1-013, P1-019, P1-026, P1-027, P1-028, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-038, P1-039, P1-040, P1-041, P1-042, P1-043, P1-045, P1-047, P1-048, P1-049, P1-050, P1-051, P1-053, P1-054, P1-058, P1-059, P1-060, P1-061, P1-062, P1-063, P1-064, P1-065, P1-066, P1-067.
+Open: P1-009, P1-013, P1-019, P1-028, P1-038, P1-039, P1-040, P1-041, P1-042, P1-043, P1-045, P1-047, P1-048, P1-049, P1-050, P1-051, P1-053, P1-054, P1-058, P1-059, P1-060, P1-061, P1-062, P1-063, P1-064, P1-065, P1-066, P1-067.
 
 Local verification: required check:all; production build and bundle budget checks; production npm audit now zero advisories. Named isolated manual-contracts, manual-money and manual-quotes-r5 passed. The last validates quote cancellation/expiry/payload replay/DB clock, late-fund refunds, frozen pre-pause admission, custom bootstrap destination, positively refunded plan edit, and independent lower live per-transaction/daily signer caps without reservations or signed bytes. Initial quote-probe failures (invalid price TTL, missing scoped fixture binding, missing operational gas asset) remain retained and were corrected only in fresh r2/r3/r5 databases. No external RPC or broadcast occurred.
 
-Bug reports and fix plans must use the same _vN filename version as current status/handover; earlier versions are retained in Git history. Current artifacts use_v31.
+Bug reports and fix plans must use the same _vN filename version as current status/handover; earlier versions are retained in Git history. Current artifacts use_v32.
 
 
 V31 evidence: manual-money-r2 passed; manual-contracts-r2 passed shared fees, different-endpoint checkpoint identity and fair dispatch past20 blocked rows without signing/reservations; manual-solana-costs-r2 passed two principals/one fee, positively identified ATA rent and ambiguous-debit rejection; preserved failed SOL expiry source resumed through forward-only migration078 and passed positive expiry/held principal/closure/replay/fresh scan. Non-signing hosted migration/seed/runtime path passed on gw_v31_testnet_seed:0 users/0 assets/12 plans/0 versions/16 help rows/one testnet namespace. Archive version preflight and clone proof are recorded in current status. P1-009/P1-013/P1-067 remain open.
 
+
+V32 verification: manual-ops-r2 passed immutable alert retry/ACK/critical priority/occurrence escalation and delivered/queued admin-message redaction with permanent digests and unchanged money. The preserved auth-cleanup source passed hold/expiry/live-family/replay retention after forward-only guard correction. Manual-observation-r2 passed first deadline, two pending polls on one observation/outbox/job, future deadlines and completion of the same job on positive canonical proof. Manual-trace-errors passed origin correlation in HTTP/audit/outbox/job, typed transient/safety errors and EN/FR labels without raw driver details. Manual-diagnostics passed bounded backlog/DLQ/age/lock/quota conditions, deduped redacted alerts, fresh staff quota revisions and public health projection; actual web-role lock sampler ran, threshold case used one generated wait. External provider quota measurements and live workload timing remain unrun; absent/stale measurements are explicit. Financial gates remain false.
+
 ---
 
-Prepared by Codex — Round One remediation v31.
-PR29 merged at e1463fa after push38485886774 and PR38485891336 succeeded for exact final head ab1d7b5509fd215645448641065a2705cdf389ba. Initial failed head/run evidence remains in v30 Git history. Current v31 branch feat/phase-one-remediation-round1b awaits its own exact-head dual CI and PR merge.
+Prepared by Codex — Round One remediation v32.
+PR29 merged at e1463fa after push38485886774 and PR38485891336 succeeded for exact final head ab1d7b5509fd215645448641065a2705cdf389ba. Initial failed head/run evidence remains in v30 Git history. PR30 merged at fa5d71b after push38500938562 and PR38500945296 succeeded for9bb4004e964c38ef2e31c884545e5ba2c70433ba. Current v32 branch feat/phase-one-remediation-round1c awaits its own exact-head dual CI and PR merge.
 
-Signed: **14 October 2026 at 03:24:53 AM WAT**
+Signed: **14 October 2026 at 04:33:09 AM WAT**
