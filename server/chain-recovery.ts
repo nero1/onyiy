@@ -17,7 +17,7 @@ import {
   cryptoObligations,
   operationKeys,
   ledgerAccounts,
-  ledgerPostings,
+  assetLedgerBalance,
   auditEvents,
   readManifest,
   type DbExecutor,
@@ -292,6 +292,7 @@ const stored=(value:unknown)=>JSON.parse(JSON.stringify(value,(_key,v)=>typeof v
 function evidence(value:z.infer<typeof storedEvidenceSchema>):TransferEvidence{return {...value,height:BigInt(value.height),amount:value.amount===undefined?undefined:BigInt(value.amount),actualNativeFee:value.actualNativeFee===undefined?undefined:BigInt(value.actualNativeFee),actualNetworkFee:value.actualNetworkFee===undefined?undefined:BigInt(value.actualNetworkFee),accountSetupCost:value.accountSetupCost===undefined?undefined:BigInt(value.accountSetupCost)}}
 export function recoverScanPage(tx:DbExecutor,id:string){return withRpcBudget(()=>recoverPagedStep(tx,id))}
 async function recoverPagedStep(tx:DbExecutor,id:string){
+  await tx.execute(sql`select set_config('gw.environment','testnet',true)`);
   assertFinancialEnvironment();
   const [lookup]=await tx.select().from(chainRecoveryRuns).where(eq(chainRecoveryRuns.id,id)).limit(1);
   if(!lookup)throw new Error('NOT_FOUND');
@@ -425,11 +426,12 @@ async function recoverPagedStep(tx:DbExecutor,id:string){
       if(!cutoff.finalized||cutoff.hash!==witness.block_hash)throw new Error('CHECKPOINT_REORGED');
       physical=BigInt(witness.amount_base_units);
     }else physical=await chain.getReconciledBalance(registry,checkpoint.treasurySender,target);
-    const [book]=await tx.select({amount:sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='debit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`}).from(ledgerAccounts).leftJoin(ledgerPostings,eq(ledgerPostings.accountId,ledgerAccounts.id)).where(and(eq(ledgerAccounts.assetId,checkpoint.assetId),eq(ledgerAccounts.purpose,'treasury_asset')));
-    if(physical!==BigInt(book.amount)){state='review';reason='UNEXPLAINED_BALANCE'}else{
-      const [owed]=await tx.select({amount:sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='credit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`}).from(ledgerAccounts).leftJoin(ledgerPostings,eq(ledgerPostings.accountId,ledgerAccounts.id)).where(and(eq(ledgerAccounts.assetId,checkpoint.assetId),inArray(ledgerAccounts.purpose,beneficiaryLiabilityPurposes)));
-      if(physical<BigInt(owed.amount)){state='review';reason='CUSTODY_BELOW_LIABILITIES'}else{state='reconciled';reason=null}
+    const book= -await assetLedgerBalance(tx,checkpoint.assetId,['treasury_asset']);
+    if(physical!==book){state='review';reason='UNEXPLAINED_BALANCE'}else{
+      const owed=await assetLedgerBalance(tx,checkpoint.assetId,beneficiaryLiabilityPurposes);
+      if(physical<owed){state='review';reason='CUSTODY_BELOW_LIABILITIES'}else{state='reconciled';reason=null}
     }
+
   }
   const revision=run.revision+1;
   await tx.insert(chainScanPages).values({runId:id,revision,fromHeight:before.toString(),throughHeight:end.toString(),evidenceHash:digest(pageEvidence),progressBefore:priorProgress,progressAfter:stored(progress),incomingCount:incoming,outgoingCount:outgoing});

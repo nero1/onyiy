@@ -165,6 +165,29 @@ export const ledgerPostings = pgTable('ledger_postings', {
   createdAt: createdAt(),
 }, (t) => [...contractChecks("ledger_postings"),...contractIndexes("ledger_postings")]).enableRLS();
 
+// Owner-maintained derived state; SQL triggers are the sole writers.
+export const ledgerCounterState=pgTable('ledger_counter_state',{
+ id:text('id').primaryKey(),postingCeiling:uuid('posting_ceiling'),postingCursor:uuid('posting_cursor'),journalCeiling:uuid('journal_ceiling'),journalCursor:uuid('journal_cursor'),
+ postingsComplete:boolean('postings_complete').notNull().default(false),journalsComplete:boolean('journals_complete').notNull().default(false),complete:boolean('complete').notNull().default(false),reasonCode:text('reason_code'),
+ createdAt:timestamp('created_at',{withTimezone:true}).notNull().default(sql`clock_timestamp()`),sealedAt:timestamp('sealed_at',{withTimezone:true}),
+},t=>[...contractChecks('ledger_counter_state'),...contractIndexes('ledger_counter_state')]).enableRLS();
+export const ledgerAccountTotals=pgTable('ledger_account_totals',{
+ accountId:uuid('account_id').primaryKey().references(()=>ledgerAccounts.id,{onDelete:'restrict'}),assetId:uuid('asset_id').notNull().references(()=>assets.id,{onDelete:'restrict'}),ownerType:text('owner_type').notNull(),ownerId:uuid('owner_id'),purpose:text('purpose').notNull(),
+ credits:numeric('credits').notNull().default(sql`0`),debits:numeric('debits').notNull().default(sql`0`),balance:numeric('balance').notNull().default(sql`0`),updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().default(sql`clock_timestamp()`),
+},t=>[...contractChecks('ledger_account_totals'),...contractIndexes('ledger_account_totals')]).enableRLS();
+export const ledgerAssetTotals=pgTable('ledger_asset_totals',{
+ assetId:uuid('asset_id').notNull().references(()=>assets.id,{onDelete:'restrict'}),purpose:text('purpose').notNull(),credits:numeric('credits').notNull().default(sql`0`),debits:numeric('debits').notNull().default(sql`0`),balance:numeric('balance').notNull().default(sql`0`),
+},t=>[primaryKey({columns:[t.assetId,t.purpose]}),...contractChecks('ledger_asset_totals'),...contractIndexes('ledger_asset_totals')]).enableRLS();
+export const ledgerAccountBuckets=pgTable('ledger_account_buckets',{
+ accountId:uuid('account_id').notNull().references(()=>ledgerAccounts.id,{onDelete:'restrict'}),label:text('label').notNull(),amount:numeric('amount').notNull().default(sql`0`),
+},t=>[primaryKey({columns:[t.accountId,t.label]}),...contractChecks('ledger_account_buckets'),...contractIndexes('ledger_account_buckets')]).enableRLS();
+export const ledgerCounterMarkers=pgTable('ledger_counter_markers',{
+ postingId:uuid('posting_id').primaryKey(),
+},t=>[...contractChecks('ledger_counter_markers'),...contractIndexes('ledger_counter_markers')]).enableRLS();
+export const ledgerJournalAudits=pgTable('ledger_journal_audits',{
+ journalId:uuid('journal_id').primaryKey().references(()=>ledgerJournals.id,{onDelete:'restrict'}),debitTotal:numeric('debit_total').notNull(),creditTotal:numeric('credit_total').notNull(),lineCount:bigint('line_count',{mode:'bigint'}).notNull(),assetIds:uuid('asset_ids').array().notNull(),valid:boolean('valid').notNull(),proofHash:text('proof_hash').notNull(),checkedAt:timestamp('checked_at',{withTimezone:true}).notNull().default(sql`clock_timestamp()`),
+},t=>[...contractChecks('ledger_journal_audits'),...contractIndexes('ledger_journal_audits')]).enableRLS();
+
 export const operationKeys = pgTable('operation_keys', {
   businessKey: text('business_key').primaryKey(),
   requestHash: text('request_hash').notNull(),
@@ -460,6 +483,7 @@ export const schema = {
   queuePartitions,
   cycles,
   queueEntries,
+  ledgerCounterState,ledgerAccountTotals,ledgerAssetTotals,ledgerAccountBuckets,ledgerCounterMarkers,ledgerJournalAudits,
   ledgerAccounts,
   ledgerJournals,
   ledgerPostings,

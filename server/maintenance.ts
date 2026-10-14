@@ -44,3 +44,11 @@ export async function enqueueDailyMaintenance(database:DbExecutor) {
   const payload=prior.payload as Record<string,unknown>;
   if(Object.keys(payload).length!==2||payload.anchor!==clock.anchor||payload.page!==0) throw new Error('VERSION_CONFLICT');
 }
+
+// Resumable bootstrap/marker compaction. Counter evidence is not a retention
+// deletion: a retention hold must not prevent ordinary balance coverage.
+export async function advanceLedgerCounters(database:DbExecutor) {
+  const [row]=await database.execute<{result:{state:'backfilling'|'sealed'|'review';more_possible:boolean;reason?:string;markers_deleted?:number}}>(sql`select public.gw_counter_advance(100) as result`);
+  if(!row||!['backfilling','sealed','review'].includes(row.result.state))throw new Error('FINANCIAL_SAFETY_PAUSE');
+  return row.result;
+}

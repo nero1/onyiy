@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { dataExports, auditEvents, financialReconciliationResults, maintenanceResults, jobs, notifications, operationKeys, outbox, readManifest, schedulerRuns, users, chainObservations, withContext, withRequestContext, activeRequestId, type DbExecutor } from '@gifters/db';
 import { validateRuntimeEnv } from '@gifters/config';
 import { reconcile } from './reconcile';
-import { cleanupSchedulerRecords } from './maintenance';
+import { advanceLedgerCounters,cleanupSchedulerRecords } from './maintenance';
 import {cleanupAuthentication} from './auth-cleanup';
 import {redactDeletedUserContent,enqueuePrivacyRedaction} from './privacy-redaction';
 
@@ -135,13 +135,14 @@ async function executeJobWithinContext(id:string,token:string,generation:number,
       if (!payload.success) throw new Error('INVALID_JOB');
       const result=await cleanupSchedulerRecords(database);
       const authentication=await cleanupAuthentication(database);
-      result.more_possible=result.more_possible||authentication.more_possible;
+      const counters=await advanceLedgerCounters(database);
+      result.more_possible=result.more_possible||authentication.more_possible||counters.more_possible;
       await database.insert(maintenanceResults).values({sourceJobId:row.id,environment:row.environment,runDate:payload.data.anchor,pageNumber:payload.data.page,leaseGeneration:generation,
         noncesDeleted:result.nonces_deleted,runsDeleted:result.runs_deleted,batchLimit:result.batch_limit,held:result.held,morePossible:result.more_possible,
       });
       // Dispatch happens only at the next tick. A backlog cannot turn this job
       // into an unbounded loop or discard work after a capped page.
-      if(result.more_possible && !result.held) {
+      if(result.more_possible && (!result.held||counters.more_possible)) {
         if(payload.data.page===1000000) throw new Error('INVALID_JOB');
         const nextPage=payload.data.page+1;
         await database.insert(outbox).values({businessKey:`maintenance:${row.environment}:${payload.data.anchor}:${nextPage}`,

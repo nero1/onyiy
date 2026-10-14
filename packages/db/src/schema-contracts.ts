@@ -195,10 +195,10 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
     }
   ],
   "chain_recovery_runs": [
-{
-    "name": "recovery_balance_witness_check",
-    "expression": "((balance_witness IS NULL) OR (((jsonb_typeof(balance_witness) = 'object'::text) AND ((balance_witness ->> 'format'::text) = 'gw-finalized-balance-v1'::text) AND ((balance_witness ->> 'checkpoint_id'::text) = (checkpoint_id)::text) AND ((balance_witness ->> 'binding_fingerprint'::text) = binding_fingerprint) AND ((balance_witness ->> 'height'::text) = (through_height)::text) AND ((length((balance_witness ->> 'asset_key'::text)) >= 1) AND (length((balance_witness ->> 'asset_key'::text)) <= 30)) AND ((length((balance_witness ->> 'address'::text)) >= 1) AND (length((balance_witness ->> 'address'::text)) <= 128)) AND ((length((balance_witness ->> 'block_hash'::text)) >= 1) AND (length((balance_witness ->> 'block_hash'::text)) <= 100)) AND ((balance_witness ->> 'amount_base_units'::text) ~ '^(0|[1-9][0-9]{0,77})$'::text) AND ((balance_witness - ARRAY['format'::text, 'asset_key'::text, 'checkpoint_id'::text, 'binding_fingerprint'::text, 'address'::text, 'height'::text, 'block_hash'::text, 'amount_base_units'::text]) = '{}'::jsonb)) IS TRUE))"
-},
+    {
+      "name": "recovery_balance_witness_check",
+      "expression": "((balance_witness IS NULL) OR (((jsonb_typeof(balance_witness) = 'object'::text) AND ((balance_witness ->> 'format'::text) = 'gw-finalized-balance-v1'::text) AND ((balance_witness ->> 'checkpoint_id'::text) = (checkpoint_id)::text) AND ((balance_witness ->> 'binding_fingerprint'::text) = binding_fingerprint) AND ((balance_witness ->> 'height'::text) = (through_height)::text) AND ((length((balance_witness ->> 'asset_key'::text)) >= 1) AND (length((balance_witness ->> 'asset_key'::text)) <= 30)) AND ((length((balance_witness ->> 'address'::text)) >= 1) AND (length((balance_witness ->> 'address'::text)) <= 128)) AND ((length((balance_witness ->> 'block_hash'::text)) >= 1) AND (length((balance_witness ->> 'block_hash'::text)) <= 100)) AND ((balance_witness ->> 'amount_base_units'::text) ~ '^(0|[1-9][0-9]{0,77})$'::text) AND ((balance_witness - ARRAY['format'::text, 'asset_key'::text, 'checkpoint_id'::text, 'binding_fingerprint'::text, 'address'::text, 'height'::text, 'block_hash'::text, 'amount_base_units'::text]) = '{}'::jsonb)) IS TRUE))"
+    },
     {
       "name": "chain_recovery_runs_binding_fingerprint_check",
       "expression": "(length(binding_fingerprint) = 64)"
@@ -542,6 +542,26 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
       "expression": "(status = ANY (ARRAY['pending'::text, 'running'::text, 'done'::text, 'retry_wait'::text, 'dead_letter'::text]))"
     }
   ],
+  "ledger_account_buckets": [
+    {
+      "name": "ledger_account_buckets_label_check",
+      "expression": "(label = ANY (ARRAY['settled_payout_net'::text, 'refund_held'::text]))"
+    }
+  ],
+  "ledger_account_totals": [
+    {
+      "name": "ledger_account_totals_check",
+      "expression": "(balance = (credits - debits))"
+    },
+    {
+      "name": "ledger_account_totals_credits_check",
+      "expression": "(credits >= (0)::numeric)"
+    },
+    {
+      "name": "ledger_account_totals_debits_check",
+      "expression": "(debits >= (0)::numeric)"
+    }
+  ],
   "ledger_accounts": [
     {
       "name": "ledger_accounts_normal_side_check",
@@ -550,6 +570,44 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
     {
       "name": "ledger_accounts_owner_type_check",
       "expression": "(owner_type = ANY (ARRAY['user'::text, 'platform'::text, 'system'::text]))"
+    }
+  ],
+  "ledger_asset_totals": [
+    {
+      "name": "ledger_asset_totals_check",
+      "expression": "(balance = (credits - debits))"
+    },
+    {
+      "name": "ledger_asset_totals_credits_check",
+      "expression": "(credits >= (0)::numeric)"
+    },
+    {
+      "name": "ledger_asset_totals_debits_check",
+      "expression": "(debits >= (0)::numeric)"
+    }
+  ],
+  "ledger_counter_state": [
+    {
+      "name": "ledger_counter_state_check",
+      "expression": "((NOT complete) OR (postings_complete AND journals_complete AND (reason_code IS NULL)))"
+    },
+    {
+      "name": "ledger_counter_state_id_check",
+      "expression": "(id = 'global'::text)"
+    },
+    {
+      "name": "ledger_counter_state_reason_code_check",
+      "expression": "((reason_code IS NULL) OR (reason_code = 'LEDGER_SOURCE_INVALID'::text))"
+    }
+  ],
+  "ledger_journal_audits": [
+    {
+      "name": "ledger_journal_audits_line_count_check",
+      "expression": "(line_count >= 0)"
+    },
+    {
+      "name": "ledger_journal_audits_proof_hash_check",
+      "expression": "(length(proof_hash) = 64)"
     }
   ],
   "ledger_postings": [
@@ -1643,33 +1701,33 @@ const indexes:Record<string,readonly {name:string;method:string;unique:boolean;c
     }
   ],
   "help_articles": [
-{
-    "name": "help_published_en_search_idx",
-    "method": "gin",
-    "unique": false,
-    "predicate": "(published AND (locale = 'en'::text))",
-    "columns": [
+    {
+      "name": "help_published_en_search_idx",
+      "method": "gin",
+      "unique": false,
+      "predicate": "(published AND (locale = 'en'::text))",
+      "columns": [
         "(setweight(to_tsvector('english'::regconfig, title), 'A'::\"char\") || setweight(to_tsvector('english'::regconfig, body), 'B'::\"char\"))"
-    ]
-},
-{
-    "name": "help_published_fr_search_idx",
-    "method": "gin",
-    "unique": false,
-    "predicate": "(published AND (locale = 'fr'::text))",
-    "columns": [
+      ]
+    },
+    {
+      "name": "help_published_fr_search_idx",
+      "method": "gin",
+      "unique": false,
+      "predicate": "(published AND (locale = 'fr'::text))",
+      "columns": [
         "(setweight(to_tsvector('french'::regconfig, title), 'A'::\"char\") || setweight(to_tsvector('french'::regconfig, body), 'B'::\"char\"))"
-    ]
-},
-{
-    "name": "help_published_title_trigram_idx",
-    "method": "gin",
-    "unique": false,
-    "predicate": "published",
-    "columns": [
+      ]
+    },
+    {
+      "name": "help_published_title_trigram_idx",
+      "method": "gin",
+      "unique": false,
+      "predicate": "published",
+      "columns": [
         "lower(title) gin_trgm_ops"
-    ]
-},
+      ]
+    },
     {
       "name": "help_public_locale_idx",
       "method": "btree",
@@ -1758,6 +1816,29 @@ const indexes:Record<string,readonly {name:string;method:string;unique:boolean;c
       "predicate": null
     }
   ],
+  "ledger_account_totals": [
+    {
+      "name": "ledger_counter_negative_idx",
+      "method": "btree",
+      "unique": false,
+      "columns": [
+        "account_id"
+      ],
+      "predicate": "(balance < (0)::numeric)"
+    },
+    {
+      "name": "ledger_counter_nonzero_idx",
+      "method": "btree",
+      "unique": false,
+      "columns": [
+        "purpose",
+        "asset_id",
+        "owner_id",
+        "account_id"
+      ],
+      "predicate": "(balance <> (0)::numeric)"
+    }
+  ],
   "ledger_accounts": [
     {
       "name": "ledger_accounts_owner_unique",
@@ -1781,6 +1862,17 @@ const indexes:Record<string,readonly {name:string;method:string;unique:boolean;c
         "id"
       ],
       "predicate": "(owner_type = 'user'::text)"
+    }
+  ],
+  "ledger_journal_audits": [
+    {
+      "name": "ledger_journal_audit_invalid_idx",
+      "method": "btree",
+      "unique": false,
+      "columns": [
+        "journal_id"
+      ],
+      "predicate": "(NOT valid)"
     }
   ],
   "ledger_journals": [
