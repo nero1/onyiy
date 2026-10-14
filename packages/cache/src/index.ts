@@ -1,3 +1,4 @@
+import { pinnedPost, pinnedDestination } from '../../config/src/outbound-http';
 export type CacheSetOptions = { ttlSeconds?: number };
 
 export interface CacheProvider {
@@ -90,10 +91,10 @@ function decode<T>(raw: unknown): T | null {
 export class UpstashRestCache implements CacheProvider {
   private closed = false;
   private readonly controllers = new Set<AbortController>();
-  constructor(private readonly url: string, private readonly token: string, fixture = false) {
+  constructor(private readonly url: string, private readonly token: string, private readonly fixture = false) {
     const parsed = new URL(url);
     if (parsed.username || parsed.password || parsed.hash ||
-        (parsed.protocol !== 'https:' && !(fixture && parsed.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(parsed.hostname))) ||
+        (parsed.protocol !== 'https:' && !(this.fixture && parsed.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(parsed.hostname))) ||
         !token || token.length > 8192 || /[\r\n]/.test(token)) throw new Error('CACHE_CONFIGURATION_INVALID');
   }
   async dispose() {
@@ -107,10 +108,9 @@ export class UpstashRestCache implements CacheProvider {
     this.controllers.add(controller);
     const timer = setTimeout(() => controller.abort(), IO_TIMEOUT_MS);
     try {
-      const response = await fetch(this.url, {
-        method: 'POST', redirect: 'error',
+      const response = await pinnedPost(new URL(this.url), {
         headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' },
-        body, signal: controller.signal,
+        body, signal: controller.signal, maxBytes: MAX_IO_BYTES, fixture: this.fixture,
       });
       if (!response.ok) throw new Error('CACHE_UNAVAILABLE');
       const reader = response.body?.getReader();
@@ -230,8 +230,11 @@ export async function createDefaultCache(env: NodeJS.ProcessEnv = process.env, i
     if (!env.REDIS_URL) throw new Error('Redis configuration is required for the selected adapter');
     const { default: Redis } = await import('ioredis');
     const endpoint = new URL(env.REDIS_URL);
-    if (endpoint.protocol !== 'rediss:' || endpoint.hash) throw new Error('CACHE_CONFIGURATION_INVALID');
-    const client = new Redis(env.REDIS_URL, { lazyConnect: true, connectTimeout: IO_TIMEOUT_MS, commandTimeout: IO_TIMEOUT_MS, maxRetriesPerRequest: 1, retryStrategy: () => null, enableOfflineQueue: false });
+    if (endpoint.protocol !== 'rediss:' || endpoint.hash || endpoint.search || !/^\/(?:[0-9]|1[0-5])?$/.test(endpoint.pathname||'/')) throw new Error('CACHE_CONFIGURATION_INVALID');
+    const destination=new URL(endpoint);destination.username='';destination.password='';
+    const deadline=Date.now()+IO_TIMEOUT_MS;
+    const pinned=await pinnedDestination(destination,AbortSignal.timeout(IO_TIMEOUT_MS));
+    const client = new Redis({host:pinned.address,port:Number(endpoint.port||6379),username:endpoint.username?decodeURIComponent(endpoint.username):undefined,password:endpoint.password?decodeURIComponent(endpoint.password):undefined,db:Number(endpoint.pathname.slice(1)||0),tls:{servername:pinned.hostname,rejectUnauthorized:true}, lazyConnect: true, connectTimeout: Math.max(1,deadline-Date.now()), commandTimeout: IO_TIMEOUT_MS, maxRetriesPerRequest: 1, retryStrategy: () => null, enableOfflineQueue: false });
     try { await client.connect(); } catch { client.disconnect(); throw new Error('CACHE_UNAVAILABLE'); }
     return new IORedisCache(client, true);
   }

@@ -1,3 +1,4 @@
+import { pinnedPost } from '../packages/config/src/outbound-http';
 import crypto from "node:crypto";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -191,16 +192,14 @@ export async function deliverFinancialAlert() {
           .createHmac("sha256", key)
           .update(body)
           .digest("base64url");
-      const response = await fetch(target, {
-        method: "POST",
-        redirect: "error",
+      const response = await pinnedPost(target, {
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": claim.delivery.businessKey,
           "X-GW-Signature": signature,
         },
         body,
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(5000), maxBytes: 2048, fixture,
       });
       const rawLength = response.headers.get("content-length");
       if (rawLength && parseInt(rawLength, 10) > 2048)
