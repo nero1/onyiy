@@ -1,6 +1,6 @@
 # Custom bugs fix plan — Gifters World Phase One
 
-Updated: **14 October 2026 at 05:50:09 AM WAT** · Documentation version **v36**
+Updated: **14 October 2026 at 06:57:57 AM WAT** · Documentation version **v37**
 
 ## Complete one-line remediation list
 
@@ -57,7 +57,7 @@ Updated: **14 October 2026 at 05:50:09 AM WAT** · Documentation version **v36**
 51. **P1-051 — Stored locale and product copy are not consistently applied across portals.** Open; medium priority; package F.
 52. **P1-052 — Dark-mode primary button text fails normal-text contrast.** Implemented; local checks passed; medium priority; package F.
 53. **P1-053 — Mobile navigation and the testnet home omit required product surfaces.** Open; medium priority; package F.
-54. **P1-054 — The native wallet summary omits held and withdrawn/net-income totals.** Open; medium priority; package F.
+54. **P1-054 — The native wallet summary omits held and withdrawn/net-income totals.** Implemented and locally verified in v37; medium priority; package F.
 55. **P1-055 — Closed historical exceptions can prevent plan editing forever.** Implemented; local checks passed; medium priority; package A.
 56. **P1-056 — Native activation ignores the configured fixed-token pricing mode.** Implemented; local checks passed; medium priority; package A.
 57. **P1-057 — Accepted provider and finality selectors have no matching implementation.** Implemented; local checks passed; medium priority; package C.
@@ -76,6 +76,7 @@ Updated: **14 October 2026 at 05:50:09 AM WAT** · Documentation version **v36**
 
 70. **P1-070 — A valid multi-asset plan catalog fails after 100 active versions.** Implemented; local checks passed; medium priority; package F.
 71. **P1-071 — Financial archives can claim the current migration version while source migrations are pending.** Implemented; local checks passed; medium priority; package B.
+72. **P1-072 — Same-address native/token transfers can manufacture incoming principal.** (High; defect) — Implemented; local checks passed.
 
 ## Approval boundary and execution rule
 
@@ -721,7 +722,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Available, held, settled and net-income values exactly match per-asset journals and remain visibly distinct.
 
-**STATUS:** [ ] Open; package F; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v37; package F; Medium priority.
 
 ### 55: BUG P1-055: Closed historical exceptions can prevent plan editing forever
 
@@ -919,22 +920,34 @@ Then execute the entire Phase Two milestone sequence without waiting for milesto
 
 ## Fixing-LLM handover
 
-Read [LLM-HANDOVER_v36.md](LLM-HANDOVER_v36.md), then the mandatory project docs and [custom-bugs-report_v36.md](custom-bugs-report_v36.md). The owner has authorized this plan. Continue without further approval pauses; prioritize remaining P1-068 plus packages A/B and the High identity issues P1-021/P1-022; preserve the complete 70-ID tracker and all release boundaries. Do not reinterpret historical v28 “100%” as current audit completion.
+Read [LLM-HANDOVER_v37.md](LLM-HANDOVER_v37.md), then the mandatory project docs and [custom-bugs-report_v37.md](custom-bugs-report_v37.md). The owner has authorized this plan. Continue without further approval pauses; prioritize remaining P1-068 plus packages A/B and the High identity issues P1-021/P1-022; preserve the complete 70-ID tracker and all release boundaries. Do not reinterpret historical v28 “100%” as current audit completion.
 
 
-## Current v36 remediation ledger
+### 72: BUG P1-072: Same-address native/token transfers can manufacture incoming principal
+
+**FILES:** `packages/chains/src/evm.ts`, `packages/chains/src/solana.ts`, `packages/chains/src/tron.ts`, `server/crypto-incoming.ts`, `server/crypto-payouts.ts`, `server/crypto-settlement.ts`, `server/native-funding.ts`
+
+**FIX:** Reject equal normalized sending/receiving participants in transfer proof, quoting and payload construction. Preserve historical records and require explicit review rather than infer a principal credit, payout or correction from a self-transfer.
+
+**ACCEPTANCE:** Native/ERC20 self-transfer receipts cannot create incoming principal; all families reject self-transfer proof/fee/build before network dispatch and quote/settlement fences remain effective. Normal distinct-party transfers retain their exact amount and canonical checks.
+
+**STATUS:** [x] Implemented and locally verified in v37; package A; High priority.
+
+**EVIDENCE:** Generated two-provider EVM contracts confirmed native and ERC20 self-transfers with amount7 despite no incoming movement. The adapter equality fence now rejects that path before any ledger write. No real funding or broadcast occurred.
+
+## Current v37 remediation ledger
 
 The owner approved all Round One fixes, autonomous Rounds Two/Three and continued remediation, every Phase Two milestone, and final bug fixes before deferred testing. Continue without plan or milestone acceptance pauses. Use best recommendations, complete substantial verified batches, and merge only after BOTH push and pull-request CI succeed for the exact final head. Both financial readiness gates remain false; mainnet remains prohibited. CRON frequency and test-only issues remain excluded.
 
-54 of 71 tracked items implemented and locally verified; 17 remain open. The initial Round One audit had70 findings; P1-071 was discovered and fixed during remediation. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. P1-019 has partial improvements but remains open. No bug-free or hosted acceptance claim is made.
+56 of 72 tracked items implemented and locally verified; 16 remain open. The initial Round One audit had70 findings; P1-071/P1-072 were discovered and fixed during remediation. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. P1-019 has partial improvements but remains open. No bug-free or hosted acceptance claim is made.
 
-Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-013, P1-014, P1-015, P1-016, P1-017, P1-018, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-026, P1-027, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-037, P1-040, P1-041, P1-042, P1-043, P1-044, P1-046, P1-050, P1-052, P1-055, P1-056, P1-057, P1-058, P1-059, P1-060, P1-061, P1-066, P1-068, P1-069, P1-070, P1-071.
+Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-013, P1-014, P1-015, P1-016, P1-017, P1-018, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-026, P1-027, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-037, P1-040, P1-041, P1-042, P1-043, P1-044, P1-046, P1-050, P1-052, P1-054, P1-055, P1-056, P1-057, P1-058, P1-059, P1-060, P1-061, P1-066, P1-068, P1-069, P1-070, P1-071, P1-072.
 
-Open: P1-009, P1-019, P1-028, P1-038, P1-039, P1-045, P1-047, P1-048, P1-049, P1-051, P1-053, P1-054, P1-062, P1-063, P1-064, P1-065, P1-067.
+Open: P1-009, P1-019, P1-028, P1-038, P1-039, P1-045, P1-047, P1-048, P1-049, P1-051, P1-053, P1-062, P1-063, P1-064, P1-065, P1-067.
 
 Local verification: required check:all; production build and bundle budget checks; production npm audit now zero advisories. Named isolated manual-contracts, manual-money and manual-quotes-r5 passed. The last validates quote cancellation/expiry/payload replay/DB clock, late-fund refunds, frozen pre-pause admission, custom bootstrap destination, positively refunded plan edit, and independent lower live per-transaction/daily signer caps without reservations or signed bytes. Initial quote-probe failures (invalid price TTL, missing scoped fixture binding, missing operational gas asset) remain retained and were corrected only in fresh r2/r3/r5 databases. No external RPC or broadcast occurred.
 
-Bug reports and fix plans must use the same _vN filename version as current status/handover; earlier versions are retained in Git history. Current artifacts use_v36.
+Bug reports and fix plans must use the same _vN filename version as current status/handover; earlier versions are retained in Git history. Current artifacts use_v37.
 
 
 V31 evidence: manual-money-r2 passed; manual-contracts-r2 passed shared fees, different-endpoint checkpoint identity and fair dispatch past20 blocked rows without signing/reservations; manual-solana-costs-r2 passed two principals/one fee, positively identified ATA rent and ambiguous-debit rejection; preserved failed SOL expiry source resumed through forward-only migration078 and passed positive expiry/held principal/closure/replay/fresh scan. Non-signing hosted migration/seed/runtime path passed on gw_v31_testnet_seed:0 users/0 assets/12 plans/0 versions/16 help rows/one testnet namespace. Archive version preflight and clone proof are recorded in current status. P1-009/P1-013/P1-067 remain open.
@@ -964,9 +977,14 @@ Manual-sol-expiry-r3 passed staged known-attempt processing, positive dual-final
 
 Required check:all/build/bundle pass (homepage198.96KiB/200; maximum API1.419MiB/3; client aggregate0.643MiB). Evidence is under /workspace/work/remediation-v36. New financial archive site-financial-final_v36.gwbackup captures73 retained inventories/86 tables/90 migrations (001–089 plus053a) and verifies exact restore into fresh inactive gw_v36_restore. Discovery/verification progress, canonical proof, original expired signed bytes, financial IDs and audits remain exact. Database nonce and ephemeral authentication/dispatch data remain omitted. Forward089/current decoder also passed a rollback-only active scan and database rejection of a mismatched cursor-height shape, leaving the archived source unchanged. No broad automated suite or live financial execution ran.
 
+
+V37 evidence: Named manual-self-transfer-probe-r2 reproduced positive native/ERC20 self-transfer evidence using generated independent providers, without crediting a ledger. Manual-self-transfer-fix passed EVM/SOL/TRON validation, fee estimation and construction rejection before any network request. Manual-wallet-totals-r4 matched exact available6500000/held4000000/income-held1000000/refund-held3000000/net-paid1000000/net-income8500000 in a rollback-only generated journal scenario, excluded another user and preserved the original expired/closed signed source. The earlier cloned fixture omitted its unique business key; that harness failure rolled back and is retained. Distinct-party native/ERC20 contracts retained exact principal and canonical proof after the fence. No broadcast or broad automated suite ran.
+
+Required check:all/build/bundle pass (homepage199.27KiB/200; maximum API1.420MiB/3; client aggregate0.645MiB). Evidence is under /workspace/work/remediation-v37. All four documentation filenames advance together to_v37. No schema/migration changes:86 tables/90 migrations/73 retained inventories. The exact v36 signed archive and inactive gw_v36_restore remain valid for this unchanged schema. Both financial gates remain false. External funding/OAuth/wallet/ACK/mobile/hosted capacity measurements remain unrun.
+
 ---
 
-Prepared by Codex — Round One remediation v36.
-PR29 merged at e1463fa after push38485886774 and PR38485891336 succeeded for exact final head ab1d7b5509fd215645448641065a2705cdf389ba. Initial failed head/run evidence remains in v30 Git history. PR30 merged at fa5d71b after push38500938562 and PR38500945296 succeeded for9bb4004e964c38ef2e31c884545e5ba2c70433ba. PR31 merged at59a8289 after exact head2ca05c2390fd1aefe516415f83aed15449b509ce passed push38507705481/PR38507767963. PR32 merged at523ba12 after exact a258d7a passed push38509097039/PR38509102087; PR34 merged atcab8a95 after head805f3d3 passed push38510489870/PR38510495165; v36 awaits its own final-head dual CI/PR merge.
+Prepared by Codex — Round One remediation v37.
+PR29 merged at e1463fa after push38485886774 and PR38485891336 succeeded for exact final head ab1d7b5509fd215645448641065a2705cdf389ba. Initial failed head/run evidence remains in v30 Git history. PR30 merged at fa5d71b after push38500938562 and PR38500945296 succeeded for9bb4004e964c38ef2e31c884545e5ba2c70433ba. PR31 merged at59a8289 after exact head2ca05c2390fd1aefe516415f83aed15449b509ce passed push38507705481/PR38507767963. PR32 merged at523ba12 after exact a258d7a passed push38509097039/PR38509102087; PR34 merged atcab8a95 after head805f3d3 passed push38510489870/PR38510495165; PR35 merged atf99e2d2 after head5d7cf5b passed push38514924520/PR38514930961; v37 awaits its own final-head dual CI/PR merge.
 
-Signed: **14 October 2026 at 05:50:09 AM WAT**
+Signed: **14 October 2026 at 06:57:57 AM WAT**

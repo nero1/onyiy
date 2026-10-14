@@ -204,8 +204,9 @@ export async function quoteCryptoWithdrawal(
     usdLimitMicros(policy.payout_limits.signer_per_tx_usd)
   )
     throw new Error("FINANCIAL_SAFETY_PAUSE");
-  const sender = await platformAddress(registry, "RECEIVING"),
-    chain = await adapter(registry),
+  const sender = await platformAddress(registry, "RECEIVING");
+  if ((await (await adapter(registry)).normalizeAddress(wallet.address)) === sender) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
+  const chain = await adapter(registry),
     fee = await chain.estimateFee({
       asset: registry,
       sender,

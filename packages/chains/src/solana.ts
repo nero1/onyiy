@@ -340,6 +340,7 @@ export class SolanaAdapter implements ChainAdapter {
     return { tx, rent };
   }
   async estimateFee(intent: Omit<TransferIntent, "fee">): Promise<FeeQuote> {
+    if (normalized(intent.sender) === normalized(intent.destination)) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
     await this.network();
     const values = (
       await this.rpc.pair("getLatestBlockhash", [{ commitment: "finalized" }])
@@ -377,6 +378,7 @@ export class SolanaAdapter implements ChainAdapter {
     };
   }
   async buildTransfer(intent: TransferIntent): Promise<PreparedTransfer> {
+    if (normalized(intent.sender) === normalized(intent.destination)) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
     await this.network();
     if (
       !intent.fee.validity ||
@@ -591,6 +593,7 @@ export class SolanaAdapter implements ChainAdapter {
     );
   }
   async verifyTransfer(expected: Transfer) {
+    if (normalized(expected.sender) === normalized(expected.destination)) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
     if (
       expected.asset.key !== this.asset.key ||
       expected.asset.chain !== this.asset.chain ||
