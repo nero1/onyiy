@@ -1,3 +1,4 @@
+import {withBoundedTransaction,remainingExecutionTime} from './execution-budget';
 import {performance} from 'node:perf_hooks';
 import {admissionFor} from './work-budget';
 import {databaseConnectionOptions} from './connection-options';
@@ -19,7 +20,7 @@ export async function scopedTransaction<T>(database: Database, context: Database
   if ((['member','staff'].includes(context.access) || context.requireAdmin || context.requireModerator) && !context.actorId) throw new Error('UNAUTHENTICATED');
   if (context.reportSnapshot && context.access!=='service') throw new Error('FORBIDDEN');
   const config = validateRuntimeEnv();
-  return admissionFor(database,databaseConnectionOptions(config.databaseUrl).max).run(performance.now()+1500,()=>database.transaction(async (tx) => {
+  return admissionFor(database,databaseConnectionOptions(config.databaseUrl).max).run(performance.now()+Math.min(1500,remainingExecutionTime()),()=>{remainingExecutionTime();return database.transaction(rawTx => withBoundedTransaction(rawTx,async (tx) => {
     await tx.execute(sql`select set_config('statement_timeout',${context.access==='public'?'3000':'5000'},true),set_config('lock_timeout','1500',true)`);
     await tx.execute(sql.raw('SET LOCAL search_path=pg_catalog,public,pg_temp'));
     // PostgreSQL metadata and transaction-local security context are deliberate
@@ -61,7 +62,7 @@ export async function scopedTransaction<T>(database: Database, context: Database
       if (!actor || !(context.requireModerator?['admin','moderator'].includes(actor.role):actor.role==='admin') || actor.status !== 'active') throw new Error('FORBIDDEN');
     }
     const result=await fn(tx);await checkFamily(true);return result;
-  },context.snapshot ? {isolationLevel:'repeatable read',accessMode:'read only'} : context.reportSnapshot ? {isolationLevel:'repeatable read'} : undefined));
+  }),context.snapshot ? {isolationLevel:'repeatable read',accessMode:'read only'} : context.reportSnapshot ? {isolationLevel:'repeatable read'} : undefined)});
 }
 
 export function withContext<T>(context: DatabaseContext, fn: (tx: DbExecutor) => Promise<T>) {

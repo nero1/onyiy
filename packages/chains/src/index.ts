@@ -21,4 +21,4 @@ export async function chainAdapter(
 
 export * from "./hash";
 
-export {withRpcBudget} from './rpc';
+export {withRpcBudget,withRpcCancellation} from './rpc';

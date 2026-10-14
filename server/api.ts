@@ -26,6 +26,7 @@ import {holdBusinessSettlement,businessInput} from './crypto-business';
 import {ingestSignedPrice,signedPriceInput} from './crypto-prices';
 import {challengeWallet,proveWallet,walletChallengeInput,walletProofInput} from './crypto-wallets';
 import {cancelNativeInvoice,quoteCryptoInvoice,submitCryptoDeposit,verifyCryptoDeposit,cryptoInvoiceInput,cryptoSubmission} from './crypto-incoming';
+import {withExecutionBudget} from '@gifters/db';
 import {nativeWithdrawalQuote} from './financial-transport';
 import {quoteCryptoWithdrawal,confirmCryptoWithdrawal,cancelCryptoWithdrawal,requoteCryptoWithdrawal,approveCryptoObligation,cryptoWithdrawal} from './crypto-payouts';
 import {authenticateWorker} from './worker-auth';
@@ -479,7 +480,8 @@ async function routeApiRequest(method:string,path:string[],request:Request){
 
 export async function handleApiRequest(method:string,path:string[],request:Request){
  return withRequestContext(async()=>{
-  const response=await routeApiRequest(method,path,request),headers=new Headers(response.headers);
+  let response:Response;try{response=await withExecutionBudget(50000,()=>routeApiRequest(method,path,request),request.signal);}catch(error){response=fail(error);}
+  const headers=new Headers(response.headers);
   headers.set('X-Request-ID',requestId());
   return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
  });

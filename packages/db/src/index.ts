@@ -80,3 +80,5 @@ export { withSessionScope, withContext, withMemberSnapshot, scopedTransaction, t
 export {databaseScopeFingerprint, databaseBinding, scopedDatabaseBinding} from './binding-fingerprint';
 export {activeRequestId,currentRequestId,withRequestContext} from './request-context';
 export {workloadLockHealth} from './lock-health';
+
+export {withExecutionBudget,withExecutionScope,withBoundedTransaction,remainingExecutionTime} from './execution-budget';

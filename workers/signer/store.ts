@@ -1,3 +1,4 @@
+import {withBoundedTransaction} from '../../packages/db/src/execution-budget';
 import {databaseBinding} from '../../packages/db/src/binding-fingerprint';
 import {beneficiaryLiabilityPurposes,businessAddressRole} from '../../packages/domain/src/liabilities';
 import { Transaction } from "ethers";
@@ -113,11 +114,13 @@ export class SignerStore {
     });
     this.database = drizzle(this.client, { schema });
   }
+  private drainMilliseconds=20000;
   async close() {
-    await this.client.end({ timeout: 3 });
+    await this.client.end({ timeout: Math.min(3,this.drainMilliseconds/4000) });
   }
   private async context<T>(fn: (tx: DbExecutor) => Promise<T>) {
-    return this.database.transaction(async (tx) => {
+    return this.database.transaction(rawTx=>withBoundedTransaction(rawTx,async (tx) => {
+      await tx.execute(sql`select set_config('statement_timeout',${String(Math.max(1,Math.min(5000,Math.floor(this.drainMilliseconds/2))))},true),set_config('lock_timeout','1500',true)`);
       await tx.execute(sql.raw('set local search_path=pg_catalog,public,pg_temp'));
       await tx.execute(sql`select set_config('gw.environment','testnet',true)`);
       const [role] = await tx.execute<{
@@ -130,9 +133,9 @@ export class SignerStore {
         throw new Error("SIGNER_DATABASE_SCOPE_DENIED");
       await tx.execute(sql.raw("set local role gw_signer"));
       await tx.execute(sql`select set_config('gw.database_binding',${await databaseBinding(tx)},true)`);
-      await tx.execute(sql`set local statement_timeout='5000ms'`);
+
       return fn(tx);
-    });
+    }));
   }
   private async configurationIn(tx: DbExecutor, asset: AssetRegistry) {
     await tx.execute(
@@ -147,6 +150,7 @@ export class SignerStore {
     for (const row of rows) values[row.key] = row.value;
     const policy = parseManifest(values);
     validateSecurityCeilings(policy);
+    this.drainMilliseconds=Math.min(20000,policy.worker_shutdown_seconds*1000);
     return {
       policy,
       ...(await configurationSnapshot(asset, financialPolicySnapshot(policy))),
