@@ -7,8 +7,6 @@ import {
   users,
   walletLinks,
   ledgerAccounts,
-  ledgerPostings,
-  ledgerJournals,
   cryptoInvoices,
   cryptoObligations,
   planVersions,
@@ -108,6 +106,7 @@ export async function nativeCatalog(tx: DbExecutor) {
   };
 }
 export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
+  await tx.execute(sql`select set_config('gw.environment','testnet',true)`);
   const policy = await readManifest(tx);
   if (!policy.feature_wallets || !policy.entitlements_member.dashboard) throw new Error("FEATURE_DISABLED");
   const balances = await tx
@@ -118,11 +117,10 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
       decimals: assets.decimals,
       under_review:sql<boolean>`exists(select 1 from ${cryptoReorgReviews} r left join ${cryptoReorgResolutions} s on s.review_id=r.id where r.asset_id=${assets.id} and s.review_id is null)`,
       purpose: ledgerAccounts.purpose,
-      amount: sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='credit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`,
+      amount: sql<string>`coalesce(sum(public.gw_account_balance(${ledgerAccounts.id})),0)::text`,
     })
     .from(assets)
     .innerJoin(ledgerAccounts, eq(ledgerAccounts.assetId, assets.id))
-    .leftJoin(ledgerPostings, eq(ledgerPostings.accountId, ledgerAccounts.id))
     .where(
       and(
         eq(assets.environment, "testnet"),
@@ -147,14 +145,10 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
   // through the immutable journal's obligation identity, never through display
   // history limits or mutable completion statuses.
   const settled = await tx.select({
-    asset_id: ledgerAccounts.assetId,
-    withdrawn_net: sql<string>`coalesce(sum(case when ${ledgerJournals.ledgerType}='PAYOUT_SETTLE' then case when ${ledgerPostings.direction}='debit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end else 0 end),0)::text`,
-    refund_held: sql<string>`coalesce(sum(case when ${cryptoObligations.kind} in ('refund','unallocated_refund') then case when ${ledgerPostings.direction}='credit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end else 0 end),0)::text`,
-  }).from(ledgerAccounts)
-    .innerJoin(assets,eq(assets.id,ledgerAccounts.assetId))
-    .innerJoin(ledgerPostings,eq(ledgerPostings.accountId,ledgerAccounts.id))
-    .innerJoin(ledgerJournals,eq(ledgerJournals.id,ledgerPostings.journalId))
-    .leftJoin(cryptoObligations,sql`${cryptoObligations.id}=case when (${ledgerJournals.metadata}->>'obligation_id') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then (${ledgerJournals.metadata}->>'obligation_id')::uuid end and ${cryptoObligations.assetId}=${ledgerAccounts.assetId} and ${cryptoObligations.userId}=${ledgerAccounts.ownerId}`)
+    asset_id:ledgerAccounts.assetId,
+    withdrawn_net:sql<string>`coalesce(sum(public.gw_account_bucket(${ledgerAccounts.id},'settled_payout_net')),0)::text`,
+    refund_held:sql<string>`coalesce(sum(public.gw_account_bucket(${ledgerAccounts.id},'refund_held')),0)::text`,
+  }).from(ledgerAccounts).innerJoin(assets,eq(assets.id,ledgerAccounts.assetId))
     .where(and(eq(ledgerAccounts.ownerId,userId),eq(ledgerAccounts.ownerType,'user'),eq(ledgerAccounts.purpose,'held_payable'),eq(assets.environment,'testnet')))
     .groupBy(ledgerAccounts.assetId).limit(10);
   const summary=[...new Set(balances.map(row=>row.asset_id))].map(id=>{

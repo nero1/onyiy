@@ -1,3 +1,4 @@
+import {signerAssetLedgerBalance as assetLedgerBalance} from '../../packages/db/src/ledger-counters';
 import {withBoundedTransaction} from '../../packages/db/src/execution-budget';
 import {databaseBinding} from '../../packages/db/src/binding-fingerprint';
 import {beneficiaryLiabilityPurposes,businessAddressRole} from '../../packages/domain/src/liabilities';
@@ -17,7 +18,6 @@ import {
   signedAttempts,
   assets,
   ledgerAccounts,
-  ledgerPostings,
   xManifest,
   operationalAlerts,
   alertDeliveries,
@@ -263,23 +263,8 @@ export class SignerStore {
         throw new Error("FEE_REQUOTE_REQUIRED");
       if (assetAvailable === undefined || assetAvailable < 0n)
         throw new Error("SIGNER_OBSERVATION_REQUIRED");
-      const [assetLiability] = await tx
-        .select({
-          amount: sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='credit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`,
-        })
-        .from(ledgerAccounts)
-        .leftJoin(
-          ledgerPostings,
-          eq(ledgerPostings.accountId, ledgerAccounts.id),
-        )
-        .where(
-          and(
-            eq(ledgerAccounts.assetId, row.assetId),
-            inArray(ledgerAccounts.purpose, beneficiaryLiabilityPurposes),
-          ),
-        );
-      if (assetAvailable < BigInt(assetLiability.amount))
-        throw new Error("SIGNER_CAP_EXCEEDED");
+      const assetLiability=await assetLedgerBalance(tx,row.assetId,beneficiaryLiabilityPurposes);
+      if (assetAvailable < assetLiability) throw new Error("SIGNER_CAP_EXCEEDED");
 
       await tx
         .insert(signerStates)
@@ -372,23 +357,8 @@ export class SignerStore {
         )
         .limit(1);
       if (!native) throw new Error("SIGNER_INTENT_DENIED");
-      const [liability] = await tx
-        .select({
-          amount: sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='credit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`,
-        })
-        .from(ledgerAccounts)
-        .leftJoin(
-          ledgerPostings,
-          eq(ledgerPostings.accountId, ledgerAccounts.id),
-        )
-        .where(
-          and(
-            eq(ledgerAccounts.assetId, native.id),
-            inArray(ledgerAccounts.purpose, beneficiaryLiabilityPurposes),
-          ),
-        );
-      nativeAvailable -=
-        BigInt(liability.amount) > 0n ? BigInt(liability.amount) : 0n;
+      const liability=await assetLedgerBalance(tx,native.id,beneficiaryLiabilityPurposes);
+      nativeAvailable -= liability>0n?liability:0n;
       const [existing] = await tx
         .select()
         .from(signerReservations)
@@ -717,28 +687,11 @@ export class SignerStore {
         )
         .limit(1);
       if (!native) throw new Error("SIGNER_INTENT_DENIED");
-      const liabilities = await tx
-        .select({
-          asset: ledgerAccounts.assetId,
-          amount: sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='credit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`,
-        })
-        .from(ledgerAccounts)
-        .leftJoin(
-          ledgerPostings,
-          eq(ledgerPostings.accountId, ledgerAccounts.id),
-        )
-        .where(
-          and(
-            inArray(ledgerAccounts.assetId, [native.id, row.assetId]),
-            inArray(ledgerAccounts.purpose, beneficiaryLiabilityPurposes),
-          ),
-        )
-        .groupBy(ledgerAccounts.assetId);
-      const liability = (id: string) =>
-        BigInt(liabilities.find((v) => v.asset === id)?.amount ?? "0");
+      const nativeLiability=await assetLedgerBalance(tx,native.id,beneficiaryLiabilityPurposes);
+      const assetLiability=await assetLedgerBalance(tx,row.assetId,beneficiaryLiabilityPurposes);
       if (
-        nativeAvailable < liability(native.id) + BigInt(reserved.fee) + BigInt((row.feeSnapshot as {nativeFloor?:string}).nativeFloor??"0") ||
-        assetAvailable < liability(row.assetId)
+        nativeAvailable < nativeLiability + BigInt(reserved.fee) + BigInt((row.feeSnapshot as {nativeFloor?:string}).nativeFloor??"0") ||
+        assetAvailable < assetLiability
       )
         throw new Error("SIGNER_CAP_EXCEEDED");
       const id = crypto.randomUUID(),

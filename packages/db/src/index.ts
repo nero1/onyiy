@@ -82,3 +82,5 @@ export {activeRequestId,currentRequestId,withRequestContext} from './request-con
 export {workloadLockHealth} from './lock-health';
 
 export {withExecutionBudget,withExecutionScope,withBoundedTransaction,remainingExecutionTime} from './execution-budget';
+
+export {assetLedgerBalance} from './ledger-counters';

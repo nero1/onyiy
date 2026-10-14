@@ -136,9 +136,8 @@ export async function postJournal(database: DbExecutor, type: string, businessKe
 
 async function balanceForPurpose(database: DbExecutor, userId: string, assetId: string, purpose: string) {
   const rows = await database.select({
-    balance: sql<string>`coalesce(sum(case when ${ledgerPostings.direction} = 'credit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end), 0)::text`,
+    balance: sql<string>`coalesce(sum(public.gw_account_balance(${ledgerAccounts.id})),0)::text`,
   }).from(ledgerAccounts)
-    .leftJoin(ledgerPostings, eq(ledgerPostings.accountId, ledgerAccounts.id))
     .where(and(
       eq(ledgerAccounts.assetId, assetId),
       eq(ledgerAccounts.ownerType, 'user'),
