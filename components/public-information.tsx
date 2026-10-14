@@ -79,7 +79,7 @@ export default function PublicInformation() {
           </button>
         </aside>
       )}
-      {stats?.enabled && (
+      {stats?.enabled && !stats.pending && (
         <aside className="public-statistics">
           <span>
             {fr ? "Membres inscrits avec consentement" : "Consented members"}:{" "}
@@ -100,6 +100,7 @@ export default function PublicInformation() {
                 .slice(0, 2)}{" "}
             ({stats.environment})
           </span>
+          {stats.stale && <span>{fr ? "Instantané antérieur" : "Earlier snapshot"}</span>}
           <time dateTime={stats.observed_at}>
             {new Date(stats.observed_at).toLocaleString(fr ? "fr" : "en")}
           </time>

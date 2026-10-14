@@ -34,17 +34,20 @@ export async function statisticsSnapshot(tx: DbExecutor) {
     sql`select clock_timestamp() as now`,
   );
   if (cached && cached.expiresAt > new Date(clock.now))
-    return { enabled: true, ...projection(cached) };
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(${`public-statistics:${scope}`},0))`,
+    return { enabled: true, stale: false, ...projection(cached) };
+  const [refresh] = await tx.execute<{ acquired: boolean }>(
+    sql`select pg_try_advisory_xact_lock(hashtextextended(${`public-statistics:${scope}`},0)) as acquired`,
   );
+  if (!refresh.acquired) return cached
+    ? { enabled: true, stale: true, ...projection(cached) }
+    : { enabled: true, environment: scope, pending: true };
   const [again] = await tx
     .select()
     .from(publicStatistics)
     .where(eq(publicStatistics.environment, scope))
     .limit(1);
   if (again && again.expiresAt > new Date(clock.now))
-    return { enabled: true, ...projection(again) };
+    return { enabled: true, stale: false, ...projection(again) };
   const belongs =
     scope === "simulation"
       ? sql`true`
@@ -92,7 +95,7 @@ export async function statisticsSnapshot(tx: DbExecutor) {
     .values(value)
     .onConflictDoUpdate({ target: publicStatistics.environment, set: value })
     .returning();
-  return { enabled: true, ...projection(row) };
+  return { enabled: true, stale: false, ...projection(row) };
 }
 export const publicStatisticsRead = () =>
   withContext({ access: "service" }, statisticsSnapshot);

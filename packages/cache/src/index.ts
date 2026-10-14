@@ -5,6 +5,7 @@ export interface CacheProvider {
   set<T = unknown>(key: string, value: T, options?: CacheSetOptions): Promise<void>;
   del(key: string): Promise<void>;
   incr(key: string, ttlSeconds?: number): Promise<number>;
+  dispose(): Promise<void>;
 }
 
 export type MemoryCacheBudget = { maxEntries: number; maxBytes: number };
@@ -45,6 +46,7 @@ export class MemoryCache implements CacheProvider {
     while (this.values.size >= this.budget.maxEntries || this.usedBytes + bytes > this.budget.maxBytes) this.remove(this.values.keys().next().value!);
     this.values.set(key, { value: raw, expiresAt, bytes }); this.usedBytes += bytes;
   }
+  async dispose() { this.values.clear(); this.usedBytes = 0; }
   async get<T>(key: string): Promise<T | null> { return this.read<T>(key); }
   async set<T>(key: string, value: T, options: CacheSetOptions = {}) { this.store(key, value, expiry(options.ttlSeconds)); }
   async del(key: string) { this.remove(key); }
@@ -68,35 +70,86 @@ if tonumber(ARGV[1]) > 0 and redis.call('TTL', KEYS[1]) == -1 then
 end
 return value`;
 
-/** Upstash-compatible REST adapter using fetch, avoiding a vendor SDK dependency. */
+const IO_TIMEOUT_MS = 3000;
+const MAX_IO_BYTES = 1024 * 1024;
+function validKey(key: string) {
+  if (!key || Buffer.byteLength(key) > 4096) throw new Error('CACHE_INPUT_INVALID');
+}
+function encode(value: unknown) {
+  const raw = JSON.stringify(value);
+  if (raw === undefined || Buffer.byteLength(raw) > MAX_IO_BYTES) throw new Error('CACHE_INPUT_INVALID');
+  return raw;
+}
+function decode<T>(raw: unknown): T | null {
+  if (raw === null) return null;
+  if (typeof raw !== 'string' || Buffer.byteLength(raw) > MAX_IO_BYTES) throw new Error('CACHE_RESPONSE_INVALID');
+  try { return JSON.parse(raw) as T; } catch { throw new Error('CACHE_RESPONSE_INVALID'); }
+}
+
+/** Display cache only: callers decide whether an unavailable cache may fall back. */
 export class UpstashRestCache implements CacheProvider {
-  constructor(private readonly url: string, private readonly token: string) {}
+  private closed = false;
+  private readonly controllers = new Set<AbortController>();
+  constructor(private readonly url: string, private readonly token: string, fixture = false) {
+    const parsed = new URL(url);
+    if (parsed.username || parsed.password || parsed.hash ||
+        (parsed.protocol !== 'https:' && !(fixture && parsed.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(parsed.hostname))) ||
+        !token || token.length > 8192 || /[\r\n]/.test(token)) throw new Error('CACHE_CONFIGURATION_INVALID');
+  }
+  async dispose() {
+    this.closed = true;
+    for (const controller of this.controllers) controller.abort();
+    this.controllers.clear();
+  }
   private async command<T>(parts: Array<string | number>): Promise<T> {
-    const response = await fetch(this.url, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(parts),
-    });
-    if (!response.ok) throw new Error(`Upstash Redis error: ${response.status}`);
-    const payload = await response.json() as { result?: T; error?: unknown };
-    if (payload.error !== undefined || !Object.prototype.hasOwnProperty.call(payload, 'result')) throw new Error('Redis command failed');
-    return payload.result as T;
+    if (this.closed || this.controllers.size >= 8) throw new Error('CACHE_UNAVAILABLE');
+    const body = encode(parts), controller = new AbortController();
+    this.controllers.add(controller);
+    const timer = setTimeout(() => controller.abort(), IO_TIMEOUT_MS);
+    try {
+      const response = await fetch(this.url, {
+        method: 'POST', redirect: 'error',
+        headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' },
+        body, signal: controller.signal,
+      });
+      if (!response.ok) throw new Error('CACHE_UNAVAILABLE');
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('CACHE_RESPONSE_INVALID');
+      let size = 0;
+      const chunks: Uint8Array[] = [];
+      while (true) {
+        const next = await reader.read();
+        if (next.done) break;
+        size += next.value.byteLength;
+        if (size > MAX_IO_BYTES) { await reader.cancel(); throw new Error('CACHE_RESPONSE_INVALID'); }
+        chunks.push(next.value);
+      }
+      const payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload) || payload.error !== undefined || !Object.hasOwn(payload, 'result')) throw new Error('CACHE_RESPONSE_INVALID');
+      return payload.result as T;
+    } catch { throw new Error('CACHE_UNAVAILABLE'); }
+    finally { clearTimeout(timer); this.controllers.delete(controller); }
   }
   async get<T>(key: string): Promise<T | null> {
-    const raw = await this.command<string | null>(['GET', key]);
-    return raw === null ? null : JSON.parse(raw) as T;
+    validKey(key);
+    return decode<T>(await this.command<string | null>(['GET', key]));
   }
   async set<T>(key: string, value: T, options: CacheSetOptions = {}) {
-    const args: Array<string | number> = ['SET', key, JSON.stringify(value)];
+    validKey(key);
+    const args: Array<string | number> = ['SET', key, encode(value)];
     expiry(options.ttlSeconds);
     if (options.ttlSeconds !== undefined) args.push('EX', options.ttlSeconds);
-    await this.command(args);
+    if (await this.command(args) !== 'OK') throw new Error('CACHE_RESPONSE_INVALID');
   }
-  async del(key: string) { await this.command<number>(['DEL', key]); }
+  async del(key: string) {
+    validKey(key);
+    const result = await this.command<number>(['DEL', key]);
+    if (result !== 0 && result !== 1) throw new Error('CACHE_RESPONSE_INVALID');
+  }
   async incr(key: string, ttlSeconds?: number) {
-    expiry(ttlSeconds);
+    validKey(key); expiry(ttlSeconds);
     const value = await this.command<number>(['EVAL', INCREMENT_SCRIPT, 1, key, ttlSeconds ?? 0]);
-    if (!Number.isSafeInteger(value)) throw new Error('Invalid cache counter response');
+    if (!Number.isSafeInteger(value) || value < 1) throw new Error('CACHE_RESPONSE_INVALID');
     return value;
   }
 }
@@ -108,25 +161,58 @@ export interface IORedisLike {
   set(key: string, value: string, expiryMode: 'EX', seconds: number): Promise<unknown>;
   del(key: string): Promise<number>;
   eval(script: string, numKeys: number, key: string, ttlSeconds: number): Promise<unknown>;
+  disconnect?(): void;
 }
 
 export class IORedisCache implements CacheProvider {
-  constructor(private readonly client: IORedisLike) {}
+  private closed = false;
+  private pending = 0;
+  private readonly cancellations = new Set<() => void>();
+  constructor(private readonly client: IORedisLike, private readonly owned = false) {}
+  async dispose() {
+    this.closed = true;
+    for (const cancel of this.cancellations) cancel();
+    this.cancellations.clear();
+    if (this.owned) this.client.disconnect?.();
+  }
+  private async command<T>(load: () => Promise<T>): Promise<T> {
+    if (this.closed || this.pending >= 8) throw new Error('CACHE_UNAVAILABLE');
+    this.pending++;
+    // Count a borrowed client's unresolved I/O even after the caller deadline.
+    // It cannot create unlimited abandoned commands or close another owner's socket.
+    const operation = Promise.resolve().then(() => { if (this.closed) throw new Error("CACHE_UNAVAILABLE"); return load(); }).finally(() => { this.pending--; });
+    let timer: ReturnType<typeof setTimeout> | undefined, cancel: (() => void) | undefined;
+    try {
+      return await Promise.race([operation, new Promise<never>((_resolve, reject) => {
+        cancel = () => reject(new Error('CACHE_UNAVAILABLE'));
+        this.cancellations.add(cancel);
+        timer = setTimeout(() => { if (this.owned) void this.dispose(); cancel!(); }, IO_TIMEOUT_MS);
+      })]);
+    } catch { throw new Error('CACHE_UNAVAILABLE'); }
+    finally { if (timer) clearTimeout(timer); if (cancel) this.cancellations.delete(cancel); }
+  }
   async get<T>(key: string): Promise<T | null> {
-    const raw = await this.client.get(key);
-    return raw === null ? null : JSON.parse(raw) as T;
+    validKey(key);
+    return decode<T>(await this.command(() => this.client.get(key)));
   }
   async set<T>(key: string, value: T, options: CacheSetOptions = {}) {
-    expiry(options.ttlSeconds);
-    if (options.ttlSeconds !== undefined) await this.client.set(key, JSON.stringify(value), 'EX', options.ttlSeconds);
-    else await this.client.set(key, JSON.stringify(value));
+    validKey(key); expiry(options.ttlSeconds);
+    const raw = encode(value);
+    const result = await this.command(() => options.ttlSeconds !== undefined
+      ? this.client.set(key, raw, 'EX', options.ttlSeconds)
+      : this.client.set(key, raw));
+    if (result !== 'OK') throw new Error('CACHE_RESPONSE_INVALID');
   }
-  async del(key: string) { await this.client.del(key); }
+  async del(key: string) {
+    validKey(key);
+    const result = await this.command(() => this.client.del(key));
+    if (result !== 0 && result !== 1) throw new Error('CACHE_RESPONSE_INVALID');
+  }
   async incr(key: string, ttlSeconds?: number) {
-    expiry(ttlSeconds);
-    const value = await this.client.eval(INCREMENT_SCRIPT, 1, key, ttlSeconds ?? 0);
-    if (!Number.isSafeInteger(value)) throw new Error('Invalid cache counter response');
-    return value as number;
+    validKey(key); expiry(ttlSeconds);
+    const value = await this.command(() => this.client.eval(INCREMENT_SCRIPT, 1, key, ttlSeconds ?? 0));
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) throw new Error('CACHE_RESPONSE_INVALID');
+    return value;
   }
 }
 
@@ -143,9 +229,11 @@ export async function createDefaultCache(env: NodeJS.ProcessEnv = process.env, i
     if (injectedRedis) return new IORedisCache(injectedRedis);
     if (!env.REDIS_URL) throw new Error('Redis configuration is required for the selected adapter');
     const { default: Redis } = await import('ioredis');
-    const client = new Redis(env.REDIS_URL, { lazyConnect: true, maxRetriesPerRequest: 1, enableOfflineQueue: false });
-    await client.connect();
-    return new IORedisCache(client);
+    const endpoint = new URL(env.REDIS_URL);
+    if (endpoint.protocol !== 'rediss:' || endpoint.hash) throw new Error('CACHE_CONFIGURATION_INVALID');
+    const client = new Redis(env.REDIS_URL, { lazyConnect: true, connectTimeout: IO_TIMEOUT_MS, commandTimeout: IO_TIMEOUT_MS, maxRetriesPerRequest: 1, retryStrategy: () => null, enableOfflineQueue: false });
+    try { await client.connect(); } catch { client.disconnect(); throw new Error('CACHE_UNAVAILABLE'); }
+    return new IORedisCache(client, true);
   }
   if (provider !== 'postgres_memory') throw new Error('Unsupported cache provider');
   // postgres_memory intentionally maps to process-local memory; PostgreSQL remains the durable fallback.

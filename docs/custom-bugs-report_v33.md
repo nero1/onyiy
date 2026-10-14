@@ -1,6 +1,6 @@
 # Custom bugs report — Gifters World Phase One
 
-Updated: **14 October 2026 at 04:33:09 AM WAT** · Documentation version **v32**
+Updated: **14 October 2026 at 04:57:52 AM WAT** · Documentation version **v33**
 
 ## Complete one-line findings list
 
@@ -43,17 +43,17 @@ Updated: **14 October 2026 at 04:33:09 AM WAT** · Documentation version **v32**
 37. **P1-037 — The shared JSON byte cap has no elapsed read deadline.** (Medium; hardening) — Implemented; local checks passed.
 38. **P1-038 — Ordinary database work lacks a complete query, queue and request time budget.** (Medium; hardening) — Open.
 39. **P1-039 — Balances and reconciliation repeatedly aggregate full ledger history.** (Medium; requirement gap) — Open.
-40. **P1-040 — Expired public statistics can create an advisory-lock request herd.** (Medium; hardening) — Open.
-41. **P1-041 — RPC cache misses are not coalesced and throttle waiting is outside the timeout.** (Medium; hardening) — Open.
+40. **P1-040 — Expired public statistics can create an advisory-lock request herd.** (Medium; hardening) — Implemented; local checks passed.
+41. **P1-041 — RPC cache misses are not coalesced and throttle waiting is outside the timeout.** (Medium; hardening) — Implemented; local checks passed.
 42. **P1-042 — Deployment-controlled RPC, alert and cache URLs lack an explicit SSRF destination policy.** (Medium; hardening) — Open.
-43. **P1-043 — Remote cache adapters lack equivalent timeout, response and lifecycle bounds.** (Medium; hardening) — Open.
+43. **P1-043 — Remote cache adapters lack equivalent timeout, response and lifecycle bounds.** (Medium; hardening) — Implemented; local checks passed.
 44. **P1-044 — Global activity remains visible when feature_activity is disabled.** (Medium; defect) — Implemented; local checks passed.
 45. **P1-045 — There is no shared visible authenticated snapshot poll.** (Medium; requirement gap) — Open.
 46. **P1-046 — Notification load-more permanently stops at 100 items.** (Medium; defect) — Implemented; local checks passed.
 47. **P1-047 — Staff lists hide older users, jobs and recovery cases without search or cursors.** (Medium; requirement gap) — Open.
 48. **P1-048 — Latest-history caps can omit older active cycles and pending withdrawals.** (Medium; defect) — Open.
 49. **P1-049 — Public catalog and help lack the Phase One SEO rendering and metadata contract.** (Medium; requirement gap) — Open.
-50. **P1-050 — Several private portals lack noindex metadata.** (Low; requirement gap) — Open.
+50. **P1-050 — Several private portals lack noindex metadata.** (Low; requirement gap) — Implemented; local checks passed.
 51. **P1-051 — Stored locale and product copy are not consistently applied across portals.** (Medium; defect) — Open.
 52. **P1-052 — Dark-mode primary button text fails normal-text contrast.** (Medium; defect) — Implemented; local checks passed.
 53. **P1-053 — Mobile navigation and the testnet home omit required product surfaces.** (Medium; requirement gap) — Open.
@@ -69,7 +69,7 @@ Updated: **14 October 2026 at 04:33:09 AM WAT** · Documentation version **v32**
 63. **P1-063 — Drizzle table coverage does not describe all deployed constraints and defaults.** (Medium; maintenance) — Open.
 64. **P1-064 — Large tightly coupled services and untyped UI contracts make changes fragile.** (Low; maintenance) — Open.
 65. **P1-065 — Help search lacks the specified locale full-text and trigram ranking.** (Medium; requirement gap) — Open.
-66. **P1-066 — Published help cache does not remove withdrawn or renamed saved articles.** (Low; defect) — Open.
+66. **P1-066 — Published help cache does not remove withdrawn or renamed saved articles.** (Low; defect) — Implemented; local checks passed.
 67. **P1-067 — Solana custody reconciliation requires identical live response slots.** (Medium; defect) — Open.
 68. **P1-068 — Production dependencies include unresolved security advisories.** (High; maintenance) — Implemented; local checks passed.
 69. **P1-069 — Native quote expiry and cooldown use the web clock instead of database time.** (Medium; defect) — Implemented; local checks passed.
@@ -425,6 +425,8 @@ Paths below are relative to repository root `/workspace/onyiy`. “Defect” mea
 
 **Medium · Hardening.** After cache expiry callers enter the database and wait on pg_advisory_xact_lock before rechecking the cached aggregate. Recalculation is serialized, but waiters still occupy connections/transactions; a cold burst need not be one inexpensive refresh.
 
+**CURRENT STATUS:** Implemented and locally verified in v33; original audit evidence above is retained.
+
 ### 41: BUG P1-041: RPC cache misses are not coalesced and throttle waiting is outside the timeout
 
 **FILES:** `packages/chains/src/rpc.ts`, `packages/chains/src/evm.ts`, `packages/chains/src/solana.ts`, `packages/chains/src/tron.ts`
@@ -432,6 +434,8 @@ Paths below are relative to repository root `/workspace/onyiy`. “Defect” mea
 **FIX:** Coalesce safe reads by immutable scope, include queue time in an overall cancellation budget and use bounded jitter/backoff/circuit state. Never substitute cached evidence for live financial confirmation.
 
 **Medium · Hardening.** DualRpc.cached loads each simultaneous miss independently, while throttled requests wait before the fetch timer begins. At 3 requests/second a full 100-entry lane can add about 33 seconds before network timeout, and repeated network-identity checks add calls.
+
+**CURRENT STATUS:** Implemented and locally verified in v33; original audit evidence above is retained.
 
 ### 42: BUG P1-042: Deployment-controlled RPC, alert and cache URLs lack an explicit SSRF destination policy
 
@@ -448,6 +452,8 @@ Paths below are relative to repository root `/workspace/onyiy`. “Defect” mea
 **FIX:** Add total I/O/size limits, strict endpoint/response validation and an explicit disposal contract; fail open only for public display caching and never use cache availability as financial authority.
 
 **Medium · Hardening.** UpstashRestCache.command uses fetch with no AbortSignal, redirect:error or bounded response reader. The injected Redis interface also lacks an explicit close/drain contract. A slow or oversized response can consume resources when this optional provider is enabled.
+
+**CURRENT STATUS:** Implemented and locally verified in v33; original audit evidence above is retained.
 
 ### 44: BUG P1-044: Global activity remains visible when feature_activity is disabled
 
@@ -504,6 +510,8 @@ Paths below are relative to repository root `/workspace/onyiy`. “Defect” mea
 **FIX:** Apply consistent noindex/noarchive private-layout metadata and keep those routes out of the public sitemap.
 
 **Low · Requirement gap.** Wallet/recovery pages have noindex handling, but several member/settings/moderation routes inherit public root metadata. Anonymous login shells can be indexed contrary to the PRD; this is not evidence that authenticated private data was indexed.
+
+**CURRENT STATUS:** Implemented and locally verified in v33; original audit evidence above is retained.
 
 ### 51: BUG P1-051: Stored locale and product copy are not consistently applied across portals
 
@@ -633,6 +641,8 @@ Paths below are relative to repository root `/workspace/onyiy`. “Defect” mea
 
 **Low · Defect.** Successful online loads save the current articles but have no per-locale reconciliation/removal for previously cached slugs absent from the new published set. Offline reading can keep withdrawn content until TTL even after an online visit learned the new catalog.
 
+**CURRENT STATUS:** Implemented and locally verified in v33; original audit evidence above is retained.
+
 ### 67: BUG P1-067: Solana custody reconciliation requires identical live response slots
 
 **FILES:** `packages/chains/src/solana.ts`, `server/chain-recovery.ts`
@@ -695,22 +705,22 @@ The production dependency audit reports **15 affected package nodes**, not 15 se
 
 [Vercel function limits](https://vercel.com/docs/functions/limitations) document the 4.5 MB request/response body limit relevant to P1-058. Local-function body limits are distinct from advertised archive size, execution duration and free-plan quota. Existing PRD hosting/commercial-use constraints remain; no claim of guaranteed free operation is made.
 
-The complete remediation mapping, verification checks and three-round exit rule are in [custom-bugs-fix-plan_v32.md](custom-bugs-fix-plan_v32.md). Current handover: [LLM-HANDOVER_v32.md](LLM-HANDOVER_v32.md).
+The complete remediation mapping, verification checks and three-round exit rule are in [custom-bugs-fix-plan_v33.md](custom-bugs-fix-plan_v33.md). Current handover: [LLM-HANDOVER_v33.md](LLM-HANDOVER_v33.md).
 
 
-## Current v32 remediation ledger
+## Current v33 remediation ledger
 
 The owner approved all Round One fixes, autonomous Rounds Two/Three and continued remediation, every Phase Two milestone, and final bug fixes before deferred testing. Continue without plan or milestone acceptance pauses. Use best recommendations, complete substantial verified batches, and merge only after BOTH push and pull-request CI succeed for the exact final head. Both financial readiness gates remain false; mainnet remains prohibited. CRON frequency and test-only issues remain excluded.
 
-43 of 71 tracked items implemented and locally verified; 28 remain open. The initial Round One audit had70 findings; P1-071 was discovered and fixed during remediation. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. P1-019 has partial improvements but remains open. No bug-free or hosted acceptance claim is made.
+48 of 71 tracked items implemented and locally verified; 23 remain open. The initial Round One audit had70 findings; P1-071 was discovered and fixed during remediation. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. P1-019 has partial improvements but remains open. No bug-free or hosted acceptance claim is made.
 
-Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-014, P1-015, P1-016, P1-017, P1-018, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-026, P1-027, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-037, P1-044, P1-046, P1-052, P1-055, P1-056, P1-057, P1-068, P1-069, P1-070, P1-071.
+Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-014, P1-015, P1-016, P1-017, P1-018, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-026, P1-027, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-037, P1-040, P1-041, P1-043, P1-044, P1-046, P1-050, P1-052, P1-055, P1-056, P1-057, P1-066, P1-068, P1-069, P1-070, P1-071.
 
-Open: P1-009, P1-013, P1-019, P1-028, P1-038, P1-039, P1-040, P1-041, P1-042, P1-043, P1-045, P1-047, P1-048, P1-049, P1-050, P1-051, P1-053, P1-054, P1-058, P1-059, P1-060, P1-061, P1-062, P1-063, P1-064, P1-065, P1-066, P1-067.
+Open: P1-009, P1-013, P1-019, P1-028, P1-038, P1-039, P1-042, P1-045, P1-047, P1-048, P1-049, P1-051, P1-053, P1-054, P1-058, P1-059, P1-060, P1-061, P1-062, P1-063, P1-064, P1-065, P1-067.
 
 Local verification: required check:all; production build and bundle budget checks; production npm audit now zero advisories. Named isolated manual-contracts, manual-money and manual-quotes-r5 passed. The last validates quote cancellation/expiry/payload replay/DB clock, late-fund refunds, frozen pre-pause admission, custom bootstrap destination, positively refunded plan edit, and independent lower live per-transaction/daily signer caps without reservations or signed bytes. Initial quote-probe failures (invalid price TTL, missing scoped fixture binding, missing operational gas asset) remain retained and were corrected only in fresh r2/r3/r5 databases. No external RPC or broadcast occurred.
 
-Bug reports and fix plans must use the same _vN filename version as current status/handover; earlier versions are retained in Git history. Current artifacts use_v32.
+Bug reports and fix plans must use the same _vN filename version as current status/handover; earlier versions are retained in Git history. Current artifacts use_v33.
 
 
 V31 evidence: manual-money-r2 passed; manual-contracts-r2 passed shared fees, different-endpoint checkpoint identity and fair dispatch past20 blocked rows without signing/reservations; manual-solana-costs-r2 passed two principals/one fee, positively identified ATA rent and ambiguous-debit rejection; preserved failed SOL expiry source resumed through forward-only migration078 and passed positive expiry/held principal/closure/replay/fresh scan. Non-signing hosted migration/seed/runtime path passed on gw_v31_testnet_seed:0 users/0 assets/12 plans/0 versions/16 help rows/one testnet namespace. Archive version preflight and clone proof are recorded in current status. P1-009/P1-013/P1-067 remain open.
@@ -718,9 +728,14 @@ V31 evidence: manual-money-r2 passed; manual-contracts-r2 passed shared fees, di
 
 V32 verification: manual-ops-r2 passed immutable alert retry/ACK/critical priority/occurrence escalation and delivered/queued admin-message redaction with permanent digests and unchanged money. The preserved auth-cleanup source passed hold/expiry/live-family/replay retention after forward-only guard correction. Manual-observation-r2 passed first deadline, two pending polls on one observation/outbox/job, future deadlines and completion of the same job on positive canonical proof. Manual-trace-errors passed origin correlation in HTTP/audit/outbox/job, typed transient/safety errors and EN/FR labels without raw driver details. Manual-diagnostics passed bounded backlog/DLQ/age/lock/quota conditions, deduped redacted alerts, fresh staff quota revisions and public health projection; actual web-role lock sampler ran, threshold case used one generated wait. External provider quota measurements and live workload timing remain unrun; absent/stale measurements are explicit. Financial gates remain false.
 
+
+V33 evidence: Named isolated procedures passed RPC safe-read coalescing/fresh bypass/queue deadlines/no dispatch after expiry; REST hangs/redirects/oversize/disposal and Redis borrowed/owned lifecycle; real Chromium IndexedDB help replacement/withdrawal/invalid inventory/locale preservation; fresh inactive gw_v33_statistics clone cold/stale statistics contention and subsequent refresh. Required check:all, production build and bundle checks pass; homepage198.96KiB/200KiB, maximum API1.449MiB/3MiB gzip, clients0.643MiB. All eleven private paths passed production HTML metadata inspection; initial inspection found recovery page overriding noarchive and the fix is included. No broad automated test suite was added or run.
+
+No schema/migration changes in v33:86 Drizzle tables,88 migrations (001–087 plus053a),73 retained archive inventories. Existing v32 exact signed archive/restore remains valid. Original failed sources, archives, GW25 partial factor and signed histories remain untouched. Scratch/private evidence is under /workspace/work/remediation-v33, outside Git. Financial gates were never activated.
+
 ---
 
-Prepared by Codex — Round One remediation v32.
-PR29 merged at e1463fa after push38485886774 and PR38485891336 succeeded for exact final head ab1d7b5509fd215645448641065a2705cdf389ba. Initial failed head/run evidence remains in v30 Git history. PR30 merged at fa5d71b after push38500938562 and PR38500945296 succeeded for9bb4004e964c38ef2e31c884545e5ba2c70433ba. Current v32 branch feat/phase-one-remediation-round1c awaits its own exact-head dual CI and PR merge.
+Prepared by Codex — Round One remediation v33.
+PR29 merged at e1463fa after push38485886774 and PR38485891336 succeeded for exact final head ab1d7b5509fd215645448641065a2705cdf389ba. Initial failed head/run evidence remains in v30 Git history. PR30 merged at fa5d71b after push38500938562 and PR38500945296 succeeded for9bb4004e964c38ef2e31c884545e5ba2c70433ba. PR31 merged at59a8289 after exact head2ca05c2390fd1aefe516415f83aed15449b509ce passed push38507705481/PR38507767963. Current v33 branch feat/phase-one-remediation-round1d awaits its own final-head dual CI/PR merge.
 
-Signed: **14 October 2026 at 04:33:09 AM WAT**
+Signed: **14 October 2026 at 04:57:52 AM WAT**

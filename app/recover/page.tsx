@@ -1,6 +1,6 @@
 import RecoveryPortal from "@/components/recovery-portal";
 export const dynamic = "force-dynamic";
-export const metadata = { robots: { index: false, follow: false } };
+export const metadata = { robots: { index: false, follow: false, noarchive: true } };
 export default function Page() {
   return <RecoveryPortal />;
 }
