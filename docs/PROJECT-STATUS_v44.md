@@ -1,18 +1,18 @@
-# Gifters World — implementation and bug remediation status v43
+# Gifters World — implementation and bug remediation status v44
 
-Updated: **14 October 2026 at 01:33:00 PM WAT**.
+Updated: **14 October 2026 at 02:25:24 PM WAT**.
 
 The owner approved all Round One fixes, autonomous Rounds Two/Three and continued remediation, every Phase Two milestone and final bug fixes before deferred tests. Continue without plan or milestone acceptance pauses. Use best recommendations and substantial verified batches. Merge only after BOTH push and pull-request CI succeed for the exact final head. No delegation requested. CRON frequency and test-only issues remain excluded.
 
-Round One: **65/73 tracked findings implemented and locally verified;8 open**. The original audit had70 findings; P1-071/P1-072/P1-073 were discovered and fixed during remediation. This is item accounting, not a weighted Phase One percentage. Phase One remediation is incomplete; Phase Two has not started.
+Round One: **67/73 tracked findings implemented and locally verified;6 open**. The original audit had70 findings; P1-071/P1-072/P1-073 were discovered and fixed during remediation. This is item accounting, not a weighted Phase One percentage. Phase One remediation is incomplete; Phase Two has not started.
 
-PR39 merged at4558fe619738de55f1263b2678bedd8d13cf968a after push38534378166 and pull_request38534388168 both succeeded for exact head9304e67d71d4e7b605642761271703649723dd2e. PR40 merged at1b2fa3b592c1b5c2bf0dc85dfc806868fe348401 after push38540185905 and pull_request38540196203 succeeded for exact head3bd6595c337afc07889e22fed5710e8d2a93cdd3. PR41 merged at864e8cbbd6025aeb249126571579adbcd69d08fc after push38551692293 and pull_request38551699013 succeeded for exact head7d63c89ba9633879832bd3e543712ae31baa677c. Current branch feat/phase-one-remediation-round1n awaits final-head dual CI and merge.
+PR39 merged at4558fe619738de55f1263b2678bedd8d13cf968a after push38534378166 and pull_request38534388168 both succeeded for exact head9304e67d71d4e7b605642761271703649723dd2e. PR40 merged at1b2fa3b592c1b5c2bf0dc85dfc806868fe348401 after push38540185905 and pull_request38540196203 succeeded for exact head3bd6595c337afc07889e22fed5710e8d2a93cdd3. PR41 merged at864e8cbbd6025aeb249126571579adbcd69d08fc after push38551692293 and pull_request38551699013 succeeded for exact head7d63c89ba9633879832bd3e543712ae31baa677c. PR42 merged atcdb31b9d894f0ec162e614832f93738d77be4bd7 after push38564748238 and pull_request38564756331 succeeded for exact headfe9b07f5fb60919d5f6a7b8aca69c7808c3ce576. Current branch feat/phase-one-remediation-round1o awaits final-head dual CI and merge.
 
-Read [custom-bugs-report_v43.md](custom-bugs-report_v43.md) and [custom-bugs-fix-plan_v43.md](custom-bugs-fix-plan_v43.md) for every finding and acceptance. All four current filenames match_v43; earlier versions remain in Git history. Rename all four together in the next batch and update cross-links, WAT12-hour headers/footers and mirrored markers.
+Read [custom-bugs-report_v44.md](custom-bugs-report_v44.md) and [custom-bugs-fix-plan_v44.md](custom-bugs-fix-plan_v44.md) for every finding and acceptance. All four current filenames match_v44; earlier versions remain in Git history. Rename all four together in the next batch and update cross-links, WAT12-hour headers/footers and mirrored markers.
 
-Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-013, P1-014, P1-015, P1-016, P1-017, P1-018, P1-019, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-026, P1-027, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-037, P1-040, P1-041, P1-042, P1-043, P1-044, P1-045, P1-046, P1-047, P1-048, P1-049, P1-050, P1-051, P1-052, P1-053, P1-054, P1-055, P1-056, P1-057, P1-058, P1-059, P1-060, P1-061, P1-062, P1-066, P1-068, P1-069, P1-070, P1-071, P1-072, P1-073.
+Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-013, P1-014, P1-015, P1-016, P1-017, P1-018, P1-019, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-026, P1-027, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-037, P1-040, P1-041, P1-042, P1-043, P1-044, P1-045, P1-046, P1-047, P1-048, P1-049, P1-050, P1-051, P1-052, P1-053, P1-054, P1-055, P1-056, P1-057, P1-058, P1-059, P1-060, P1-061, P1-062, P1-063, P1-065, P1-066, P1-068, P1-069, P1-070, P1-071, P1-072, P1-073.
 
-Open: P1-009, P1-028, P1-038, P1-039, P1-063, P1-064, P1-065, P1-067.
+Open: P1-009, P1-028, P1-038, P1-039, P1-064, P1-067.
 
 ## V41 changes
 
@@ -52,8 +52,22 @@ Named procedures passed: manual-public-http-final-r2 (real production French ini
 
 Required check:all, production build and bundle reporting passed after forward093. Exact-head dual CI and merge remain pending. Latest measured homepage180.22KiB/200, API1.429MiB/3, all clients0.661MiB. Schema remains86 tables;94 migrations and73 retained inventories. The initial encrypted site-financial-final_v43 archive (93 migrations) exactly restored into fresh inactive gw_v43_restore. After P1-073, a new site-financial-final_v43-r2 archive (94 migrations) exactly restored into fresh inactive gw_v43_restore_r2 with schema/RLS/grants/history verified. The presentation source is gw_v43_presentation; the separate gw_v43_public search experiment is preserved and is not the release/archive source. Original sources, archives, keys and financial histories are intact; both implementation gates remain false.
 
-P1-065 is blocked specifically by automatic approval review. Search/index prototypes passed rollback checks in a fresh inactive clone, but two proposed production search/recovery changes were rejected due migration/restore compatibility risk and a requirement for explicit owner approval of that exact change. No extension/index/restore-validator change is in this active batch. Read custom-bugs-search-approval_v43.md for the concrete proposal. P1-038 remains partial/open. Current total65/73 implemented,8 open; Rounds Two/Three and Phase Two have not started. Continue all unaffected findings without milestone pauses.
+Historical v43 limitation, superseded by the explicit v44 owner approval: P1-065 was blocked specifically by automatic approval review. Search/index prototypes passed rollback checks in a fresh inactive clone, but two proposed production search/recovery changes were rejected due migration/restore compatibility risk and a requirement for explicit owner approval of that exact change. No extension/index/restore-validator change is in this active batch. Read custom-bugs-search-approval_v44.md for the concrete proposal. P1-038 remains partial/open. Historical v43 total65/73 implemented,8 open; Rounds Two/Three and Phase Two have not started. Continue all unaffected findings without milestone pauses.
 
-Signed: **14 October 2026 at 01:33:00 PM WAT**
 
-v43
+## V44 approved search and schema congruence
+
+Updated: **14 October 2026 at 02:25:24 PM WAT**. The owner explicitly approved the concrete P1-065 search/backup proposal after its restore compatibility risk was explained, and instructed: **“approve this change and any other necessary change. dont stop, keep going.”** This resolves the earlier search approval hold. Continue remaining fixes, Rounds Two/Three, Phase Two and final remediation without milestone acceptance pauses; retain disabled financial/mainnet gates.
+
+Implemented P1-063/P1-065. Drizzle declarations now match all810 columns/defaults,261 check constraints and102 standalone indexes against the forward-migrated PostgreSQL catalog. Three missing UNIQUE declarations are included. Both deferred FK targets remain modeled; their deferred timing and22 constraint triggers are explicitly inventoried in [custom-bugs-schema-contract_v44.json](custom-bugs-schema-contract_v44.json). SQL migrations remain authoritative for policies, grants, functions, views and trigger behavior; Drizzle-generated SQL alone is not a deployable security schema. Required coverage checks reject a changed declaration or migration set until catalog congruence is re-verified. All86 table select/insert/delete query shapes remained unchanged, and the complete app typechecks. Original applied migration checksums are intact.
+
+Forward094 adds pinned public pg_trgm1.6 and three published-only GIN indexes. Bounded EN/FR search uses exact-title/full-text/relevance/trigram/slug ordering; query values are bound, normalized and capped, results limited20, concurrent public cache flights limited32. Browser search is debounced/cancellable with explicit saved-text fallback/retry. Closed recovery dependencies retain pgcrypto-only packet validation and optional pg_trgm, rejecting unknown/duplicate/version/schema entries; existing incompatible extensions are rejected before provisioning. Signatures, archive checksums, empty-target checks and exact restored inventories remain mandatory.
+
+Named rollback checks passed EN/FR stemming, exact priority, typo fallback, deterministic20 cap and draft exclusion. Real production HTTP passed DTO/input/cache checks. The new encrypted search-final_v44 archive exactly restored73 retained inventories into fresh inactive gw_v44_restore, with financial rows, schema/RLS/grants/history verified. Source gw_v44_search and restore remain inactive; original sources/archives/failed fixtures remain preserved. Schema86 tables/95 migrations. No signing/broadcast or deferred broad suite ran. Actual Chromium passed French ranked search, explicit offline saved-text fallback/retry, online recovery and rapid query replacement. Required check:all and production build passed. Bundle bounds: homepage180.34KiB/200; maximum API1.440MiB/3; clients0.661MiB. Both exact-final-head CI events and merge remain pending.
+
+Current accounting: **67/73 implemented and locally verified;6 open**: P1-009/P1-028/P1-038/P1-039/P1-064/P1-067. Rounds Two/Three and Phase Two have not started. Keep progressing; do not interpret item accounting as a completion percentage.
+
+
+Signed: **14 October 2026 at 02:28:27 PM WAT**.
+
+v44

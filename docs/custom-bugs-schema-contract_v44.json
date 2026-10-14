@@ -1,0 +1,256 @@
+{
+  "format": "gw-drizzle-congruence-v1",
+  "verified_columns": 810,
+  "verified_standalone_indexes": 102,
+  "verified_check_constraints": 261,
+  "verified_tables": 86,
+  "sql_only_constraint_triggers": [
+    {
+      "table_name": "chain_fee_claims",
+      "name": "chain_fee_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "crypto_obligations",
+      "name": "operational_recovery_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "crypto_obligations",
+      "name": "refund_hold_obligation_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "crypto_obligations",
+      "name": "treasury_sweep_obligation_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "crypto_obligations",
+      "name": "unallocated_refund_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "cycles",
+      "name": "reorg_admission_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "gift_invoices",
+      "name": "incoming_invoice_integrity",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "ledger_journals",
+      "name": "ledger_journal_balanced",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "ledger_journals",
+      "name": "treasury_sweep_journal_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "ledger_postings",
+      "name": "frozen_spend_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "ledger_postings",
+      "name": "ledger_posting_balanced",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "ledger_postings",
+      "name": "treasury_sweep_posting_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "ledger_postings",
+      "name": "unmatched_source_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "ledger_postings",
+      "name": "user_payable_nonnegative",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "receipt_allocations",
+      "name": "receipt_allocation_valid",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "recovery_outflow_resolutions",
+      "name": "recovery_loss_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "simulation_incoming_events",
+      "name": "incoming_event_integrity",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "simulation_incoming_refunds",
+      "name": "incoming_refund_integrity",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "simulation_reorg_resolutions",
+      "name": "reorg_resolution_integrity",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "simulation_reorg_reviews",
+      "name": "reorg_review_integrity",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "unallocated_inflows",
+      "name": "unmatched_custody_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "withdrawals",
+      "name": "giv_withdrawal_integrity",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    }
+  ],
+  "sql_only_deferred_foreign_keys": [
+    {
+      "table_name": "receipt_allocations",
+      "name": "receipt_source_operation_fk",
+      "type": "f",
+      "definition": "FOREIGN KEY (source_operation_key) REFERENCES operation_keys(business_key) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "simulation_withdrawal_controls",
+      "name": "simulation_withdrawal_controls_operation_key_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (operation_key) REFERENCES operation_keys(business_key) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED"
+    }
+  ],
+  "source_sha256_base64": {
+    "packages/db/src/schema.ts": "faVSdHUso3CWHom4DOfL3k33n9PmxEp+Xxrf8bpanZA=",
+    "packages/db/src/schema-contracts.ts": "dbaR4Qlfm6J4oPXOhu3734LlZr+0d3J3e0gVJtYD60s="
+  },
+  "migrations_sha256_base64": {
+    "001_core.sql": "/PKJhqAEQ2dzkbJRIL0udxYczxTxp12zexbRRvuCkhY=",
+    "002_manifest_metadata.sql": "GzOZSjn+vd+rBwLMqlbB442KI74aThksBHiI2TcZANA=",
+    "003_plan_usd_snapshot.sql": "6Qvyy1J7w61QljWtEb37KxvfyjmsnuaGlfITQ1gCZTY=",
+    "004_ledger_append_only.sql": "kDtPmGv4laL1fLU7RNnj8pBYUvcJPsMRXDB0nYtaGjE=",
+    "005_ledger_integrity.sql": "i7ar6DW2UCFBUv87EmNftINSfn60w8Wpz3+XJUI/54s=",
+    "006_ledger_account_identity.sql": "RjaWuGUzlsMlnJpnNcAOhQ/HhI+fef1gHYT8Bm6T/Xo=",
+    "007_scoped_runtime_access.sql": "MP3qspwX2g6mOxyuNV44jbyo4545goLVUQw6ngk8S4k=",
+    "008_environment_identity.sql": "8fdg9ei4NRwXfcME6bgpYdD7ycDHyKmhUedA97NbJ5g=",
+    "009_bounded_queue_rank.sql": "GoBvgieCcjia/e2FV0/qRG41lyXgUijm6FUfwOofQuM=",
+    "010_receipt_allocation_lineage.sql": "wutWVZIonStbKPFYPp8m4ezB963kg4IixUM7EfpvIqQ=",
+    "011_durable_notification_jobs.sql": "38Vb7piLPY1J4ZS43q+8Hu8ekh9DEvcBgyyJW8+HVTY=",
+    "012_giv_withdrawal_recovery.sql": "MLY0w/VgbhLLkMRJEZnRSu0VVPPw49hUGxEo+nLzefw=",
+    "013_scheduled_reconciliation.sql": "MeU1ubLHEYYkX9vqtm96d5Bk05cma1rA0cD588hsjrQ=",
+    "014_deployment_binding_challenge.sql": "Xxkp6wUp2upYLXw4YYFTXTfaVrtGRpQH03H+30joWJA=",
+    "015_giv_incoming_exceptions.sql": "cZm0lDeZ5hm5PYKN+kXzqPFImV5nt9sI23q4vCEprY8=",
+    "016_giv_reorg_review.sql": "cVaSoG1WF/4Xv9m5kd8vfzasWAsjVGDUFDys7pMZP/g=",
+    "017_bounded_operational_retention.sql": "YtcegpyDbGNkJjdxrlKOkreceO37Ac3/n88Xc0Eot4M=",
+    "018_identity_sessions.sql": "cQIo3XbijBoIkbkiGRn5lKcFzoCYHwQ+dQqmBr+Q4pw=",
+    "019_product_administration.sql": "piehULZJdLltOm03WDeJet6nGcpB6uI87bRk55KYkX0=",
+    "020_account_moderation.sql": "RXAyPDOEfDRL+QKcLxvwsDbRkm4s5MOnw5f1V9xg9D8=",
+    "021_own_data_exports.sql": "uIjtmy/CT11xP2GDwKYTEstErD1mFbzT/Zu+KIUckP4=",
+    "022_export_lock_capability.sql": "ZKc+sbzr8okI0cC3cvB+RfXbVdmuae8M4bdKZcjQFQw=",
+    "023_plan_lifecycle.sql": "hcb8ShsctNQsUwFtQdDSbH/1kpMAkb/Tmxs/bzLO5gg=",
+    "024_plan_creation_capabilities.sql": "lMi3adnGPvFhCGGdVgsvkLeSv7TZNKgVCZA5CgCoF+I=",
+    "025_financial_adapters.sql": "6yEyJuYdDkF2VKhao/JXpEvIv1xayIj1+xeOVRufr44=",
+    "026_financial_snapshot_fences.sql": "qJFYY5HTEy+Cq9/tZ1nCbu+BGIvO+EdKC/mRh1HDMf4=",
+    "027_signer_read_contract.sql": "JQqdjGCJ9znQIzuQ7pCJGUMqvUBSWFmh5pm50RiWaZI=",
+    "028_price_provenance.sql": "lbYMYc9jmz0H+ewH4xfclnV1rtEi7VHvqHi5pAytDjs=",
+    "029_wallet_revision_capability.sql": "4DILFKgVF23yDOyCZccyH/hoHJ0rYb1cYwObkb7Xfw8=",
+    "030_financial_ephemeral_retention.sql": "X723rfwEwRN2kFL3jHygNH7ivF3XLK//isJsh6wyZZk=",
+    "031_signer_health_projection.sql": "p1VtG6aSdzeDXwkwy06qJRvPrL5rUh0f54VljtZjwFI=",
+    "032_worker_nonce_lock_capability.sql": "MkNFi8tlcV38pAAJXrRUlbAb42oPiTk2aTGL8yQJ+Ww=",
+    "033_asset_registry_identity.sql": "y8qq4Kl4tLkzXE2RhLwAiPKZa+LATh4HOX4XJHkVmJ0=",
+    "034_signer_settlement_recovery.sql": "JYokYQQ8Lx+JqpbEYejLbk10bTPk1O/7UMg0lxeL4gg=",
+    "035_native_provisioning_capability.sql": "7b19ea3uIh6im4xuK66NRnzQXSU/hrLWLlDB/WPF8T0=",
+    "036_native_reserve_inflows.sql": "FrlVI6q76mPXik9JaP30qDaUcmaI95Jzsu94n2DnIpw=",
+    "037_native_owned_rank_capability.sql": "pjrUbcwwmxH7834t8z6H3FTsIkRMuf3LOdDcecmLN9k=",
+    "038_incoming_observation_jobs.sql": "eOLzzIIJmCkMHrQJk8Vkw5YwC+YFo0raXXDtTT9tBXE=",
+    "039_pending_transfer_event_index.sql": "1aP27N+T6F4rPHk+Yh9AYoMMJRECakHu20zBHTOMaIo=",
+    "040_failed_withdrawal_closure.sql": "JaFzHEMTeKb3+kcJX/tbUxJmRLQkgrzKgwcHsjbCXdk=",
+    "041_failed_closure_public_metadata.sql": "ePxWlv1NZNn6mVlYCSwDgHA18rrg0xk2UZU7WnIHILM=",
+    "042_signer_owner_and_attempt_lineage.sql": "IGpRbNtiBHFQMAIFGNQezZyRDHfK+8ziUa2ZsNELCtg=",
+    "043_evm_replacement_outcomes.sql": "OjoOc+0VLkY+urhndikl5Ttbwacc+h2uAFf6Tah8ZEA=",
+    "044_historical_outgoing_sender.sql": "sWKNPNKH1qWlFm+SlJCefUMINXEKc5ISrDJaSkxLwx0=",
+    "045_verified_signed_expiry.sql": "bB8Jn2vxOKzrtpGOPWXJ8yjuGkklVL0ff/7bCXYs3Do=",
+    "046_terminal_attempt_fee_shape.sql": "99L/1s8rUrd20RqorZ77OfRI9PEkSB6hoeTrVnLmJJ0=",
+    "047_closed_native_reservation_projection.sql": "M0mtFainfv+Bbiroxd0wogi6zlGoNKmgMDC3BofWlqA=",
+    "048_bot_challenges_and_abuse_review.sql": "20UPmWymaPPS20bLfvqmdSfeC1dAghQ2PvKi+PWq8zg=",
+    "049_bounded_wallet_reuse_lookup.sql": "Z1pJwDnF5DYFtf2G5p2Aks3c5aHffaM6RlGQTBIXg5o=",
+    "050_verified_liability_recovery.sql": "eG3ArSBSdWltAvufIZTV+M0jhb4wHHggI9xrI38lBBA=",
+    "051_recovery_confirmation_binding.sql": "d3giArL90t2wuXQ4jyXjU17dvrAVi8xw372zPIBKY24=",
+    "052_expiring_recovery_view_caps.sql": "AIvcqxnayx9kopAzmcFrVb3Q5dp4SDzA3kIdsU4r3pI=",
+    "053_native_reorg_reviews.sql": "KXuRcbmBdOxByKA/Q6BvdWBVJV1DtS71FWqxlLdfPx4=",
+    "053a_native_anchor_backfill_compatibility.sql": "rpf2SdHQV0JyxDThcpcGAe/vUTx01hFCSBIaNb3Twtc=",
+    "054_native_reorg_current_anchor.sql": "KULYLKofVqmGigEr50SlHep2+TWwle2cNkSnVGcKK00=",
+    "055_native_own_export_sections.sql": "rxGWdYM7RSGmiMZWVAqv5vaHoLPV7a4Eu4mVOq7FKI4=",
+    "056_native_owned_history_indexes.sql": "H8H4wmZ+skdkKZ+Xt4UHJzDaB1bXdy2ZEXnw4WXpUY8=",
+    "057_protected_treasury_sweep_contract.sql": "ne13DGPaOoXDQxN9kyduLAhH30crqb96NJGeAFqeeD4=",
+    "058_treasury_sweep_failure_closure.sql": "fgYW4Sk7yhRZLyujwVJsICe0BTV54IRdjudA8DsaQzg=",
+    "059_operational_principal_recovery.sql": "z3mOc9vLUVVU3UHgrl5S/Wqrzt4H4JxkBTEZIrWF7yc=",
+    "060_operational_owner_guard_qualification.sql": "XBag/3FIROv9v0aOVQldPpFe5ZAf5wgsHAIdjBgWoZo=",
+    "061_refund_hold_obligation_binding.sql": "PNVMkE7kuHFjwQ37By4jrfFwfYxu4qMbzbVlUIPR3UE=",
+    "062_user_payable_nonnegative.sql": "9aKzusQhDPXr8EX179Zm7d0RO/NYFw5yCzNjZioYC1w=",
+    "063_idle_signer_heartbeat.sql": "wOcH+4JGNG1sFq9aAbdFJL6jPFZJDXeKOMmY8X6FM8Y=",
+    "064_chain_recovery_checkpoints.sql": "HlA2F9IXNTJroJ5UOyV6GXpJMzIA7tzAJKg7n+Via5A=",
+    "065_unallocated_original_sender_refunds.sql": "+lGZTROZuJpE17Z1HfiDCoZ3iyk/00eGWBFsnSrdk2E=",
+    "066_unallocated_refund_recovery.sql": "WM1Z1oSsb8q5alvr75g/gw01J2k73y7kNd9L1bnMzuA=",
+    "067_checkpoint_current_anchor_and_lineage.sql": "at1P28t/2Q+7PsnDR2vzTaGKNIlmVMeJYSzZDbOEMk0=",
+    "068_unallocated_custody_contract.sql": "cLAcArRGdCS80Vr3CSmuasz/OJTk061p1PMbSZUNgbo=",
+    "069_safe_attempt_monitor_fields.sql": "WYZ60uZtESEzaM6kibP+veGR+lCS36UkWEECInZuuI8=",
+    "070_public_statistics_snapshot.sql": "DU1EkLUn3XmK/rMF7OKpEflyjNw7dwXTwtPndUJlToA=",
+    "071_reviewed_recovery_outflow_loss.sql": "AUZeDBTZqrCXMBk5wRCkD0eWylWvzPCxSxgo3OQxZd8=",
+    "072_recovery_bounded_lookup_indexes.sql": "1TxKKJwE0gZBFs2DJJmvNjifeKQBAjzfMFDJPZ5KbiA=",
+    "073_database_recovery_identity.sql": "KyiX1YPXfF/+mYs1jxKO/wmEexQgDpaDDhKODHSQoe4=",
+    "074_shared_chain_transaction_fees.sql": "i4YvIpb7rRS9Hj6kUhw7iGwk1dP3PXHExwt7RC63Gaw=",
+    "075_fair_signer_dispatch.sql": "2uZXeP1hR3v0c19atx1B3IRBdkJsprVF0Nw7Z7pO+nE=",
+    "076_chain_fee_guard_qualification.sql": "+XL0C4AfDcdKixqMCHoUaFB6Io5XLK67Kgp2FVn95Nk=",
+    "077_record_verified_signed_expiry.sql": "+uZtMxDcW+Ar4BEMuYCmR6vMQ+QAkdQS5uL8j2iovXk=",
+    "078_expiry_argument_qualification.sql": "FqPjyuNQaXuZnmfb7zyh/8tfxbulYGQIYukPNnjCpn8=",
+    "079_immutable_alert_occurrences.sql": "RcH3scY9YKme8lL/y4yphdwOkGfkBHz5QoPBQSRryxA=",
+    "080_authentication_cleanup_indexes.sql": "+UW5ABMISTCil/puTo3Vpo+k3Ppb4k+bVIb9NY1QBxY=",
+    "081_deleted_message_redaction.sql": "254T/Hln746qjQwdcKiv9tp7viacMhqO4h/QrW8G5N0=",
+    "082_durable_chain_observation_deadlines.sql": "b9AmeU/iP8YWQlQyCr3CIV28JnpPSQBZbAnnhOa3N1M=",
+    "083_expired_identity_cleanup_capability.sql": "hMhvpY+YV7I3PNVlZ8qWUE88iA7ocr1wGnHFhSM9joc=",
+    "084_redacted_job_timestamp_compatibility.sql": "HuR+bwawDJFcTDrtQW+63kCo6SLI+3TePrc6JqnUgh4=",
+    "085_expired_identity_guard_record_shape.sql": "NenWTflGo6+HDB3vWUEW9xHB5LahChVTHWd9spiRV5s=",
+    "086_request_correlation_identity.sql": "gXGH4zIZBKgXIkfTPXCPHTn6NgfjCa0RmCF3VHL9qO0=",
+    "087_bounded_operational_diagnostics.sql": "ruhNAKvpNWKV7Dcz6IkBtj+1hBZxJTA+b0QZ2ZRe0Gs=",
+    "088_resumable_chain_scan_progress.sql": "OuiTBwd5UhhSK3oG9lTRSoiAbGrRl1+zzkhrhSP1yEg=",
+    "089_resumable_progress_shape.sql": "CFazEqiAXGMgCpOR0rtUX0cDHrS8hu2FpJCa67F9LjY=",
+    "090_member_owned_continuation.sql": "YKNcSNUnLWSBXtaD6I7nUY0ffzHbGYFPrZY3iAYFqc0=",
+    "091_staff_filtered_continuation.sql": "zRBW8GW+kbqaR+hedgrD/p//RAWbd596VuO043pI6mI=",
+    "092_published_test_privacy.sql": "Y61u9pL+GdP4b7oSl7gb8RQ67+suy7NOmDBxuQOBwKc=",
+    "093_supported_identity_service_scopes.sql": "7QmLmvVOZphALjVqUtqHeDDNwe8CsCKebDnXhXa/+jQ=",
+    "094_published_help_search.sql": "Ze1lOz7yoRDhDVsc1b8ASNw1gEwCKdTL08tG7GvIyFM="
+  }
+}

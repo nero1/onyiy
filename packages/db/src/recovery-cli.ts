@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { validateRuntimeEnv } from '@gifters/config';
 import { closeDb, migrationClient, readManifest, schema, withContext } from './index';
 import { verifyDatabaseBinding } from './verify-binding';
+import { recoveryExtensions, provisionRecoveryExtensions } from './recovery-extensions';
 import { canonical, digest, migrationFingerprint, recoveryInventory } from './recovery-inventory';
 import { archiveChecksum, authenticatedCopy, encryptedDump, exclusiveFile, nativeDatabaseName, recoveryKey, recoveryPath, restoreArchive } from './recovery-files';
 
@@ -13,7 +14,7 @@ const hash=z.string().regex(/^[0-9a-f]{64}$/);
 const inventorySchema=z.object({
   format:z.enum(['gw-simulation-backup-v1','gw-financial-backup-v2']),environment:z.enum(['simulation','testnet']),created_at:z.string().datetime(),
   archive_sha256:hash,schema_sha256:hash,migrations_sha256:hash,
-  extensions:z.array(z.object({name:z.literal('pgcrypto'),schema:z.enum(['public','extensions']),version:z.literal('1.3')}).strict()).length(1),
+  extensions:recoveryExtensions,
   records:z.record(z.object({rows:z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),sha256:hash}).strict()),
 }).strict().refine(v=>(v.format==='gw-simulation-backup-v1')===(v.environment==='simulation'));
 const packetSchema=z.object({inventory:inventorySchema,signature:hash}).strict();
@@ -90,11 +91,8 @@ async function main() {
       await closeDb(); // The staging-target check must not see our proof client.
       await ensureEmpty(owner);
       // Schema-scoped native dumps exclude provider auth/storage/vault data.
-      // Provision only the signed, closed pgcrypto dependency separately.
-      if(expected.extensions[0].schema==='extensions') await owner`create schema if not exists extensions`;
-      await owner.unsafe(expected.extensions[0].schema==='public'
-        ? "CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public VERSION '1.3'"
-        : "CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions VERSION '1.3'");
+      // Provision only authenticated, closed dependencies after empty-target checks.
+      await provisionRecoveryExtensions(owner,expected.extensions);
       await restoreArchive(input.file,key);
     }
     await verifyDatabaseBinding(false,true);

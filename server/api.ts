@@ -77,7 +77,7 @@ import { replayDeadJob } from './jobs';
 import {recordReorg,reconfirmReorg,reorgHistory} from './reorg';
 import {quoteIncoming,submitIncoming,controlIncoming,resolveIncoming,ownInvoices,cancelIncomingQuote} from './incoming';
 
-import { getPublicStatistics,getPublicManifest,getPublicCatalog,getPublicNativeCatalog,getPublicHelp,publicHelpSlug,invalidatePublicReads } from './public-reads';
+import { getPublicStatistics,getPublicManifest,getPublicCatalog,getPublicNativeCatalog,getPublicHelp,getPublicHelpSearch,publicHelpSlug,invalidatePublicReads } from './public-reads';
 import { authenticate,csrf,requireStepUp,requireWithdrawalAuth,issueSession,validateUsername,databaseNow,clearCookies } from './auth';
 import { handleAuthRequest } from './auth-api';
 import { enforceRate } from './rate-limits';
@@ -287,6 +287,11 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
 
     if(method==='GET'&&route==='/help'){
       const query=new URL(request.url).searchParams,locale=z.enum(['en','fr']).parse(query.get('locale')??'en');const slug=query.get('slug');
+      if(query.has('q')){
+       if(query.has('slug'))z.never().parse(query.get('slug'));
+       const search=z.string().trim().min(1).max(100).refine(value=>!/[\u0000-\u001f\u007f]/.test(value)).parse(query.get('q')?.normalize('NFKC')).replace(/\s+/g,' ');
+       const response=await getPublicHelpSearch(locale,search,request);return publicOk(response.data,response.ttlSeconds,request);
+      }
       if(slug){z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/).parse(slug);const response=await getPublicHelp(locale,request);const canonical=await publicHelpSlug(locale,slug,request);const article=(response.data as any[]).find(article=>article.slug===canonical);if(!article)throw new Error('NOT_FOUND');return publicOk(article,response.ttlSeconds,request);}
       const response=await getPublicHelp(locale,request);return publicOk(response.data,response.ttlSeconds,request);
     }
