@@ -7,6 +7,8 @@ type Lane = {
   pending: number;
 };
 const lanes = new Map<string, Lane>();
+const flights = new Map<string, Promise<unknown>>();
+const failures = new Map<string, { count: number; until: number }>();
 function laneFor(endpoint: string) {
   let lane = lanes.get(endpoint);
   if (lane) return lane;
@@ -49,20 +51,36 @@ export class DualRpc {
     )
       throw new Error("RPC_ENDPOINTS_NOT_INDEPENDENT");
   }
-  private async throttle(endpoint: string) {
+  private async throttle(endpoint: string, signal: AbortSignal) {
     const lane = laneFor(endpoint);
     if (lane.pending >= 100) throw new Error("RPC_CAPACITY_EXCEEDED");
     lane.pending++;
     const task = lane.serial.then(async () => {
+      signal.throwIfAborted();
       const pause = Math.max(0, lane.next - Date.now());
-      if (pause) await new Promise((r) => setTimeout(r, pause));
+      if (pause) await new Promise<void>((resolve, reject) => {
+        const cancel = () => { clearTimeout(timer); reject(new Error("RPC_UNAVAILABLE")); };
+        const timer = setTimeout(() => { signal.removeEventListener("abort", cancel); resolve(); }, pause);
+        signal.addEventListener("abort", cancel, { once: true });
+        if (signal.aborted) cancel();
+      });
+      signal.throwIfAborted();
       lane.next = Date.now() + Math.ceil(1000 / this.options.requestsPerSecond);
     });
     lane.serial = task.catch(() => {});
+    // Race admission as well as the head-of-lane delay. Expired queued work
+    // remains inert when its turn arrives and never starts a provider request.
+    let cancel: (() => void) | undefined;
     try {
-      await task;
+      await Promise.race([task, new Promise<never>((_resolve, reject) => {
+        cancel = () => reject(new Error("RPC_UNAVAILABLE"));
+        signal.addEventListener("abort", cancel, { once: true });
+        if (signal.aborted) cancel();
+      })]);
     } finally {
-      lane.pending--;
+      if (cancel) signal.removeEventListener("abort", cancel);
+      // Capacity counts queued entries until they have actually left the lane.
+      void task.finally(() => { lane.pending--; }).catch(() => {});
     }
   }
   async request(side: 0 | 1, method: string, params: unknown[]) {
@@ -80,13 +98,17 @@ export class DualRpc {
     jsonRpc = false,
   ): Promise<any> {
     const root = side === 0 ? this.options.primary : this.options.secondary;
-    await this.throttle(root);
     const target = path
       ? new URL(path, root.endsWith("/") ? root : root + "/").toString()
       : root;
     const controller = new AbortController(),
       timer = setTimeout(() => controller.abort(), this.options.timeoutMs);
+    let dispatched = false;
     try {
+      const circuit = failures.get(root);
+      if (circuit && circuit.until > Date.now()) throw new Error("RPC_UNAVAILABLE");
+      await this.throttle(root, controller.signal);
+      dispatched = true;
       const response = await fetch(target, {
         method: "POST",
         redirect: "error",
@@ -130,8 +152,16 @@ export class DualRpc {
       });
       if (jsonRpc && (value.error || !Object.hasOwn(value, "result")))
         throw Error();
+      failures.delete(root);
       return jsonRpc ? value.result : value;
     } catch {
+      // No automatic replay of broadcasts or signed operations. A bounded
+      // cooldown also caps admission pressure on an unavailable provider.
+      if (dispatched) {
+      if (failures.size >= 100 && !failures.has(root)) failures.delete(failures.keys().next().value!);
+      const old = failures.get(root), count = Math.min(6, (old?.count ?? 0) + 1);
+      failures.set(root, { count, until: Date.now() + Math.min(5000, 100 * 2 ** count) + Math.floor(Math.random() * 100) });
+      }
       throw new Error("RPC_UNAVAILABLE");
     } finally {
       clearTimeout(timer);
@@ -161,9 +191,20 @@ export class DualRpc {
       const value = await cache.get<T>(scoped);
       if (value !== null && value !== undefined) return value;
     }
-    const value = await load();
-    await cache.set(scoped, value, { ttlSeconds: seconds });
-    return value;
+    // Financial confirmation explicitly asks for fresh evidence and bypasses
+    // both cached values and display-read single-flight.
+    if (fresh) return load();
+    const existing = flights.get(scoped);
+    if (existing) return existing as Promise<T>;
+    if (flights.size >= 100) throw new Error("RPC_CAPACITY_EXCEEDED");
+    const pending = (async () => {
+      const value = await load();
+      await cache.set(scoped, value, { ttlSeconds: seconds });
+      return value;
+    })();
+    flights.set(scoped, pending);
+    try { return await pending; }
+    finally { if (flights.get(scoped) === pending) flights.delete(scoped); }
   }
 }
 export function quantity(value: unknown) {

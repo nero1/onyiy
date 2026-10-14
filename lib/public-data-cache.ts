@@ -103,3 +103,30 @@ export async function loadPublicHelp(locale:'en'|'fr',slug:string,maxAgeMs:numbe
 export async function clearPublicData(){await transaction(undefined,store=>{store.clear();});}
 
 export async function loadAllPublicHelp(locale:'en'|'fr',maxAgeMs:number){if(!ttlValid(maxAgeMs))return [];return transaction<PublicHelpArticle[]>([],(store,all)=>{const rows=prune(store,all);return rows.filter(row=>row.key.startsWith(`help:${locale}:`)&&Date.now()-row.createdAt<maxAgeMs).map(row=>payload(row.key,row.json) as PublicHelpArticle).sort((a,b)=>a.slug.localeCompare(b.slug));});}
+
+// A complete successful locale inventory is one transaction: deletion of
+// withdrawn/renamed entries and replacement of current display DTOs are atomic.
+export async function reconcilePublicHelp(locale:'en'|'fr',value:unknown,ttlMs:number){
+ if(!ttlValid(ttlMs)||!Array.isArray(value)||value.length>1000)return false;
+ const projected=value.map(help);
+ if(projected.some(row=>!row||row.locale!==locale))return false;
+ const articles=projected as PublicHelpArticle[];
+ const keys=new Set(articles.map(row=>`help:${locale}:${row.slug}`));
+ if(keys.size!==articles.length)return false;
+ return transaction(false,(store,all)=>{
+  const retained=all.filter(row=>{if(row.key.startsWith(`help:${locale}:`)){store.delete(row.key);return false}return true});
+  const now=Date.now();
+  const incoming=articles.map(row=>({key:`help:${locale}:${row.slug}`,schema:DATABASE as 'gw-public-v1',createdAt:now,expiresAt:now+ttlMs,accessedAt:now,json:JSON.stringify(row)})).filter(row=>size(row)<=budget.maxBytes);
+  const keep=[...retained,...incoming];
+  const survivors=prune(store,keep);
+  for(const row of survivors)if(keys.has(row.key))store.put(row);
+  return true;
+ });
+}
+export async function savedHelpObservation(locale:'en'|'fr',maxAgeMs:number){
+ if(!ttlValid(maxAgeMs))return null;
+ return transaction<number|null>(null,(store,all)=>{
+  const rows=prune(store,all).filter(row=>row.key.startsWith(`help:${locale}:`)&&Date.now()-row.createdAt<maxAgeMs);
+  return rows.length?Math.min(...rows.map(row=>row.createdAt)):null;
+ });
+}
