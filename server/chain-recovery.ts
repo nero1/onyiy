@@ -1,9 +1,11 @@
+import {bookChainFees} from './chain-fees';
+import {verifySignedExpiry} from './crypto-expiry';
 import {beneficiaryLiabilityPurposes} from '@gifters/domain';
 import crypto from "node:crypto";
 import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
-  databaseScopeFingerprint,
+  scopedDatabaseBinding,
   assets,
   chainCheckpoints,
   chainRecoveryRuns,
@@ -31,7 +33,7 @@ import {
 } from "./financial-config";
 import { account, postJournal, lockUser } from "./core";
 import { settleCryptoAttempt } from "./crypto-settlement";
-const binding = () => databaseScopeFingerprint(process.env.DATABASE_URL ?? "");
+const binding = scopedDatabaseBinding;
 const digest = (v: unknown) =>
   crypto
     .createHash("sha256")
@@ -109,7 +111,7 @@ export async function registerCheckpoint(
     .insert(chainCheckpoints)
     .values({
       assetId: asset.id,
-      bindingFingerprint: binding(),
+      bindingFingerprint: await binding(tx),
       treasuryFingerprint: config.treasuryFingerprint,
       treasurySender: sender,
       registrySnapshot: registry,
@@ -149,7 +151,7 @@ export async function startRecoveryScan(
     .where(eq(chainCheckpoints.id, checkpointId))
     .limit(1);
   if (!checkpoint) throw new Error("NOT_FOUND");
-  if (checkpoint.bindingFingerprint !== binding())
+  if (checkpoint.bindingFingerprint !== await binding(tx))
     throw new Error("RECOVERY_TARGET_MISMATCH");
   const target = BigInt(through),
     begin = BigInt(checkpoint.height);
@@ -178,7 +180,7 @@ export async function startRecoveryScan(
     .insert(chainRecoveryRuns)
     .values({
       checkpointId,
-      bindingFingerprint: binding(),
+      bindingFingerprint: await binding(tx),
       throughHeight: through,
       cursorHeight: checkpoint.height,
     })
@@ -265,7 +267,7 @@ export async function recoverScanPage(tx: DbExecutor, id: string) {
     .where(eq(chainRecoveryRuns.id, id))
     .limit(1);
   if (!lookup) throw new Error("NOT_FOUND");
-  if (lookup.bindingFingerprint !== binding())
+  if (lookup.bindingFingerprint !== await binding(tx))
     throw new Error("RECOVERY_TARGET_MISMATCH");
   const [checkpoint] = await tx
     .select()
@@ -407,6 +409,7 @@ export async function recoverScanPage(tx: DbExecutor, id: string) {
     reason = unexplained ? "UNKNOWN_OUTFLOW" : run.reasonCode;
   let knownCursor = run.knownAttemptCursor,
     knownComplete = false;
+  let expiredAttempt: {attempt_id:string;obligation_id:string;kind:string}|undefined;
   if (terminal && state !== "review") {
     const known = await tx
       .select({
@@ -416,6 +419,8 @@ export async function recoverScanPage(tx: DbExecutor, id: string) {
         destination: cryptoObligations.destination,
         status: cryptoObligations.status,
         completed: cryptoObligations.completedAt,
+        obligationId: cryptoObligations.id,
+        kind: cryptoObligations.kind,
       })
       .from(signedAttemptStatus)
       .innerJoin(
@@ -444,8 +449,12 @@ export async function recoverScanPage(tx: DbExecutor, id: string) {
         );
         const result = await settleCryptoAttempt(tx, attempt.id, index ?? 0);
         if (result.status === "pending") {
-          pending = true;
-          reason = "KNOWN_ATTEMPT_PENDING";
+          const expiry=await verifySignedExpiry(tx,attempt.id);
+          pending=true;
+          if(expiry.status==='expiry_verified'){
+            state='review';reason='KNOWN_ATTEMPT_EXPIRY_VERIFIED';
+            expiredAttempt={attempt_id:attempt.id,obligation_id:attempt.obligationId,kind:attempt.kind};
+          }else reason='KNOWN_ATTEMPT_PENDING';
           break;
         }
       }
@@ -520,6 +529,7 @@ export async function recoverScanPage(tx: DbExecutor, id: string) {
     incoming,
     outgoing,
     reason,
+    ...(expiredAttempt?{expiry_closure:expiredAttempt}:{}),
   };
 }
 export const outflowResolutionInput = z
@@ -658,62 +668,8 @@ export async function resolveRecoveryOutflow(
       { resolution_id: id },
     );
   }
-  if (networkFee > 0n) {
-    const cash = await account(
-        tx,
-        native.id,
-        "system",
-        null,
-        "treasury_asset",
-        "debit",
-      ),
-      expense = await account(
-        tx,
-        native.id,
-        "platform",
-        null,
-        "network_fee_expense",
-        "debit",
-      );
-    gasJournal = await postJournal(
-      tx,
-      "RECOVERY_OUTFLOW_GAS",
-      `recovery-outflow-gas:${id}`,
-      [
-        { accountId: expense.id, direction: "debit", amount: networkFee },
-        { accountId: cash.id, direction: "credit", amount: networkFee },
-      ],
-      { resolution_id: id },
-    );
-  }
-  if (setup > 0n) {
-    const cash = await account(
-        tx,
-        native.id,
-        "system",
-        null,
-        "treasury_asset",
-        "debit",
-      ),
-      expense = await account(
-        tx,
-        native.id,
-        "platform",
-        null,
-        "recipient_account_setup_expense",
-        "debit",
-      );
-    setupJournal = await postJournal(
-      tx,
-      "RECOVERY_OUTFLOW_SETUP",
-      `recovery-outflow-setup:${id}`,
-      [
-        { accountId: expense.id, direction: "debit", amount: setup },
-        { accountId: cash.id, direction: "credit", amount: setup },
-      ],
-      { resolution_id: id },
-    );
-  }
+  const feeClaim=await bookChainFees(tx,{registry,hash:outflow.txHash,nativeAssetId:native.id,networkFee,setup,recovery:true,metadata:{resolution_id:id,block_hash:proof.blockHash}});
+  gasJournal=feeClaim.gasJournalId;setupJournal=feeClaim.setupJournalId;
   if (
     (principal > 0n && !principalJournal) ||
     (networkFee > 0n && !gasJournal) ||

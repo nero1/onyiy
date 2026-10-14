@@ -1,6 +1,6 @@
 # Custom bugs report — Gifters World Phase One
 
-Updated: **14 October 2026 at 12:42:08 AM WAT** · Documentation version **v30**
+Updated: **14 October 2026 at 03:24:53 AM WAT** · Documentation version **v31**
 
 ## Complete one-line findings list
 
@@ -8,17 +8,17 @@ Updated: **14 October 2026 at 12:42:08 AM WAT** · Documentation version **v30**
 2. **P1-002 — A successful wallet send followed by a failed submission can prompt a second payment.** (High; defect) — Implemented; local checks passed.
 3. **P1-003 — Native TRX status observation rejects its own event index.** (High; defect) — Implemented; local checks passed.
 4. **P1-004 — Signer reservations ignore tighter runtime payout limits.** (High; defect) — Implemented; local checks passed.
-5. **P1-005 — Recovery binding distinguishes pooler and signer endpoints for the same database.** (High; defect) — Open.
-6. **P1-006 — Recovery can journal the same transaction fees more than once.** (High; defect) — Open.
-7. **P1-007 — Solana fee attribution treats other transfers as account setup cost.** (High; defect) — Open.
-8. **P1-008 — Saved expired Solana or TRON attempts can indefinitely block a recovery scan.** (Medium; defect) — Open.
+5. **P1-005 — Recovery binding distinguishes pooler and signer endpoints for the same database.** (High; defect) — Implemented; local checks passed.
+6. **P1-006 — Recovery can journal the same transaction fees more than once.** (High; defect) — Implemented; local checks passed.
+7. **P1-007 — Solana fee attribution treats other transfers as account setup cost.** (High; defect) — Implemented; local checks passed.
+8. **P1-008 — Saved expired Solana or TRON attempts can indefinitely block a recovery scan.** (Medium; defect) — Implemented; local checks passed.
 9. **P1-009 — Previous receiving addresses have no complete recovery monitoring inventory.** (High; requirement gap) — Open.
 10. **P1-010 — Pausing a plan rejects payments already committed under its frozen terms.** (High; defect) — Implemented; local checks passed.
 11. **P1-011 — Accepted bootstrap destinations have no complete liability and payout support.** (High; defect) — Implemented; local checks passed.
-12. **P1-012 — The signer's oldest fixed candidate batch can starve later payable work.** (Medium; defect) — Open.
+12. **P1-012 — The signer's oldest fixed candidate batch can starve later payable work.** (Medium; defect) — Implemented; local checks passed.
 13. **P1-013 — Recovery pages have row bounds without a feasible total RPC/time budget.** (High; defect) — Open.
 14. **P1-014 — The generic scheduler client signs only simulation and leaves testnet jobs undrained.** (High; defect) — Implemented; local checks passed.
-15. **P1-015 — The hosted deploy workflow cannot migrate the selected testnet binding.** (Medium; requirement gap) — Open.
+15. **P1-015 — The hosted deploy workflow cannot migrate the selected testnet binding.** (Medium; requirement gap) — Implemented; local checks passed.
 16. **P1-016 — Safe cancellation and unallocated-refund recovery are unreachable in the UI.** (Medium; defect) — Implemented; local checks passed.
 17. **P1-017 — Import and business operations use the generic staff rate policy.** (Medium; defect) — Implemented; local checks passed.
 18. **P1-018 — Rate budgets fragment across raw resource paths.** (Medium; defect) — Implemented; local checks passed.
@@ -75,6 +75,7 @@ Updated: **14 October 2026 at 12:42:08 AM WAT** · Documentation version **v30**
 69. **P1-069 — Native quote expiry and cooldown use the web clock instead of database time.** (Medium; defect) — Implemented; local checks passed.
 
 70. **P1-070 — A valid multi-asset plan catalog fails after 100 active versions.** (Medium; defect) — Implemented; local checks passed.
+71. **P1-071 — Financial archives can claim the current migration version while source migrations are pending.** (Medium; defect) — Implemented; local checks passed.
 
 ## Review, scope and evidence
 
@@ -664,6 +665,18 @@ Paths below are relative to repository root `/workspace/onyiy`. “Defect” mea
 
 **Medium · Defect.** Plan administration permits up to 100 plans and multiple native assets, but nativeCatalog takes 101 active plan/asset versions and throws CONFIGURATION_INVALID above 100. A valid configuration with, for example, 13 plans active on eight registered assets can exceed this bound and make the entire public native catalog unavailable.
 
+### 71: BUG P1-071: Financial archives can claim the current migration version while source migrations are pending
+
+**FILES:** `packages/db/src/recovery-inventory.ts`, `packages/db/src/recovery-cli.ts`
+
+**FIX:** Compare the complete applied migration name/checksum inventory against the current immutable SQL files before capturing or restoring financial records. Reject missing, extra or changed migrations.
+
+**ACCEPTANCE:** A source with pending migrations rejects backup before creating an archive; forward-migrated source and exact restored target validate.
+
+**STATUS:** [x] Implemented and locally verified in v31; package B; Medium priority.
+
+**EVIDENCE:** During v31, a source with pending077/078 could produce a packet whose migration fingerprint described the current files. The new applied-inventory check rejects RECOVERY_VERSION_MISMATCH before output. Old evidence is retained; source migrations are applied forward only, then a fresh signed archive is verified.
+
 ## Positive controls and exclusions
 
 Database administration checks current role/status, rather than trusting only session claims; status/role triggers revoke families. Scoped transactions use restricted roles and completion fences. Wallet proofs and monetary operations have immutable snapshots and replay bindings, despite the specific gaps above. SQL values use Drizzle/parameters; no application-level injectable identifier path was demonstrated. Integer and exact PostgreSQL numeric arithmetic are preferable to introducing Decimal.js unnecessarily.
@@ -682,26 +695,29 @@ The production dependency audit reports **15 affected package nodes**, not 15 se
 
 [Vercel function limits](https://vercel.com/docs/functions/limitations) document the 4.5 MB request/response body limit relevant to P1-058. Local-function body limits are distinct from advertised archive size, execution duration and free-plan quota. Existing PRD hosting/commercial-use constraints remain; no claim of guaranteed free operation is made.
 
-The complete remediation mapping, verification checks and three-round exit rule are in [custom-bugs-fix-plan_v30.md](custom-bugs-fix-plan_v30.md). Current handover: [LLM-HANDOVER_v30.md](LLM-HANDOVER_v30.md).
+The complete remediation mapping, verification checks and three-round exit rule are in [custom-bugs-fix-plan_v31.md](custom-bugs-fix-plan_v31.md). Current handover: [LLM-HANDOVER_v31.md](LLM-HANDOVER_v31.md).
 
 
-## Current v30 remediation ledger
+## Current v31 remediation ledger
 
 The owner approved all Round One fixes, autonomous Rounds Two/Three and continued remediation, every Phase Two milestone, and final bug fixes before deferred testing. Continue without plan or milestone acceptance pauses. Use best recommendations, complete substantial verified batches, and merge only after BOTH push and pull-request CI succeed for the exact final head. Both financial readiness gates remain false; mainnet remains prohibited. CRON frequency and test-only issues remain excluded.
 
-26 of 70 Round One items implemented and locally verified; 44 remain open. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. P1-019 and P1-036 have partial improvements but remain open. No bug-free or hosted acceptance claim is made.
+33 of 71 tracked items implemented and locally verified; 38 remain open. The initial Round One audit had70 findings; P1-071 was discovered and fixed during remediation. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. P1-019 and P1-036 have partial improvements but remain open. No bug-free or hosted acceptance claim is made.
 
-Implemented: P1-001, P1-002, P1-003, P1-004, P1-010, P1-011, P1-014, P1-016, P1-017, P1-018, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-037, P1-044, P1-046, P1-052, P1-055, P1-056, P1-057, P1-068, P1-069, P1-070.
+Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-014, P1-015, P1-016, P1-017, P1-018, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-037, P1-044, P1-046, P1-052, P1-055, P1-056, P1-057, P1-068, P1-069, P1-070, P1-071.
 
-Open: P1-005, P1-006, P1-007, P1-008, P1-009, P1-012, P1-013, P1-015, P1-019, P1-026, P1-027, P1-028, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-038, P1-039, P1-040, P1-041, P1-042, P1-043, P1-045, P1-047, P1-048, P1-049, P1-050, P1-051, P1-053, P1-054, P1-058, P1-059, P1-060, P1-061, P1-062, P1-063, P1-064, P1-065, P1-066, P1-067.
+Open: P1-009, P1-013, P1-019, P1-026, P1-027, P1-028, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-038, P1-039, P1-040, P1-041, P1-042, P1-043, P1-045, P1-047, P1-048, P1-049, P1-050, P1-051, P1-053, P1-054, P1-058, P1-059, P1-060, P1-061, P1-062, P1-063, P1-064, P1-065, P1-066, P1-067.
 
 Local verification: required check:all; production build and bundle budget checks; production npm audit now zero advisories. Named isolated manual-contracts, manual-money and manual-quotes-r5 passed. The last validates quote cancellation/expiry/payload replay/DB clock, late-fund refunds, frozen pre-pause admission, custom bootstrap destination, positively refunded plan edit, and independent lower live per-transaction/daily signer caps without reservations or signed bytes. Initial quote-probe failures (invalid price TTL, missing scoped fixture binding, missing operational gas asset) remain retained and were corrected only in fresh r2/r3/r5 databases. No external RPC or broadcast occurred.
 
-Bug reports and fix plans must use the same _vN filename version as current status/handover; earlier versions are retained in Git history.
+Bug reports and fix plans must use the same _vN filename version as current status/handover; earlier versions are retained in Git history. Current artifacts use_v31.
+
+
+V31 evidence: manual-money-r2 passed; manual-contracts-r2 passed shared fees, different-endpoint checkpoint identity and fair dispatch past20 blocked rows without signing/reservations; manual-solana-costs-r2 passed two principals/one fee, positively identified ATA rent and ambiguous-debit rejection; preserved failed SOL expiry source resumed through forward-only migration078 and passed positive expiry/held principal/closure/replay/fresh scan. Non-signing hosted migration/seed/runtime path passed on gw_v31_testnet_seed:0 users/0 assets/12 plans/0 versions/16 help rows/one testnet namespace. Archive version preflight and clone proof are recorded in current status. P1-009/P1-013/P1-067 remain open.
 
 ---
 
-Prepared by Codex — Round One remediation v30.
-PR29 https://github.com/nero1/onyiy/pull/29 is open. Initial head4e9333d failed push38485592440 and PR38485625731 because the lockfile omitted the nested optional utf-8-validate5.0.10 peer. A clean Node22/npm10 dependency tree regenerated the lockfile; both dry-run and fresh npm ci were required before repush. Do not merge using the failed initial head.
+Prepared by Codex — Round One remediation v31.
+PR29 merged at e1463fa after push38485886774 and PR38485891336 succeeded for exact final head ab1d7b5509fd215645448641065a2705cdf389ba. Initial failed head/run evidence remains in v30 Git history. Current v31 branch feat/phase-one-remediation-round1b awaits its own exact-head dual CI and PR merge.
 
-Signed: **14 October 2026 at 12:42:08 AM WAT**
+Signed: **14 October 2026 at 03:24:53 AM WAT**

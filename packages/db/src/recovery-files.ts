@@ -96,7 +96,7 @@ export async function encryptedDump(file:string,snapshot:string,key:Buffer) {
     await handle.write(Buffer.concat([MAGIC,iv,Buffer.alloc(16)]),0,HEADER_BYTES,0);
     const cipher=crypto.createCipheriv('aes-256-gcm',key,iv);
     cipher.setAAD(MAGIC);
-    await nativeTool('pg_dump',['--format=custom','--compress=0','--no-owner','--schema=public','--exclude-table=public.deployment_binding_challenges',...['auth_sessions','auth_refresh_tokens','auth_flows','rate_limits','wallet_challenges','worker_requests','bot_challenges','bot_token_uses','recovery_view_caps'].map(name=>'--exclude-table-data=public.'+name),'--lock-wait-timeout=5s',`--snapshot=${snapshot}`],async child=>{
+    await nativeTool('pg_dump',['--format=custom','--compress=0','--no-owner','--schema=public','--exclude-table=public.deployment_binding_challenges',...['signer_dispatch_cursor','database_binding_nonce','auth_sessions','auth_refresh_tokens','auth_flows','rate_limits','wallet_challenges','worker_requests','bot_challenges','bot_token_uses','recovery_view_caps'].map(name=>'--exclude-table-data=public.'+name),'--lock-wait-timeout=5s',`--snapshot=${snapshot}`],async child=>{
       child.stdin?.end();
       await pipeline(child.stdout!,cipher,fs.createWriteStream(temporary,{fd:handle.fd,autoClose:false,start:HEADER_BYTES}));
     });

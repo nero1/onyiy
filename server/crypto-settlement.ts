@@ -1,3 +1,4 @@
+import {bookChainFees} from './chain-fees';
 import type { AssetRegistry } from "@gifters/chains";
 import { and, eq, sql } from "drizzle-orm";
 import {
@@ -100,77 +101,8 @@ export async function settleCryptoAttempt(
     )
     .limit(1);
   if (!native) throw new Error("CONFIGURATION_INVALID");
-  const cash = await account(
-      tx,
-      asset.id,
-      "system",
-      null,
-      "treasury_asset",
-      "debit",
-    ),
-    gasCash = await account(
-      tx,
-      native.id,
-      "system",
-      null,
-      "treasury_asset",
-      "debit",
-    ),
-    gasExpense = await account(
-      tx,
-      native.id,
-      "platform",
-      null,
-      "network_fee_expense",
-      "debit",
-    );
-  if (networkCost > 0n)
-    await postJournal(
-      tx,
-      "GAS_OUT",
-      `gas:testnet:${registry.chain}:${attempt.txHash}`,
-      [
-        {
-          accountId: gasExpense.id,
-          direction: "debit",
-          amount: networkCost,
-        },
-        {
-          accountId: gasCash.id,
-          direction: "credit",
-          amount: networkCost,
-        },
-      ],
-      {
-        attempt_id: attempt.id,
-        obligation_id: obligation.id,
-        block_hash: proof.blockHash,
-      },
-    );
-  if (setupCost > 0n) {
-    const setup = await account(
-      tx,
-      native.id,
-      "platform",
-      null,
-      "recipient_account_setup_expense",
-      "debit",
-    );
-    await postJournal(
-      tx,
-      "ACCOUNT_SETUP_OUT",
-      `account-setup:${registry.chain}:${attempt.txHash}`,
-      [
-        { accountId: setup.id, direction: "debit", amount: setupCost },
-        { accountId: gasCash.id, direction: "credit", amount: setupCost },
-      ],
-      {
-        attempt_id: attempt.id,
-        obligation_id: obligation.id,
-        recipient: obligation.destination,
-      },
-    );
-  }
+  const cash = await account(tx,asset.id,'system',null,'treasury_asset','debit');
+  const feeClaim=await bookChainFees(tx,{registry,hash:attempt.txHash,nativeAssetId:native.id,networkFee:networkCost,setup:setupCost,metadata:{attempt_id:attempt.id,obligation_id:obligation.id,block_hash:proof.blockHash}});
   const approvedNetwork = BigInt(
       (obligation.feeSnapshot as { networkFee?: string }).networkFee ??
         obligation.nativeFeeQuote,
@@ -185,7 +117,7 @@ export async function settleCryptoAttempt(
     ["network", networkCost, approvedNetwork, "network_fee_expense"],
     ["setup", setupCost, approvedSetup, "recipient_account_setup_expense"],
   ] as const) {
-    if (actual > approved) {
+    if (feeClaim.created && actual > approved) {
       const variance = await account(
           tx,
           native.id,
