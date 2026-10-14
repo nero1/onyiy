@@ -1,3 +1,5 @@
+import { admitPublicMiss } from './public-admission';
+import { statisticsSnapshot } from './public-statistics';
 import {nativeCatalog} from './crypto-reads';
 import { and,asc,eq,sql } from 'drizzle-orm';
 import { MemoryCache } from '@gifters/cache';
@@ -12,7 +14,8 @@ const seed=loadManifest();
 let budget={maxEntries:seed.cache_policy.max_memory_entries,maxBytes:seed.cache_policy.max_memory_mb*1024*1024};
 let memory=new MemoryCache(budget);
 let generation=0;
-const pending=new Map<'manifest'|'catalog'|'native-catalog'|'help:en'|'help:fr',Promise<Entry>>();
+type PublicKey='manifest'|'catalog'|'native-catalog'|'statistics'|'help:en'|'help:fr'|'slugs:en'|'slugs:fr';
+const pending=new Map<PublicKey,Promise<Entry>>();
 
 function captured(data:unknown,manifest:Manifest,publicSeconds:number,fallback=false):Loaded {
  const policy=manifest.cache_policy;
@@ -46,7 +49,7 @@ async function catalogLoader():Promise<Loaded> {
   expected_giv:formatBaseUnits((BigInt(row.amount_base_units)*BigInt(row.receiver_bps)/10000n)*BigInt(row.receipts_required))}));
  return captured(data,manifest,manifest.cache_policy.catalog_seconds);
 }
-async function read(key:'manifest'|'catalog'|'native-catalog'|'help:en'|'help:fr',loader:()=>Promise<Loaded>):Promise<PublicResponse> {
+async function read(key:PublicKey,loader:()=>Promise<Loaded>,request?:Request):Promise<PublicResponse> {
  // Warm public DTOs never bypass environment/provider configuration validation.
  validateRuntimeEnv();
  let entry=await memory.get<Entry>(key);
@@ -55,6 +58,7 @@ async function read(key:'manifest'|'catalog'|'native-catalog'|'help:en'|'help:fr
   if(!flight){
    const started=generation;
    flight=(async()=>{
+    if(request)await admitPublicMiss(request);
     const loaded=await loader();const {budget:requested,...value}=loaded;
     if(started===generation){
      if(requested.maxEntries!==budget.maxEntries||requested.maxBytes!==budget.maxBytes){budget=requested;memory=new MemoryCache(budget);}
@@ -73,14 +77,31 @@ async function read(key:'manifest'|'catalog'|'native-catalog'|'help:en'|'help:fr
  const age=Math.max(0,Math.floor((Date.now()-entry.capturedAt)/1000));
  return {data:entry.data,ttlSeconds:Math.max(0,entry.publicSeconds-age)};
 }
-export function getPublicManifest(){return read('manifest',manifestLoader);}
-export function getPublicCatalog(){return read('catalog',catalogLoader);}
+export function getPublicManifest(request?:Request){return read('manifest',manifestLoader,request);}
+export function getPublicCatalog(request?:Request){return read('catalog',catalogLoader,request);}
 export function invalidatePublicReads(){generation++;pending.clear();memory=new MemoryCache(budget);}
 
-export function getPublicHelp(locale:'en'|'fr'){return read(`help:${locale}`,async()=>{
+export function getPublicHelp(locale:'en'|'fr',request?:Request){return read(`help:${locale}`,async()=>{
  const manifest=await withContext({access:'service',snapshot:true},async tx=>{await tx.execute(sql`set local statement_timeout='5000ms'`);return readManifest(tx)});if(!manifest.feature_help)throw new Error('FEATURE_DISABLED');
  const rows=await withContext({access:'public',snapshot:true},async tx=>{await tx.execute(sql`set local statement_timeout='5000ms'`);return tx.select({locale:helpArticles.locale,slug:helpArticles.slug,title:helpArticles.title,body:helpArticles.body}).from(helpArticles).where(eq(helpArticles.locale,locale)).orderBy(asc(helpArticles.slug)).limit(101)});if(rows.length>100||Buffer.byteLength(JSON.stringify(rows))>3*1024*1024)throw new Error('CONFIGURATION_INVALID');return captured(rows,manifest,manifest.cache_policy.catalog_seconds);
- });}
-export async function publicHelpSlug(locale:'en'|'fr',slug:string){return withContext({access:'public'},async tx=>{const [direct]=await tx.select({slug:helpArticles.slug}).from(helpArticles).where(sql`${helpArticles.locale}=${locale} and ${helpArticles.slug}=${slug} and ${helpArticles.published}`).limit(1);if(direct)return direct.slug;const [redirect]=await tx.select({slug:helpArticles.slug}).from(slugRedirects).innerJoin(helpArticles,eq(helpArticles.id,slugRedirects.articleId)).where(sql`${slugRedirects.locale}=${locale} and ${slugRedirects.oldSlug}=${slug} and ${helpArticles.published}`).limit(1);if(!redirect)throw new Error('NOT_FOUND');return redirect.slug;});}
+ },request);}
+export async function publicHelpSlug(locale:'en'|'fr',slug:string,request?:Request){
+ const published=await getPublicHelp(locale,request);
+ if((published.data as {slug:string}[]).some(article=>article.slug===slug))return slug;
+ const inventory=await read(`slugs:${locale}`,async()=>{
+ const policy=await withContext({access:'service',snapshot:true},tx=>readManifest(tx));
+ return withContext({access:'public',snapshot:true},async tx=>{
+  await tx.execute(sql`set local statement_timeout='5000ms'`);
+  const rows=await tx.select({old_slug:slugRedirects.oldSlug,slug:helpArticles.slug}).from(slugRedirects).innerJoin(helpArticles,eq(helpArticles.id,slugRedirects.articleId)).where(and(eq(slugRedirects.locale,locale),eq(helpArticles.published,true))).orderBy(asc(slugRedirects.oldSlug)).limit(1001);
+  if(rows.length>1000)throw new Error('CONFIGURATION_INVALID');
+  return captured(rows,policy,policy.cache_policy.catalog_seconds);
+ });},request);
+ const redirected=(inventory.data as {old_slug:string;slug:string}[]).find(row=>row.old_slug===slug);
+ if(!redirected)throw new Error('NOT_FOUND');return redirected.slug;
+}
 
-export function getPublicNativeCatalog(){return read('native-catalog',async()=>withContext({access:'service',snapshot:true},async tx=>{await tx.execute(sql`set local statement_timeout='5000ms'`);const policy=await readManifest(tx),data=await nativeCatalog(tx);if(Buffer.byteLength(JSON.stringify(data))>1024*1024)throw new Error('CONFIGURATION_INVALID');return captured(data,policy,policy.cache_policy.catalog_seconds)}));}
+export function getPublicNativeCatalog(request?:Request){return read('native-catalog',async()=>withContext({access:'service',snapshot:true},async tx=>{await tx.execute(sql`set local statement_timeout='5000ms'`);const policy=await readManifest(tx),data=await nativeCatalog(tx);if(Buffer.byteLength(JSON.stringify(data))>1024*1024)throw new Error('CONFIGURATION_INVALID');return captured(data,policy,policy.cache_policy.catalog_seconds)}),request);}
+
+export function getPublicStatistics(request?:Request){return read('statistics',async()=>withContext({access:'service'},async tx=>{
+ const policy=await readManifest(tx);return captured(await statisticsSnapshot(tx),policy,60);
+}),request);}

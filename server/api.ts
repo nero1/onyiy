@@ -1,7 +1,7 @@
 import {applicationError} from './errors';
+import {admitPublicMiss} from './public-admission';
 import {readStaffOperations,reportProviderQuota,quotaReportInput} from './operational-diagnostics';
 import {selectedUserExport,selectedExportInput,portabilityStatus,prepareSiteSnapshot,siteSnapshotResponse,stageSnapshot} from './portability';
-import {publicStatisticsRead} from './public-statistics';
 import {boundedJson} from './request-body';
 import {registerCheckpoint,startRecoveryScan,recoverScanPage,checkpointInput,resolveRecoveryOutflow,outflowResolutionInput} from './chain-recovery';
 import {unmatchedRefundStatement,reserveUnmatchedRefund,unmatchedRefundInput} from './unallocated-refunds';
@@ -74,7 +74,7 @@ import { replayDeadJob } from './jobs';
 import {recordReorg,reconfirmReorg,reorgHistory} from './reorg';
 import {quoteIncoming,submitIncoming,controlIncoming,resolveIncoming,ownInvoices,cancelIncomingQuote} from './incoming';
 
-import { getPublicManifest,getPublicCatalog,getPublicNativeCatalog,getPublicHelp,publicHelpSlug,invalidatePublicReads } from './public-reads';
+import { getPublicStatistics,getPublicManifest,getPublicCatalog,getPublicNativeCatalog,getPublicHelp,publicHelpSlug,invalidatePublicReads } from './public-reads';
 import { authenticate,csrf,requireStepUp,requireWithdrawalAuth,issueSession,validateUsername,databaseNow,clearCookies } from './auth';
 import { handleAuthRequest } from './auth-api';
 import { enforceRate } from './rate-limits';
@@ -125,8 +125,8 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
   try {
     const route = `/${path.join('/')}`;
 
-    if(method==='GET'&&route==='/statistics')return publicOk(await publicStatisticsRead(),60,request);
-    if(method==='GET'&&route==='/crypto/catalog'){const value=await getPublicNativeCatalog();return publicOk(value.data,value.ttlSeconds,request);}
+    if(method==='GET'&&route==='/statistics'){const value=await getPublicStatistics(request);return publicOk(value.data,value.ttlSeconds,request);}
+    if(method==='GET'&&route==='/crypto/catalog'){const value=await getPublicNativeCatalog(request);return publicOk(value.data,value.ttlSeconds,request);}
     if(method==='GET'&&route==='/me/crypto'){const actor=await current(request);return ok(await withContext({access:'service',actorId:actor.id,reportSnapshot:true},tx=>ownNativePortfolio(tx,actor.id)));}
     if(method==='POST'&&route==='/internal/financial'){
       const input=z.discriminatedUnion('action',[z.object({action:z.literal('scan'),run_id:z.string().uuid()}).strict(),z.object({action:z.literal('expiry'),attempt_id:z.string().uuid()}).strict(),z.object({action:z.literal('settle'),attempt_id:z.string().uuid(),event_index:z.number().int().min(0).max(1000)}).strict(),z.object({action:z.literal('verify'),user_id:z.string().uuid(),invoice_id:z.string().uuid(),tx_hash:z.string().min(20).max(128),event_index:z.number().int().min(-1).max(1000)}).strict(),z.object({action:z.literal('alerts')}).strict(),z.object({action:z.literal('cleanup')}).strict(),z.object({action:z.literal('monitor_inventory')}).strict(),z.object({action:z.literal('monitor'),asset_key:z.string().max(30).optional()}).strict(),z.object({action:z.literal('business_daily')}).strict(),z.object({action:z.literal('reminders')}).strict()]).parse(await authenticateWorker(request,'financial'));
@@ -287,13 +287,13 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
     }
 
     if (method === 'GET' && route === '/manifest') {
-      const value=await getPublicManifest();return publicOk(value.data,value.ttlSeconds,request);
+      const value=await getPublicManifest(request);return publicOk(value.data,value.ttlSeconds,request);
     }
 
     if(method==='GET'&&route==='/help'){
       const query=new URL(request.url).searchParams,locale=z.enum(['en','fr']).parse(query.get('locale')??'en');const slug=query.get('slug');
-      if(slug){z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/).parse(slug);const response=await getPublicHelp(locale);const canonical=await publicHelpSlug(locale,slug);const article=(response.data as any[]).find(article=>article.slug===canonical);if(!article)throw new Error('NOT_FOUND');return publicOk(article,response.ttlSeconds,request);}
-      const response=await getPublicHelp(locale);return publicOk(response.data,response.ttlSeconds,request);
+      if(slug){z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/).parse(slug);const response=await getPublicHelp(locale,request);const canonical=await publicHelpSlug(locale,slug,request);const article=(response.data as any[]).find(article=>article.slug===canonical);if(!article)throw new Error('NOT_FOUND');return publicOk(article,response.ttlSeconds,request);}
+      const response=await getPublicHelp(locale,request);return publicOk(response.data,response.ttlSeconds,request);
     }
     if(route==='/admin/settings'){
       const actor=await admin(request);if(method==='GET')return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},settings));
@@ -309,7 +309,9 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
     if(route==='/me/notifications/read'&&method==='POST'){const user=await current(request);const input=z.object({id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:user.id},tx=>readNotification(tx,user.id,input.id)));}
 
     if (method === 'GET' && route === '/sim/users') {
-      const rows = await withContext({access:'public'},(tx) => tx.select().from(simulationAccounts).orderBy(desc(simulationAccounts.role),asc(simulationAccounts.username)));
+      await admitPublicMiss(request);
+      const rows = await withContext({access:'public'},(tx) => tx.select().from(simulationAccounts).orderBy(desc(simulationAccounts.role),asc(simulationAccounts.username)).limit(101));
+      if(rows.length>100)throw new Error('CONFIGURATION_INVALID');
       return ok(rows);
     }
 
@@ -367,7 +369,7 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
     }
 
     if (method === 'GET' && route === '/plans') {
-      const value=await getPublicCatalog();return publicOk(value.data,value.ttlSeconds,request);
+      const value=await getPublicCatalog(request);return publicOk(value.data,value.ttlSeconds,request);
     }
 
     if (method === 'POST' && route === '/gifts/simulate') {
