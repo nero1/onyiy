@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { copy, type Locale } from '@/lib/i18n';
 import dynamic from 'next/dynamic';
 import PwaControls from '@/components/pwa-controls';
+const MemberRecords=dynamic(()=>import('./member-records'),{ssr:false});
 const NotificationInbox=dynamic(()=>import('@/components/notification-inbox'),{ssr:false});
 const AdminPanel=dynamic(()=>import('@/components/admin-panel'),{ssr:false});
 const AuthPanel=dynamic(()=>import('@/components/auth-panel'),{ssr:false});
@@ -304,6 +305,7 @@ export default function DashboardApp() {
         ))}</section>
 
         <a className="back" href="#gift-tiles">↑ {t.backToTop}</a>
+        {sessionGeneration&&(manifest.feature_gifts||manifest.feature_wallets)&&<MemberRecords key={username+sessionGeneration} owner={username} generation={sessionGeneration} environment="simulation" locale={locale} collections={[...(manifest.feature_gifts?['cycles','invoices'] as const:[]),...(manifest.feature_wallets?['withdrawals'] as const:[])]} history={!!manifest.entitlements_member?.history} disabled={busy} revision={dash} onInvoice={row=>setGiftQuote({id:row.id,status:row.status,expected_base_units:row.amount_base_units!,expires_at:String(row.expires_at),owner:username})} onCancelInvoice={row=>void act(()=>mutation(`/gifts/invoices/${row.id}/cancel`,username,{}))} onWithdrawal={row=>void act(()=>mutation(`/me/withdrawals/${row.id}/cancel`,username,{}))}/>}
         <div className="two-col">
           <section><h2>{t.active}</h2>{active.length ? active.map((cycle) => <Cycle key={cycle.id} c={cycle} t={t} />) : <p className="muted">{t.noCycles}</p>}</section>
           <section><h2>{t.completed}</h2>{completed.length ? completed.map((cycle) => <Cycle key={cycle.id} c={cycle} t={t} />) : <p className="muted">{t.noCycles}</p>}</section>
