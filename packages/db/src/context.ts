@@ -63,3 +63,16 @@ export async function scopedTransaction<T>(database: Database, context: Database
 export function withContext<T>(context: DatabaseContext, fn: (tx: DbExecutor) => Promise<T>) {
   return scopedTransaction(db(),context,fn);
 }
+
+/** Capture server policy and owned member views in the same repeatable snapshot.
+ * Private policy stays under the service role; domain member reads use gw_read.
+ * Completion returns to the service role for the ordinary live-family fence. */
+export function withMemberSnapshot<T>(actorId:string,fn:(tx:DbExecutor,policy:Awaited<ReturnType<typeof readManifest>>)=>Promise<T>){
+ return withContext({access:'service',actorId,reportSnapshot:true},async tx=>{
+  const policy=await readManifest(tx);
+  await tx.execute(sql`set local role gw_read`);await tx.execute(sql`select set_config('gw.access','member',true)`);
+  const result=await fn(tx,policy);
+  await tx.execute(sql`set local role gw_service`);await tx.execute(sql`select set_config('gw.access','service',true)`);
+  return result;
+ });
+}

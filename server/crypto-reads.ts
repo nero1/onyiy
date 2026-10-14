@@ -1,7 +1,10 @@
+import {publicManifest} from '@gifters/config';
+import {notificationPage,notificationBadge} from './notifications';
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   cryptoReorgReviews,cryptoReorgResolutions,
   assets,
+  users,
   walletLinks,
   ledgerAccounts,
   ledgerPostings,
@@ -250,5 +253,8 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
   await tx.execute(
     sql`select set_config('gw.environment',${process.env.APP_ENV ?? "simulation"},true)`,
   );
-  return { balances, summary, wallets:policy.entitlements_member.wallet_link?wallets:[], invoices:policy.entitlements_member.history?invoices:[], withdrawals:policy.entitlements_member.history?withdrawals:[], cycles: active };
+  const [user]=await tx.select({id:users.id,username:users.username,status:users.status,role:users.role,locale:users.locale}).from(users).where(eq(users.id,userId)).limit(1);
+  const notices=policy.feature_notifications?await notificationPage(tx,userId):null;
+  const badge=policy.feature_notifications?await notificationBadge(tx,userId):{has_new:false};
+  return { user,manifest:publicManifest(policy),notifications:notices?.items??[],notification_badge:badge,balances, summary, wallets:policy.entitlements_member.wallet_link?wallets:[], invoices:policy.entitlements_member.history?invoices:[], withdrawals:policy.entitlements_member.history?withdrawals:[], cycles: active };
 }

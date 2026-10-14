@@ -7,7 +7,8 @@ const BotCheck=dynamic(()=>import('./bot-check'));
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { copy, type Locale } from '@/lib/i18n';
 import dynamic from 'next/dynamic';
-import PwaControls from '@/components/pwa-controls';
+const PwaControls=dynamic(()=>import('./pwa-controls'),{ssr:false});
+const ScopedSnapshotPoll=dynamic(()=>import('./scoped-snapshot-poll'),{ssr:false});
 const MemberRecords=dynamic(()=>import('./member-records'),{ssr:false});
 const NotificationInbox=dynamic(()=>import('@/components/notification-inbox'),{ssr:false});
 const AdminPanel=dynamic(()=>import('@/components/admin-panel'),{ssr:false});
@@ -30,7 +31,7 @@ import {
 type User = { id: string; username: string; role: string; status: string; locale: string };
 type Plan = { id: string; name: string; slug: string; usd_reference: string; receipts_required: number; status: string; amount_base_units: string; amount_giv: string; expected_giv: string };
 type Notification = {id:string;title_key:string;body:string;created_at:string;read_at:string | null};
-type Dashboard = { user: User;consent?:{required:boolean;terms_content:any;minimum_age:number}; asset: { symbol: string; decimals: number }; balances: { available: string; held: string; incoming?:string;refundable?:string; withdrawn: string }; points: number; cycles: any[]; notifications: Notification[];notification_badge?:{has_new:boolean}; financial_review?:boolean;pending_invoices?:(Omit<GiftQuote,'owner'> & {plan_id:string})[];pending_withdrawals?:{id:string;status:string;gross_base_units:string}[]; wallet: any | null };
+type Dashboard = { manifest?:any; user: User;consent?:{required:boolean;terms_content:any;minimum_age:number}; asset: { symbol: string; decimals: number }; balances: { available: string; held: string; incoming?:string;refundable?:string; withdrawn: string }; points: number; cycles: any[]; notifications: Notification[];notification_badge?:{has_new:boolean}; financial_review?:boolean;pending_invoices?:(Omit<GiftQuote,'owner'> & {plan_id:string})[];pending_withdrawals?:{id:string;status:string;gross_base_units:string}[]; wallet: any | null };
 type Notice = { kind: 'error' | 'ok'; text: string } | null;
 type GiftQuote={id:string;expected_base_units:string;expires_at:string;status:string;owner:string};
 type WithdrawalQuote = {id:string;grossBaseUnits:string;feeBaseUnits:string;netBaseUnits:string;destination:string};
@@ -171,6 +172,13 @@ export default function DashboardApp() {
   }
   async function switchAccount(next:string){if(busy)return;setBusy(true);try{receiveSession(await mutation<SessionResult>('/auth/simulation/session','',{username:next}));}catch(error){setNotice({kind:'error',text:errorMessage(error, locale)});}finally{setBusy(false)}}
 
+  function applyDashboard(fresh:Dashboard){
+    setDash(fresh);if(fresh.manifest)setManifest((old:any)=>({...old,...fresh.manifest}));setAuthUser(old=>old?{...old,...fresh.user}:old);
+    if(fresh.consent?.required)setManifest((old:any)=>({...old,terms_content:fresh.consent!.terms_content,eligibility_min_age:fresh.consent!.minimum_age}));
+    const safeSnapshot = { ...fresh, wallet: null, notifications: [],pending_withdrawals:[],pending_invoices:[] } as Dashboard;
+    const ttl=cacheMs(manifest,'private_snapshot_seconds');if(ttl)saveUserSnapshot(username,'dashboard',safeSnapshot,ttl,sessionGeneration);
+    setNotice(null);
+  }
   async function refresh() {
     if (!authUser||!sessionGeneration||!username || username !== currentUser.current) return;
     const generation = ++refreshGeneration.current;
@@ -183,11 +191,7 @@ export default function DashboardApp() {
     try {
       const fresh = await api<Dashboard>('/me/dashboard', username);
       if (generation !== refreshGeneration.current || username !== currentUser.current || fresh.user.username !== username) return;
-      setDash(fresh);
-      if(fresh.consent?.required)setManifest((old:any)=>({...old,terms_content:fresh.consent!.terms_content,eligibility_min_age:fresh.consent!.minimum_age}));
-      const safeSnapshot = { ...fresh, wallet: null, notifications: [],pending_withdrawals:[],pending_invoices:[] } as Dashboard;
-      const ttl=cacheMs(manifest,'private_snapshot_seconds');if(ttl)saveUserSnapshot(username,'dashboard',safeSnapshot,ttl,sessionGeneration);
-      setNotice(null);
+      applyDashboard(fresh);
     } catch (error) {
       if (generation!==refreshGeneration.current || username!==currentUser.current) return;
       if (error instanceof ApiError && error.code==='UNAUTHENTICATED') {setDash(null);setGiftQuote(null);setAuthUser(null);setSessionGeneration('');}
@@ -259,6 +263,8 @@ export default function DashboardApp() {
 
   return (
     <div className="app">
+      {sessionGeneration&&manifest?.entitlements_member?.dashboard!==false&&<ScopedSnapshotPoll owner={username} generation={sessionGeneration} path="/me/dashboard" seconds={manifest.cache_policy.client_poll_seconds} enabled={!busy&&online} locale={locale} onStart={()=>++refreshGeneration.current} onValue={(value,token)=>{if(token===refreshGeneration.current&&value.user?.username===currentUser.current)applyDashboard(value)}} onError={(error,token)=>{if(token===refreshGeneration.current&&error instanceof ApiError&&error.code==='UNAUTHENTICATED'){setDash(null);setAuthUser(null);setSessionGeneration('')}}}/>}
+
       {!online && <div className="offline" role="status">{t.offline}</div>}
       <header className="topbar" ref={headerElement}>
         <div><div className="brand">🎁 {t.brand}</div><div className="tagline">{t.tagline}</div></div>
