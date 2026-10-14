@@ -26,3 +26,5 @@ export async function GET() {
     return Response.json({ status: 'misconfigured' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
   }
 }
+
+export const maxDuration=60;
