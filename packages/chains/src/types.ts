@@ -92,9 +92,11 @@ export type ScannedTransfer={hash:string;index:number;sender:string;destination:
 export type TransferScan={through:bigint;transfers:ScannedTransfer[]};
 export type TransferScanCursor={height:string;transaction:number;event:number;blockHash?:string};
 export type TransferScanPage={cursor:TransferScanCursor;through:bigint;transfers:ScannedTransfer[];producedSlots?:string[]};
+export type FinalizedBalanceSnapshot={height:bigint;blockHash:string;amount:bigint};
 export interface ChainAdapter {
+  getFinalizedBalanceSnapshot?(asset:AssetRegistry,address:string,minimumHeight:bigint):Promise<FinalizedBalanceSnapshot>;
   scanTransferPage(address:string,after:bigint,through:bigint,cursor?:TransferScanCursor):Promise<TransferScanPage>;
-  getReconciledBalance(asset:AssetRegistry,address:string,minimumHeight:bigint):Promise<bigint>;
+  getReconciledBalance(asset:AssetRegistry,address:string,exactHeight:bigint):Promise<bigint>;
   scanTransfers(address:string,after:bigint,through:bigint):Promise<TransferScan>;
   validateAddress(address: string): Promise<boolean>;
   normalizeAddress(address: string): Promise<string>;

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { assertValidSplit } from "@gifters/domain";
-import { policyFields, privatePolicyKeys, staffPolicyKeys, planConfigSchema, assetConfigSchema, cryptoRiskSchema } from './policies';
+import { policyFields, privatePolicyNames, staffPolicyNames, privatePolicyKeys, staffPolicyKeys, planConfigSchema, assetConfigSchema, cryptoRiskSchema } from './policies';
 
 const paymentSplitSchema = z.object({
   receiver: z.number().int().nonnegative(),
@@ -42,6 +42,7 @@ export const manifestSchema = z.object({
 }).strict();
 
 export type Manifest = z.infer<typeof manifestSchema>;
+export type PublicManifest = Omit<Manifest,(typeof privatePolicyNames)[number]|(typeof staffPolicyNames)[number]>;
 
 export type ManifestScope = 'public' | 'private' | 'staff';
 export function manifestDefinition(key: string): { schema: z.ZodTypeAny; scope: ManifestScope } | undefined {
@@ -88,12 +89,12 @@ export function parseManifest(input: unknown): Manifest & Record<string, unknown
 }
 
 // Never serialize a complete manifest or trust a row's stored public marker.
-export function publicManifest(input: Record<string, unknown>) {
+export function publicManifest(input: Manifest & Record<string, unknown>):PublicManifest & Record<string,unknown> {
   const publicValues: Record<string, unknown> = {};
   for (const [key,value] of Object.entries(input)) {
     if (manifestDefinition(key)?.scope === 'public') publicValues[key] = validateManifestValue(key,value,'public');
   }
-  return publicValues;
+  return publicValues as PublicManifest & Record<string,unknown>;
 }
 
 export function validateSecurityCeilings(manifest: Manifest, env = process.env) {

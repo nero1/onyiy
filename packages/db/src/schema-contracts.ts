@@ -195,6 +195,10 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
     }
   ],
   "chain_recovery_runs": [
+{
+    "name": "recovery_balance_witness_check",
+    "expression": "((balance_witness IS NULL) OR (((jsonb_typeof(balance_witness) = 'object'::text) AND ((balance_witness ->> 'format'::text) = 'gw-finalized-balance-v1'::text) AND ((balance_witness ->> 'checkpoint_id'::text) = (checkpoint_id)::text) AND ((balance_witness ->> 'binding_fingerprint'::text) = binding_fingerprint) AND ((balance_witness ->> 'height'::text) = (through_height)::text) AND ((length((balance_witness ->> 'asset_key'::text)) >= 1) AND (length((balance_witness ->> 'asset_key'::text)) <= 30)) AND ((length((balance_witness ->> 'address'::text)) >= 1) AND (length((balance_witness ->> 'address'::text)) <= 128)) AND ((length((balance_witness ->> 'block_hash'::text)) >= 1) AND (length((balance_witness ->> 'block_hash'::text)) <= 100)) AND ((balance_witness ->> 'amount_base_units'::text) ~ '^(0|[1-9][0-9]{0,77})$'::text) AND ((balance_witness - ARRAY['format'::text, 'asset_key'::text, 'checkpoint_id'::text, 'binding_fingerprint'::text, 'address'::text, 'height'::text, 'block_hash'::text, 'amount_base_units'::text]) = '{}'::jsonb)) IS TRUE))"
+},
     {
       "name": "chain_recovery_runs_binding_fingerprint_check",
       "expression": "(length(binding_fingerprint) = 64)"

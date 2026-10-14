@@ -154,8 +154,8 @@ export async function startRecoveryScan(
   if (!checkpoint) throw new Error("NOT_FOUND");
   if (checkpoint.bindingFingerprint !== await binding(tx))
     throw new Error("RECOVERY_TARGET_MISMATCH");
-  const target = BigInt(through),
-    begin = BigInt(checkpoint.height);
+  let target = BigInt(through);
+  const begin = BigInt(checkpoint.height);
   if (target <= begin || target - begin > 100000n)
     throw new Error("SCAN_RANGE_INVALID");
   const key = `recovery-start:${actorId}:${requestKey}`,
@@ -173,7 +173,17 @@ export async function startRecoveryScan(
     anchor = await chain.getCanonicalBlock(begin);
   if (anchor.hash !== checkpoint.blockHash)
     throw new Error("CHECKPOINT_REORGED");
-  await chain.getCanonicalBlock(target);
+  const registry=checkpoint.registrySnapshot as AssetRegistry;
+  let balanceWitness:FinalizedBalanceWitness|undefined;
+  if(['sol','tron'].includes(registry.chain)){
+    if(!chain.getFinalizedBalanceSnapshot)throw new Error('FINALITY_UNAVAILABLE');
+    const snapshot=await withRpcBudget(()=>chain.getFinalizedBalanceSnapshot!(registry,checkpoint.treasurySender,target));
+    if(snapshot.height<target||snapshot.height-begin>100000n)throw new Error('SCAN_RANGE_INVALID');
+    target=snapshot.height;
+    balanceWitness={format:'gw-finalized-balance-v1',asset_key:registry.key,checkpoint_id:checkpointId,
+      binding_fingerprint:checkpoint.bindingFingerprint,address:checkpoint.treasurySender,
+      height:target.toString(),block_hash:snapshot.blockHash,amount_base_units:snapshot.amount.toString()};
+  }else await chain.getCanonicalBlock(target);
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtextextended('financial-policy',0))`,
   );
@@ -182,11 +192,12 @@ export async function startRecoveryScan(
     .values({
       checkpointId,
       bindingFingerprint: await binding(tx),
-      throughHeight: through,
+      throughHeight: target.toString(),
+      balanceWitness,
       cursorHeight: checkpoint.height,
     })
     .returning();
-  const result = { run_id: row.id, status: "scanning" };
+  const result = { run_id: row.id, status: "scanning", through_height:target.toString() };
   await tx
     .insert(operationKeys)
     .values({ businessKey: key, requestHash: hash, result });
@@ -272,6 +283,10 @@ const scanProgressSchema=z.object({stage:z.enum(['discover','verify','book','kno
  if(['known_index','known_settle','known_expiry'].includes(value.stage)&&!value.attemptId)context.addIssue({code:'custom',message:'SCAN_PROGRESS_INVALID'});
  if(value.stage==='known_settle'&&value.eventIndex===undefined)context.addIssue({code:'custom',message:'SCAN_PROGRESS_INVALID'});
 });
+const finalizedBalanceWitness=z.object({format:z.literal('gw-finalized-balance-v1'),asset_key:z.string().min(1).max(30),checkpoint_id:z.string().uuid(),
+ binding_fingerprint:z.string().regex(/^[0-9a-f]{64}$/),address:z.string().min(1).max(128),height:z.string().regex(/^(0|[1-9][0-9]{0,77})$/),
+ block_hash:z.string().min(1).max(100),amount_base_units:z.string().regex(/^(0|[1-9][0-9]{0,77})$/)}).strict();
+type FinalizedBalanceWitness=z.infer<typeof finalizedBalanceWitness>;
 type ScanProgress=z.infer<typeof scanProgressSchema>;
 const stored=(value:unknown)=>JSON.parse(JSON.stringify(value,(_key,v)=>typeof v==='bigint'?v.toString():v));
 function evidence(value:z.infer<typeof storedEvidenceSchema>):TransferEvidence{return {...value,height:BigInt(value.height),amount:value.amount===undefined?undefined:BigInt(value.amount),actualNativeFee:value.actualNativeFee===undefined?undefined:BigInt(value.actualNativeFee),actualNetworkFee:value.actualNetworkFee===undefined?undefined:BigInt(value.actualNetworkFee),accountSetupCost:value.accountSetupCost===undefined?undefined:BigInt(value.accountSetupCost)}}
@@ -402,7 +417,15 @@ async function recoverPagedStep(tx:DbExecutor,id:string){
       else {reason='KNOWN_ATTEMPT_PENDING';progress={stage:'known_index',cursor:progress.cursor,attemptId:attempt.id}}
     }
   }else if(priorProgress.stage==='balance'&&state!=='review'){
-    const physical=await chain.getReconciledBalance(registry,checkpoint.treasurySender,target),[book]=await tx.select({amount:sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='debit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`}).from(ledgerAccounts).leftJoin(ledgerPostings,eq(ledgerPostings.accountId,ledgerAccounts.id)).where(and(eq(ledgerAccounts.assetId,checkpoint.assetId),eq(ledgerAccounts.purpose,'treasury_asset')));
+    let physical:bigint;
+    if(run.balanceWitness!==null){
+      const witness=finalizedBalanceWitness.parse(run.balanceWitness);
+      if(!['sol','tron'].includes(registry.chain)||witness.asset_key!==registry.key||witness.checkpoint_id!==checkpoint.id||witness.binding_fingerprint!==checkpoint.bindingFingerprint||witness.address!==checkpoint.treasurySender||BigInt(witness.height)!==target)throw new Error('RPC_EVIDENCE_INVALID');
+      const cutoff=await chain.getCanonicalBlock(target);
+      if(!cutoff.finalized||cutoff.hash!==witness.block_hash)throw new Error('CHECKPOINT_REORGED');
+      physical=BigInt(witness.amount_base_units);
+    }else physical=await chain.getReconciledBalance(registry,checkpoint.treasurySender,target);
+    const [book]=await tx.select({amount:sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='debit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`}).from(ledgerAccounts).leftJoin(ledgerPostings,eq(ledgerPostings.accountId,ledgerAccounts.id)).where(and(eq(ledgerAccounts.assetId,checkpoint.assetId),eq(ledgerAccounts.purpose,'treasury_asset')));
     if(physical!==BigInt(book.amount)){state='review';reason='UNEXPLAINED_BALANCE'}else{
       const [owed]=await tx.select({amount:sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='credit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`}).from(ledgerAccounts).leftJoin(ledgerPostings,eq(ledgerPostings.accountId,ledgerAccounts.id)).where(and(eq(ledgerAccounts.assetId,checkpoint.assetId),inArray(ledgerAccounts.purpose,beneficiaryLiabilityPurposes)));
       if(physical<BigInt(owed.amount)){state='review';reason='CUSTODY_BELOW_LIABILITIES'}else{state='reconciled';reason=null}

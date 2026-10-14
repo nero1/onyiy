@@ -1,4 +1,5 @@
 'use client';
+import type {DashboardDto,DashboardCycle,PublicManifestDto,SimulationWithdrawalQuote} from '@/lib/financial-contracts';
 import {notificationTitle,notificationBody} from '@/lib/notification-copy';
 import {useAppearance,useNavigationIdentity} from './appearance-provider';
 import {errorMessage} from '@/lib/error-messages';
@@ -33,14 +34,14 @@ import {
 type User = { id: string; username: string; role: string; status: string; locale: string };
 type Plan = { id: string; name: string; slug: string; usd_reference: string; receipts_required: number; status: string; amount_base_units: string; amount_giv: string; expected_giv: string };
 type Notification = {id:string;title_key:string;body:string;created_at:string;read_at:string | null};
-type Dashboard = { manifest?:any; user: User;consent?:{required:boolean;terms_content:any;minimum_age:number}; asset: { symbol: string; decimals: number }; balances: { available: string; held: string; incoming?:string;refundable?:string; withdrawn: string }; points: number; cycles: any[]; notifications: Notification[];notification_badge?:{has_new:boolean}; financial_review?:boolean;pending_invoices?:(Omit<GiftQuote,'owner'> & {plan_id:string})[];pending_withdrawals?:{id:string;status:string;gross_base_units:string}[]; wallet: any | null };
+type Dashboard = DashboardDto;
 type Notice = { kind: 'error' | 'ok'; text: string } | null;
 type GiftQuote={id:string;expected_base_units:string;expires_at:string;status:string;owner:string};
-type WithdrawalQuote = {id:string;grossBaseUnits:string;feeBaseUnits:string;netBaseUnits:string;destination:string};
+type WithdrawalQuote = SimulationWithdrawalQuote;
 
 function preference(key:string){try{return localStorage.getItem(key)}catch{return null}}
 function remember(key:string,value:string){try{localStorage.setItem(key,value)}catch{/* Display preference persistence is optional. */}}
-function cacheMs(manifest:any,key:string){const seconds=manifest?.cache_policy?.[key];return Number.isSafeInteger(seconds) && seconds>0?seconds*1000:0}
+function cacheMs(manifest:PublicManifestDto|null|undefined,key:keyof PublicManifestDto['cache_policy']){const seconds=manifest?.cache_policy?.[key];return Number.isSafeInteger(seconds) && typeof seconds==='number' && seconds>0?seconds*1000:0}
 
 export default function DashboardApp() {
   const catalogGeneration=useRef(0);
@@ -55,13 +56,13 @@ export default function DashboardApp() {
   const [botReady,setBotReady]=useState(false),[botProof,setBotProof]=useState<BotProof|undefined>(),[botReset,setBotReset]=useState(0);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [dash, setDash] = useState<Dashboard | null>(null);
-  const [manifest, setManifest] = useState<any>(null);
+  const [manifest, setManifest] = useState<PublicManifestDto|null>(null);
   const {locale,setLocale,theme,setTheme}=useAppearance();
   useNavigationIdentity(requiresMfa?null:authUser);
 
   const [notice, setNotice] = useState<Notice>(null);
   const [online, setOnline] = useState(true);
-  const [queue, setQueue] = useState<any[] | null>(null);
+  const [queue, setQueue] = useState<unknown[] | null>(null);
   const [withdraw, setWithdraw] = useState('10');
   const [giftQuote,setGiftQuote]=useState<GiftQuote|null>(null);
   const [withdrawalQuote,setWithdrawalQuote] = useState<(WithdrawalQuote & {owner:string}) | null>(null);
@@ -74,7 +75,7 @@ export default function DashboardApp() {
   useEffect(() => {
     const initialUser = preference('sim_user') ?? 'member_01';
     setUsername(initialUser);
-    const cachedManifest=loadPublicSnapshot<any>('manifest');
+    const cachedManifest=loadPublicSnapshot<PublicManifestDto>('manifest');
     configureSnapshotBudget(cachedManifest?.cache_policy);
     void configurePublicDataBudget(cachedManifest?.cache_policy);
     setPlans(loadPublicSnapshot<Plan[]>('plans',cacheMs(cachedManifest,'catalog_seconds')) ?? []);
@@ -116,7 +117,7 @@ export default function DashboardApp() {
     if (!online) return;
     let mounted=true;
     api<User[]>('/sim/users', '').then(value=>{if(mounted)setUsers(value)}).catch(() => undefined);
-    api<any>('/manifest', '').then((value) => {
+    api<PublicManifestDto>('/manifest', '').then((value) => {
       if(!mounted)return;
       configureSnapshotBudget(value.cache_policy);
       void configurePublicDataBudget(value.cache_policy);
@@ -164,9 +165,9 @@ export default function DashboardApp() {
   async function switchAccount(next:string){if(busy)return;setBusy(true);try{receiveSession(await mutation<SessionResult>('/auth/simulation/session','',{username:next}));}catch(error){setNotice({kind:'error',text:errorMessage(error, locale)});}finally{setBusy(false)}}
 
   function applyDashboard(fresh:Dashboard){
-    setDash(fresh);if(fresh.manifest)setManifest((old:any)=>({...old,...fresh.manifest}));setAuthUser(old=>old?{...old,...fresh.user}:old);
-    if(fresh.consent?.required)setManifest((old:any)=>({...old,terms_content:fresh.consent!.terms_content,eligibility_min_age:fresh.consent!.minimum_age}));
-    const safeSnapshot = { ...fresh, wallet: null, notifications: [],pending_withdrawals:[],pending_invoices:[] } as Dashboard;
+    setDash(fresh);if(fresh.manifest)setManifest(old=>old?({...old,...fresh.manifest}):old);setAuthUser(old=>old?{...old,...fresh.user}:old);
+    if(fresh.consent?.required)setManifest(old=>old?({...old,terms_content:fresh.consent!.terms_content,eligibility_min_age:fresh.consent!.minimum_age}):old);
+    const safeSnapshot:Dashboard = { ...fresh, wallet: null, notifications: [],pending_withdrawals:[],pending_invoices:[] };
     const ttl=cacheMs(manifest,'private_snapshot_seconds');if(ttl)saveUserSnapshot(username,'dashboard',safeSnapshot,ttl,sessionGeneration);
     setNotice(null);
   }
@@ -351,6 +352,6 @@ function Summary({ label, value }: { label: string; value: string }) {
   return <div className="summary"><small>{label}</small><strong>{value}</strong></div>;
 }
 
-function Cycle({ c, t }: { c: any; t: any }) {
+function Cycle({ c, t }: { c: DashboardCycle; t: Pick<(typeof copy)[Locale],'position'|'credited'> }) {
   return <article className="card cycle"><div><strong>{c.name}</strong><p>{t.position}: {c.display_position ?? '—'}</p></div><div><strong>{c.credited_count}/{c.receipts_required}</strong><small>{t.credited}</small></div></article>;
 }

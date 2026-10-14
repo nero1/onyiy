@@ -1,8 +1,8 @@
 {
   "format": "gw-drizzle-congruence-v1",
-  "verified_columns": 810,
+  "verified_columns": 811,
   "verified_standalone_indexes": 102,
-  "verified_check_constraints": 261,
+  "verified_check_constraints": 262,
   "verified_tables": 86,
   "sql_only_constraint_triggers": [
     {
@@ -153,8 +153,8 @@
     }
   ],
   "source_sha256_base64": {
-    "packages/db/src/schema.ts": "faVSdHUso3CWHom4DOfL3k33n9PmxEp+Xxrf8bpanZA=",
-    "packages/db/src/schema-contracts.ts": "dbaR4Qlfm6J4oPXOhu3734LlZr+0d3J3e0gVJtYD60s="
+    "packages/db/src/schema.ts": "bpYPexhR3yAKND0BZGe9j+5/a6aulfr29wWYY0+opK0=",
+    "packages/db/src/schema-contracts.ts": "BpmZXXVefjg000XNBhZ/oWB9qgROxmQ8p4brbDAuXeI="
   },
   "migrations_sha256_base64": {
     "001_core.sql": "/PKJhqAEQ2dzkbJRIL0udxYczxTxp12zexbRRvuCkhY=",
@@ -251,6 +251,7 @@
     "091_staff_filtered_continuation.sql": "zRBW8GW+kbqaR+hedgrD/p//RAWbd596VuO043pI6mI=",
     "092_published_test_privacy.sql": "Y61u9pL+GdP4b7oSl7gb8RQ67+suy7NOmDBxuQOBwKc=",
     "093_supported_identity_service_scopes.sql": "7QmLmvVOZphALjVqUtqHeDDNwe8CsCKebDnXhXa/+jQ=",
-    "094_published_help_search.sql": "Ze1lOz7yoRDhDVsc1b8ASNw1gEwCKdTL08tG7GvIyFM="
+    "094_published_help_search.sql": "Ze1lOz7yoRDhDVsc1b8ASNw1gEwCKdTL08tG7GvIyFM=",
+    "095_recovery_balance_cutoff_witness.sql": "u95H6VJCjpzPuT6ioZQI7lXjg+f4UUrDjVhtyrCz7B0="
   }
 }

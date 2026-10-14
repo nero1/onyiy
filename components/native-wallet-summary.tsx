@@ -1,7 +1,8 @@
 "use client";
+import type {NativeWalletTotals} from '@/lib/financial-contracts';
 import {formatBaseUnits} from '@gifters/domain';
 import type {Locale} from '@/lib/i18n';
-export default function NativeWalletSummary({summary,decimals,symbol,locale}:{summary:any;decimals:number;symbol:string;locale:Locale}){
+export default function NativeWalletSummary({summary,decimals,symbol,locale}:{summary:NativeWalletTotals|undefined;decimals:number;symbol:string;locale:Locale}){
  const fr=locale==='fr';
  return <>
                   <dl className="wallet-summary">
