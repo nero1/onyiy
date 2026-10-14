@@ -12,7 +12,7 @@ Implemented IDs: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008,
 
 Local verification: required check:all; production build and bundle budget checks; production npm audit now zero advisories. Named isolated manual-contracts, manual-money and manual-quotes-r5 passed. The last validates quote cancellation/expiry/payload replay/DB clock, late-fund refunds, frozen pre-pause admission, custom bootstrap destination, positively refunded plan edit, and independent lower live per-transaction/daily signer caps without reservations or signed bytes. Initial quote-probe failures (invalid price TTL, missing scoped fixture binding, missing operational gas asset) remain retained and were corrected only in fresh r2/r3/r5 databases. No external RPC or broadcast occurred.
 
-Latest measured homepage196.35KiB, max API1.426MiB gzip, aggregate client0.642MiB gzip; final changed-head check:all/build/bundle passed locally. Named private scratch/evidence/env files under /workspace/work/remediation-v30 are0600, outside repo. Preserve all initial failed probes and databases; no reset/reuse of partially exercised financial sources.
+Latest measured homepage196.35KiB, max API1.435MiB gzip, aggregate client0.642MiB gzip; final changed-head check:all/build/bundle passed locally. Named private scratch/evidence/env files under /workspace/work/remediation-v30 are0600, outside repo. Preserve all initial failed probes and databases; no reset/reuse of partially exercised financial sources.
 
 ## Architecture and release boundaries
 
