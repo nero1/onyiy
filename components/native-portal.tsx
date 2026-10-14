@@ -1,4 +1,5 @@
 "use client";
+import {useAppearance,useNavigationIdentity} from './appearance-provider';
 import {errorMessage} from "@/lib/error-messages";
 import {loadSession} from '@/lib/auth-client';
 import {rememberPayment,pendingPayment,forgetPayment,beginPayment,endPayment} from '@/lib/payment-receipts';
@@ -47,8 +48,8 @@ type Catalog = {
   }[];
 };
 export default function NativePortal() {
-  const [locale, setLocale] = useState<Locale>("en"),
-    [session, setSession] = useState<SessionResult | null>(null),
+  const {locale,setLocale}=useAppearance();
+  const [session, setSession] = useState<SessionResult | null>(null),
     [catalog, setCatalog] = useState<Catalog | null>(null),
     [manifest, setManifest] = useState<any>(null),
     [data, setData] = useState<any>(null),
@@ -68,6 +69,7 @@ export default function NativePortal() {
     user = session?.user ?? null,
     fr = locale === "fr",
     t = copy[locale];
+  useNavigationIdentity(session?.requires_mfa?null:user);
   function receive(value: SessionResult) {
     epoch.current++;
     const old = current.current;

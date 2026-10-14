@@ -1,6 +1,6 @@
 # Custom bugs report — Gifters World Phase One
 
-Updated: **14 October 2026 at 11:43:15 AM WAT** · Documentation version **v42**
+Updated: **14 October 2026 at 01:33:00 PM WAT** · Documentation version **v43**
 
 ## Complete one-line findings list
 
@@ -52,11 +52,11 @@ Updated: **14 October 2026 at 11:43:15 AM WAT** · Documentation version **v42**
 46. **P1-046 — Notification load-more permanently stops at 100 items.** (Medium; defect) — Implemented; local checks passed.
 47. **P1-047 — Staff lists hide older users, jobs and recovery cases without search or cursors.** (Medium; requirement gap) — Implemented and locally verified in v40.
 48. **P1-048 — Latest-history caps can omit older active cycles and pending withdrawals.** (Medium; defect) — Implemented and locally verified in v39.
-49. **P1-049 — Public catalog and help lack the Phase One SEO rendering and metadata contract.** (Medium; requirement gap) — Open.
+49. **P1-049 — Public catalog and help lack the Phase One SEO rendering and metadata contract.** (Medium; requirement gap) — Implemented and locally verified in v43.
 50. **P1-050 — Several private portals lack noindex metadata.** (Low; requirement gap) — Implemented; local checks passed.
-51. **P1-051 — Stored locale and product copy are not consistently applied across portals.** (Medium; defect) — Open.
+51. **P1-051 — Stored locale and product copy are not consistently applied across portals.** (Medium; defect) — Implemented and locally verified in v43.
 52. **P1-052 — Dark-mode primary button text fails normal-text contrast.** (Medium; defect) — Implemented; local checks passed.
-53. **P1-053 — Mobile navigation and the testnet home omit required product surfaces.** (Medium; requirement gap) — Open.
+53. **P1-053 — Mobile navigation and the testnet home omit required product surfaces.** (Medium; requirement gap) — Implemented and locally verified in v43.
 54. **P1-054 — The native wallet summary omits held and withdrawn/net-income totals.** (Medium; requirement gap) — Implemented; local checks passed.
 55. **P1-055 — Closed historical exceptions can prevent plan editing forever.** (Medium; defect) — Implemented; local checks passed.
 56. **P1-056 — Native activation ignores the configured fixed-token pricing mode.** (Medium; defect) — Implemented; local checks passed.
@@ -65,7 +65,7 @@ Updated: **14 October 2026 at 11:43:15 AM WAT** · Documentation version **v42**
 59. **P1-059 — Filesystem archive staging is not durable or consistently reachable across serverless instances.** (Medium; requirement gap) — Implemented; local checks passed.
 60. **P1-060 — Archive stream creation precedes the final session fence and permits a file-lifecycle race.** (Low; hardening) — Implemented; local checks passed.
 61. **P1-061 — Failed staging files consume quota without a complete failure inventory.** (Medium; defect) — Implemented; local checks passed.
-62. **P1-062 — Paged own-data exports are not a single point-in-time snapshot.** (Low; hardening) — Open.
+62. **P1-062 — Paged own-data exports are not a single point-in-time snapshot.** (Low; hardening) — Implemented and locally verified in v43.
 63. **P1-063 — Drizzle table coverage does not describe all deployed constraints and defaults.** (Medium; maintenance) — Open.
 64. **P1-064 — Large tightly coupled services and untyped UI contracts make changes fragile.** (Low; maintenance) — Open.
 65. **P1-065 — Help search lacks the specified locale full-text and trigram ranking.** (Medium; requirement gap) — Open.
@@ -77,6 +77,7 @@ Updated: **14 October 2026 at 11:43:15 AM WAT** · Documentation version **v42**
 70. **P1-070 — A valid multi-asset plan catalog fails after 100 active versions.** (Medium; defect) — Implemented; local checks passed.
 71. **P1-071 — Financial archives can claim the current migration version while source migrations are pending.** (Medium; defect) — Implemented; local checks passed.
 72. **P1-072 — Same-address native/token transfers can manufacture incoming principal.** (High; defect) — Implemented; local checks passed.
+73. **P1-073 — Testnet identity and rate infrastructure remains simulation-only.** (High; requirement gap) — Implemented and locally verified in v43.
 
 ## Review, scope and evidence
 
@@ -722,11 +723,25 @@ Paths below are relative to repository root `/workspace/onyiy`. “Defect” mea
 
 **EVIDENCE:** Generated two-provider EVM contracts confirmed native and ERC20 self-transfers with amount7 despite no incoming movement. The adapter equality fence now rejects that path before any ledger write. No real funding or broadcast occurred.
 
+### 73: BUG P1-073: Testnet identity and rate infrastructure remains simulation-only
+
+**FILES:** `packages/db/src/migrations/018_identity_sessions.sql` (preserved), `packages/db/src/migrations/093_supported_identity_service_scopes.sql`, `server/rate-limits.ts`, `server/auth.ts`, `server/google-auth.ts`.
+
+**EVIDENCE:** A real testnet production process failed public manifest/native catalog reads with42501 because cache-miss admission could not insert its rate record. Forward018 identity policies still admitted only gw.environment=simulation, covering eight identity/session/OAuth/rate tables; verified testnet authentication would fail similarly. Simulation-only fixtures hid this requirement gap.
+
+**FIX:** Forward093 permits only the service context under gw_service in the two supported environments, simulation/testnet. Preserve grants, browser-role exclusions, immutable applied checksums, financial policies and readiness gates.
+
+**ACCEPTANCE:** Actual testnet identity/session/refresh/OAuth/rate operations succeed; mainnet/member contexts and gw_read remain denied; anonymous native catalog loads.
+
+**STATUS:** [x] Implemented and locally verified in v43; package D; High priority.
+
+**VERIFICATION:** manual-supported-identity-r3 passed real testnet runtime writes and unsupported/member scope denial with all generated records rolled back. A correctly rejected undersized cipher fixture was corrected using the real sealing format. manual-public-http-final-r2 passed real native anonymous catalog, published rename308, draft-map/API exclusion and available-only language alternates, in addition to the earlier public-page checks.
+
 ## Positive controls and exclusions
 
 Database administration checks current role/status, rather than trusting only session claims; status/role triggers revoke families. Scoped transactions use restricted roles and completion fences. Wallet proofs and monetary operations have immutable snapshots and replay bindings, despite the specific gaps above. SQL values use Drizzle/parameters; no application-level injectable identifier path was demonstrated. Integer and exact PostgreSQL numeric arithmetic are preferable to introducing Decimal.js unnecessarily.
 
-All 80 migrated tables are represented in Drizzle. Supabase Data API grants/revokes are explicitly classified: this application uses PostgreSQL roles, not browser Data API access. The new Supabase grant requirement is **not** a reason to grant anon/authenticated/service_role access to financial/signer tables. Future fixes must include explicit least-privilege grants/revokes and RLS in the same forward migration that adds a table. Current grant coverage is retained; P1-063 concerns deeper schema congruence.
+All86 current migrated tables are represented in Drizzle. Supabase Data API grants/revokes are explicitly classified: this application uses PostgreSQL roles, not browser Data API access. The new Supabase grant requirement is **not** a reason to grant anon/authenticated/service_role access to financial/signer tables. Future fixes must include explicit least-privilege grants/revokes and RLS in the same forward migration that adds a table. Current grant coverage is retained; P1-063 concerns deeper schema congruence.
 
 Public help drafts are filtered by RLS; they were not confirmed leaked. ioredis is installed. Next's actual API trace contains the SQL migration assets, so missing migration packaging is not a finding. Simulation account selection is deliberate isolated tooling, not a proven production impersonation vulnerability. Failed sources/archives/factors remain preserved.
 
@@ -740,18 +755,18 @@ The production dependency audit reports **15 affected package nodes**, not 15 se
 
 [Vercel function limits](https://vercel.com/docs/functions/limitations) document the 4.5 MB request/response body limit relevant to P1-058. Local-function body limits are distinct from advertised archive size, execution duration and free-plan quota. Existing PRD hosting/commercial-use constraints remain; no claim of guaranteed free operation is made.
 
-The complete remediation mapping, verification checks and three-round exit rule are in [custom-bugs-fix-plan_v42.md](custom-bugs-fix-plan_v42.md). Current handover: [LLM-HANDOVER_v42.md](LLM-HANDOVER_v42.md).
+The complete remediation mapping, verification checks and three-round exit rule are in [custom-bugs-fix-plan_v43.md](custom-bugs-fix-plan_v43.md). Current handover: [LLM-HANDOVER_v43.md](LLM-HANDOVER_v43.md).
 
 
-## Current v41 remediation ledger
+## Current v43 remediation ledger
 
 The owner approved all Round One fixes, autonomous Rounds Two/Three and continued remediation, every Phase Two milestone, and final bug fixes before deferred testing. Continue without plan or milestone acceptance pauses. Use best recommendations, complete substantial verified batches, and merge only after BOTH push and pull-request CI succeed for the exact final head. Both financial readiness gates remain false; mainnet remains prohibited. CRON frequency and test-only issues remain excluded.
 
-60 of 72 tracked items implemented and locally verified; 12 remain open. The initial Round One audit had70 findings; P1-071/P1-072 were discovered and fixed during remediation. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. No bug-free or hosted acceptance claim is made.
+65 of 73 tracked items implemented and locally verified; 8 remain open. The initial Round One audit had70 findings; P1-071/P1-072/P1-073 were discovered and fixed during remediation. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. No bug-free or hosted acceptance claim is made.
 
-Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-013, P1-014, P1-015, P1-016, P1-017, P1-018, P1-019, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-026, P1-027, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-037, P1-040, P1-041, P1-042, P1-043, P1-044, P1-045, P1-046, P1-047, P1-048, P1-050, P1-052, P1-054, P1-055, P1-056, P1-057, P1-058, P1-059, P1-060, P1-061, P1-066, P1-068, P1-069, P1-070, P1-071, P1-072.
+Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-013, P1-014, P1-015, P1-016, P1-017, P1-018, P1-019, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-026, P1-027, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-037, P1-040, P1-041, P1-042, P1-043, P1-044, P1-045, P1-046, P1-047, P1-048, P1-049, P1-050, P1-051, P1-052, P1-053, P1-054, P1-055, P1-056, P1-057, P1-058, P1-059, P1-060, P1-061, P1-062, P1-066, P1-068, P1-069, P1-070, P1-071, P1-072, P1-073.
 
-Open: P1-009, P1-028, P1-038, P1-039, P1-049, P1-051, P1-053, P1-062, P1-063, P1-064, P1-065, P1-067.
+Open: P1-009, P1-028, P1-038, P1-039, P1-063, P1-064, P1-065, P1-067.
 
 Local verification: required check:all; production build and bundle budget checks; production npm audit now zero advisories. Named isolated manual-contracts, manual-money and manual-quotes-r5 passed. The last validates quote cancellation/expiry/payload replay/DB clock, late-fund refunds, frozen pre-pause admission, custom bootstrap destination, positively refunded plan edit, and independent lower live per-transaction/daily signer caps without reservations or signed bytes. Initial quote-probe failures (invalid price TTL, missing scoped fixture binding, missing operational gas asset) remain retained and were corrected only in fresh r2/r3/r5 databases. No external RPC or broadcast occurred.
 
@@ -812,8 +827,8 @@ Required check:all/build/bundle pass (homepage199.74KiB/200; maximum API1.424MiB
 
 ---
 
-Prepared by Codex — Round One remediation v42.
-PR29 merged at e1463fa after push38485886774 and PR38485891336 succeeded for exact final head ab1d7b5509fd215645448641065a2705cdf389ba. Initial failed head/run evidence remains in v30 Git history. PR30 merged at fa5d71b after push38500938562 and PR38500945296 succeeded for9bb4004e964c38ef2e31c884545e5ba2c70433ba. PR31 merged at59a8289 after exact head2ca05c2390fd1aefe516415f83aed15449b509ce passed push38507705481/PR38507767963. PR32 merged at523ba12 after exact a258d7a passed push38509097039/PR38509102087; PR34 merged atcab8a95 after head805f3d3 passed push38510489870/PR38510495165; PR35 merged atf99e2d2 after head5d7cf5b passed push38514924520/PR38514930961; PR36 merged at2434b30 after push38527849543 and pull_request38527856620 both succeeded for exact head2b012a3f4925c113fbc07a826c1722a2384c77f0. PR37 merged at68bcc95028f5847e8c8f7108b5e3a0b506670d7f after push38529567594 and pull_request38529575508 both succeeded for exact headbb832ca7751f0d99a11dff4f61e2ae7b65a0b433. PR38 merged at069cbf19fef850125f566101532b0e61536af563 after push38531715784 and pull_request38531724006 both succeeded for exact head19f67210522efefae9ac86802d6fa0afe025875c. PR39 merged at4558fe619738de55f1263b2678bedd8d13cf968a after push38534378166 and pull_request38534388168 both succeeded for exact head9304e67d71d4e7b605642761271703649723dd2e. PR40 merged at1b2fa3b592c1b5c2bf0dc85dfc806868fe348401 after push38540185905 and pull_request38540196203 succeeded for exact head3bd6595c337afc07889e22fed5710e8d2a93cdd3. Current branch feat/phase-one-remediation-round1m awaits final-head dual CI and merge.
+Prepared by Codex — Round One remediation v43.
+PR29 merged at e1463fa after push38485886774 and PR38485891336 succeeded for exact final head ab1d7b5509fd215645448641065a2705cdf389ba. Initial failed head/run evidence remains in v30 Git history. PR30 merged at fa5d71b after push38500938562 and PR38500945296 succeeded for9bb4004e964c38ef2e31c884545e5ba2c70433ba. PR31 merged at59a8289 after exact head2ca05c2390fd1aefe516415f83aed15449b509ce passed push38507705481/PR38507767963. PR32 merged at523ba12 after exact a258d7a passed push38509097039/PR38509102087; PR34 merged atcab8a95 after head805f3d3 passed push38510489870/PR38510495165; PR35 merged atf99e2d2 after head5d7cf5b passed push38514924520/PR38514930961; PR36 merged at2434b30 after push38527849543 and pull_request38527856620 both succeeded for exact head2b012a3f4925c113fbc07a826c1722a2384c77f0. PR37 merged at68bcc95028f5847e8c8f7108b5e3a0b506670d7f after push38529567594 and pull_request38529575508 both succeeded for exact headbb832ca7751f0d99a11dff4f61e2ae7b65a0b433. PR38 merged at069cbf19fef850125f566101532b0e61536af563 after push38531715784 and pull_request38531724006 both succeeded for exact head19f67210522efefae9ac86802d6fa0afe025875c. PR39 merged at4558fe619738de55f1263b2678bedd8d13cf968a after push38534378166 and pull_request38534388168 both succeeded for exact head9304e67d71d4e7b605642761271703649723dd2e. PR40 merged at1b2fa3b592c1b5c2bf0dc85dfc806868fe348401 after push38540185905 and pull_request38540196203 succeeded for exact head3bd6595c337afc07889e22fed5710e8d2a93cdd3. PR41 merged at864e8cbbd6025aeb249126571579adbcd69d08fc after push38551692293 and pull_request38551699013 succeeded for exact head7d63c89ba9633879832bd3e543712ae31baa677c. Current branch feat/phase-one-remediation-round1n awaits final-head dual CI and merge.
 
 
 ## V42 partial database-budget remediation
@@ -824,4 +839,19 @@ The named manual-safe-admission_v42 procedure passed against inactive gw_v40_sta
 
 Earlier whole-pool deadline experiments failed with a postgres-js callback/closed-socket race. Automatic approval review rejected never-resolving callbacks (pool exhaustion) and manual reserved-connection transactions/whole-pool closure (service disruption). Those approaches were removed; failed evidence is retained privately under remediation-v42. Total callback/request and signer shutdown budgeting still require a safe solution; do not mark P1-038 complete. Counts remain60/72 with12 open. Rounds Two/Three and Phase Two have not started.
 
-Signed: **14 October 2026 at 11:43:15 AM WAT**
+
+## V43 verified presentation and export batch
+
+Implemented P1-049/P1-051/P1-053/P1-062 plus new P1-073. Public homepage/catalog/help now render safe localized data in initial HTML, with configured-origin canonicals/alternates, visible nonce-protected WebSite data, published mechanics/privacy and the exact configured terms version. Real308 compatibility/rename redirects run before streaming. Static internal article routes retain GitHub browser-upload-safe paths. Sitemaps advertise available published translations and omit private surfaces; the new admin page is noindex. Forward092 adds only the test privacy notice, preserving operator-written versions; it makes no financial/schema-extension change. Forward093 fixes the eight server-only identity policies for supported service scopes; browser roles, member and mainnet scopes remain denied. No financial table or grant changed. Public catalogs show an explicit unavailable state if fresh data cannot load.
+
+One appearance provider owns stored locale/theme across all portals and their navigation/footer. Shared feature/role-aware navigation uses44px targets and a mobile safe-area bottom bar; anonymous testnet visitors get the public plan catalog. Product notification templates localize without rewriting records or changing exact amounts/networks; authored staff content remains verbatim. Application portals load separately from public initial HTML, reducing the homepage JavaScript budget.
+
+Own-data exports disclose their actual creation-cutoff/live-values guarantee. Each bounded part freezes captured values and includes a temporal contract version and capture interval in JSON/CSV, including empty parts. Later-created records are excluded; later mutable values can appear. Retained v1 downloads gain explanatory metadata after original cipher/hash validation; unknown completion time stays null. Export format/CSV concerns and public DTOs now have separate typed modules; P1-064 remains open for the broader critical financial boundaries.
+
+Named procedures passed: manual-public-http-final-r2 (real production French initial HTML, canonicals, published versions, real308,404, sitemap, draft-map/API exclusion, missing-translation alternates, anonymous native catalog and private noindex); manual-appearance-nav-final (real Chromium390px/1280px, shared French/dark preference persistence and switches,44px targets, no overflow and anonymous staff-link exclusion); manual-export-temporal-r3 (staged mutable changes after fixed cutoff, later-record exclusion, immutable parts, JSON/CSV empty/legacy metadata and escaping, all generated rows rolled back); manual-display-contracts (exact notification facts, free-form staff text, legacy unknown times). Earlier harness/build failures are retained, including a correctly rejected immutable-notification-body update. These are named isolated checks, not the deferred broad automated suites or hosted capacity acceptance.
+
+Required check:all, production build and bundle reporting passed after forward093. Exact-head dual CI and merge remain pending. Latest measured homepage180.22KiB/200, API1.429MiB/3, all clients0.661MiB. Schema remains86 tables;94 migrations and73 retained inventories. The initial encrypted site-financial-final_v43 archive (93 migrations) exactly restored into fresh inactive gw_v43_restore. After P1-073, a new site-financial-final_v43-r2 archive (94 migrations) exactly restored into fresh inactive gw_v43_restore_r2 with schema/RLS/grants/history verified. The presentation source is gw_v43_presentation; the separate gw_v43_public search experiment is preserved and is not the release/archive source. Original sources, archives, keys and financial histories are intact; both implementation gates remain false.
+
+P1-065 is blocked specifically by automatic approval review. Search/index prototypes passed rollback checks in a fresh inactive clone, but two proposed production search/recovery changes were rejected due migration/restore compatibility risk and a requirement for explicit owner approval of that exact change. No extension/index/restore-validator change is in this active batch. Read custom-bugs-search-approval_v43.md for the concrete proposal. P1-038 remains partial/open. Current total65/73 implemented,8 open; Rounds Two/Three and Phase Two have not started. Continue all unaffected findings without milestone pauses.
+
+Signed: **14 October 2026 at 01:33:00 PM WAT**
