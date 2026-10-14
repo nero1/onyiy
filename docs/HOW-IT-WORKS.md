@@ -294,8 +294,16 @@ Staff selected-user JSON/CSV exports use a closed field allowlist and audit reas
 Build reports bound every API trace below3MiB compressed and conservatively bound each lazy wallet by all client chunks below2MiB. Baseline regression is10%; hosted measurements remain separate. The financial readiness gates stay disabled pending explicit approval and independent release inputs.
 
 
-## Current v33 remediation and continuation
+## Current v34 remediation and continuation
 
-The owner approved all fixes and autonomous audit/plan/fix rounds through Phase Two and final bug fixes. Round One has 48 implemented and locally verified findings, with 23 still open. See [custom-bugs-report_v33.md](custom-bugs-report_v33.md), [custom-bugs-fix-plan_v33.md](custom-bugs-fix-plan_v33.md), [PROJECT-STATUS_v33.md](PROJECT-STATUS_v33.md) and [LLM-HANDOVER_v33.md](LLM-HANDOVER_v33.md). All four current filenames use matching versions; maintain cross-links together. Continue substantial batches without milestone acceptance waits, merge only after both exact-head CI events pass, retain financial gates disabled and tests deferred. Historical v29 review holds are satisfied. Phase One remediation and Phase Two are incomplete.
+The owner approved all fixes and autonomous audit/plan/fix rounds through Phase Two and final bug fixes. Round One has 52 implemented and locally verified findings, with 19 still open. See [custom-bugs-report_v34.md](custom-bugs-report_v34.md), [custom-bugs-fix-plan_v34.md](custom-bugs-fix-plan_v34.md), [PROJECT-STATUS_v34.md](PROJECT-STATUS_v34.md) and [LLM-HANDOVER_v34.md](LLM-HANDOVER_v34.md). All four current filenames use matching versions; maintain cross-links together. Continue substantial batches without milestone acceptance waits, merge only after both exact-head CI events pass, retain financial gates disabled and tests deferred. Historical v29 review holds are satisfied. Phase One remediation and Phase Two are incomplete.
 
 V33 adds bounded RPC queue/cache lifecycle, nonblocking age-labelled public statistics, private-route noindex/noarchive and atomic saved-help inventory replacement. Round One now48/71 locally verified;23 open. Financial gates remain false and Phase Two has not started.
+
+V34 portability contract: Full encrypted-site archives default to owner CLI mode. Vercel always uses CLI-only mode, regardless of filesystem settings, reports upload cap zero, and declines web staging/download. Selected-field staff exports remain available. Optional web staging requires explicit SITE_PORTABILITY_MODE=persistent_host on an operator-managed private persistent volume; its configured file cap remains separate from serverless body limits.
+
+Failed staged files remain in the private folder with bounded metadata sidecars. Staff inventory includes byte counts, failure category and observation time; missing metadata and transaction/session-completion rollbacks are visible as quarantine. No failed evidence is automatically removed. Physical files and sidecars count toward the shared quota and entry ceiling; the owner must review retention before moving or deleting evidence.
+
+Downloads capture bounded encrypted bytes, verify their checksum, append the export audit and close the file descriptor within the transaction. The response is constructed only after the final session/authorization fence commits. Later filesystem mutation cannot change the captured bytes; rejected fences create no response, and cancelled responses own no descriptor. Web upload remains encrypted_unverified and never decrypts, restores, publishes or starts financial work.
+
+Round One now52/71 locally verified;19 open. Financial gates remain false; Phase Two not started.

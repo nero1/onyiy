@@ -1074,7 +1074,7 @@ The web and signer readiness gates remain disabled. Automatic approval review re
 
 ## §34. Phase One bug audit, remediation and Phase Two continuation
 
-Owner directive recorded **13 October 2026 at 09:31:02 PM UTC**: analyze the full Phase One codebase in three complementary passes, deliver docs/custom-bugs-report_v33.md and docs/custom-bugs-fix-plan_v33.md with a complete initial one-line numbered list followed by affected files and recommended fixes, qualitative current/projected ratings, and current date/time in 12-hour format in custom report headers/footers. Include defects, missing Phase One requirements and evidenced suboptimal code; distinguish confirmed source failures from conditional hardening. Exclude CRON frequency and test-only issues.
+Owner directive recorded **13 October 2026 at 09:31:02 PM UTC**: analyze the full Phase One codebase in three complementary passes, deliver docs/custom-bugs-report_v34.md and docs/custom-bugs-fix-plan_v34.md with a complete initial one-line numbered list followed by affected files and recommended fixes, qualitative current/projected ratings, and current date/time in 12-hour format in custom report headers/footers. Include defects, missing Phase One requirements and evidenced suboptimal code; distinguish confirmed source failures from conditional hardening. Exclude CRON frequency and test-only issues.
 
 **Historical initial review boundary, satisfied by §34.1 approval:** “DO NOT FIX THE BUGS YET UNTIL I REVIEW THE PLAN!!!” This was the initial audit boundary. The owner subsequently authorized all fixes and autonomous continuation in §34.1; no further plan-review or milestone acceptance hold remains.
 
@@ -1088,15 +1088,15 @@ After this Phase One remediation exit, implement the whole §32 Phase Two sequen
 
 Supabase's explicit Data API grant policy shall be addressed in the same creating migration for every new public table. Use deliberate least-privilege GRANT/REVOKE/RLS by resource classification; do not apply blanket anon/authenticated/service_role access to financial/signing data. Application access remains Drizzle/PostgreSQL, not an implied switch to browser Data API use.
 
-Each implementation/documentation iteration remains a PR with BOTH exact-final-head push and pull-request CI success before merge; never direct-push main. Current status/handover are docs/PROJECT-STATUS_v33.md and docs/LLM-HANDOVER_v33.md.
+Each implementation/documentation iteration remains a PR with BOTH exact-final-head push and pull-request CI success before merge; never direct-push main. Current status/handover are docs/PROJECT-STATUS_v34.md and docs/LLM-HANDOVER_v34.md.
 
 
 ### §34.1 Approved autonomous continuation — 13 October 2026 at 11:17:35 PM WAT
 
-The owner has reviewed and approved the complete Round One plan. Fix all70 findings, perform the same full-codebase audit/plan/fix process for Rounds Two and Three, and continue further remediation if new/reopened bugs remain. Then implement every Phase Two milestone to complete technical implementation and perform final bug fixes before the deferred test phase. Do not wait for new plan or completed-milestone approval. Resolve routine questions using best recommendations; maximize useful verified scope per iteration. Maintain reports, plans, status and handovers. Create/merge each coherent PR after BOTH exact-final-head push and PR CI success. This approval supersedes the initial §34 plan-review hold, but preserves explicit financial readiness/mainnet restrictions and honest separately unrun hosted acceptance. Current status/handover filenames are PROJECT-STATUS_v33.md and LLM-HANDOVER_v33.md.
+The owner has reviewed and approved the complete Round One plan. Fix all70 findings, perform the same full-codebase audit/plan/fix process for Rounds Two and Three, and continue further remediation if new/reopened bugs remain. Then implement every Phase Two milestone to complete technical implementation and perform final bug fixes before the deferred test phase. Do not wait for new plan or completed-milestone approval. Resolve routine questions using best recommendations; maximize useful verified scope per iteration. Maintain reports, plans, status and handovers. Create/merge each coherent PR after BOTH exact-final-head push and PR CI success. This approval supersedes the initial §34 plan-review hold, but preserves explicit financial readiness/mainnet restrictions and honest separately unrun hosted acceptance. Current status/handover filenames are PROJECT-STATUS_v34.md and LLM-HANDOVER_v34.md.
 
 
-Bug reports and fix plans shall also have matching versioned filenames for every current iteration (initial remediation: custom-bugs-report_v33.md and custom-bugs-fix-plan_v33.md). Update status/handover/cross-links together; retain earlier evidence in Git history and do not leave stale current-file references.
+Bug reports and fix plans shall also have matching versioned filenames for every current iteration (initial remediation: custom-bugs-report_v34.md and custom-bugs-fix-plan_v34.md). Update status/handover/cross-links together; retain earlier evidence in Git history and do not leave stale current-file references.
 
 ## §34.2. Current remediation tracking
 
@@ -1107,3 +1107,11 @@ As of **14 October 2026 at 03:24:53 AM WAT**, v30/PR29 is merged after both exac
 As of **14 October 2026 at 04:33:09 AM WAT**, PR30 is merged after exact-head dual CI. V32 closes P1-026/027/029/030/031/032/033/034/035/036: bounded deletion-time message redaction and auth cleanup; one deadline-driven observation job; redacted operational metrics and fresh owner-measured provider quotas; immutable occurrence-bound alert bytes with critical priority and separate escalation step; request correlation and typed bilingual failure handling. Tracker:43/71 locally implemented/verified,28 open; all status/handover/bug report/plan filenames use_v32. Configured prototype diagnostics bound backlog/DLQ/daily alert sample thresholds to10000 and web lock thresholds to60000ms; measured vendor quotas remain owner-provided with24-hour freshness and current database binding. Missing hosted measurements never imply capacity. Financial gates remain disabled; Phase Two pending.
 
 V33 adds bounded RPC queue/cache lifecycle, nonblocking age-labelled public statistics, private-route noindex/noarchive and atomic saved-help inventory replacement. Round One now48/71 locally verified;23 open. Financial gates remain false and Phase Two has not started.
+
+V34 portability contract: Full encrypted-site archives default to owner CLI mode. Vercel always uses CLI-only mode, regardless of filesystem settings, reports upload cap zero, and declines web staging/download. Selected-field staff exports remain available. Optional web staging requires explicit SITE_PORTABILITY_MODE=persistent_host on an operator-managed private persistent volume; its configured file cap remains separate from serverless body limits.
+
+Failed staged files remain in the private folder with bounded metadata sidecars. Staff inventory includes byte counts, failure category and observation time; missing metadata and transaction/session-completion rollbacks are visible as quarantine. No failed evidence is automatically removed. Physical files and sidecars count toward the shared quota and entry ceiling; the owner must review retention before moving or deleting evidence.
+
+Downloads capture bounded encrypted bytes, verify their checksum, append the export audit and close the file descriptor within the transaction. The response is constructed only after the final session/authorization fence commits. Later filesystem mutation cannot change the captured bytes; rejected fences create no response, and cancelled responses own no descriptor. Web upload remains encrypted_unverified and never decrypts, restores, publishes or starts financial work.
+
+Round One now52/71 locally verified;19 open. Financial gates remain false; Phase Two not started.
