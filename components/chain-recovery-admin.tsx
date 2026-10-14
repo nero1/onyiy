@@ -45,6 +45,7 @@ export default function ChainRecoveryAdmin({
     }
   }
   const blocked = busy || !enabled;
+  const stageLabel=(stage:string)=>({discover:fr?'Recherche des mouvements':'Finding transfers',verify:fr?'Vérification de la preuve':'Verifying evidence',book:fr?'Enregistrement du mouvement vérifié':'Recording verified transfer',known_next:fr?'Contrôle des tentatives conservées':'Checking retained attempts',known_index:fr?'Recherche de la tentative':'Locating retained attempt',known_settle:fr?'Contrôle du règlement':'Checking settlement',known_expiry:fr?'Vérification de l’expiration':'Verifying expiry',balance:fr?'Comparaison des fonds conservés':'Comparing custody balance'} as Record<string,string>)[stage]??'';
   return (
     <section>
       <h3>
@@ -82,6 +83,8 @@ export default function ChainRecoveryAdmin({
               <p>
                 {r.state} · {r.cursor_height}/{r.through_height} ·{" "}
                 {r.reason_code}
+                {r.scan_stage&&<> · {stageLabel(r.scan_stage)}</>}
+                {r.scan_cursor&&<> · {fr?'Transaction / événement':'Transaction / event'} {r.scan_cursor.transaction} / {r.scan_cursor.event}</>}
               </p>
             </article>
           ))}

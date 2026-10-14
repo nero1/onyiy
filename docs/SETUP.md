@@ -782,9 +782,9 @@ Local final artifacts are v28-native-final.gwbackup (70 retained inventories/80 
 Automatic approval review rejected enabling the two readiness gates because that could permit real testnet operations. Leave them false until explicit approval of that change and independent owner/provider acceptance. Hosted OAuth/Turnstile/RPC, actual custody/wallet/broadcast, external ACK, mobile installation/LCP, quota/latency/capacity and release observation periods remain separate unrun acceptance items. Coding completion does not assert those outcomes.
 
 
-## Current v35 remediation and continuation
+## Current v36 remediation and continuation
 
-The owner approved all fixes and autonomous audit/plan/fix rounds through Phase Two and final bug fixes. Round One has 53 implemented and locally verified findings, with 18 still open. See [custom-bugs-report_v35.md](custom-bugs-report_v35.md), [custom-bugs-fix-plan_v35.md](custom-bugs-fix-plan_v35.md), [PROJECT-STATUS_v35.md](PROJECT-STATUS_v35.md) and [LLM-HANDOVER_v35.md](LLM-HANDOVER_v35.md). All four current filenames use matching versions; maintain cross-links together. Continue substantial batches without milestone acceptance waits, merge only after both exact-head CI events pass, retain financial gates disabled and tests deferred. Historical v29 review holds are satisfied. Phase One remediation and Phase Two are incomplete.
+The owner approved all fixes and autonomous audit/plan/fix rounds through Phase Two and final bug fixes. Round One has 54 implemented and locally verified findings, with 17 still open. See [custom-bugs-report_v36.md](custom-bugs-report_v36.md), [custom-bugs-fix-plan_v36.md](custom-bugs-fix-plan_v36.md), [PROJECT-STATUS_v36.md](PROJECT-STATUS_v36.md) and [LLM-HANDOVER_v36.md](LLM-HANDOVER_v36.md). All four current filenames use matching versions; maintain cross-links together. Continue substantial batches without milestone acceptance waits, merge only after both exact-head CI events pass, retain financial gates disabled and tests deferred. Historical v29 review holds are satisfied. Phase One remediation and Phase Two are incomplete.
 
 V33 adds bounded RPC queue/cache lifecycle, nonblocking age-labelled public statistics, private-route noindex/noarchive and atomic saved-help inventory replacement. Round One now48/71 locally verified;23 open. Financial gates remain false and Phase Two has not started.
 
@@ -803,3 +803,11 @@ Owned Redis connections require rediss, validate database/path/query shape, reso
 Narrow loopback fixtures require explicit fixture mode in simulation outside Vercel; fixture flags cannot bypass policy in testnet. Default host allowlist is empty and fails closed until the operator supplies each RPC/provider/webhook/cache hostname. No wildcard or IP-literal allowlists are accepted. Existing real hosted destinations must be explicitly configured before use.
 
 Round One now53/71 locally verified;18 open. Financial gates remain false; Phase Two not started.
+
+V36 recovery contract: Recovery scans retain a within-block transaction/event cursor and explicit discovery, verification, booking, known-attempt index/settlement/expiry and final custody-comparison stages. Every committed step appends immutable progress evidence. Incoming and outgoing booking remain exact-once; confirmed evidence is reused only after identity/amount checks and a fresh canonical block check. Failed evidence also requires the matching canonical block/height. Unknown funds/outflows retain their existing rights and review fences.
+
+Each discovery step covers one transaction and at most50 event/instruction slots per provider. EVM uses block hash lists, SOL signature lists and one selected transaction, and TRON reads only one selected receipt per provider. A busy block no longer requires100 verifications or1000 receipts in one HTTP invocation. Cursor advancement denotes a completed block only after every transaction/event is covered. Both providers must agree, including skipped SOL finalized slots; changed canonical hashes reject.
+
+All nested RPC requests share an18-second/24-request budget for a recovery step, including throttle/queue/body time. Known signed attempts are processed individually across committed stages; positive expiry still requires both independent finalized providers and audited closure, never releasing a hold on absence alone. Staff recovery records display translated stage labels and within-block positions. Forward088 adds persisted progress/history, forward089 strengthens the JSON shape and cursor-height checks without rewriting applied checksums.
+
+Round One now54/71 locally verified;17 open. P1-009 historical treasury inventory and P1-067 SOL cutoff remain open. Financial gates remain false; Phase Two not started.

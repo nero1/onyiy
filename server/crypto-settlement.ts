@@ -1,5 +1,5 @@
 import {bookChainFees} from './chain-fees';
-import type { AssetRegistry } from "@gifters/chains";
+import type { AssetRegistry, TransferEvidence } from "@gifters/chains";
 import { and, eq, sql } from "drizzle-orm";
 import {
   assets,
@@ -25,6 +25,7 @@ export async function settleCryptoAttempt(
   tx: DbExecutor,
   attemptId: string,
   eventIndex: number,
+  verifiedEvidence?: TransferEvidence,
 ) {
   assertFinancialEnvironment();
   const [attempt] = await tx
@@ -58,7 +59,7 @@ export async function settleCryptoAttempt(
       .limit(1),
     registry = obligation.registrySnapshot as AssetRegistry,
     chain = await adapter(registry);
-  const proof = await chain.verifyTransfer({
+  const proof = verifiedEvidence ?? await chain.verifyTransfer({
     asset: registry,
     hash: attempt.txHash,
     index: eventIndex,
@@ -70,6 +71,9 @@ export async function settleCryptoAttempt(
     destination: obligation.destination,
     amount: BigInt(obligation.netBaseUnits),
   });
+  if (verifiedEvidence && (proof.hash.toLowerCase()!==attempt.txHash.toLowerCase() || proof.index!==eventIndex ||
+      !proof.blockHash || proof.height===undefined ||
+      (proof.state==='confirmed' && (proof.sender!==obligation.treasurySender || proof.destination!==obligation.destination || proof.amount!==BigInt(obligation.netBaseUnits))))) throw new Error('INVALID_PROOF');
   if (!["confirmed", "failed"].includes(proof.state) || proof.contradiction)
     return { status: "pending" };
   if (proof.actualNativeFee === undefined || proof.actualNativeFee < 0n)

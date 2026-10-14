@@ -1074,7 +1074,7 @@ The web and signer readiness gates remain disabled. Automatic approval review re
 
 ## §34. Phase One bug audit, remediation and Phase Two continuation
 
-Owner directive recorded **13 October 2026 at 09:31:02 PM UTC**: analyze the full Phase One codebase in three complementary passes, deliver docs/custom-bugs-report_v35.md and docs/custom-bugs-fix-plan_v35.md with a complete initial one-line numbered list followed by affected files and recommended fixes, qualitative current/projected ratings, and current date/time in 12-hour format in custom report headers/footers. Include defects, missing Phase One requirements and evidenced suboptimal code; distinguish confirmed source failures from conditional hardening. Exclude CRON frequency and test-only issues.
+Owner directive recorded **13 October 2026 at 09:31:02 PM UTC**: analyze the full Phase One codebase in three complementary passes, deliver docs/custom-bugs-report_v36.md and docs/custom-bugs-fix-plan_v36.md with a complete initial one-line numbered list followed by affected files and recommended fixes, qualitative current/projected ratings, and current date/time in 12-hour format in custom report headers/footers. Include defects, missing Phase One requirements and evidenced suboptimal code; distinguish confirmed source failures from conditional hardening. Exclude CRON frequency and test-only issues.
 
 **Historical initial review boundary, satisfied by §34.1 approval:** “DO NOT FIX THE BUGS YET UNTIL I REVIEW THE PLAN!!!” This was the initial audit boundary. The owner subsequently authorized all fixes and autonomous continuation in §34.1; no further plan-review or milestone acceptance hold remains.
 
@@ -1088,15 +1088,15 @@ After this Phase One remediation exit, implement the whole §32 Phase Two sequen
 
 Supabase's explicit Data API grant policy shall be addressed in the same creating migration for every new public table. Use deliberate least-privilege GRANT/REVOKE/RLS by resource classification; do not apply blanket anon/authenticated/service_role access to financial/signing data. Application access remains Drizzle/PostgreSQL, not an implied switch to browser Data API use.
 
-Each implementation/documentation iteration remains a PR with BOTH exact-final-head push and pull-request CI success before merge; never direct-push main. Current status/handover are docs/PROJECT-STATUS_v35.md and docs/LLM-HANDOVER_v35.md.
+Each implementation/documentation iteration remains a PR with BOTH exact-final-head push and pull-request CI success before merge; never direct-push main. Current status/handover are docs/PROJECT-STATUS_v36.md and docs/LLM-HANDOVER_v36.md.
 
 
 ### §34.1 Approved autonomous continuation — 13 October 2026 at 11:17:35 PM WAT
 
-The owner has reviewed and approved the complete Round One plan. Fix all70 findings, perform the same full-codebase audit/plan/fix process for Rounds Two and Three, and continue further remediation if new/reopened bugs remain. Then implement every Phase Two milestone to complete technical implementation and perform final bug fixes before the deferred test phase. Do not wait for new plan or completed-milestone approval. Resolve routine questions using best recommendations; maximize useful verified scope per iteration. Maintain reports, plans, status and handovers. Create/merge each coherent PR after BOTH exact-final-head push and PR CI success. This approval supersedes the initial §34 plan-review hold, but preserves explicit financial readiness/mainnet restrictions and honest separately unrun hosted acceptance. Current status/handover filenames are PROJECT-STATUS_v35.md and LLM-HANDOVER_v35.md.
+The owner has reviewed and approved the complete Round One plan. Fix all70 findings, perform the same full-codebase audit/plan/fix process for Rounds Two and Three, and continue further remediation if new/reopened bugs remain. Then implement every Phase Two milestone to complete technical implementation and perform final bug fixes before the deferred test phase. Do not wait for new plan or completed-milestone approval. Resolve routine questions using best recommendations; maximize useful verified scope per iteration. Maintain reports, plans, status and handovers. Create/merge each coherent PR after BOTH exact-final-head push and PR CI success. This approval supersedes the initial §34 plan-review hold, but preserves explicit financial readiness/mainnet restrictions and honest separately unrun hosted acceptance. Current status/handover filenames are PROJECT-STATUS_v36.md and LLM-HANDOVER_v36.md.
 
 
-Bug reports and fix plans shall also have matching versioned filenames for every current iteration (initial remediation: custom-bugs-report_v35.md and custom-bugs-fix-plan_v35.md). Update status/handover/cross-links together; retain earlier evidence in Git history and do not leave stale current-file references.
+Bug reports and fix plans shall also have matching versioned filenames for every current iteration (initial remediation: custom-bugs-report_v36.md and custom-bugs-fix-plan_v36.md). Update status/handover/cross-links together; retain earlier evidence in Git history and do not leave stale current-file references.
 
 ## §34.2. Current remediation tracking
 
@@ -1123,3 +1123,11 @@ Owned Redis connections require rediss, validate database/path/query shape, reso
 Narrow loopback fixtures require explicit fixture mode in simulation outside Vercel; fixture flags cannot bypass policy in testnet. Default host allowlist is empty and fails closed until the operator supplies each RPC/provider/webhook/cache hostname. No wildcard or IP-literal allowlists are accepted. Existing real hosted destinations must be explicitly configured before use.
 
 Round One now53/71 locally verified;18 open. Financial gates remain false; Phase Two not started.
+
+V36 recovery contract: Recovery scans retain a within-block transaction/event cursor and explicit discovery, verification, booking, known-attempt index/settlement/expiry and final custody-comparison stages. Every committed step appends immutable progress evidence. Incoming and outgoing booking remain exact-once; confirmed evidence is reused only after identity/amount checks and a fresh canonical block check. Failed evidence also requires the matching canonical block/height. Unknown funds/outflows retain their existing rights and review fences.
+
+Each discovery step covers one transaction and at most50 event/instruction slots per provider. EVM uses block hash lists, SOL signature lists and one selected transaction, and TRON reads only one selected receipt per provider. A busy block no longer requires100 verifications or1000 receipts in one HTTP invocation. Cursor advancement denotes a completed block only after every transaction/event is covered. Both providers must agree, including skipped SOL finalized slots; changed canonical hashes reject.
+
+All nested RPC requests share an18-second/24-request budget for a recovery step, including throttle/queue/body time. Known signed attempts are processed individually across committed stages; positive expiry still requires both independent finalized providers and audited closure, never releasing a hold on absence alone. Staff recovery records display translated stage labels and within-block positions. Forward088 adds persisted progress/history, forward089 strengthens the JSON shape and cursor-height checks without rewriting applied checksums.
+
+Round One now54/71 locally verified;17 open. P1-009 historical treasury inventory and P1-067 SOL cutoff remain open. Financial gates remain false; Phase Two not started.
