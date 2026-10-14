@@ -1,3 +1,4 @@
+import {currentRequestId} from '@gifters/db';
 import {expireSuspensions} from './account-expiry';
 import crypto from 'node:crypto';
 import { and,eq,isNull,sql } from 'drizzle-orm';
@@ -17,7 +18,7 @@ export function assertOrigin(request:Request){if(request.headers.get('origin')!=
 export function csrf(request:Request,identity?:Identity){if(identity?.tool)return;if(identity){const account=request.headers.get('x-client-account'),generation=request.headers.get('x-client-session');if((account&&account!==identity.user.username)||(generation&&generation!==identity.session?.generation))throw new Error('VERSION_CONFLICT');}assertOrigin(request);const value=cookie(request,'gw_csrf');const header=request.headers.get('x-csrf-token')??'';if(!/^[A-Za-z0-9_-]{43}$/.test(value)||!equalText(value,header)||(identity?.session&&hash(value)!==identity.session.csrfHash))throw new Error('FORBIDDEN');}
 export function setCookie(response:Response,request:Request,name:string,value:string,path:string,seconds:number,httpOnly=true){const secure=new URL(origin(request)).protocol==='https:';response.headers.append('Set-Cookie',`${name}=${encodeURIComponent(value)}; Path=${path}; Max-Age=${Math.max(0,Math.floor(seconds))}; SameSite=Lax${httpOnly?'; HttpOnly':''}${secure?'; Secure':''}`);}
 export function clearCookies(response:Response,request:Request){setCookie(response,request,'gw_access','','/api/v1',0);setCookie(response,request,'gw_refresh','','/api/v1/auth',0);setCookie(response,request,'gw_pre_auth','','/api/v1/auth',0);setCookie(response,request,'gw_csrf','','/',0,false);}
-export const authResponse=(data:unknown,status=200)=>Response.json({data:typeof data==='object'&&data!==null&&!Array.isArray(data)?{...data,environment:process.env.APP_ENV??'simulation'}:data,meta:{request_id:crypto.randomUUID()}},{status,headers:{'Cache-Control':'private, no-store'}});
+export const authResponse=(data:unknown,status=200)=>Response.json({data:typeof data==='object'&&data!==null&&!Array.isArray(data)?{...data,environment:process.env.APP_ENV??'simulation'}:data,meta:{request_id:currentRequestId()}},{status,headers:{'Cache-Control':'private, no-store'}});
 export function userDto(user:User){return {id:user.id,username:user.username,email:user.email,role:user.role,status:user.status,locale:user.locale,consent_version:user.consentVersion,age_confirmed:!!user.ageConfirmedAt};}
 export async function databaseNow(tx:DbExecutor){const [row]=await tx.execute<{now:Date}>(sql`select clock_timestamp() as now`);return new Date(row.now);}
 function usable(user:User){return !['banned','deleted'].includes(user.status);}

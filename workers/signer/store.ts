@@ -171,7 +171,7 @@ export class SignerStore {
           and(
             eq(operationalAlerts.category, "activation_probe"),
             eq(alertDeliveries.status, "delivered"),
-            sql`${operationalAlerts.safeDetails}->>'configuration_hash'=${hash}`,
+            sql`${alertDeliveries.payloadText}::jsonb->'details'->>'configuration_hash'=${hash}`,
             sql`${alertDeliveries.deliveredAt}>clock_timestamp()-interval '24 hours'`,
           ),
         )

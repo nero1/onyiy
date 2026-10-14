@@ -1,4 +1,5 @@
 "use client";
+import {errorMessage} from "@/lib/error-messages";
 import { useEffect, useRef, useState } from "react";
 import { mutation, clientSessionMatches, ApiError } from "@/lib/api-client";
 import type { Locale } from "@/lib/i18n";
@@ -156,11 +157,7 @@ export default function BotCheck({
         if (valid()) {
           callback.current(false);
           setMessage(
-            error instanceof ApiError
-              ? error.code
-              : locale === "fr"
-                ? "Vérification indisponible."
-                : "Check unavailable.",
+            errorMessage(error, locale),
           );
         }
       });

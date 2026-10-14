@@ -1,4 +1,5 @@
 import {databaseBinding} from './binding-fingerprint';
+import {activeRequestId} from './request-context';
 import { sql, eq, and } from 'drizzle-orm';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { validateRuntimeEnv } from '@gifters/config';
@@ -31,6 +32,7 @@ export async function scopedTransaction<T>(database: Database, context: Database
     if (!role[0]?.safe) throw new Error('CONFIGURATION_INVALID');
     await tx.execute(context.access === 'service' ? sql.raw('SET LOCAL ROLE gw_service') : sql.raw('SET LOCAL ROLE gw_read'));
     const binding = await databaseBinding(tx, process.env.DATABASE_URL);
+    await tx.execute(sql`select set_config('gw.request_id',${activeRequestId()??''},true)`);
     await tx.execute(sql`select set_config('gw.actor_id',${context.actorId ?? ''},true), set_config('gw.access',${context.access},true), set_config('gw.environment',${config.appEnv},true), set_config('gw.database_binding',${binding},true)`);
     const authenticated=sessionScopes.getStore();
     async function checkFamily(fence=false){

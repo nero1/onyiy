@@ -1,4 +1,5 @@
 'use client';
+import {errorMessage} from '@/lib/error-messages';
 import {loadSession} from '@/lib/auth-client';
 import type {BotProof} from './bot-check';
 const BotCheck=dynamic(()=>import('./bot-check'));
@@ -7,9 +8,9 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { copy, type Locale } from '@/lib/i18n';
 import dynamic from 'next/dynamic';
 import PwaControls from '@/components/pwa-controls';
-import NotificationInbox from '@/components/notification-inbox';
+const NotificationInbox=dynamic(()=>import('@/components/notification-inbox'),{ssr:false});
 const AdminPanel=dynamic(()=>import('@/components/admin-panel'),{ssr:false});
-import AuthPanel from '@/components/auth-panel';
+const AuthPanel=dynamic(()=>import('@/components/auth-panel'),{ssr:false});
 import type {AuthUser,SessionResult} from '@/lib/auth-client';
 import { api, mutation, ApiError, setClientSession } from '@/lib/api-client';
 import { configurePublicDataBudget,loadPublicCatalog,savePublicCatalog } from '@/lib/public-data-cache';
@@ -167,7 +168,7 @@ export default function DashboardApp() {
     setAuthUser(value.user);setSessionGeneration(value.generation??'');
     if(value.user){currentUser.current=value.user.username;setUsername(value.user.username);activateUserScope(value.user.username,value.generation??'');if(same)void refresh();}
   }
-  async function switchAccount(next:string){if(busy)return;setBusy(true);try{receiveSession(await mutation<SessionResult>('/auth/simulation/session','',{username:next}));}catch(error){setNotice({kind:'error',text:error instanceof ApiError?error.code:t.error});}finally{setBusy(false)}}
+  async function switchAccount(next:string){if(busy)return;setBusy(true);try{receiveSession(await mutation<SessionResult>('/auth/simulation/session','',{username:next}));}catch(error){setNotice({kind:'error',text:errorMessage(error, locale)});}finally{setBusy(false)}}
 
   async function refresh() {
     if (!authUser||!sessionGeneration||!username || username !== currentUser.current) return;
@@ -189,7 +190,7 @@ export default function DashboardApp() {
     } catch (error) {
       if (generation!==refreshGeneration.current || username!==currentUser.current) return;
       if (error instanceof ApiError && error.code==='UNAUTHENTICATED') {setDash(null);setGiftQuote(null);setAuthUser(null);setSessionGeneration('');}
-      setNotice({ kind: 'error', text: error instanceof ApiError ? error.code : String(error) });
+      setNotice({ kind: 'error', text: errorMessage(error, locale) });
     }
   }
 
@@ -212,7 +213,7 @@ export default function DashboardApp() {
       await Promise.all([refresh(),refreshCatalog()]);
       setNotice({ kind:result?.expected_base_units && ['exception','failed'].includes(result.status??'')?'error':'ok',text:result?.expected_base_units && result.status==='submitted'?t.incomingPending:result?.expected_base_units && result.status==='exception'?t.incomingReview:result?.expected_base_units && result.status==='failed'?t.incomingRejected:t.done });
     } catch (error) {
-      setNotice({ kind: 'error', text: error instanceof ApiError ? error.code : String(error) });
+      setNotice({ kind: 'error', text: errorMessage(error, locale) });
     } finally {
       setBusy(false);
     }
@@ -221,7 +222,7 @@ export default function DashboardApp() {
   async function requestGift(planId:string){
     if(!online || busy)return;const existing=dash?.pending_invoices?.find(item=>item.plan_id===planId && item.status==='quoted' && new Date(item.expires_at).getTime()>Date.now());if(existing){setGiftQuote({...existing,owner:username});return}const owner=username;setBusy(true);setGiftQuote(null);
     try{const quote=await mutation<Omit<GiftQuote,'owner'>>('/gifts/invoices',owner,{plan_id:planId,...(botProof?{bot_proof:botProof}:{})});if(owner===currentUser.current && navigator.onLine){setGiftQuote({...quote,owner});setBotReset(v=>v+1);}}
-    catch(error){if(owner===currentUser.current)setNotice({kind:'error',text:error instanceof ApiError?error.code:t.error});}
+    catch(error){if(owner===currentUser.current)setNotice({kind:'error',text:errorMessage(error, locale)});}
     finally{setBusy(false);}
   }
 

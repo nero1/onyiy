@@ -8,6 +8,7 @@ import { readManifest, schedulerNonces, schedulerRuns, withContext } from '@gift
 import { validateRuntimeEnv } from '@gifters/config';
 import { enqueueDailyReconciliation, runNonSigningJobs, type RunFence } from './jobs';
 import { enqueueDailyMaintenance, operationalRetentionHeld } from './maintenance';
+import {monitorOperations} from './operational-diagnostics';
 
 const PATH='/api/v1/internal/tick';
 function keyFor(id:string) {
@@ -76,6 +77,7 @@ export async function schedulerTick(request:Request) {
   const launched=await withContext({access:'service'},activateDuePlans);if(launched)invalidatePublicReads();
   await withContext({access:'service'},async tx=>{await expireSuspensions(tx);if(!operationalRetentionHeld())await expireExportChunks(tx);await enqueueDailyReconciliation(tx);await enqueueDailyMaintenance(tx);});
   const result=await runNonSigningJobs(run,request.signal);
+  await monitorOperations();
   await completeRun(run);
   return {status:'done',...result};
 }

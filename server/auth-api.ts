@@ -7,7 +7,7 @@ import { authenticate,authResponse,clearCookies,cookie,csrf,databaseNow,issueSes
 import { randomToken,hash } from './auth-crypto';
 import { enforceRate } from './rate-limits';
 import { startGoogle,finishGoogle } from './google-auth';
-async function body(request:Request){try{return await boundedJson(request)}catch{throw new Error('INVALID_INPUT')}}
+async function body(request:Request){return boundedJson(request)}
 export async function handleAuthRequest(method:string,path:string,request:Request):Promise<Response>{
  if(method==='GET'&&path==='/auth/session'){
   await enforceRate(request,'auth','session-bootstrap');
