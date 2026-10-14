@@ -3,7 +3,8 @@ import {copy,type Locale} from './i18n';
 export function errorMessage(error:unknown,locale:Locale){
  const t=copy[locale],code=error instanceof ApiError?error.code:error instanceof Error?error.message:'';
  let message:string=t.errorGeneric;
- if(code==='UNAUTHENTICATED')message=t.errorLogin;
+ if(code==='SELF_TRANSFER_NOT_ALLOWED')message=t.errorSelfTransfer;
+ else if(code==='UNAUTHENTICATED')message=t.errorLogin;
  else if(['FORBIDDEN','MAINNET_DENIED','FINANCIAL_ENVIRONMENT_DENIED'].includes(code))message=t.errorPermission;
  else if(code==='ACCOUNT_RESTRICTED')message=t.errorRestricted;
  else if(code==='CONSENT_REQUIRED')message=t.errorConsent;

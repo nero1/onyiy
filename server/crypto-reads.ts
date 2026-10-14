@@ -5,6 +5,7 @@ import {
   walletLinks,
   ledgerAccounts,
   ledgerPostings,
+  ledgerJournals,
   cryptoInvoices,
   cryptoObligations,
   planVersions,
@@ -139,6 +140,27 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
     )
     .orderBy(asc(assets.symbol), asc(ledgerAccounts.purpose))
     .limit(30);
+  // Payout and refund holds share an account, so classify the refund portion
+  // through the immutable journal's obligation identity, never through display
+  // history limits or mutable completion statuses.
+  const settled = await tx.select({
+    asset_id: ledgerAccounts.assetId,
+    withdrawn_net: sql<string>`coalesce(sum(case when ${ledgerJournals.ledgerType}='PAYOUT_SETTLE' then case when ${ledgerPostings.direction}='debit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end else 0 end),0)::text`,
+    refund_held: sql<string>`coalesce(sum(case when ${cryptoObligations.kind} in ('refund','unallocated_refund') then case when ${ledgerPostings.direction}='credit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end else 0 end),0)::text`,
+  }).from(ledgerAccounts)
+    .innerJoin(assets,eq(assets.id,ledgerAccounts.assetId))
+    .innerJoin(ledgerPostings,eq(ledgerPostings.accountId,ledgerAccounts.id))
+    .innerJoin(ledgerJournals,eq(ledgerJournals.id,ledgerPostings.journalId))
+    .leftJoin(cryptoObligations,sql`${cryptoObligations.id}=case when (${ledgerJournals.metadata}->>'obligation_id') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then (${ledgerJournals.metadata}->>'obligation_id')::uuid end and ${cryptoObligations.assetId}=${ledgerAccounts.assetId} and ${cryptoObligations.userId}=${ledgerAccounts.ownerId}`)
+    .where(and(eq(ledgerAccounts.ownerId,userId),eq(ledgerAccounts.ownerType,'user'),eq(ledgerAccounts.purpose,'held_payable'),eq(assets.environment,'testnet')))
+    .groupBy(ledgerAccounts.assetId).limit(10);
+  const summary=[...new Set(balances.map(row=>row.asset_id))].map(id=>{
+    const rows=balances.filter(row=>row.asset_id===id),asset=rows[0];
+    const amount=(purpose:string)=>BigInt(rows.find(row=>row.purpose===purpose)?.amount??'0');
+    const totals=settled.find(row=>row.asset_id===id),available=amount('available_payable'),held=amount('held_payable'),refundable=amount('refund_payable'),refundHeld=BigInt(totals?.refund_held??'0'),withdrawn=BigInt(totals?.withdrawn_net??'0');
+    if(refundHeld<0n||refundHeld>held)throw new Error('FINANCIAL_SAFETY_PAUSE');
+    return {asset_id:id,asset:asset.asset,network:asset.network,decimals:asset.decimals,under_review:rows.some(row=>row.under_review),available_base_units:available.toString(),held_base_units:held.toString(),income_held_base_units:(held-refundHeld).toString(),refundable_base_units:refundable.toString(),refund_held_base_units:refundHeld.toString(),withdrawn_net_base_units:withdrawn.toString(),net_income_base_units:(available+held-refundHeld+withdrawn).toString()};
+  });
   const wallets = await tx
     .select({
       id: walletLinks.id,
@@ -228,5 +250,5 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
   await tx.execute(
     sql`select set_config('gw.environment',${process.env.APP_ENV ?? "simulation"},true)`,
   );
-  return { balances, wallets:policy.entitlements_member.wallet_link?wallets:[], invoices:policy.entitlements_member.history?invoices:[], withdrawals:policy.entitlements_member.history?withdrawals:[], cycles: active };
+  return { balances, summary, wallets:policy.entitlements_member.wallet_link?wallets:[], invoices:policy.entitlements_member.history?invoices:[], withdrawals:policy.entitlements_member.history?withdrawals:[], cycles: active };
 }

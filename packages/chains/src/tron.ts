@@ -255,6 +255,7 @@ export class TronAdapter implements ChainAdapter {
     return encoded.slice(10);
   }
   async estimateFee(intent: Omit<TransferIntent, "fee">): Promise<FeeQuote> {
+    if (normalized(intent.sender) === normalized(intent.destination)) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
     await this.network();
     await this.token(intent.asset);
     if (intent.asset.kind === "native") {
@@ -368,6 +369,7 @@ export class TronAdapter implements ChainAdapter {
     if (values[0] !== values[1]) throw new Error("SIGNED_INTENT_INVALID");
   }
   async buildTransfer(intent: TransferIntent): Promise<PreparedTransfer> {
+    if (normalized(intent.sender) === normalized(intent.destination)) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
     await this.network();
     if (
       intent.asset.chain !== "tron" ||
@@ -643,6 +645,7 @@ export class TronAdapter implements ChainAdapter {
     );
   }
   async verifyTransfer(expected: Transfer) {
+    if (normalized(expected.sender) === normalized(expected.destination)) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
     if (
       expected.asset.key !== this.asset.key ||
       expected.asset.chain !== this.asset.chain ||

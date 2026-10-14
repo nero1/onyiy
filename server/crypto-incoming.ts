@@ -93,6 +93,7 @@ export async function quoteCryptoInvoice(
     )
     .limit(1);
   if (old) {
+    if (old.sender === old.treasury) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
     const [version] = await tx
       .select()
       .from(planVersions)
@@ -207,6 +208,8 @@ export async function quoteCryptoInvoice(
     .limit(1);
   if (!wallet || (wallet.coolingUntil && wallet.coolingUntil > now))
     throw new Error("INVALID_ADDRESS");
+  const treasury = await platformAddress(registry, "RECEIVING");
+  if ((await (await adapter(registry)).normalizeAddress(wallet.address)) === treasury) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
   const config = await financialConfiguration(tx, registry);
   // Expiration closes checkout eligibility, never the ability to account for a
   // later transfer. Submitted invoices remain under observation.
@@ -241,7 +244,7 @@ export async function quoteCryptoInvoice(
         chain: registry.chain,
         registryHash: config.registryHash,
         registrySnapshot: registry,
-        treasury: await platformAddress(registry, "RECEIVING"),
+        treasury,
         sender: wallet.address,
         expectedBaseUnits: version.version.amountBaseUnits,
         usdReference: version.version.usdReference,

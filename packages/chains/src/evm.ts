@@ -247,6 +247,7 @@ export class EvmAdapter implements ChainAdapter {
     };
   }
   async estimateFee(intent: Omit<TransferIntent, "fee">): Promise<FeeQuote> {
+    if (getAddress(intent.sender) === getAddress(intent.destination)) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
     await this.network();
     await this.token(intent.asset);
     const [units, prices] = await Promise.all([
@@ -266,6 +267,7 @@ export class EvmAdapter implements ChainAdapter {
     };
   }
   async buildTransfer(intent: TransferIntent): Promise<PreparedTransfer> {
+    if (getAddress(intent.sender) === getAddress(intent.destination)) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
     await this.network();
     if (
       intent.asset.network !== this.asset.network ||
@@ -487,6 +489,7 @@ export class EvmAdapter implements ChainAdapter {
     );
   }
   async verifyTransfer(expected: Transfer) {
+    if (getAddress(expected.sender) === getAddress(expected.destination)) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
     if (!Number.isInteger(expected.index) || expected.index < 0)
       throw new Error("INVALID_INPUT");
     return this.verify(expected);

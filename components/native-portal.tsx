@@ -16,6 +16,7 @@ import {
   activeSessionGeneration,
   clearActiveUserScope,
 } from "@/lib/storage";
+const NativeWalletSummary=dynamic(()=>import('./native-wallet-summary'),{ssr:false});
 const AuthPanel=dynamic(()=>import('./auth-panel'),{ssr:false});
 import type {BotProof} from "./bot-check";
 import dynamic from "next/dynamic";
@@ -581,6 +582,7 @@ export default function NativePortal() {
             .filter(
               (asset) =>
                 asset.enabled ||
+                (data?.summary ?? []).some((row:any)=>row.asset_id===asset.id && BigInt(row.withdrawn_net_base_units)!==0n) ||
                 (data?.balances ?? []).some(
                   (row: any) =>
                     row.asset_id === asset.id && BigInt(row.amount) !== 0n,
@@ -590,6 +592,7 @@ export default function NativePortal() {
               const wallet = data?.wallets?.find(
                   (row: any) => row.network === currency.network,
                 ),
+                summary = data?.summary?.find((row:any)=>row.asset_id===currency.id),
                 balance = data?.balances?.find(
                   (row: any) =>
                     row.asset_id === currency.id &&
@@ -608,7 +611,8 @@ export default function NativePortal() {
                     )}{" "}
                     {currency.symbol}
                   </p>
-                  {balance?.under_review&&<p role="status">{fr?"Monnaie en cours de révision réseau. Les soldes sont conservés.":"Currency under chain review. Balances are retained."}</p>}
+                  <NativeWalletSummary summary={summary} decimals={currency.decimals} symbol={currency.symbol} locale={locale}/>
+                  {(balance?.under_review||summary?.under_review)&&<p role="status">{fr?"Monnaie en cours de révision réseau. Les soldes sont conservés.":"Currency under chain review. Balances are retained."}</p>}
                   {wallet ? (
                     <>
                       <p>

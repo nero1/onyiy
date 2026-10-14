@@ -40,6 +40,7 @@ export async function settleCryptoAttempt(
     .where(eq(cryptoObligations.id, attempt.obligationId))
     .limit(1);
   if (!lookup) throw new Error("NOT_FOUND");
+  if (lookup.treasurySender === lookup.destination) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
   if (lookup.userId) await lockUser(tx, lookup.userId);
   const [obligation] = await tx
     .select()
