@@ -1,6 +1,8 @@
-# P1-065 — proposed search and recovery dependency change v43
+# P1-065 — proposed search and recovery dependency change v44
 
-This proposal is not enabled in the v43 application. The owner already authorized autonomous fixes through Phase Two, but automatic approval review rejected this specific change twice. The second rejection said: “Despite the isolated test, this still changes production schema/search behavior and recovery archive validation/provisioning; the user has not explicitly approved this exact high-blast-radius recovery compatibility change after the stated risk.”
+**APPROVED by the owner on 14 October 2026 at 02:25:24 PM WAT; implemented in v44.** The approval was: “approve this change and any other necessary change. dont stop, keep going.”
+
+Historical review record: this proposal was not enabled in the v43 application. The owner already authorized autonomous fixes through Phase Two, but automatic approval review rejected this specific change twice. The second rejection said: “Despite the isolated test, this still changes production schema/search behavior and recovery archive validation/provisioning; the user has not explicitly approved this exact high-blast-radius recovery compatibility change after the stated risk.”
 
 ## Concrete scope for approval
 

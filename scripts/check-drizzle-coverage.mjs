@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -36,3 +37,18 @@ if (forbidden.length) {
   process.exit(1);
 }
 console.log(`Drizzle coverage check passed (${schemaTables.size}/${migrationTables.size} migrated application tables represented).`);
+
+// This reviewed baseline was established by creating the exported Drizzle DDL
+// in a fresh database and comparing owner catalogs. A changed model or forward
+// migration requires another catalog comparison, not a table-count-only pass.
+const baselines=fs.readdirSync(path.join(root,'docs')).filter(name=>/^custom-bugs-schema-contract_v\d+\.json$/.test(name));
+if(baselines.length!==1)throw new Error('Exactly one current verified schema contract is required');
+const baseline=JSON.parse(fs.readFileSync(path.join(root,'docs',baselines[0]),'utf8'));
+const hash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('base64');
+for(const [file,expected] of Object.entries(baseline.source_sha256_base64)){
+ if(hash(path.join(root,file))!==expected)throw new Error('Drizzle declarations changed: re-verify the owner/model catalog and update the versioned schema contract');
+}
+const currentMigrations=Object.fromEntries(fs.readdirSync(migrationDir).filter(name=>name.endsWith('.sql')).sort().map(name=>[name,hash(path.join(migrationDir,name))]));
+if(JSON.stringify(currentMigrations)!==JSON.stringify(baseline.migrations_sha256_base64))throw new Error('Migration contract changed: re-verify schema congruence without rewriting applied checksums');
+if(schemaTables.size!==baseline.verified_tables)throw new Error('Verified schema table count changed');
+console.log(`Verified declaration/migration contract preserved (${baseline.verified_columns} columns, ${baseline.verified_check_constraints} checks, ${baseline.verified_standalone_indexes} indexes; SQL-only timing/triggers inventoried).`);

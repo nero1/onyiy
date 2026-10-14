@@ -1,3 +1,4 @@
+import { recoveryExtensions } from './recovery-extensions';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -34,8 +35,8 @@ export async function recoveryInventory(database:DbExecutor) {
   if(keys.some(row=>!manifestDefinition(row.key))) throw new Error('RECOVERY_CONFIG_UNCLASSIFIED');
   const assets=await database.select({environment:schema.assets.environment}).from(schema.assets);
   const environment=process.env.APP_ENV??'simulation';if(!['simulation','testnet'].includes(environment)||assets.some(row=>row.environment!=='simulation'&&(environment!=='testnet'||row.environment!=='testnet'))) throw new Error('RECOVERY_ENVIRONMENT_INVALID');
-  const extensions=await database.execute<{name:string;schema:string;version:string}>(sql`select e.extname::text as name,n.nspname::text as schema,e.extversion::text as version from pg_extension e join pg_namespace n on n.oid=e.extnamespace where e.extname='pgcrypto' order by e.extname`);
-  if(extensions.length!==1||!['public','extensions'].includes(extensions[0].schema)||extensions[0].version!=='1.3') throw new Error('RECOVERY_SCHEMA_UNCLASSIFIED');
+  const extensions=await database.execute<{name:string;schema:string;version:string}>(sql`select e.extname::text as name,n.nspname::text as schema,e.extversion::text as version from pg_extension e join pg_namespace n on n.oid=e.extnamespace where e.extname in ('pgcrypto','pg_trgm') order by e.extname`);
+  if(!recoveryExtensions.safeParse([...extensions]).success) throw new Error('RECOVERY_SCHEMA_UNCLASSIFIED');
   const records:Record<string,{rows:number;sha256:string}>={};
   for(const table of tables) {
     const config=getTableConfig(table);

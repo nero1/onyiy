@@ -1,3 +1,4 @@
+import {searchPublishedHelp,publicSearchPolicy} from './help-search';
 import { admitPublicMiss } from './public-admission';
 import { statisticsSnapshot } from './public-statistics';
 import {nativeCatalog} from './crypto-reads';
@@ -14,7 +15,7 @@ const seed=loadManifest();
 let budget={maxEntries:seed.cache_policy.max_memory_entries,maxBytes:seed.cache_policy.max_memory_mb*1024*1024};
 let memory=new MemoryCache(budget);
 let generation=0;
-type PublicKey='manifest'|'catalog'|'native-catalog'|'statistics'|'help:en'|'help:fr'|'slugs:en'|'slugs:fr';
+type PublicKey='manifest'|'catalog'|'native-catalog'|'statistics'|'help:en'|'help:fr'|'slugs:en'|'slugs:fr'|`search:${'en'|'fr'}:${string}`;
 const pending=new Map<PublicKey,Promise<Entry>>();
 
 function captured(data:unknown,manifest:Manifest,publicSeconds:number,fallback=false):Loaded {
@@ -56,6 +57,7 @@ async function read(key:PublicKey,loader:()=>Promise<Loaded>,request?:Request):P
  if(!entry){
   let flight=pending.get(key);
   if(!flight){
+   if(pending.size>=32)throw new Error('RATE_LIMITED');
    const started=generation;
    flight=(async()=>{
     if(request)await admitPublicMiss(request);
@@ -105,3 +107,9 @@ export function getPublicNativeCatalog(request?:Request){return read('native-cat
 export function getPublicStatistics(request?:Request){return read('statistics',async()=>withContext({access:'service'},async tx=>{
  const policy=await readManifest(tx);return captured(await statisticsSnapshot(tx),policy,60);
 }),request);}
+
+export function getPublicHelpSearch(locale:'en'|'fr',query:string,request:Request){return read(`search:${locale}:${query}`,async()=>{
+ const policy=await publicSearchPolicy();
+ const rows=await searchPublishedHelp(locale,query);
+ return captured({locale,query,rows},policy,Math.min(60,policy.cache_policy.catalog_seconds));
+},request);}
