@@ -75,4 +75,4 @@ export { databaseConnectionOptions } from './connection-options';
 export { databaseHealthy } from './health';
 export { withSessionScope, withContext, scopedTransaction, type DatabaseContext } from './context';
 
-export {databaseScopeFingerprint} from './binding-fingerprint';
+export {databaseScopeFingerprint, databaseBinding, scopedDatabaseBinding} from './binding-fingerprint';

@@ -62,6 +62,8 @@ export async function verifySignedExpiry(tx: DbExecutor, attemptId: string) {
       result,
     })
     .onConflictDoNothing();
+  const [recorded]=await tx.execute<{recorded:boolean}>(sql`select public.gw_record_verified_expiry(${attempt.id}::uuid) as recorded`);
+  if(!recorded?.recorded)throw new Error('VERSION_CONFLICT');
   if (row.status !== "exception")
     await tx
       .update(cryptoObligations)

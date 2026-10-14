@@ -28,6 +28,36 @@ import type {
 } from "./types";
 const genesis = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
 const normalized = (address: string) => new PublicKey(address).toBase58();
+function transactionCosts(tx: any, payer: string) {
+  const keys=tx.transaction.message.accountKeys.map((key:any)=>key.pubkey);
+  const outer=tx.transaction.message.instructions;
+  const inner=(tx.meta.innerInstructions??[]).flatMap((group:any)=>group.instructions??[]);
+  if(!Array.isArray(outer)||outer.length+inner.length>1000)throw new Error('FEE_ATTRIBUTION_REVIEW_REQUIRED');
+  const system=SystemProgram.programId.toBase58(),token=TOKEN_PROGRAM_ID.toBase58();
+  const allowed=new Set([system,token,ASSOCIATED_TOKEN_PROGRAM_ID.toBase58(),'ComputeBudget111111111111111111111111111111']);
+  if(outer.some((instruction:any)=>!allowed.has(instruction.programId)))throw new Error('FEE_ATTRIBUTION_REVIEW_REQUIRED');
+  const instructions=[...outer,...inner];
+  const targets=new Set(instructions.filter((instruction:any)=>instruction.programId===token&&['transfer','transferChecked'].includes(instruction.parsed?.type)).map((instruction:any)=>instruction.parsed.info.destination));
+  let principal=0n,setup=0n;
+  for(const instruction of instructions){
+    if(instruction.programId!==system)continue;
+    const type=instruction.parsed?.type,info=instruction.parsed?.info;
+    if(!info)throw new Error('FEE_ATTRIBUTION_REVIEW_REQUIRED');
+    if(type==='transfer'||type==='transferWithSeed'){
+      const value=integer(info.lamports);
+      if(info.source===payer)principal+=value;
+      if(info.destination===payer)principal-=value;
+    }else if(type==='createAccount'||type==='createAccountWithSeed'){
+      if(info.source!==payer)continue;
+      const index=keys.indexOf(info.newAccount),rent=integer(info.lamports);
+      if(index<0||!targets.has(info.newAccount)||integer(tx.meta.preBalances[index])!==0n||integer(tx.meta.postBalances[index])!==rent)throw new Error('FEE_ATTRIBUTION_REVIEW_REQUIRED');
+      setup+=rent;
+    }else if(!['allocate','allocateWithSeed','assign','assignWithSeed'].includes(type))throw new Error('FEE_ATTRIBUTION_REVIEW_REQUIRED');
+  }
+  const network=integer(tx.meta.fee),debit=integer(tx.meta.preBalances[0])-integer(tx.meta.postBalances[0]);
+  if(debit-principal!==network+setup)throw new Error('FEE_ATTRIBUTION_REVIEW_REQUIRED');
+  return {network,setup,total:network+setup};
+}
 export class SolanaAdapter implements ChainAdapter {
   readonly rpc: DualRpc;
   constructor(
@@ -482,12 +512,8 @@ export class SolanaAdapter implements ChainAdapter {
     if (!signatures.includes(sender)) throw new Error("SENDER_PROOF_MISMATCH");
     const feePayer = tx.transaction.message.accountKeys[0]?.pubkey;
     if (feePayer !== sender) throw new Error("FEE_PAYER_MISMATCH");
-    const debit =
-      integer(tx.meta.preBalances[0]) - integer(tx.meta.postBalances[0]);
-    const actualNetworkFee = integer(tx.meta.fee),
-      actualNativeFee = debit - (asset.kind === "native" ? amount : 0n);
-    if (actualNativeFee < integer(tx.meta.fee))
-      throw new Error("RPC_EVIDENCE_INVALID");
+    const costs=transactionCosts(tx,sender);
+    const actualNetworkFee=costs.network,actualNativeFee=costs.total;
     const final = status.value?.[0]?.confirmationStatus === "finalized";
     const block = await this.rpc.request(side, "getBlock", [
       tx.slot,
@@ -509,7 +535,7 @@ export class SolanaAdapter implements ChainAdapter {
       amount,
       actualNativeFee,
       actualNetworkFee,
-      accountSetupCost: actualNativeFee - actualNetworkFee,
+      accountSetupCost: costs.setup,
     };
   }
   async findTransferIndex(hash: string, sender: string, destination: string) {

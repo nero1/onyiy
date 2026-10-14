@@ -1,4 +1,4 @@
-import {databaseScopeFingerprint} from '../../packages/db/src/binding-fingerprint';
+import {databaseBinding} from '../../packages/db/src/binding-fingerprint';
 import {beneficiaryLiabilityPurposes,businessAddressRole} from '../../packages/domain/src/liabilities';
 import { Transaction } from "ethers";
 import type { DbExecutor } from "../../packages/db/src/index";
@@ -12,6 +12,7 @@ import {
   signerStates,
   signerHeartbeats,
   signerReservations,
+  signerDispatchCursor,
   signedAttempts,
   assets,
   ledgerAccounts,
@@ -118,7 +119,7 @@ export class SignerStore {
   private async context<T>(fn: (tx: DbExecutor) => Promise<T>) {
     return this.database.transaction(async (tx) => {
       await tx.execute(sql.raw('set local search_path=pg_catalog,public,pg_temp'));
-      await tx.execute(sql`select set_config('gw.environment','testnet',true),set_config('gw.database_binding',${databaseScopeFingerprint(process.env.SIGNER_DATABASE_URL??'')},true)`);
+      await tx.execute(sql`select set_config('gw.environment','testnet',true)`);
       const [role] = await tx.execute<{
         safe: boolean;
         isolated: boolean;
@@ -128,6 +129,7 @@ export class SignerStore {
       if (!role?.safe || !role.isolated)
         throw new Error("SIGNER_DATABASE_SCOPE_DENIED");
       await tx.execute(sql.raw("set local role gw_signer"));
+      await tx.execute(sql`select set_config('gw.database_binding',${await databaseBinding(tx)},true)`);
       await tx.execute(sql`set local statement_timeout='5000ms'`);
       return fn(tx);
     });
@@ -178,16 +180,20 @@ export class SignerStore {
     });
   }
   async pending() {
-    return this.context((tx) =>
-      tx
-        .select()
-        .from(cryptoObligations)
-        .where(
-          sql`(${cryptoObligations.status} in ('approved','signing','broadcast') or (${cryptoObligations.status} in ('settled','exception') and exists(select 1 from ${signedAttempts} where ${signedAttempts.obligationId}=${cryptoObligations.id} and ${signedAttempts.status} in ('signed','broadcast'))))`,
-        )
-        .orderBy(asc(cryptoObligations.createdAt), asc(cryptoObligations.id))
-        .limit(20),
-    );
+    return this.context(async tx => {
+      await tx.insert(signerDispatchCursor).values({singleton:true}).onConflictDoNothing();
+      const [cursor]=await tx.select().from(signerDispatchCursor).for('update');
+      const eligible=sql`(${cryptoObligations.status} in ('approved','signing','broadcast') or (${cryptoObligations.status} in ('settled','exception') and exists(select 1 from ${signedAttempts} where ${signedAttempts.obligationId}=${cryptoObligations.id} and ${signedAttempts.status} in ('signed','broadcast'))))`;
+      const position=cursor.lastCreatedAt&&cursor.lastId?sql`(${cryptoObligations.createdAt},${cryptoObligations.id})`:undefined;
+      const lastCreated=cursor.lastCreatedAt?.toISOString();
+      const rows=await tx.select().from(cryptoObligations).where(and(eligible,position?sql`${position}>(${lastCreated}::timestamptz,${cursor.lastId}::uuid)`:undefined)).orderBy(asc(cryptoObligations.createdAt),asc(cryptoObligations.id)).limit(20);
+      if(position&&rows.length<20){
+        rows.push(...await tx.select().from(cryptoObligations).where(and(eligible,sql`${position}<=(${lastCreated}::timestamptz,${cursor.lastId}::uuid)`)).orderBy(asc(cryptoObligations.createdAt),asc(cryptoObligations.id)).limit(20-rows.length));
+      }
+      const last=rows.at(-1);
+      if(last)await tx.update(signerDispatchCursor).set({lastCreatedAt:last.createdAt,lastId:last.id}).where(eq(signerDispatchCursor.singleton,true));
+      return rows;
+    });
   }
   async attempts(id: string) {
     return this.context((tx) =>

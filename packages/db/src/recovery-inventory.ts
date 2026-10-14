@@ -21,6 +21,9 @@ export async function migrationFingerprint() {
 }
 
 export async function recoveryInventory(database:DbExecutor) {
+  const migrationsSha=await migrationFingerprint();
+  const applied=await database.select({name:schema.migrationHistory.name,sha256:schema.migrationHistory.sha256}).from(schema.migrationHistory).orderBy(schema.migrationHistory.name).limit(1001);
+  if(applied.length>1000||digest(applied)!==migrationsSha)throw new Error('RECOVERY_VERSION_MISMATCH');
   const manifest=await readManifest(database);
   const tables=Object.values(schema).filter(value=>is(value,PgTable)).sort((a,b)=>getTableConfig(a).name.localeCompare(getTableConfig(b).name,'en'));
   // PostgreSQL catalog inspection is a narrow backup/restore exception. Reject
@@ -36,7 +39,7 @@ export async function recoveryInventory(database:DbExecutor) {
   const records:Record<string,{rows:number;sha256:string}>={};
   for(const table of tables) {
     const config=getTableConfig(table);
-    if(['deployment_binding_challenges','auth_sessions','auth_refresh_tokens','auth_flows','rate_limits','wallet_challenges','worker_requests','bot_challenges','bot_token_uses','recovery_view_caps'].includes(config.name)) continue; // Ephemeral connection challenges are never transferable proof.
+    if(['signer_dispatch_cursor','database_binding_nonce','deployment_binding_challenges','auth_sessions','auth_refresh_tokens','auth_flows','rate_limits','wallet_challenges','worker_requests','bot_challenges','bot_token_uses','recovery_view_caps'].includes(config.name)) continue; // Ephemeral connection challenges are never transferable proof.
     const primary=config.primaryKeys.flatMap(key=>key.columns);
     const order=primary.length?primary:config.columns.filter(column=>column.primary);
     if(!order.length) throw new Error('RECOVERY_SCHEMA_UNCLASSIFIED');
@@ -70,5 +73,5 @@ export async function recoveryInventory(database:DbExecutor) {
     union all select 'function_grant',p.oid::regprocedure::text||'.'||case when a.grantee=0 then 'PUBLIC' when a.grantee=p.proowner then 'OWNER' else pg_get_userbyid(a.grantee) end||'.'||a.privilege_type,to_jsonb(a.is_grantable) from pg_proc p join pg_namespace n on n.oid=p.pronamespace cross join lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where n.nspname='public' and p.prokind='f'
     union all select 'schema_grant',n.nspname||'.'||case when a.grantee=0 then 'PUBLIC' when a.grantee=n.nspowner then 'OWNER' else pg_get_userbyid(a.grantee) end||'.'||a.privilege_type,to_jsonb(a.is_grantable) from pg_namespace n cross join lateral aclexplode(coalesce(n.nspacl,acldefault('n',n.nspowner))) a where n.nspname='public'
   ) evidence order by kind collate "C",name collate "C"`);
-  return {records,extensions:[...extensions],schema_sha256:digest(metadata),migrations_sha256:await migrationFingerprint()};
+  return {records,extensions:[...extensions],schema_sha256:digest(metadata),migrations_sha256:migrationsSha};
 }

@@ -57,6 +57,10 @@ export default function ChainRecoveryAdmin({
           : "A new checkpoint pauses activity. Two providers must confirm evidence; resuming requires complete reconciliation."}
       </p>
       {error && <p role="alert">{error}</p>}
+      {result?.expiry_closure && <p role="status">
+        {fr?'Expiration confirmée : clôturez cette obligation via la récupération appropriée, puis lancez un nouveau rapprochement. Les fonds restent réservés.':'Expiry verified: close this obligation through its recovery action, then start a fresh reconciliation. Funds remain held.'}
+        {' '}{result.expiry_closure.obligation_id} · {result.expiry_closure.kind}
+      </p>}
       <button
         disabled={busy}
         onClick={() =>

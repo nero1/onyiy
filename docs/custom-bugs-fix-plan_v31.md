@@ -1,6 +1,6 @@
 # Custom bugs fix plan — Gifters World Phase One
 
-Updated: **14 October 2026 at 12:42:08 AM WAT** · Documentation version **v30**
+Updated: **14 October 2026 at 03:24:53 AM WAT** · Documentation version **v31**
 
 ## Complete one-line remediation list
 
@@ -8,17 +8,17 @@ Updated: **14 October 2026 at 12:42:08 AM WAT** · Documentation version **v30**
 2. **P1-002 — A successful wallet send followed by a failed submission can prompt a second payment.** Implemented; local checks passed; high priority; package A.
 3. **P1-003 — Native TRX status observation rejects its own event index.** Implemented; local checks passed; high priority; package A.
 4. **P1-004 — Signer reservations ignore tighter runtime payout limits.** Implemented; local checks passed; high priority; package A.
-5. **P1-005 — Recovery binding distinguishes pooler and signer endpoints for the same database.** Open; high priority; package B.
-6. **P1-006 — Recovery can journal the same transaction fees more than once.** Open; high priority; package B.
-7. **P1-007 — Solana fee attribution treats other transfers as account setup cost.** Open; high priority; package B.
-8. **P1-008 — Saved expired Solana or TRON attempts can indefinitely block a recovery scan.** Open; medium priority; package B.
+5. **P1-005 — Recovery binding distinguishes pooler and signer endpoints for the same database.** Implemented; local checks passed; high priority; package B.
+6. **P1-006 — Recovery can journal the same transaction fees more than once.** Implemented; local checks passed; high priority; package B.
+7. **P1-007 — Solana fee attribution treats other transfers as account setup cost.** Implemented; local checks passed; high priority; package B.
+8. **P1-008 — Saved expired Solana or TRON attempts can indefinitely block a recovery scan.** Implemented; local checks passed; medium priority; package B.
 9. **P1-009 — Previous receiving addresses have no complete recovery monitoring inventory.** Open; high priority; package B.
 10. **P1-010 — Pausing a plan rejects payments already committed under its frozen terms.** Implemented; local checks passed; high priority; package A.
 11. **P1-011 — Accepted bootstrap destinations have no complete liability and payout support.** Implemented; local checks passed; high priority; package A.
-12. **P1-012 — The signer's oldest fixed candidate batch can starve later payable work.** Open; medium priority; package C.
+12. **P1-012 — The signer's oldest fixed candidate batch can starve later payable work.** Implemented; local checks passed; medium priority; package C.
 13. **P1-013 — Recovery pages have row bounds without a feasible total RPC/time budget.** Open; high priority; package B.
 14. **P1-014 — The generic scheduler client signs only simulation and leaves testnet jobs undrained.** Implemented; local checks passed; high priority; package C.
-15. **P1-015 — The hosted deploy workflow cannot migrate the selected testnet binding.** Open; medium priority; package C.
+15. **P1-015 — The hosted deploy workflow cannot migrate the selected testnet binding.** Implemented; local checks passed; medium priority; package C.
 16. **P1-016 — Safe cancellation and unallocated-refund recovery are unreachable in the UI.** Implemented; local checks passed; medium priority; package D.
 17. **P1-017 — Import and business operations use the generic staff rate policy.** Implemented; local checks passed; medium priority; package D.
 18. **P1-018 — Rate budgets fragment across raw resource paths.** Implemented; local checks passed; medium priority; package D.
@@ -75,6 +75,7 @@ Updated: **14 October 2026 at 12:42:08 AM WAT** · Documentation version **v30**
 69. **P1-069 — Native quote expiry and cooldown use the web clock instead of database time.** Implemented; local checks passed; medium priority; package A.
 
 70. **P1-070 — A valid multi-asset plan catalog fails after 100 active versions.** Implemented; local checks passed; medium priority; package F.
+71. **P1-071 — Financial archives can claim the current migration version while source migrations are pending.** Implemented; local checks passed; medium priority; package B.
 
 ## Approval boundary and execution rule
 
@@ -230,7 +231,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** The same database's approved web/signer endpoints agree; a restored clone still cannot use the source checkpoint.
 
-**STATUS:** [ ] Open; package B; High priority.
+**STATUS:** [x] Implemented and locally verified in v31; package B; High priority.
 
 ### 6: BUG P1-006: Recovery can journal the same transaction fees more than once
 
@@ -240,7 +241,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Resolve two events/assets from one hash and a mixed known/unknown hash: principal is per event, gas/setup are once.
 
-**STATUS:** [ ] Open; package B; High priority.
+**STATUS:** [x] Implemented and locally verified in v31; package B; High priority.
 
 ### 7: BUG P1-007: Solana fee attribution treats other transfers as account setup cost
 
@@ -250,7 +251,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** A two-transfer SOL transaction books both principals, one network fee and only positively identified rent.
 
-**STATUS:** [ ] Open; package B; High priority.
+**STATUS:** [x] Implemented and locally verified in v31; package B; High priority.
 
 ### 8: BUG P1-008: Saved expired Solana or TRON attempts can indefinitely block a recovery scan
 
@@ -260,7 +261,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** A positively expired saved attempt progresses through audited closure; an unknown hash retains its hold.
 
-**STATUS:** [ ] Open; package B; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v31; package B; Medium priority.
 
 ### 9: BUG P1-009: Previous receiving addresses have no complete recovery monitoring inventory
 
@@ -300,7 +301,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** Twenty blocked old obligations do not prevent a later eligible obligation from being considered.
 
-**STATUS:** [ ] Open; package C; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v31; package C; Medium priority.
 
 ### 13: BUG P1-013: Recovery pages have row bounds without a feasible total RPC/time budget
 
@@ -330,7 +331,7 @@ Every item below is **[ ] Open — awaiting plan review**. Paths are repository-
 
 **ACCEPTANCE:** A non-signing testnet database migrates in the hosted workflow without inserting simulation identities or enabling sends.
 
-**STATUS:** [ ] Open; package C; Medium priority.
+**STATUS:** [x] Implemented and locally verified in v31; package C; Medium priority.
 
 ### 16: BUG P1-016: Safe cancellation and unallocated-refund recovery are unreachable in the UI
 
@@ -904,28 +905,43 @@ No measured throughput/cost promise accompanies this plan. After code fixes, doc
 
 Then execute the entire Phase Two milestone sequence without waiting for milestone acceptance, as directed. The one initial bug-plan review hold is explicit; routine milestone acceptance is not. Phase Two implementation authorization does not authorize mainnet, live sends, release-gate bypass, secret disclosure or erasure of retained history.
 
+### 71: BUG P1-071: Financial archives can claim the current migration version while source migrations are pending
+
+**FILES:** `packages/db/src/recovery-inventory.ts`, `packages/db/src/recovery-cli.ts`
+
+**FIX:** Compare the complete applied migration name/checksum inventory against the current immutable SQL files before capturing or restoring financial records. Reject missing, extra or changed migrations.
+
+**ACCEPTANCE:** A source with pending migrations rejects backup before creating an archive; forward-migrated source and exact restored target validate.
+
+**STATUS:** [x] Implemented and locally verified in v31; package B; Medium priority.
+
+**EVIDENCE:** During v31, a source with pending077/078 could produce a packet whose migration fingerprint described the current files. The new applied-inventory check rejects RECOVERY_VERSION_MISMATCH before output. Old evidence is retained; source migrations are applied forward only, then a fresh signed archive is verified.
+
 ## Fixing-LLM handover
 
-Read [LLM-HANDOVER_v30.md](LLM-HANDOVER_v30.md), then the mandatory project docs and [custom-bugs-report_v30.md](custom-bugs-report_v30.md). The owner has authorized this plan. Continue without further approval pauses; prioritize remaining P1-068 plus packages A/B and the High identity issues P1-021/P1-022; preserve the complete 70-ID tracker and all release boundaries. Do not reinterpret historical v28 “100%” as current audit completion.
+Read [LLM-HANDOVER_v31.md](LLM-HANDOVER_v31.md), then the mandatory project docs and [custom-bugs-report_v31.md](custom-bugs-report_v31.md). The owner has authorized this plan. Continue without further approval pauses; prioritize remaining P1-068 plus packages A/B and the High identity issues P1-021/P1-022; preserve the complete 70-ID tracker and all release boundaries. Do not reinterpret historical v28 “100%” as current audit completion.
 
 
-## Current v30 remediation ledger
+## Current v31 remediation ledger
 
 The owner approved all Round One fixes, autonomous Rounds Two/Three and continued remediation, every Phase Two milestone, and final bug fixes before deferred testing. Continue without plan or milestone acceptance pauses. Use best recommendations, complete substantial verified batches, and merge only after BOTH push and pull-request CI succeed for the exact final head. Both financial readiness gates remain false; mainnet remains prohibited. CRON frequency and test-only issues remain excluded.
 
-26 of 70 Round One items implemented and locally verified; 44 remain open. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. P1-019 and P1-036 have partial improvements but remain open. No bug-free or hosted acceptance claim is made.
+33 of 71 tracked items implemented and locally verified; 38 remain open. The initial Round One audit had70 findings; P1-071 was discovered and fixed during remediation. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. P1-019 and P1-036 have partial improvements but remain open. No bug-free or hosted acceptance claim is made.
 
-Implemented: P1-001, P1-002, P1-003, P1-004, P1-010, P1-011, P1-014, P1-016, P1-017, P1-018, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-037, P1-044, P1-046, P1-052, P1-055, P1-056, P1-057, P1-068, P1-069, P1-070.
+Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-014, P1-015, P1-016, P1-017, P1-018, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-037, P1-044, P1-046, P1-052, P1-055, P1-056, P1-057, P1-068, P1-069, P1-070, P1-071.
 
-Open: P1-005, P1-006, P1-007, P1-008, P1-009, P1-012, P1-013, P1-015, P1-019, P1-026, P1-027, P1-028, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-038, P1-039, P1-040, P1-041, P1-042, P1-043, P1-045, P1-047, P1-048, P1-049, P1-050, P1-051, P1-053, P1-054, P1-058, P1-059, P1-060, P1-061, P1-062, P1-063, P1-064, P1-065, P1-066, P1-067.
+Open: P1-009, P1-013, P1-019, P1-026, P1-027, P1-028, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-038, P1-039, P1-040, P1-041, P1-042, P1-043, P1-045, P1-047, P1-048, P1-049, P1-050, P1-051, P1-053, P1-054, P1-058, P1-059, P1-060, P1-061, P1-062, P1-063, P1-064, P1-065, P1-066, P1-067.
 
 Local verification: required check:all; production build and bundle budget checks; production npm audit now zero advisories. Named isolated manual-contracts, manual-money and manual-quotes-r5 passed. The last validates quote cancellation/expiry/payload replay/DB clock, late-fund refunds, frozen pre-pause admission, custom bootstrap destination, positively refunded plan edit, and independent lower live per-transaction/daily signer caps without reservations or signed bytes. Initial quote-probe failures (invalid price TTL, missing scoped fixture binding, missing operational gas asset) remain retained and were corrected only in fresh r2/r3/r5 databases. No external RPC or broadcast occurred.
 
-Bug reports and fix plans must use the same _vN filename version as current status/handover; earlier versions are retained in Git history.
+Bug reports and fix plans must use the same _vN filename version as current status/handover; earlier versions are retained in Git history. Current artifacts use_v31.
+
+
+V31 evidence: manual-money-r2 passed; manual-contracts-r2 passed shared fees, different-endpoint checkpoint identity and fair dispatch past20 blocked rows without signing/reservations; manual-solana-costs-r2 passed two principals/one fee, positively identified ATA rent and ambiguous-debit rejection; preserved failed SOL expiry source resumed through forward-only migration078 and passed positive expiry/held principal/closure/replay/fresh scan. Non-signing hosted migration/seed/runtime path passed on gw_v31_testnet_seed:0 users/0 assets/12 plans/0 versions/16 help rows/one testnet namespace. Archive version preflight and clone proof are recorded in current status. P1-009/P1-013/P1-067 remain open.
 
 ---
 
-Prepared by Codex — Round One remediation v30.
-PR29 https://github.com/nero1/onyiy/pull/29 is open. Initial head4e9333d failed push38485592440 and PR38485625731 because the lockfile omitted the nested optional utf-8-validate5.0.10 peer. A clean Node22/npm10 dependency tree regenerated the lockfile; both dry-run and fresh npm ci were required before repush. Do not merge using the failed initial head.
+Prepared by Codex — Round One remediation v31.
+PR29 merged at e1463fa after push38485886774 and PR38485891336 succeeded for exact final head ab1d7b5509fd215645448641065a2705cdf389ba. Initial failed head/run evidence remains in v30 Git history. Current v31 branch feat/phase-one-remediation-round1b awaits its own exact-head dual CI and PR merge.
 
-Signed: **14 October 2026 at 12:42:08 AM WAT**
+Signed: **14 October 2026 at 03:24:53 AM WAT**
