@@ -1,3 +1,4 @@
+import {ownMemberRecords,memberRecordInput} from './member-records';
 import {applicationError} from './errors';
 import {admitPublicMiss} from './public-admission';
 import {readStaffOperations,reportProviderQuota,quotaReportInput} from './operational-diagnostics';
@@ -127,6 +128,7 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
 
     if(method==='GET'&&route==='/statistics'){const value=await getPublicStatistics(request);return publicOk(value.data,value.ttlSeconds,request);}
     if(method==='GET'&&route==='/crypto/catalog'){const value=await getPublicNativeCatalog(request);return publicOk(value.data,value.ttlSeconds,request);}
+    if(method==='GET'&&route==='/me/records'){const actor=await current(request),params=new URL(request.url).searchParams,input=memberRecordInput.parse(Object.fromEntries(params));return ok(await withContext({access:'service',actorId:actor.id,reportSnapshot:true},tx=>ownMemberRecords(tx,actor.id,input)));}
     if(method==='GET'&&route==='/me/crypto'){const actor=await current(request);return ok(await withContext({access:'service',actorId:actor.id,reportSnapshot:true},tx=>ownNativePortfolio(tx,actor.id)));}
     if(method==='POST'&&route==='/internal/financial'){
       const input=z.discriminatedUnion('action',[z.object({action:z.literal('scan'),run_id:z.string().uuid()}).strict(),z.object({action:z.literal('expiry'),attempt_id:z.string().uuid()}).strict(),z.object({action:z.literal('settle'),attempt_id:z.string().uuid(),event_index:z.number().int().min(0).max(1000)}).strict(),z.object({action:z.literal('verify'),user_id:z.string().uuid(),invoice_id:z.string().uuid(),tx_hash:z.string().min(20).max(128),event_index:z.number().int().min(-1).max(1000)}).strict(),z.object({action:z.literal('alerts')}).strict(),z.object({action:z.literal('cleanup')}).strict(),z.object({action:z.literal('monitor_inventory')}).strict(),z.object({action:z.literal('monitor'),asset_key:z.string().max(30).optional()}).strict(),z.object({action:z.literal('business_daily')}).strict(),z.object({action:z.literal('reminders')}).strict()]).parse(await authenticateWorker(request,'financial'));

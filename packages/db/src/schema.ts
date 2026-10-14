@@ -125,6 +125,7 @@ export const cycles = pgTable('cycles', {
   completedAt: timestamp('completed_at', { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [
+  index('cycle_owned_cursor_idx').on(t.userId,t.id),
   index('cycle_user_history_idx').on(t.userId,t.createdAt,t.id),
   check('cycles_status_check', sql`${t.status} in ('active','completed','exception')`),
   uniqueIndex('uniq_active_cycle_per_user_plan').on(t.userId, t.planVersionId).where(sql`${t.status} in ('active','exception')`),
@@ -236,7 +237,7 @@ export const withdrawals = pgTable('withdrawals', {
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
   requestKey: text('request_key').notNull().unique(),
   createdAt: createdAt(),
-}, (t) => [index('withdrawals_user_history_idx').on(t.userId,t.createdAt,t.id),uniqueIndex('withdrawal_uuid_quote_unique').on(sql`lower(${t.requestKey})`),check('withdrawals_status_check', sql`${t.status} in ('quoted','held','awaiting_requote','approved','sending','settled','cancelled','exception')`)]).enableRLS();
+}, (t) => [index('withdrawal_owned_cursor_idx').on(t.userId,t.id),index('withdrawals_user_history_idx').on(t.userId,t.createdAt,t.id),uniqueIndex('withdrawal_uuid_quote_unique').on(sql`lower(${t.requestKey})`),check('withdrawals_status_check', sql`${t.status} in ('quoted','held','awaiting_requote','approved','sending','settled','cancelled','exception')`)]).enableRLS();
 
 export const notifications = pgTable('notifications', {redactedAt:timestamp('redacted_at',{withTimezone:true}),redactedBodyHash:text('redacted_body_hash'),
   id: uuid('id').primaryKey().defaultRandom(),
@@ -382,7 +383,7 @@ export const giftInvoices=pgTable('gift_invoices',{
   expectedBaseUnits:numeric('expected_base_units',{precision:78,scale:0}).notNull(),actualBaseUnits:numeric('actual_base_units',{precision:78,scale:0}),
   refundableBaseUnits:numeric('refundable_base_units',{precision:78,scale:0}).notNull().default('0'),status:text('status').notNull().default('quoted'),
   quoteExpiresAt:timestamp('quote_expires_at',{withTimezone:true}).notNull(),submittedAt:timestamp('submitted_at',{withTimezone:true}),createdAt:createdAt(),
-},t=>[unique('gift_invoice_request_key').on(t.userId,t.requestKey),uniqueIndex('gift_invoice_open_unique').on(t.userId,t.planVersionId).where(sql`${t.status} in ('quoted','submitted')`),index('gift_invoice_history_idx').on(t.userId,t.createdAt,t.id),check('gift_invoice_environment_check',sql`${t.environment}='simulation' and ${t.chainId}='giv'`),check('gift_invoice_amount_check',sql`${t.expectedBaseUnits}>0 and ${t.actualBaseUnits}>=0 and ${t.refundableBaseUnits}>=0`),check('gift_invoice_status_check',sql`${t.status} in ('quoted','submitted','credited','exception','failed','expired')`)]).enableRLS();
+},t=>[unique('gift_invoice_request_key').on(t.userId,t.requestKey),uniqueIndex('gift_invoice_open_unique').on(t.userId,t.planVersionId).where(sql`${t.status} in ('quoted','submitted')`),index('gift_invoice_owned_cursor_idx').on(t.userId,t.id),index('gift_invoice_history_idx').on(t.userId,t.createdAt,t.id),check('gift_invoice_environment_check',sql`${t.environment}='simulation' and ${t.chainId}='giv'`),check('gift_invoice_amount_check',sql`${t.expectedBaseUnits}>0 and ${t.actualBaseUnits}>=0 and ${t.refundableBaseUnits}>=0`),check('gift_invoice_status_check',sql`${t.status} in ('quoted','submitted','credited','exception','failed','expired')`)]).enableRLS();
 export const simulationIncomingControls=pgTable('simulation_incoming_controls',{
   id:uuid('id').primaryKey().defaultRandom(),invoiceId:uuid('invoice_id').notNull().unique().references(()=>giftInvoices.id,{onDelete:'restrict'}),
   environment:text('environment').notNull().default('simulation'),outcome:text('outcome').notNull(),actualBaseUnits:numeric('actual_base_units',{precision:78,scale:0}).notNull(),

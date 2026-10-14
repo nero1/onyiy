@@ -16,6 +16,7 @@ import {
   activeSessionGeneration,
   clearActiveUserScope,
 } from "@/lib/storage";
+const MemberRecords=dynamic(()=>import('./member-records'),{ssr:false});
 const NativeWalletSummary=dynamic(()=>import('./native-wallet-summary'),{ssr:false});
 const AuthPanel=dynamic(()=>import('./auth-panel'),{ssr:false});
 import type {BotProof} from "./bot-check";
@@ -679,6 +680,7 @@ export default function NativePortal() {
                 </section>
               );
             })}
+          {user&&session?.generation&&manifest&&(manifest.feature_gifts||manifest.feature_wallets)&&<MemberRecords key={user.username+session.generation} owner={user.username} generation={session.generation} environment="testnet" locale={locale} collections={[...(manifest.feature_gifts?['cycles','invoices'] as const:[]),...(manifest.feature_wallets?['withdrawals'] as const:[])]} history={!!manifest.entitlements_member?.history} disabled={busy} revision={data} onInvoice={row=>setExistingInvoice(row.id)} onCancelInvoice={row=>void financial(async()=>{await mutation('/gifts/crypto/cancel',user.username,{invoice_id:row.id});await load()},true)} onWithdrawal={row=>void recoverWithdrawal(row,false)}/>}
           {data?.cycles?.map((row: any) => (
             <article className="card" key={row.id}>
               <h2>
