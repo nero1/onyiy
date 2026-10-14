@@ -782,9 +782,9 @@ Local final artifacts are v28-native-final.gwbackup (70 retained inventories/80 
 Automatic approval review rejected enabling the two readiness gates because that could permit real testnet operations. Leave them false until explicit approval of that change and independent owner/provider acceptance. Hosted OAuth/Turnstile/RPC, actual custody/wallet/broadcast, external ACK, mobile installation/LCP, quota/latency/capacity and release observation periods remain separate unrun acceptance items. Coding completion does not assert those outcomes.
 
 
-## Current v34 remediation and continuation
+## Current v35 remediation and continuation
 
-The owner approved all fixes and autonomous audit/plan/fix rounds through Phase Two and final bug fixes. Round One has 52 implemented and locally verified findings, with 19 still open. See [custom-bugs-report_v34.md](custom-bugs-report_v34.md), [custom-bugs-fix-plan_v34.md](custom-bugs-fix-plan_v34.md), [PROJECT-STATUS_v34.md](PROJECT-STATUS_v34.md) and [LLM-HANDOVER_v34.md](LLM-HANDOVER_v34.md). All four current filenames use matching versions; maintain cross-links together. Continue substantial batches without milestone acceptance waits, merge only after both exact-head CI events pass, retain financial gates disabled and tests deferred. Historical v29 review holds are satisfied. Phase One remediation and Phase Two are incomplete.
+The owner approved all fixes and autonomous audit/plan/fix rounds through Phase Two and final bug fixes. Round One has 53 implemented and locally verified findings, with 18 still open. See [custom-bugs-report_v35.md](custom-bugs-report_v35.md), [custom-bugs-fix-plan_v35.md](custom-bugs-fix-plan_v35.md), [PROJECT-STATUS_v35.md](PROJECT-STATUS_v35.md) and [LLM-HANDOVER_v35.md](LLM-HANDOVER_v35.md). All four current filenames use matching versions; maintain cross-links together. Continue substantial batches without milestone acceptance waits, merge only after both exact-head CI events pass, retain financial gates disabled and tests deferred. Historical v29 review holds are satisfied. Phase One remediation and Phase Two are incomplete.
 
 V33 adds bounded RPC queue/cache lifecycle, nonblocking age-labelled public statistics, private-route noindex/noarchive and atomic saved-help inventory replacement. Round One now48/71 locally verified;23 open. Financial gates remain false and Phase Two has not started.
 
@@ -795,3 +795,11 @@ Failed staged files remain in the private folder with bounded metadata sidecars.
 Downloads capture bounded encrypted bytes, verify their checksum, append the export audit and close the file descriptor within the transaction. The response is constructed only after the final session/authorization fence commits. Later filesystem mutation cannot change the captured bytes; rejected fences create no response, and cancelled responses own no descriptor. Web upload remains encrypted_unverified and never decrypts, restores, publishes or starts financial work.
 
 Round One now52/71 locally verified;19 open. Financial gates remain false; Phase Two not started.
+
+V35 outbound destination contract: RPC, signed alert POSTs and REST cache traffic now use one server-only transport. Exact hostnames must appear in OUTBOUND_ALLOWED_HOSTS. Every resolved address must be public; mixed private/public DNS results reject, as do redirects and unsafe IP ranges. The socket receives the already validated address through a pinned lookup, with the original hostname retained for TLS identity verification and certificate checks explicitly enabled. DNS and sockets share caller deadlines and bounded admission.
+
+Owned Redis connections require rediss, validate database/path/query shape, resolve and approve the destination once, connect directly to that pinned IP with original-host TLS SNI, and disable reconnect loops. Injected Redis clients remain caller-owned trusted transports; no app URL creates those sockets. Display caching grants no financial authority.
+
+Narrow loopback fixtures require explicit fixture mode in simulation outside Vercel; fixture flags cannot bypass policy in testnet. Default host allowlist is empty and fails closed until the operator supplies each RPC/provider/webhook/cache hostname. No wildcard or IP-literal allowlists are accepted. Existing real hosted destinations must be explicitly configured before use.
+
+Round One now53/71 locally verified;18 open. Financial gates remain false; Phase Two not started.

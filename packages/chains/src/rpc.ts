@@ -1,3 +1,4 @@
+import { pinnedPost } from '../../config/src/outbound-http';
 import { MemoryCache } from "@gifters/cache";
 import type { RpcOptions } from "./types";
 const cache = new MemoryCache({ maxEntries: 100, maxBytes: 5 * 1024 * 1024 });
@@ -109,12 +110,10 @@ export class DualRpc {
       if (circuit && circuit.until > Date.now()) throw new Error("RPC_UNAVAILABLE");
       await this.throttle(root, controller.signal);
       dispatched = true;
-      const response = await fetch(target, {
-        method: "POST",
-        redirect: "error",
+      const response = await pinnedPost(new URL(target), {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-        signal: controller.signal,
+        signal: controller.signal, maxBytes: 2*1024*1024, fixture: this.options.fixture,
       });
       if (!response.ok) throw Error();
       const reader = response.body?.getReader();
