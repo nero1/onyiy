@@ -4,6 +4,8 @@ import { MemoryCache } from "@gifters/cache";
 import type { RpcOptions } from "./types";
 type RpcBudget={deadline:number;remaining:number};
 const budgets=new AsyncLocalStorage<RpcBudget>();
+const cancellations=new AsyncLocalStorage<AbortSignal>();
+export function withRpcCancellation<T>(signal:AbortSignal,fn:()=>Promise<T>){const parent=cancellations.getStore();return cancellations.run(parent?AbortSignal.any([parent,signal]):signal,fn);}
 export function withRpcBudget<T>(fn:()=>Promise<T>,milliseconds=18000,requests=24){
   if(!Number.isSafeInteger(milliseconds)||milliseconds<100||milliseconds>20000||!Number.isSafeInteger(requests)||requests<1||requests>32)throw new Error('RPC_CONFIGURATION_INVALID');
   const inherited=budgets.getStore();
@@ -107,6 +109,7 @@ export class DualRpc {
     body: unknown,
     jsonRpc = false,
   ): Promise<any> {
+    const cancellation=cancellations.getStore();if(cancellation?.aborted)throw new Error('RPC_BUDGET_EXCEEDED');
     const budget=budgets.getStore();
     if(budget&&(budget.remaining--<=0||budget.deadline<=Date.now()))throw new Error('RPC_BUDGET_EXCEEDED');
     const timeout=Math.min(this.options.timeoutMs,budget?Math.max(1,budget.deadline-Date.now()):this.options.timeoutMs);
@@ -116,6 +119,7 @@ export class DualRpc {
       : root;
     const controller = new AbortController(),
       timer = setTimeout(() => controller.abort(), timeout);
+    const cancel=()=>controller.abort();cancellation?.addEventListener('abort',cancel,{once:true});if(cancellation?.aborted)cancel();
     let dispatched = false;
     try {
       const circuit = failures.get(root);
@@ -168,14 +172,14 @@ export class DualRpc {
     } catch {
       // No automatic replay of broadcasts or signed operations. A bounded
       // cooldown also caps admission pressure on an unavailable provider.
-      if (dispatched) {
+      if (dispatched&&!cancellation?.aborted) {
       if (failures.size >= 100 && !failures.has(root)) failures.delete(failures.keys().next().value!);
       const old = failures.get(root), count = Math.min(6, (old?.count ?? 0) + 1);
       failures.set(root, { count, until: Date.now() + Math.min(5000, 100 * 2 ** count) + Math.floor(Math.random() * 100) });
       }
       throw new Error("RPC_UNAVAILABLE");
     } finally {
-      clearTimeout(timer);
+      clearTimeout(timer);cancellation?.removeEventListener('abort',cancel);
     }
   }
   async pair(method: string, params: unknown[]) {

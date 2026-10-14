@@ -1,3 +1,6 @@
+import {withExecutionScope} from '../../packages/db/src/execution-budget';
+import {withRpcCancellation} from '../../packages/chains/src/rpc';
+import {performance} from 'node:perf_hooks';
 import { prepareEvmReplacement } from "./evm-replacement";
 import crypto from "node:crypto";
 import { SignerStore, decryptSigned } from "./store";
@@ -13,13 +16,11 @@ import type {
   AssetRegistry,
   SignedTransfer,
 } from "../../packages/chains/src/types";
-let stopping = false;
-process.on("SIGTERM", () => {
-  stopping = true;
-});
-process.on("SIGINT", () => {
-  stopping = true;
-});
+let stopping = false,runDeadline=Infinity;
+const shutdown=new AbortController();
+function stop(){stopping=true;shutdown.abort();}
+function shouldStop(){if(performance.now()>=runDeadline)stop();return stopping;}
+process.on('SIGTERM',stop);process.on('SIGINT',stop);
 async function report(
   attemptId: string,
   eventIndex: number,
@@ -74,7 +75,7 @@ async function report(
           "x-worker-signature": signature,
         },
         body,
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.any([AbortSignal.timeout(20000),shutdown.signal]),
       });
     if (!response.ok) throw new Error("WORKLOAD_UNAVAILABLE");
     const content = await response.text();
@@ -88,7 +89,13 @@ async function report(
     key.fill(0);
   }
 }
-export async function runSignerOnce() {
+export async function runSignerOnce(){
+ runDeadline=performance.now()+45000;
+ const timer=setTimeout(stop,45000);
+ try{return await withExecutionScope(45000,()=>withRpcCancellation(shutdown.signal,()=>runSignerScoped()),shutdown.signal);}
+ finally{clearTimeout(timer);}
+}
+async function runSignerScoped() {
   assertIsolated();
   const store = new SignerStore();
   let processed = 0,
@@ -96,12 +103,14 @@ export async function runSignerOnce() {
   try {
     const heartbeats=new Set<string>();
     for(const asset of readRegistry().filter(v=>v.enabled&&v.verified)){
-      if(stopping)break;
+      if(shouldStop())break;
       try{const config=await store.configuration(asset);if(heartbeats.has(config.treasuryFingerprint)||!config.addresses.RECEIVING)continue;const chain=await runtimeAdapter(asset);await withSigningKey(asset.chain,asset.network,async(_key,address)=>{if(await chain.normalizeAddress(address)!==config.addresses.RECEIVING)throw new Error("SIGNER_ADDRESS_MISMATCH")});await Promise.all([chain.currentBlockHeight(),chain.getNativeBalance(config.addresses.RECEIVING,true)]);await store.heartbeat(asset);heartbeats.add(config.treasuryFingerprint);}catch{paused++;}
     }
-    const rows = await store.pending();
+    if(shouldStop())return {processed,paused,stopping:true};
+    let rows:Awaited<ReturnType<SignerStore['pending']>>;
+    try{rows=await store.pending();}catch(error){if(shouldStop())return {processed,paused,stopping:true};throw error;}
     for (const row of rows) {
-      if (stopping) break;
+      if (shouldStop()) break;
       try {
         const asset = row.registrySnapshot as AssetRegistry,
           chain = await runtimeAdapter(asset),
@@ -117,7 +126,7 @@ export async function runSignerOnce() {
         if (attempts.length) {
           const observations = [];
           for (const attempt of attempts) {
-            if (stopping) break;
+            if (shouldStop()) break;
             if (
               ["confirmed", "failed", "expired", "superseded"].includes(
                 attempt.status,
@@ -194,7 +203,7 @@ export async function runSignerOnce() {
                 const recorded = await report(value.attempt.id, 0, "expiry");
                 if (recorded.attempt_state === "expired")
                   await store.observed(value.attempt.id, "expired", 0n);
-              } else if (active && !stopping && !value.proof.contradiction) {
+              } else if (active && !shouldStop() && !value.proof.contradiction) {
                 const unexpired =
                   asset.chain === "tron"
                     ? BigInt(
@@ -209,7 +218,7 @@ export async function runSignerOnce() {
                 }
               }
             }
-          } else if (active && !stopping && observations.length) {
+          } else if (active && !shouldStop() && observations.length) {
             const latest = observations.at(-1)!;
             if (!latest.proof.contradiction) {
               let saved: { id: string; signed: SignedTransfer } | undefined;
@@ -271,7 +280,7 @@ export async function runSignerOnce() {
                     : !send.signed.validUntilHeight ||
                       (await chain.currentBlockHeight()) <=
                         send.signed.validUntilHeight;
-              if (unexpired && !stopping) {
+              if (unexpired && !shouldStop()) {
                 await chain.broadcastSigned(send.signed);
                 await store.broadcast(send.id);
               }
@@ -343,7 +352,7 @@ export async function runSignerOnce() {
             fee.nativeFee,
             assetAvailable,
           );
-        if (stopping) break;
+        if (shouldStop()) break;
         const prepared = await chain.buildTransfer({
             asset,
             sender,
@@ -360,7 +369,7 @@ export async function runSignerOnce() {
             await chain.currentBlockHeight(),
           );
         // Only a successfully persisted attempt may cross the broadcast boundary.
-        if (!stopping) {
+        if (!shouldStop()) {
           await chain.broadcastSigned(saved.signed);
           await store.broadcast(saved.id);
         }
