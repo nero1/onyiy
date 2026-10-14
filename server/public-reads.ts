@@ -83,7 +83,7 @@ export function invalidatePublicReads(){generation++;pending.clear();memory=new 
 
 export function getPublicHelp(locale:'en'|'fr',request?:Request){return read(`help:${locale}`,async()=>{
  const manifest=await withContext({access:'service',snapshot:true},async tx=>{await tx.execute(sql`set local statement_timeout='5000ms'`);return readManifest(tx)});if(!manifest.feature_help)throw new Error('FEATURE_DISABLED');
- const rows=await withContext({access:'public',snapshot:true},async tx=>{await tx.execute(sql`set local statement_timeout='5000ms'`);return tx.select({locale:helpArticles.locale,slug:helpArticles.slug,title:helpArticles.title,body:helpArticles.body}).from(helpArticles).where(eq(helpArticles.locale,locale)).orderBy(asc(helpArticles.slug)).limit(101)});if(rows.length>100||Buffer.byteLength(JSON.stringify(rows))>3*1024*1024)throw new Error('CONFIGURATION_INVALID');return captured(rows,manifest,manifest.cache_policy.catalog_seconds);
+ const rows=await withContext({access:'public',snapshot:true},async tx=>{await tx.execute(sql`set local statement_timeout='5000ms'`);return tx.select({locale:helpArticles.locale,slug:helpArticles.slug,title:helpArticles.title,body:helpArticles.body,version:helpArticles.version}).from(helpArticles).where(and(eq(helpArticles.locale,locale),eq(helpArticles.published,true))).orderBy(asc(helpArticles.slug)).limit(101)});if(rows.length>100||Buffer.byteLength(JSON.stringify(rows))>3*1024*1024)throw new Error('CONFIGURATION_INVALID');return captured(rows,manifest,manifest.cache_policy.catalog_seconds);
  },request);}
 export async function publicHelpSlug(locale:'en'|'fr',slug:string,request?:Request){
  const published=await getPublicHelp(locale,request);

@@ -1,4 +1,6 @@
 'use client';
+import {notificationTitle,notificationBody} from '@/lib/notification-copy';
+import {useAppearance,useNavigationIdentity} from './appearance-provider';
 import {errorMessage} from '@/lib/error-messages';
 import {loadSession} from '@/lib/auth-client';
 import type {BotProof} from './bot-check';
@@ -54,8 +56,8 @@ export default function DashboardApp() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [dash, setDash] = useState<Dashboard | null>(null);
   const [manifest, setManifest] = useState<any>(null);
-  const [locale, setLocale] = useState<Locale>('en');
-  const [theme, setTheme] = useState('light');
+  const {locale,setLocale,theme,setTheme}=useAppearance();
+  useNavigationIdentity(requiresMfa?null:authUser);
 
   const [notice, setNotice] = useState<Notice>(null);
   const [online, setOnline] = useState(true);
@@ -67,15 +69,11 @@ export default function DashboardApp() {
   const refreshGeneration = useRef(0);
   const currentUser = useRef(username);
   const [busy, setBusy] = useState(false);
-  const t = copy[locale];
+  const t = {...copy[locale],tagline:manifest?.product_content?.tagline?.[locale]??copy[locale].tagline};
 
   useEffect(() => {
     const initialUser = preference('sim_user') ?? 'member_01';
-    const initialLocale = (preference('locale') as Locale | null) ?? 'en';
-    const initialTheme = preference('theme') ?? 'light';
     setUsername(initialUser);
-    setLocale(initialLocale === 'fr' ? 'fr' : 'en');
-    setTheme(initialTheme === 'dark' ? 'dark' : 'light');
     const cachedManifest=loadPublicSnapshot<any>('manifest');
     configureSnapshotBudget(cachedManifest?.cache_policy);
     void configurePublicDataBudget(cachedManifest?.cache_policy);
@@ -90,13 +88,6 @@ export default function DashboardApp() {
     setOnline(navigator.onLine);
     return ()=>{mounted=false;};
   }, []);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    remember('theme',theme);
-  }, [theme]);
-
-  useEffect(() => {document.documentElement.lang=locale; remember('locale',locale); }, [locale]);
 
   useEffect(() => {
     if(!authUser||!sessionGeneration)return;
@@ -342,7 +333,7 @@ export default function DashboardApp() {
           <button disabled={busy || !online} onClick={()=>act(async()=>{const quote=giftQuote;const result=await mutation(`/gifts/invoices/${quote.id}/cancel`,username,{});if(quote.owner===currentUser.current)setGiftQuote(null);return result})}>{t.cancel}</button>
         </section>}
 
-        {manifest.feature_notifications&&<section><h2>{t.notifications}</h2><div className="stack">{dash.notifications.map((item) => <article className="card note" key={item.id}><strong>{item.title_key.replaceAll('_', ' ')}</strong><p>{item.body}</p><small>{new Date(item.created_at).toLocaleString(locale)}</small></article>)}</div></section>}
+        {manifest.feature_notifications&&<section><h2>{t.notifications}</h2><div className="stack">{dash.notifications.map((item) => <article className="card note" key={item.id}><strong>{notificationTitle(item.title_key,locale)}</strong><p>{notificationBody(item.title_key,item.body,locale)}</p><small>{new Date(item.created_at).toLocaleString(locale)}</small></article>)}</div></section>}
 
         {dash.user.role==='admin'&&<AdminPanel key={username+':'+sessionGeneration} user={username} locale={locale} plans={plans} enabled={manifest.feature_admin} priorityEnabled={manifest.feature_priority} helpEnabled={manifest.feature_help}/>}
         {dash.user.role === 'admin' && <section><h2>{t.admin}</h2><div className="card admin-grid">
