@@ -2,7 +2,6 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
-import { Readable } from "node:stream";
 import { inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { users, auditEvents, readManifest, type DbExecutor } from "@gifters/db";
@@ -96,9 +95,16 @@ export async function selectedUserExport(
 }
 /** Owner-produced encrypted artifacts only. The web process never invokes an
  * owner connection, decrypts financial snapshots, restores DBs or starts work. */
+export function sitePortabilityMode() {
+  // Ephemeral serverless filesystems cannot provide private cross-instance
+  // inventory/retrieval. An explicit persistent operator host is required.
+  return process.env.VERCEL !== '1' && process.env.SITE_PORTABILITY_MODE === 'persistent_host'
+    ? 'persistent_host' as const : 'owner_cli' as const;
+}
 async function archive(tx: DbExecutor) {
   const policy = await readManifest(tx);
   if (!policy.feature_portability) throw new Error("FEATURE_DISABLED");
+  if (sitePortabilityMode() === "owner_cli") return null;
   const file = process.env.SITE_BACKUP_FILE,
     expected = process.env.SITE_BACKUP_SHA256;
   if (!file || !expected) return null;
@@ -148,57 +154,86 @@ export async function portabilityStatus(tx: DbExecutor) {
           created_at: item.created_at,
         }
       : {}),
-    ui_upload_mb: (await readManifest(tx)).export_import_limits.upload_mb,
+    site_mode: sitePortabilityMode(),
+    staging_available: sitePortabilityMode() === 'persistent_host' && !!process.env.SITE_IMPORT_STAGING_DIR,
+    ui_upload_mb: sitePortabilityMode() === 'persistent_host' ? (await readManifest(tx)).export_import_limits.upload_mb : 0,
+    quarantine: sitePortabilityMode() === 'persistent_host' ? await stagingInventory(tx) : [],
     import_policy: "fresh_inactive_database",
     cli_required_above_cap: true,
   };
 }
-export async function downloadSiteSnapshot(
-  tx: DbExecutor,
-  actorId: string,
-  reason: string,
+export async function prepareSiteSnapshot(
+  tx: DbExecutor, actorId: string, reason: string,
 ) {
   const item = await archive(tx);
   if (!item) throw new Error("RECOVERY_UNAVAILABLE");
-  const handle = await fsp.open(
-    item.file,
-    fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
-  );
+  const handle = await fsp.open(item.file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
   try {
     const info = await handle.stat();
-    if (info.size !== item.bytes) throw new Error("RECOVERY_CONTENT_MISMATCH");
-    const digest = crypto.createHash("sha256");
-    for await (const chunk of handle.createReadStream({
-      autoClose: false,
-      start: 0,
-    }))
-      digest.update(chunk);
-    if (digest.digest("hex") !== item.expected)
+    if (!info.isFile() || info.size !== item.bytes || (info.mode & 0o077) !== 0)
+      throw new Error("RECOVERY_CONTENT_MISMATCH");
+    // Capture bounded immutable encrypted bytes and close the descriptor before
+    // the completion/session fence. No response stream exists until commit.
+    const bytes = Buffer.alloc(item.bytes);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const part = await handle.read(bytes, offset, bytes.length - offset, offset);
+      if (!part.bytesRead) throw new Error("RECOVERY_CONTENT_MISMATCH");
+      offset += part.bytesRead;
+    }
+    const after = await handle.stat();
+    if (after.size !== info.size || after.mtimeMs !== info.mtimeMs ||
+        crypto.createHash('sha256').update(bytes).digest('hex') !== item.expected)
       throw new Error("RECOVERY_CONTENT_MISMATCH");
     await tx.insert(auditEvents).values({
-      actorUserId: actorId,
-      action: "portability.site.export",
-      targetType: "site_snapshot",
-      reason,
+      actorUserId: actorId, action: "portability.site.export",
+      targetType: "site_snapshot", reason,
       afterState: { sha256: item.expected, bytes: item.bytes },
     });
-    return new Response(
-      Readable.toWeb(
-        handle.createReadStream({ autoClose: true, start: 0 }),
-      ) as ReadableStream<Uint8Array>,
-      {
-        headers: {
-          "Content-Type": "application/octet-stream",
-          "Content-Length": String(item.bytes),
-          "Content-Disposition": 'attachment; filename="site.gwbackup"',
-          "Cache-Control": "private, no-store",
-        },
-      },
-    );
-  } catch (error) {
-    await handle.close();
-    throw error;
+    return { bytes, sha256: item.expected };
+  } finally { await handle.close(); }
+}
+export function siteSnapshotResponse(snapshot: Awaited<ReturnType<typeof prepareSiteSnapshot>>) {
+  return new Response(new Uint8Array(snapshot.bytes), { headers: {
+    "Content-Type": "application/octet-stream",
+    "Content-Length": String(snapshot.bytes.length),
+    "Content-Disposition": 'attachment; filename="site.gwbackup"',
+    "Cache-Control": "private, no-store",
+    "X-Archive-SHA256": snapshot.sha256,
+  } });
+}
+async function stagingInventory(tx: DbExecutor) {
+  const folder = process.env.SITE_IMPORT_STAGING_DIR;
+  if (!folder || !path.isAbsolute(folder)) return [];
+  const directory = await fsp.lstat(folder);
+  if (!directory.isDirectory() || (directory.mode & 0o077) !== 0) throw new Error('RECOVERY_INPUT_INVALID');
+  const results: Array<{ staging_id: string; bytes: number; state: string; failure_code: string | null; created_at: string }> = [];
+  const contents = await fsp.opendir(folder);
+  let count = 0;
+  for await (const entry of contents) {
+    if (++count > 100) throw new Error('EXPORT_LIMIT_EXCEEDED');
+    if (!/^[0-9a-f-]{36}\.gwbackup$/.test(entry.name)) continue;
+    const file = path.join(folder, entry.name), info = await fsp.lstat(file);
+    if (!info.isFile() || (info.mode & 0o077) !== 0) throw new Error('RECOVERY_INPUT_INVALID');
+    let record: any = null;
+    try {
+      const metadata = await fsp.lstat(file + '.json');
+      if (metadata.isFile() && (metadata.mode & 0o077) === 0 && metadata.size <= 4096)
+        record = JSON.parse(await fsp.readFile(file + '.json', 'utf8'));
+    } catch { /* Missing sidecar remains visible as quarantine evidence. */ }
+    const state = record?.state === 'encrypted_unverified' ? 'encrypted_unverified' : 'quarantine';
+    results.push({ staging_id: entry.name.slice(0, -9), bytes: info.size, state,
+      failure_code: typeof record?.failure_code === 'string' && /^[A-Z_]{1,100}$/.test(record.failure_code) ? record.failure_code : (state === 'quarantine' ? 'METADATA_MISSING' : null),
+      created_at: info.birthtime.toISOString() });
   }
+  if (results.length) {
+    const committed = await tx.select({id:auditEvents.targetId}).from(auditEvents).where(sql`${auditEvents.action}='portability.import.stage' and ${inArray(auditEvents.targetId,results.map(row=>row.staging_id))}`).limit(100);
+    const accepted = new Set(committed.map(row=>row.id));
+    for (const row of results) if (row.state === 'encrypted_unverified' && !accepted.has(row.staging_id)) {
+      row.state = 'quarantine'; row.failure_code = 'AUTHORIZATION_NOT_COMMITTED';
+    }
+  }
+  return results.sort((a,b)=>b.created_at.localeCompare(a.created_at));
 }
 export async function stageSnapshot(
   tx: DbExecutor,
@@ -207,6 +242,7 @@ export async function stageSnapshot(
 ) {
   const policy = await readManifest(tx);
   if (!policy.feature_portability) throw new Error("FEATURE_DISABLED");
+  if (sitePortabilityMode() !== "persistent_host") throw new Error("RECOVERY_UNAVAILABLE");
   const folder = process.env.SITE_IMPORT_STAGING_DIR,
     expected = request.headers.get("x-archive-sha256"),
     reason = decodeURIComponent(request.headers.get("x-import-reason") ?? "");
@@ -253,11 +289,9 @@ export async function stageSnapshot(
   const deadline = Date.now() + 30000;
   let bytes = 0,
     header = Buffer.alloc(0);
-  if (!reader) {
-    await handle.close();
-    throw new Error("INVALID_INPUT");
-  }
+  let state = "quarantine", failureCode = "INVALID_INPUT";
   try {
+    if (!reader) throw new Error("INVALID_INPUT");
     while (true) {
       if (Date.now() > deadline) {
         await reader.cancel();
@@ -313,6 +347,7 @@ export async function stageSnapshot(
       reason,
       afterState: { sha256: expected, bytes, state: "encrypted_unverified" },
     });
+    state = "encrypted_unverified";
     return {
       staging_id: id,
       bytes,
@@ -320,8 +355,14 @@ export async function stageSnapshot(
       status: "encrypted_unverified",
       requires: "signed_inventory_and_owner_cli_fresh_target",
     };
+  } catch (error) {
+    failureCode = error instanceof Error && ['INVALID_INPUT','EXPORT_LIMIT_EXCEEDED','RECOVERY_CONTENT_MISMATCH'].includes(error.message) ? error.message : 'STAGING_FAILED';
+    throw error;
   } finally {
-    reader.releaseLock();
+    reader?.releaseLock();
     await handle.close();
+    // Sidecar is independent of the transaction: rollback cannot hide retained
+    // partial evidence. A missing sidecar is also inventoried, never erased.
+    await fsp.writeFile(file + '.json', JSON.stringify({schema:'gw-staging-v1',staging_id:id,state,bytes,expected_sha256:expected,failure_code:state==='quarantine'?failureCode:null,observed_at:new Date().toISOString()}), { flag:'wx',mode:0o600 });
   }
 }

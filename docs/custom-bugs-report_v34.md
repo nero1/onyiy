@@ -1,6 +1,6 @@
 # Custom bugs report — Gifters World Phase One
 
-Updated: **14 October 2026 at 04:57:52 AM WAT** · Documentation version **v33**
+Updated: **14 October 2026 at 05:06:08 AM WAT** · Documentation version **v34**
 
 ## Complete one-line findings list
 
@@ -61,10 +61,10 @@ Updated: **14 October 2026 at 04:57:52 AM WAT** · Documentation version **v33**
 55. **P1-055 — Closed historical exceptions can prevent plan editing forever.** (Medium; defect) — Implemented; local checks passed.
 56. **P1-056 — Native activation ignores the configured fixed-token pricing mode.** (Medium; defect) — Implemented; local checks passed.
 57. **P1-057 — Accepted provider and finality selectors have no matching implementation.** (Medium; defect) — Implemented; local checks passed.
-58. **P1-058 — Advertised single-request archive uploads exceed the Vercel function body limit.** (Medium; defect) — Open.
-59. **P1-059 — Filesystem archive staging is not durable or consistently reachable across serverless instances.** (Medium; requirement gap) — Open.
-60. **P1-060 — Archive stream creation precedes the final session fence and permits a file-lifecycle race.** (Low; hardening) — Open.
-61. **P1-061 — Failed staging files consume quota without a complete failure inventory.** (Medium; defect) — Open.
+58. **P1-058 — Advertised single-request archive uploads exceed the Vercel function body limit.** (Medium; defect) — Implemented; local checks passed.
+59. **P1-059 — Filesystem archive staging is not durable or consistently reachable across serverless instances.** (Medium; requirement gap) — Implemented; local checks passed.
+60. **P1-060 — Archive stream creation precedes the final session fence and permits a file-lifecycle race.** (Low; hardening) — Implemented; local checks passed.
+61. **P1-061 — Failed staging files consume quota without a complete failure inventory.** (Medium; defect) — Implemented; local checks passed.
 62. **P1-062 — Paged own-data exports are not a single point-in-time snapshot.** (Low; hardening) — Open.
 63. **P1-063 — Drizzle table coverage does not describe all deployed constraints and defaults.** (Medium; maintenance) — Open.
 64. **P1-064 — Large tightly coupled services and untyped UI contracts make changes fragile.** (Low; maintenance) — Open.
@@ -577,6 +577,8 @@ Paths below are relative to repository root `/workspace/onyiy`. “Defect” mea
 
 **Medium · Defect.** The portal accepts/configures uploads up to 50 MiB through one function request, whereas Vercel's documented function request-body limit is 4.5 MB. Requests above the platform cap never reach the application's otherwise bounded staging reader.
 
+**CURRENT STATUS:** Implemented and locally verified in v34; original audit evidence above is retained.
+
 ### 59: BUG P1-059: Filesystem archive staging is not durable or consistently reachable across serverless instances
 
 **FILES:** `server/portability.ts`, `docs/SETUP.md`, `docs/HOW-IT-WORKS.md`
@@ -584,6 +586,8 @@ Paths below are relative to repository root `/workspace/onyiy`. “Defect” mea
 **FIX:** Define a private durable adapter or explicitly constrain web staging to an operator-managed persistent host, with authenticated inventory/retrieval and owner CLI verification. Keep restores inactive.
 
 **Medium · Requirement gap.** SITE_BACKUP_FILE and staging files are local filesystem paths. On Vercel, writable temporary files are instance-local and ephemeral; a staging_id does not provide a durable owner retrieval/validation path across instances. This is a hosting mismatch, not a defect in the separately verified owner CLI backups.
+
+**CURRENT STATUS:** Implemented and locally verified in v34; original audit evidence above is retained.
 
 ### 60: BUG P1-060: Archive stream creation precedes the final session fence and permits a file-lifecycle race
 
@@ -593,6 +597,8 @@ Paths below are relative to repository root `/workspace/onyiy`. “Defect” mea
 
 **Low · Hardening.** A download response can own an opened file stream before withContext's completion session fence succeeds; rejection leaves a response never consumed and may leave its descriptor open. Hashing before streaming also assumes the operator cannot mutate the opened file in place. This is a privileged filesystem/session-race exposure, not user path traversal.
 
+**CURRENT STATUS:** Implemented and locally verified in v34; original audit evidence above is retained.
+
 ### 61: BUG P1-061: Failed staging files consume quota without a complete failure inventory
 
 **FILES:** `server/portability.ts`, `packages/config/src/policies.ts`, `docs/SETUP.md`
@@ -600,6 +606,8 @@ Paths below are relative to repository root `/workspace/onyiy`. “Defect” mea
 **FIX:** Record bounded failure metadata and quarantine inventory, expose staff diagnostics and an owner-reviewed retention/pruning procedure. Do not automatically erase failed evidence or attempt restore.
 
 **Medium · Defect.** Malformed/checksum-failing uploads correctly remain unverified and retained, but failure exits do not record the same indexed status/audit inventory as success. Partial files count toward file/storage caps, so repeated failed operator uploads can make staging unusable without a documented reviewed reclamation path.
+
+**CURRENT STATUS:** Implemented and locally verified in v34; original audit evidence above is retained.
 
 ### 62: BUG P1-062: Paged own-data exports are not a single point-in-time snapshot
 
@@ -705,22 +713,22 @@ The production dependency audit reports **15 affected package nodes**, not 15 se
 
 [Vercel function limits](https://vercel.com/docs/functions/limitations) document the 4.5 MB request/response body limit relevant to P1-058. Local-function body limits are distinct from advertised archive size, execution duration and free-plan quota. Existing PRD hosting/commercial-use constraints remain; no claim of guaranteed free operation is made.
 
-The complete remediation mapping, verification checks and three-round exit rule are in [custom-bugs-fix-plan_v33.md](custom-bugs-fix-plan_v33.md). Current handover: [LLM-HANDOVER_v33.md](LLM-HANDOVER_v33.md).
+The complete remediation mapping, verification checks and three-round exit rule are in [custom-bugs-fix-plan_v34.md](custom-bugs-fix-plan_v34.md). Current handover: [LLM-HANDOVER_v34.md](LLM-HANDOVER_v34.md).
 
 
-## Current v33 remediation ledger
+## Current v34 remediation ledger
 
 The owner approved all Round One fixes, autonomous Rounds Two/Three and continued remediation, every Phase Two milestone, and final bug fixes before deferred testing. Continue without plan or milestone acceptance pauses. Use best recommendations, complete substantial verified batches, and merge only after BOTH push and pull-request CI succeed for the exact final head. Both financial readiness gates remain false; mainnet remains prohibited. CRON frequency and test-only issues remain excluded.
 
-48 of 71 tracked items implemented and locally verified; 23 remain open. The initial Round One audit had70 findings; P1-071 was discovered and fixed during remediation. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. P1-019 has partial improvements but remains open. No bug-free or hosted acceptance claim is made.
+52 of 71 tracked items implemented and locally verified; 19 remain open. The initial Round One audit had70 findings; P1-071 was discovered and fixed during remediation. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. P1-019 has partial improvements but remains open. No bug-free or hosted acceptance claim is made.
 
-Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-014, P1-015, P1-016, P1-017, P1-018, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-026, P1-027, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-037, P1-040, P1-041, P1-043, P1-044, P1-046, P1-050, P1-052, P1-055, P1-056, P1-057, P1-066, P1-068, P1-069, P1-070, P1-071.
+Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-014, P1-015, P1-016, P1-017, P1-018, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-026, P1-027, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-037, P1-040, P1-041, P1-043, P1-044, P1-046, P1-050, P1-052, P1-055, P1-056, P1-057, P1-058, P1-059, P1-060, P1-061, P1-066, P1-068, P1-069, P1-070, P1-071.
 
-Open: P1-009, P1-013, P1-019, P1-028, P1-038, P1-039, P1-042, P1-045, P1-047, P1-048, P1-049, P1-051, P1-053, P1-054, P1-058, P1-059, P1-060, P1-061, P1-062, P1-063, P1-064, P1-065, P1-067.
+Open: P1-009, P1-013, P1-019, P1-028, P1-038, P1-039, P1-042, P1-045, P1-047, P1-048, P1-049, P1-051, P1-053, P1-054, P1-062, P1-063, P1-064, P1-065, P1-067.
 
 Local verification: required check:all; production build and bundle budget checks; production npm audit now zero advisories. Named isolated manual-contracts, manual-money and manual-quotes-r5 passed. The last validates quote cancellation/expiry/payload replay/DB clock, late-fund refunds, frozen pre-pause admission, custom bootstrap destination, positively refunded plan edit, and independent lower live per-transaction/daily signer caps without reservations or signed bytes. Initial quote-probe failures (invalid price TTL, missing scoped fixture binding, missing operational gas asset) remain retained and were corrected only in fresh r2/r3/r5 databases. No external RPC or broadcast occurred.
 
-Bug reports and fix plans must use the same _vN filename version as current status/handover; earlier versions are retained in Git history. Current artifacts use_v33.
+Bug reports and fix plans must use the same _vN filename version as current status/handover; earlier versions are retained in Git history. Current artifacts use_v34.
 
 
 V31 evidence: manual-money-r2 passed; manual-contracts-r2 passed shared fees, different-endpoint checkpoint identity and fair dispatch past20 blocked rows without signing/reservations; manual-solana-costs-r2 passed two principals/one fee, positively identified ATA rent and ambiguous-debit rejection; preserved failed SOL expiry source resumed through forward-only migration078 and passed positive expiry/held principal/closure/replay/fresh scan. Non-signing hosted migration/seed/runtime path passed on gw_v31_testnet_seed:0 users/0 assets/12 plans/0 versions/16 help rows/one testnet namespace. Archive version preflight and clone proof are recorded in current status. P1-009/P1-013/P1-067 remain open.
@@ -733,9 +741,14 @@ V33 evidence: Named isolated procedures passed RPC safe-read coalescing/fresh by
 
 No schema/migration changes in v33:86 Drizzle tables,88 migrations (001–087 plus053a),73 retained archive inventories. Existing v32 exact signed archive/restore remains valid. Original failed sources, archives, GW25 partial factor and signed histories remain untouched. Scratch/private evidence is under /workspace/work/remediation-v33, outside Git. Financial gates were never activated.
 
+
+V34 evidence: Named isolated manual-portability-r3 passed forced Vercel CLI-only selection, CLI cap-zero guidance/rejection, successful persistent-host encrypted-unverified staging, retained checksum failure and authorization-rollback quarantine, exact retained owner archive checksum after authorization commit, rejected final authorization and cancellation without a file descriptor. Earlier fixture failures (simulation credentials cannot be used as Vercel config; testnet archive cannot be downloaded under simulation metadata) are retained and corrected with valid non-signing scopes. No original archive, signed history or failed evidence was changed.
+
+Required check:all, production build and bundle checks are recorded in /workspace/work/remediation-v34. No schema/migration changes:86 tables,88 migrations (001–087 plus053a),73 retained archive inventories. The v32 exact signed archive/restore remains valid. No broad automated test suite or live financial execution ran.
+
 ---
 
-Prepared by Codex — Round One remediation v33.
-PR29 merged at e1463fa after push38485886774 and PR38485891336 succeeded for exact final head ab1d7b5509fd215645448641065a2705cdf389ba. Initial failed head/run evidence remains in v30 Git history. PR30 merged at fa5d71b after push38500938562 and PR38500945296 succeeded for9bb4004e964c38ef2e31c884545e5ba2c70433ba. PR31 merged at59a8289 after exact head2ca05c2390fd1aefe516415f83aed15449b509ce passed push38507705481/PR38507767963. Current v33 branch feat/phase-one-remediation-round1d awaits its own final-head dual CI/PR merge.
+Prepared by Codex — Round One remediation v34.
+PR29 merged at e1463fa after push38485886774 and PR38485891336 succeeded for exact final head ab1d7b5509fd215645448641065a2705cdf389ba. Initial failed head/run evidence remains in v30 Git history. PR30 merged at fa5d71b after push38500938562 and PR38500945296 succeeded for9bb4004e964c38ef2e31c884545e5ba2c70433ba. PR31 merged at59a8289 after exact head2ca05c2390fd1aefe516415f83aed15449b509ce passed push38507705481/PR38507767963. PR32 merged at523ba12 after exact a258d7a passed push38509097039/PR38509102087; v34 awaits its own final-head dual CI/PR merge.
 
-Signed: **14 October 2026 at 04:57:52 AM WAT**
+Signed: **14 October 2026 at 05:06:08 AM WAT**

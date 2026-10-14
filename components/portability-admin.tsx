@@ -147,6 +147,8 @@ export default function PortabilityAdmin({
             ? "Le snapshot complet est chiffré par l’opérateur. Les secrets de connexion sont reconfigurés séparément."
             : "The operator encrypts the full snapshot. Connection secrets are provisioned separately."}
         </p>
+        {status?.site_mode === 'owner_cli' && <p role="status">{fr ? "Archives complètes : utiliser les commandes opérateur de sauvegarde et de restauration. Ce serveur ne conserve pas les fichiers entre les instances. L’export des champs sélectionnés reste disponible." : "Full archives: use the operator backup and restore commands. This host does not retain files across instances. Selected-field export remains available."}</p>}
+        {status?.quarantine?.length > 0 && <details><summary>{fr ? "Inventaire des archives conservées" : "Retained archive inventory"}</summary><ul>{status.quarantine.map((item:any)=><li key={item.staging_id}>{item.staging_id} · {item.bytes} B · {item.state==='quarantine' ? (fr?'Échec conservé':'Retained failure') : (fr?'Chiffré, non vérifié':'Encrypted, unverified')} · {item.failure_code ?? ''}</li>)}</ul></details>}
         {status && (
           <p>
             {status.snapshot_available
@@ -190,6 +192,7 @@ export default function PortabilityAdmin({
           {fr ? "Archive chiffrée à préparer" : "Encrypted archive to stage"}
           <input
             type="file"
+            disabled={!status?.staging_available}
             accept=".gwbackup"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />
@@ -202,7 +205,7 @@ export default function PortabilityAdmin({
         <button
           disabled={
             !file ||
-            !status ||
+            !status?.staging_available ||
             file.size > status.ui_upload_mb * 1048576 ||
             confirmation !== "stage-encrypted-site" ||
             reason.trim().length < 10
