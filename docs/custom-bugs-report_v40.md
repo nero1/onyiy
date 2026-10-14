@@ -1,6 +1,6 @@
 # Custom bugs report — Gifters World Phase One
 
-Updated: **14 October 2026 at 08:56:26 AM WAT** · Documentation version **v39**
+Updated: **14 October 2026 at 09:20:06 AM WAT** · Documentation version **v40**
 
 ## Complete one-line findings list
 
@@ -50,7 +50,7 @@ Updated: **14 October 2026 at 08:56:26 AM WAT** · Documentation version **v39**
 44. **P1-044 — Global activity remains visible when feature_activity is disabled.** (Medium; defect) — Implemented; local checks passed.
 45. **P1-045 — There is no shared visible authenticated snapshot poll.** (Medium; requirement gap) — Open.
 46. **P1-046 — Notification load-more permanently stops at 100 items.** (Medium; defect) — Implemented; local checks passed.
-47. **P1-047 — Staff lists hide older users, jobs and recovery cases without search or cursors.** (Medium; requirement gap) — Open.
+47. **P1-047 — Staff lists hide older users, jobs and recovery cases without search or cursors.** (Medium; requirement gap) — Implemented and locally verified in v40.
 48. **P1-048 — Latest-history caps can omit older active cycles and pending withdrawals.** (Medium; defect) — Implemented and locally verified in v39.
 49. **P1-049 — Public catalog and help lack the Phase One SEO rendering and metadata contract.** (Medium; requirement gap) — Open.
 50. **P1-050 — Several private portals lack noindex metadata.** (Low; requirement gap) — Implemented; local checks passed.
@@ -494,6 +494,8 @@ Paths below are relative to repository root `/workspace/onyiy`. “Defect” mea
 
 **Medium · Requirement gap.** Staff user/case and recovery lists take fixed first/latest windows; the admin job UI displays its initial page without a complete continuation flow. Older unresolved cases or a member beyond the initial user cap can become unreachable even though the records remain valid. Native obligation list continuation already exists; this finding concerns the other capped lists.
 
+**V40 resolution:** Staff account lists now support indexed exact email/username/UUID lookup and stable100-row continuation. Reports/appeals, retained jobs/dead letters, recovery scans/unmatched inflows/outflows, operational alerts and simulation/native finality reviews have independent current-work and full-history views. Opaque15-minute cursors authenticate the staff actor, list, environment and normalized filters; changed filters/actors/lists, altered ciphertext and expiry reject. Every page still requires ordinary authenticated staff admission and permissions. UI pages replace prior rows, clear stale target selection and reset filters/cursors; jobs expose the existing guarded dead-letter replay action. Recovery projections retain masked senders and exclude signed payloads/checkpoint authority. Forward091 adds filtered continuation and original-sender-refund lookup indexes without deleting evidence.
+
 ### 48: BUG P1-048: Latest-history caps can omit older active cycles and pending withdrawals
 
 **FILES:** `server/api.ts`, `server/crypto-reads.ts`, `components/dashboard-app.tsx`, `components/native-portal.tsx`
@@ -736,22 +738,22 @@ The production dependency audit reports **15 affected package nodes**, not 15 se
 
 [Vercel function limits](https://vercel.com/docs/functions/limitations) document the 4.5 MB request/response body limit relevant to P1-058. Local-function body limits are distinct from advertised archive size, execution duration and free-plan quota. Existing PRD hosting/commercial-use constraints remain; no claim of guaranteed free operation is made.
 
-The complete remediation mapping, verification checks and three-round exit rule are in [custom-bugs-fix-plan_v39.md](custom-bugs-fix-plan_v39.md). Current handover: [LLM-HANDOVER_v39.md](LLM-HANDOVER_v39.md).
+The complete remediation mapping, verification checks and three-round exit rule are in [custom-bugs-fix-plan_v40.md](custom-bugs-fix-plan_v40.md). Current handover: [LLM-HANDOVER_v40.md](LLM-HANDOVER_v40.md).
 
 
-## Current v39 remediation ledger
+## Current v40 remediation ledger
 
 The owner approved all Round One fixes, autonomous Rounds Two/Three and continued remediation, every Phase Two milestone, and final bug fixes before deferred testing. Continue without plan or milestone acceptance pauses. Use best recommendations, complete substantial verified batches, and merge only after BOTH push and pull-request CI succeed for the exact final head. Both financial readiness gates remain false; mainnet remains prohibited. CRON frequency and test-only issues remain excluded.
 
-58 of 72 tracked items implemented and locally verified; 14 remain open. The initial Round One audit had70 findings; P1-071/P1-072 were discovered and fixed during remediation. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. No bug-free or hosted acceptance claim is made.
+59 of 72 tracked items implemented and locally verified; 13 remain open. The initial Round One audit had70 findings; P1-071/P1-072 were discovered and fixed during remediation. This is item accounting, not a weighted Phase One completion percentage. Phase Two has not started. No bug-free or hosted acceptance claim is made.
 
-Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-013, P1-014, P1-015, P1-016, P1-017, P1-018, P1-019, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-026, P1-027, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-037, P1-040, P1-041, P1-042, P1-043, P1-044, P1-046, P1-048, P1-050, P1-052, P1-054, P1-055, P1-056, P1-057, P1-058, P1-059, P1-060, P1-061, P1-066, P1-068, P1-069, P1-070, P1-071, P1-072.
+Implemented: P1-001, P1-002, P1-003, P1-004, P1-005, P1-006, P1-007, P1-008, P1-010, P1-011, P1-012, P1-013, P1-014, P1-015, P1-016, P1-017, P1-018, P1-019, P1-020, P1-021, P1-022, P1-023, P1-024, P1-025, P1-026, P1-027, P1-029, P1-030, P1-031, P1-032, P1-033, P1-034, P1-035, P1-036, P1-037, P1-040, P1-041, P1-042, P1-043, P1-044, P1-046, P1-047, P1-048, P1-050, P1-052, P1-054, P1-055, P1-056, P1-057, P1-058, P1-059, P1-060, P1-061, P1-066, P1-068, P1-069, P1-070, P1-071, P1-072.
 
-Open: P1-009, P1-028, P1-038, P1-039, P1-045, P1-047, P1-049, P1-051, P1-053, P1-062, P1-063, P1-064, P1-065, P1-067.
+Open: P1-009, P1-028, P1-038, P1-039, P1-045, P1-049, P1-051, P1-053, P1-062, P1-063, P1-064, P1-065, P1-067.
 
 Local verification: required check:all; production build and bundle budget checks; production npm audit now zero advisories. Named isolated manual-contracts, manual-money and manual-quotes-r5 passed. The last validates quote cancellation/expiry/payload replay/DB clock, late-fund refunds, frozen pre-pause admission, custom bootstrap destination, positively refunded plan edit, and independent lower live per-transaction/daily signer caps without reservations or signed bytes. Initial quote-probe failures (invalid price TTL, missing scoped fixture binding, missing operational gas asset) remain retained and were corrected only in fresh r2/r3/r5 databases. No external RPC or broadcast occurred.
 
-Bug reports and fix plans must use the same _vN filename version as current status/handover; earlier versions are retained in Git history. Current artifacts use_v39.
+Bug reports and fix plans must use the same _vN filename version as current status/handover; earlier versions are retained in Git history. Current artifacts use_v40.
 
 
 V31 evidence: manual-money-r2 passed; manual-contracts-r2 passed shared fees, different-endpoint checkpoint identity and fair dispatch past20 blocked rows without signing/reservations; manual-solana-costs-r2 passed two principals/one fee, positively identified ATA rent and ambiguous-debit rejection; preserved failed SOL expiry source resumed through forward-only migration078 and passed positive expiry/held principal/closure/replay/fresh scan. Non-signing hosted migration/seed/runtime path passed on gw_v31_testnet_seed:0 users/0 assets/12 plans/0 versions/16 help rows/one testnet namespace. Archive version preflight and clone proof are recorded in current status. P1-009/P1-013/P1-067 remain open.
@@ -796,9 +798,14 @@ V39 evidence: Named manual-member-continuation-r7 passed102 older active cycles 
 
 Required check:all/build/bundle pass (homepage199.62KiB/200; maximum API1.422MiB/3; clients0.649MiB). Evidence is under /workspace/work/remediation-v39. Forward090 brings86 tables/91 migrations/73 retained inventories. New site-financial-final_v39.gwbackup captures the inactive gw_v39_records clone and verifies exact restoration into fresh inactive gw_v39_restore. Original sources/archives/signed histories remain preserved; copied source checkpoints never authorize the clone. Both financial gates remain false.
 
+
+V40 evidence: Named manual-staff-pages-r3 passed102 generated accounts/reports/appeals/jobs/alerts beyond the first100, exact email/username/UUID lookup, distinct continuation, current/history filters, forged/expired/filter/list cursor rejection, member denial, native retained recovery UUID lookup and both finality-review inventories. Deferred constraints pass and every generated row/configuration change rolls back. The first fixture used the display word warning instead of the existing P2 severity enum; its database constraint correctly rejected and the failed log is retained. Manual-staff-ui passed real Chromium French job100→2 continuation, filter reset and guarded replay-route invocation through a generated bridge; no actual job replay or financial operation occurred.
+
+Required check:all/build/bundle pass (homepage199.62KiB/200; maximum API1.424MiB/3; clients0.651MiB). Evidence is under /workspace/work/remediation-v40. Forward091 brings86 tables/92 migrations/73 retained inventories. New site-financial-final_v40.gwbackup captures inactive gw_v40_staff and verifies exact restoration into fresh inactive gw_v40_restore. Original sources/archives/signed histories remain preserved; copied checkpoints cannot authorize the clone. Both financial gates remain false. No broad automated suite or broadcast ran.
+
 ---
 
-Prepared by Codex — Round One remediation v39.
-PR29 merged at e1463fa after push38485886774 and PR38485891336 succeeded for exact final head ab1d7b5509fd215645448641065a2705cdf389ba. Initial failed head/run evidence remains in v30 Git history. PR30 merged at fa5d71b after push38500938562 and PR38500945296 succeeded for9bb4004e964c38ef2e31c884545e5ba2c70433ba. PR31 merged at59a8289 after exact head2ca05c2390fd1aefe516415f83aed15449b509ce passed push38507705481/PR38507767963. PR32 merged at523ba12 after exact a258d7a passed push38509097039/PR38509102087; PR34 merged atcab8a95 after head805f3d3 passed push38510489870/PR38510495165; PR35 merged atf99e2d2 after head5d7cf5b passed push38514924520/PR38514930961; PR36 merged at2434b30 after push38527849543 and pull_request38527856620 both succeeded for exact head2b012a3f4925c113fbc07a826c1722a2384c77f0. PR37 merged at68bcc95028f5847e8c8f7108b5e3a0b506670d7f after push38529567594 and pull_request38529575508 both succeeded for exact headbb832ca7751f0d99a11dff4f61e2ae7b65a0b433. Current branch feat/phase-one-remediation-round1j awaits its own final-head dual CI/PR merge.
+Prepared by Codex — Round One remediation v40.
+PR29 merged at e1463fa after push38485886774 and PR38485891336 succeeded for exact final head ab1d7b5509fd215645448641065a2705cdf389ba. Initial failed head/run evidence remains in v30 Git history. PR30 merged at fa5d71b after push38500938562 and PR38500945296 succeeded for9bb4004e964c38ef2e31c884545e5ba2c70433ba. PR31 merged at59a8289 after exact head2ca05c2390fd1aefe516415f83aed15449b509ce passed push38507705481/PR38507767963. PR32 merged at523ba12 after exact a258d7a passed push38509097039/PR38509102087; PR34 merged atcab8a95 after head805f3d3 passed push38510489870/PR38510495165; PR35 merged atf99e2d2 after head5d7cf5b passed push38514924520/PR38514930961; PR36 merged at2434b30 after push38527849543 and pull_request38527856620 both succeeded for exact head2b012a3f4925c113fbc07a826c1722a2384c77f0. PR37 merged at68bcc95028f5847e8c8f7108b5e3a0b506670d7f after push38529567594 and pull_request38529575508 both succeeded for exact headbb832ca7751f0d99a11dff4f61e2ae7b65a0b433. PR38 merged at069cbf19fef850125f566101532b0e61536af563 after push38531715784 and pull_request38531724006 both succeeded for exact head19f67210522efefae9ac86802d6fa0afe025875c. Current branch feat/phase-one-remediation-round1k awaits its own final-head dual CI/PR merge.
 
-Signed: **14 October 2026 at 08:56:26 AM WAT**
+Signed: **14 October 2026 at 09:20:06 AM WAT**
