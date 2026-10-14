@@ -11,10 +11,12 @@ type Props={owner:string;generation:string;environment:'simulation'|'testnet';lo
 export default function MemberRecords(props:Props){
  const {owner,generation,environment,locale,collections,history,disabled}=props,fr=locale==='fr';
  const [collection,setCollection]=useState<MemberCollection>(collections[0]),[view,setView]=useState<'current'|'history'>('current'),[page,setPage]=useState<MemberRecordPage|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const pageStart=useRef<string|undefined>(undefined),previousScope=useRef('');
  const sequence=useRef(0),controller=useRef<AbortController|null>(null);
  const scope=owner+'|'+generation+'|'+environment+'|'+collection+'|'+view;
  const activeScope=useRef(scope);activeScope.current=scope;
  async function load(after?:string){
+  pageStart.current=after;
   controller.current?.abort();const cancel=new AbortController();controller.current=cancel;
   const serial=++sequence.current,started=scope,timer=setTimeout(()=>cancel.abort(),10000);
   const valid=()=>sequence.current===serial&&activeScope.current===started&&clientSessionMatches(owner,generation)&&!cancel.signal.aborted;
@@ -27,7 +29,7 @@ export default function MemberRecords(props:Props){
   }catch(cause){if(sequence.current===serial&&activeScope.current===started&&clientSessionMatches(owner,generation))setError(errorMessage(cause,locale));}
   finally{clearTimeout(timer);if(sequence.current===serial&&activeScope.current===started)setBusy(false);}
  }
- useEffect(()=>{void load();return()=>{sequence.current++;controller.current?.abort();};},[scope,props.revision]);
+ useEffect(()=>{if(previousScope.current!==scope){previousScope.current=scope;pageStart.current=undefined;}void load(pageStart.current);return()=>{sequence.current++;controller.current?.abort();};},[scope,props.revision]);
  const state=(value:string)=>({active:fr?'Actif':'Active',completed:fr?'Terminé':'Completed',exception:fr?'À examiner':'Under review',quoted:fr?'Devis':'Quoted',submitted:fr?'Soumis':'Submitted',held:fr?'Réservé':'Held',approved:fr?'Approuvé':'Approved',sending:fr?'Envoi en cours':'Sending',awaiting_requote:fr?'Nouveau devis requis':'Fresh quote required',settled:fr?'Réglé':'Settled',cancelled:fr?'Annulé':'Cancelled',credited:fr?'Crédité':'Credited',expired:fr?'Expiré':'Expired',failed:fr?'Échec':'Failed'}[value]??value);
  return <section className="card" aria-busy={busy}>
   <h2>{fr?'Tous mes éléments en cours':'All my current items'}</h2>

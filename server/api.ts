@@ -51,6 +51,7 @@ import {
   userAccountBalances,
   pointEvents,assets,withdrawals,operationKeys,
   withContext,
+  withMemberSnapshot,
   withSessionScope,
   authSessions,
   helpArticles,
@@ -298,7 +299,7 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
       const actor=await admin(request);if(method==='GET'){const id=new URL(request.url).searchParams.get('id');if(id){z.string().uuid().parse(id);const rows=await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>tx.select().from(helpArticles).where(eq(helpArticles.id,id)).limit(1));if(!rows[0])throw new Error('NOT_FOUND');return ok(rows[0]);}return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>tx.select({id:helpArticles.id,locale:helpArticles.locale,slug:helpArticles.slug,title:helpArticles.title,published:helpArticles.published,version:helpArticles.version}).from(helpArticles).orderBy(asc(helpArticles.locale),asc(helpArticles.slug)).limit(200)));}
       if(method==='POST'){if(!(await readManifest()).feature_help)throw new Error('FEATURE_DISABLED');const input=helpInput.parse(await json(request));const result=await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>editHelp(tx,actor.id,input,idempotencyKey(request)));invalidatePublicReads();return ok(result);}
     }
-    if(route==='/me/notifications'&&method==='GET'){const user=await current(request);const params=new URL(request.url).searchParams;const limit=params.has('limit')?z.coerce.number().int().positive().max(100).parse(params.get('limit')):undefined;return ok(await withContext({access:'service',actorId:user.id},tx=>notificationPage(tx,user.id,limit,params.get('cursor')??undefined)));}
+    if(route==='/me/notifications'&&method==='GET'){const user=await current(request);const params=new URL(request.url).searchParams;const limit=params.has('limit')?z.coerce.number().int().positive().max(100).parse(params.get('limit')):undefined;return ok(await withContext({access:'service',actorId:user.id,reportSnapshot:true},tx=>notificationPage(tx,user.id,limit,params.get('cursor')??undefined)));}
     if(route==='/me/notifications/seen'&&method==='POST'){const user=await current(request);const input=z.object({newest_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:user.id},tx=>seeNotifications(tx,user.id,input.newest_id)));}
     if(route==='/me/notifications/read'&&method==='POST'){const user=await current(request);const input=z.object({id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:user.id},tx=>readNotification(tx,user.id,input.id)));}
 
@@ -355,11 +356,9 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
       return issueSession(request,user.id);
     }
 
-    if (method === 'GET' && route === '/me/dashboard') {
-      const user = await current(request);
-      const manifest = await readManifest();
-      if(!manifest.entitlements_member.dashboard)throw new Error('FEATURE_DISABLED');
-      return ok(await withContext({access:'member',actorId:user.id},(tx) => dashboard(tx,user,manifest)));
+    if(method==='GET'&&route==='/me/dashboard'){
+      const user=await current(request);
+      return ok(await withMemberSnapshot(user.id,async(tx,manifest)=>{if(!manifest.entitlements_member.dashboard)throw new Error('FEATURE_DISABLED');return dashboard(tx,user,manifest)}));
     }
 
     if (method === 'GET' && route === '/plans') {

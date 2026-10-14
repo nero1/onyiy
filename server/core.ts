@@ -1,3 +1,4 @@
+import {publicManifest} from '@gifters/config';
 import {activeRequestId} from '@gifters/db';
 import {notificationBadge} from './notifications';
 import crypto from 'node:crypto';
@@ -688,6 +689,7 @@ export async function dashboard(database: DbExecutor, user: UserRow, manifest: M
 
   return {
     user: { id: user.id, username: user.username, role: user.role, status: user.status, locale: user.locale,consent_version:user.consentVersion,age_confirmed:!!user.ageConfirmedAt },
+    manifest:publicManifest(manifest),
     consent:{required:user.consentVersion!==manifest.terms_content.version||!user.ageConfirmedAt||user.ageMinimumAccepted===null||user.ageMinimumAccepted<manifest.eligibility_min_age,terms_content:manifest.terms_content,minimum_age:manifest.eligibility_min_age},
     asset: { symbol: 'GIV', decimals: 2 },
     balances: { available: available.toString(), held: held.toString(), incoming:balances.find(row=>row.purpose==='incoming_payable')?.balance??'0',refundable:balances.find(row=>row.purpose==='refund_payable')?.balance??'0', withdrawn: withdrawnRows[0]?.total ?? '0' },

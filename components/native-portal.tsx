@@ -4,6 +4,7 @@ import {loadSession} from '@/lib/auth-client';
 import {rememberPayment,pendingPayment,forgetPayment,beginPayment,endPayment} from '@/lib/payment-receipts';
 import { useEffect, useState, useRef } from "react";
 import {
+  ApiError,
   api,
   mutation,
   clientSessionMatches,
@@ -16,6 +17,8 @@ import {
   activeSessionGeneration,
   clearActiveUserScope,
 } from "@/lib/storage";
+const ScopedSnapshotPoll=dynamic(()=>import('./scoped-snapshot-poll'),{ssr:false});
+const NotificationInbox=dynamic(()=>import('./notification-inbox'),{ssr:false});
 const MemberRecords=dynamic(()=>import('./member-records'),{ssr:false});
 const NativeWalletSummary=dynamic(()=>import('./native-wallet-summary'),{ssr:false});
 const AuthPanel=dynamic(()=>import('./auth-panel'),{ssr:false});
@@ -59,6 +62,7 @@ export default function NativePortal() {
     [gross, setGross] = useState("");
   const current = useRef<SessionResult | null>(null),
     financialFlight = useRef(false),
+    readGeneration=useRef(0),
     epoch = useRef(0),
     mounted = useRef(true),
     user = session?.user ?? null,
@@ -158,15 +162,16 @@ export default function NativePortal() {
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
+  function applyPortfolio(value:any){setData(value);if(value.manifest)setManifest((old:any)=>({...old,...value.manifest}));if(value.user)setSession(old=>old?.user?{...old,user:{...old.user,...value.user}}:old);}
   async function load() {
     if (!user || session?.requires_mfa || user.status === "pending_consent")
       return;
-    const active = epoch.current;
+    const active = epoch.current,serial=++readGeneration.current;
     try {
       const result = await api<any>("/me/crypto", user.username);
-      if (mounted.current && epoch.current === active) setData(result);
+      if (mounted.current && epoch.current === active&&serial===readGeneration.current) applyPortfolio(result);
     } catch (error) {
-      if (epoch.current === active) setNotice(errorMessage(error,locale));
+      if (epoch.current === active&&serial===readGeneration.current) setNotice(errorMessage(error,locale));
     }
   }
   useEffect(() => {
@@ -418,6 +423,9 @@ export default function NativePortal() {
       />
       {user && !session?.requires_mfa && ["active","deactivated"].includes(user.status) && (
         <>
+          {session?.generation&&manifest?.feature_wallets&&manifest?.entitlements_member?.dashboard!==false&&<ScopedSnapshotPoll owner={user.username} generation={session.generation} path="/me/crypto" seconds={manifest.cache_policy.client_poll_seconds} enabled={!busy} locale={locale} onStart={()=>++readGeneration.current} onValue={(value,token)=>{if(token===readGeneration.current&&value.user?.username===user.username)applyPortfolio(value)}} onError={(error,token)=>{if(token===readGeneration.current&&error instanceof ApiError&&['UNAUTHENTICATED','ACCOUNT_RESTRICTED'].includes(error.code)){setData(null);if(error.code==='UNAUTHENTICATED')receive({user:null,requires_mfa:false,provider:session.provider})}}}/>}
+          {data&&manifest?.feature_notifications&&<NotificationInbox key={user.username+session?.generation} user={user.username} locale={locale} initial={data.notifications??[]} badge={!!data.notification_badge?.has_new} onChange={()=>void load()}/>}
+
           {user.role === "admin" && (
             <>
               <AdminPanel
