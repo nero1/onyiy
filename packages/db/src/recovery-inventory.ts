@@ -1,4 +1,5 @@
 import { recoveryExtensions } from './recovery-extensions';
+import {migrationSource} from './migration-source';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -18,7 +19,7 @@ export const digest=(value:unknown)=>crypto.createHash('sha256').update(canonica
 export async function migrationFingerprint() {
   const directory=path.join(process.cwd(),'packages/db/src/migrations');
   const files=(await fs.readdir(directory)).filter(name=>name.endsWith('.sql')).sort();
-  return digest(await Promise.all(files.map(async name=>({name,sha256:crypto.createHash('sha256').update(await fs.readFile(path.join(directory,name))).digest('hex')}))));
+  return digest(await Promise.all(files.map(async name=>{const {sha256}=migrationSource(name,await fs.readFile(path.join(directory,name),'utf8'));return {name,sha256}})));
 }
 
 export async function recoveryInventory(database:DbExecutor) {
