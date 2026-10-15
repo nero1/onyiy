@@ -296,7 +296,7 @@ Build reports bound every API trace below3MiB compressed and conservatively boun
 
 ## Current v37 remediation and continuation
 
-The owner approved all fixes and autonomous audit/plan/fix rounds through Phase Two and final bug fixes. Round One has 65 implemented and locally verified findings, with 8 still open. See [custom-bugs-report_v47.md](custom-bugs-report_v47.md), [custom-bugs-fix-plan_v47.md](custom-bugs-fix-plan_v47.md), [PROJECT-STATUS_v47.md](PROJECT-STATUS_v47.md) and [LLM-HANDOVER_v47.md](LLM-HANDOVER_v47.md). All four current filenames use matching versions; maintain cross-links together. Continue substantial batches without milestone acceptance waits, merge only after both exact-head CI events pass, retain financial gates disabled and tests deferred. Historical v29 review holds are satisfied. Phase One remediation and Phase Two are incomplete.
+The owner approved all fixes and autonomous audit/plan/fix rounds through Phase Two and final bug fixes. Round One has 65 implemented and locally verified findings, with 8 still open. See [custom-bugs-report_v48.md](custom-bugs-report_v48.md), [custom-bugs-fix-plan_v48.md](custom-bugs-fix-plan_v48.md), [PROJECT-STATUS_v48.md](PROJECT-STATUS_v48.md) and [LLM-HANDOVER_v48.md](LLM-HANDOVER_v48.md). All four current filenames use matching versions; maintain cross-links together. Continue substantial batches without milestone acceptance waits, merge only after both exact-head CI events pass, retain financial gates disabled and tests deferred. Historical v29 review holds are satisfied. Phase One remediation and Phase Two are incomplete.
 
 V33 adds bounded RPC queue/cache lifecycle, nonblocking age-labelled public statistics, private-route noindex/noarchive and atomic saved-help inventory replacement. Round One now48/71 locally verified;23 open. Financial gates remain false and Phase Two has not started.
 
@@ -335,3 +335,8 @@ V47 current counter/continuation contract (14 October 2026 at 04:41:01 PM WAT): 
 
 
 Latest continuation boundary: The owner's latest credit-refill directive (14 October 2026 at 05:15:19 PM WAT) is to merge only the current P1-039 ledger-counter PR, then report its result and HALT. Do not start P1-009, P1-028, Round Two or Phase Two until the owner explicitly resumes. This supersedes the earlier request to finish every Round One finding before stopping. P1-009 (historical receiving-address monitoring) and P1-028 (retention/archival) remain OPEN. Round One is72/74 locally verified, with P1-039 awaiting the current exact-head dual CI and merge; Phase Two has not started.
+
+
+## V48 one-step schema installation
+
+The single [000_initial_schema.sql](../packages/db/src/migrations/000_initial_schema.sql) creates the final PostgreSQL schema and all security objects directly. Both direct SQL and db:migrate record the same single receipt; seeding follows separately. Preflight namespace verification uses fresh transaction locks, with no preliminary application DDL. See [INITIAL-SCHEMA_v48.md](INITIAL-SCHEMA_v48.md). Earlier numbered migrations in historical evidence refer to the prior Git release, not additional installation steps. Migration consolidation does not resume pending bugfixes or Phase Two.

@@ -25,7 +25,7 @@ function signature(value:unknown,key:Buffer) {
 
 async function ensureEmpty(owner:ReturnType<typeof migrationClient>) {
   // This is PostgreSQL restore infrastructure, not application table access.
-  const tables=await owner<{name:string}[]>`select c.relname as name from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','p','v','m','S') and c.relname<>'deployment_binding_challenges' limit 1`;
+  const tables=await owner<{name:string}[]>`select c.relname as name from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','p','v','m','S') limit 1`;
   const functions=await owner`select p.oid from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and not exists(select 1 from pg_depend d where d.objid=p.oid and d.classid='pg_proc'::regclass and d.deptype='e') limit 1`;
   if(tables.length||functions.length) throw new Error('RECOVERY_TARGET_NOT_EMPTY');
   // Require a dedicated staging target without other clients. A native restore

@@ -1,6 +1,6 @@
 # Custom bugs report — Gifters World Phase One
 
-Updated: **14 October 2026 at 04:42:03 PM WAT**.
+Updated: **15 October 2026 at 12:42:45 PM WAT**.
 
 ## Complete one-line findings list
 
@@ -768,7 +768,7 @@ The production dependency audit reports **15 affected package nodes**, not 15 se
 
 [Vercel function limits](https://vercel.com/docs/functions/limitations) document the 4.5 MB request/response body limit relevant to P1-058. Local-function body limits are distinct from advertised archive size, execution duration and free-plan quota. Existing PRD hosting/commercial-use constraints remain; no claim of guaranteed free operation is made.
 
-The complete remediation mapping, verification checks and three-round exit rule are in [custom-bugs-fix-plan_v47.md](custom-bugs-fix-plan_v47.md). Current handover: [LLM-HANDOVER_v47.md](LLM-HANDOVER_v47.md).
+The complete remediation mapping, verification checks and three-round exit rule are in [custom-bugs-fix-plan_v48.md](custom-bugs-fix-plan_v48.md). Current handover: [LLM-HANDOVER_v48.md](LLM-HANDOVER_v48.md).
 
 
 ### 74: BUG P1-074: TRON reconciliation accepts live balances beyond the declared scan cutoff
@@ -877,14 +877,14 @@ Named procedures passed: manual-public-http-final-r2 (real production French ini
 
 Required check:all, production build and bundle reporting passed after forward093. Exact-head dual CI and merge remain pending. Latest measured homepage180.22KiB/200, API1.429MiB/3, all clients0.661MiB. Schema remains86 tables;94 migrations and73 retained inventories. The initial encrypted site-financial-final_v43 archive (93 migrations) exactly restored into fresh inactive gw_v43_restore. After P1-073, a new site-financial-final_v43-r2 archive (94 migrations) exactly restored into fresh inactive gw_v43_restore_r2 with schema/RLS/grants/history verified. The presentation source is gw_v43_presentation; the separate gw_v43_public search experiment is preserved and is not the release/archive source. Original sources, archives, keys and financial histories are intact; both implementation gates remain false.
 
-Historical v43 limitation, superseded by explicit v44 approval: P1-065 was blocked specifically by automatic approval review. Search/index prototypes passed rollback checks in a fresh inactive clone, but two proposed production search/recovery changes were rejected due migration/restore compatibility risk and a requirement for explicit owner approval of that exact change. No extension/index/restore-validator change is in this active batch. Read custom-bugs-search-approval_v47.md for the concrete proposal. P1-038 remains partial/open. Historical v43 total65/73 implemented,8 open; Rounds Two/Three and Phase Two have not started. Continue all unaffected findings without milestone pauses.
+Historical v43 limitation, superseded by explicit v44 approval: P1-065 was blocked specifically by automatic approval review. Search/index prototypes passed rollback checks in a fresh inactive clone, but two proposed production search/recovery changes were rejected due migration/restore compatibility risk and a requirement for explicit owner approval of that exact change. No extension/index/restore-validator change is in this active batch. Read custom-bugs-search-approval_v48.md for the concrete proposal. P1-038 remains partial/open. Historical v43 total65/73 implemented,8 open; Rounds Two/Three and Phase Two have not started. Continue all unaffected findings without milestone pauses.
 
 
 ## V44 approved search and schema congruence
 
 Updated: **14 October 2026 at 02:25:24 PM WAT**. The owner explicitly approved the concrete P1-065 search/backup proposal after its restore compatibility risk was explained, and instructed: **“approve this change and any other necessary change. dont stop, keep going.”** This resolves the earlier search approval hold. Continue remaining fixes, Rounds Two/Three, Phase Two and final remediation without milestone acceptance pauses; retain disabled financial/mainnet gates.
 
-Implemented P1-063/P1-065. Drizzle declarations now match all810 columns/defaults,261 check constraints and102 standalone indexes against the forward-migrated PostgreSQL catalog. Three missing UNIQUE declarations are included. Both deferred FK targets remain modeled; their deferred timing and22 constraint triggers are explicitly inventoried in [custom-bugs-schema-contract_v47.json](custom-bugs-schema-contract_v47.json). SQL migrations remain authoritative for policies, grants, functions, views and trigger behavior; Drizzle-generated SQL alone is not a deployable security schema. Required coverage checks reject a changed declaration or migration set until catalog congruence is re-verified. All86 table select/insert/delete query shapes remained unchanged, and the complete app typechecks. Original applied migration checksums are intact.
+Implemented P1-063/P1-065. Drizzle declarations now match all810 columns/defaults,261 check constraints and102 standalone indexes against the forward-migrated PostgreSQL catalog. Three missing UNIQUE declarations are included. Both deferred FK targets remain modeled; their deferred timing and22 constraint triggers are explicitly inventoried in [custom-bugs-schema-contract_v48.json](custom-bugs-schema-contract_v48.json). SQL migrations remain authoritative for policies, grants, functions, views and trigger behavior; Drizzle-generated SQL alone is not a deployable security schema. Required coverage checks reject a changed declaration or migration set until catalog congruence is re-verified. All86 table select/insert/delete query shapes remained unchanged, and the complete app typechecks. Original applied migration checksums are intact.
 
 Forward094 adds pinned public pg_trgm1.6 and three published-only GIN indexes. Bounded EN/FR search uses exact-title/full-text/relevance/trigram/slug ordering; query values are bound, normalized and capped, results limited20, concurrent public cache flights limited32. Browser search is debounced/cancellable with explicit saved-text fallback/retry. Closed recovery dependencies retain pgcrypto-only packet validation and optional pg_trgm, rejecting unknown/duplicate/version/schema entries; existing incompatible extensions are rejected before provisioning. Signatures, archive checksums, empty-target checks and exact restored inventories remain mandatory.
 
@@ -945,4 +945,24 @@ V47 release checks (14 October 2026 at 05:14:55 PM WAT): final check:all and pro
 
 The owner's latest credit-refill directive (14 October 2026 at 05:15:19 PM WAT) is to merge only the current P1-039 ledger-counter PR, then report its result and HALT. Do not start P1-009, P1-028, Round Two or Phase Two until the owner explicitly resumes. This supersedes the earlier request to finish every Round One finding before stopping. P1-009 (historical receiving-address monitoring) and P1-028 (retention/archival) remain OPEN. Round One is72/74 locally verified, with P1-039 awaiting the current exact-head dual CI and merge; Phase Two has not started.
 
-Signed: **14 October 2026 at 05:15:19 PM WAT**.
+
+## V48 single final-state initial schema
+
+Updated: **15 October 2026 at 12:27:07 PM WAT**. The owner confirmed no migrations have been applied to the intended installation and requested one final-state migration. The99 active SQL files have been replaced by packages/db/src/migrations/000_initial_schema.sql. It creates the final schema directly, not concatenated upgrades, and records one validated body-checksum receipt. Direct SQL runs atomically; db:migrate uses the same receipt in its own transaction and skips matching history. Unknown/legacy histories and nonempty application schemas are rejected before installation. Do not apply this fresh-install baseline to a populated database or rewrite it after deployment; later changes need new forward migrations.
+
+A new empty PostgreSQL reference applied all99 historical migrations solely to derive/verify final definitions. Baseline/direct/runner catalogs match all3523 schema/security entries, including column grants;92 tables/848 columns/274 checks/105 standalone indexes, the same final views/functions/triggers/policies and deferred timing. An independent target with broad browser/unknown-role default privileges matches the same final ACLs. The schema-free128-bit owner/runtime advisory-lock challenge replaces the deleted014 bootstrap dependency and retains restricted-runtime/ownership checks; empty/post-install checks pass, wrong database and owner-runtime checks fail, and no schema/locks remain after preflight. Mandatory initialization creates fresh identity rows and seals only the known-empty ledger; published test privacy notices remain. Application seeding is separate.
+
+Named isolated verification covers direct/runner checksum parity and rerun, edited body/footer denial, nonempty-schema preservation, late-DDL rollback, legacy-history refusal, seed/runtime verification and encrypted79-inventory backup/exact restore. Existing failed fixtures, financial sources, archive packets/keys and signed evidence remain untouched. Older99-migration archives require their matching historical release (e6f7888034afae01d0c7803965f1c17889783171); the version guard is retained, not bypassed or re-signed. Required source checks/build/bundle and both exact-head CI events must pass before merge. Current evidence is private under /workspace/work/schema-consolidation-v48.
+
+PR46 is merged at e6f7888034afae01d0c7803965f1c17889783171 after exact-head push38596587666 and pull_request38596599068 both succeeded for1f2ab151bca8c5f587e0fa73ed7718a29ebd7e36. Round One remains72/74; P1-009/P1-028 are OPEN. This task authorizes migration consolidation only. Finish its documentation and verified PR, then halt; do not resume those bugs, Round Two or Phase Two without the owner's explicit go-ahead. Both financial readiness gates remain false; no signing, broadcast, reset or broad deferred suite ran.
+
+
+## V48 final isolated verification — 15 October 2026 at 12:42:45 PM WAT
+
+The active migration directory contains exactly one405718-byte final-state SQL file. Final direct/runner/default-grant targets match all3523 reference schema/security entries and column grants. A fresh installation seeds and verifies through the restricted runtime. The final baseline passes actual60-digit journal/replay/counter reads, negative-commit rejection and runtime counter-tamper denial, with every generated financial row rolled back. Body/footer tampering, nonempty schemas, unknown histories, wrong databases and unsafe owner runtimes are rejected. Late DDL failure leaves no partial schema/history. All fresh advisory challenges leave no table or lock behind.
+
+Encrypted initial-schema_v48-r2.gwbackup includes79 retained inventories. Exact restore passed into fresh inactive gw_v48_release_restore and gw_v48_release_restore_final, preserving schema/RLS/grants/financial/work history. Exports now retain deployment_binding_challenges schema while excluding only its ephemeral rows; preflight no longer creates that table. Restore rejects even an existing proof table as RECOVERY_TARGET_NOT_EMPTY. Initial intermediate failures/archives remain private and preserved; none is treated as final acceptance. The repository secret scan remains unchanged: the public checksum receipt uses two32-character SQL literals instead of weakening the generic64-hex secret heuristic.
+
+Required check:all and production build passed; local bounds homepage180.35KiB/200,API1.394MiB/3,clients0.661MiB/2. Final exact-head push/PR CI and merge remain required. Hosted provider acceptance and broad deferred tests are unrun. This consolidation adds no bugfix-round or Phase Two progress: Round One72/74, P1-009/P1-028 open, financial gates false. Current branch feat/consolidated-initial-schema; finish this PR and halt.
+
+Signed: **15 October 2026 at 12:42:45 PM WAT**.

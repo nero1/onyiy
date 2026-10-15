@@ -23,7 +23,8 @@ export function databaseScopeFingerprint(url: string) {
 /** The owner-controlled database nonce is shared by pooler/direct connections.
  * Native archives exclude its data, so restored targets get a fresh identity.
  * The catalog OID also distinguishes a database copied inside the same cluster.
- * Legacy mode exists only for the pre-migration connection challenge bootstrap. */
+ * The endpoint fallback exists only before the schema is installed; the fresh
+ * owner/runtime lock challenge independently proves the actual namespace. */
 export async function databaseBinding(tx: DbExecutor, legacyUrl?: string) {
   const [available] = await tx.execute<{present:boolean}>(sql`select to_regprocedure('public.gw_database_binding()') is not null as present`);
   if (!available?.present) {

@@ -1,0 +1,170 @@
+{
+  "format": "gw-drizzle-congruence-v1",
+  "verified_columns": 848,
+  "verified_standalone_indexes": 105,
+  "verified_check_constraints": 274,
+  "verified_tables": 92,
+  "sql_only_constraint_triggers": [
+    {
+      "table_name": "chain_fee_claims",
+      "name": "chain_fee_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "crypto_obligations",
+      "name": "operational_recovery_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "crypto_obligations",
+      "name": "refund_hold_obligation_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "crypto_obligations",
+      "name": "treasury_sweep_obligation_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "crypto_obligations",
+      "name": "unallocated_refund_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "cycles",
+      "name": "reorg_admission_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "gift_invoices",
+      "name": "incoming_invoice_integrity",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "ledger_journals",
+      "name": "ledger_journal_balanced",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "ledger_journals",
+      "name": "treasury_sweep_journal_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "ledger_postings",
+      "name": "frozen_spend_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "ledger_postings",
+      "name": "ledger_posting_balanced",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "ledger_postings",
+      "name": "treasury_sweep_posting_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "ledger_postings",
+      "name": "unmatched_source_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "ledger_postings",
+      "name": "user_payable_nonnegative",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "receipt_allocations",
+      "name": "receipt_allocation_valid",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "recovery_outflow_resolutions",
+      "name": "recovery_loss_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "simulation_incoming_events",
+      "name": "incoming_event_integrity",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "simulation_incoming_refunds",
+      "name": "incoming_refund_integrity",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "simulation_reorg_resolutions",
+      "name": "reorg_resolution_integrity",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "simulation_reorg_reviews",
+      "name": "reorg_review_integrity",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "unallocated_inflows",
+      "name": "unmatched_custody_guard",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "withdrawals",
+      "name": "giv_withdrawal_integrity",
+      "type": "t",
+      "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+    }
+  ],
+  "sql_only_deferred_foreign_keys": [
+    {
+      "table_name": "receipt_allocations",
+      "name": "receipt_source_operation_fk",
+      "type": "f",
+      "definition": "FOREIGN KEY (source_operation_key) REFERENCES operation_keys(business_key) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED"
+    },
+    {
+      "table_name": "simulation_withdrawal_controls",
+      "name": "simulation_withdrawal_controls_operation_key_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (operation_key) REFERENCES operation_keys(business_key) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED"
+    }
+  ],
+  "source_sha256_base64": {
+    "packages/db/src/schema.ts": "PyipXktRevOgoTgtUgiShOtJUXb10yjF2JH8VVBtSJs=",
+    "packages/db/src/schema-contracts.ts": "vwnUvk8dlKrdKf+0zFPJskiNrC9rsEB18P850LQVmI8="
+  },
+  "migrations_sha256_base64": {
+    "000_initial_schema.sql": "/8uTC5dPlh3nz8T4e7+39ITUe/KzB3fTsBCRtZ6z8yA="
+  },
+  "consolidated_baseline": {
+    "file": "000_initial_schema.sql",
+    "reference_commit": "e6f7888034afae01d0c7803965f1c17889783171",
+    "reference_migrations": 99,
+    "verified_schema_security_entries": 3523,
+    "verified_column_grants": true,
+    "hostile_default_grants_verified": true
+  }
+}
