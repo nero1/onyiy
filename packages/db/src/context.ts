@@ -1,3 +1,4 @@
+import {fenceSimulationDatabase} from './deployment-mode';
 import {withBoundedTransaction,remainingExecutionTime} from './execution-budget';
 import {performance} from 'node:perf_hooks';
 import {admissionFor} from './work-budget';
@@ -35,6 +36,14 @@ export async function scopedTransaction<T>(database: Database, context: Database
         as safe from pg_roles r where r.rolname=session_user
     `);
     if (!role[0]?.safe) throw new Error('CONFIGURATION_INVALID');
+    if (config.appEnv === 'simulation') {
+      await tx.execute(sql.raw('SET LOCAL ROLE gw_service'));
+      await fenceSimulationDatabase(tx);
+      // PostgreSQL permits row locks only in a read-write transaction. Lock
+      // the promotion fence first, then make the entire application snapshot
+      // read-only before actor checks or the caller's callback can run.
+      if (context.snapshot) await tx.execute(sql.raw('SET TRANSACTION READ ONLY'));
+    }
     await tx.execute(context.access === 'service' ? sql.raw('SET LOCAL ROLE gw_service') : sql.raw('SET LOCAL ROLE gw_read'));
     const binding = await databaseBinding(tx, process.env.DATABASE_URL);
     await tx.execute(sql`select set_config('gw.request_id',${activeRequestId()??''},true)`);
@@ -62,7 +71,7 @@ export async function scopedTransaction<T>(database: Database, context: Database
       if (!actor || !(context.requireModerator?['admin','moderator'].includes(actor.role):actor.role==='admin') || actor.status !== 'active') throw new Error('FORBIDDEN');
     }
     const result=await fn(tx);await checkFamily(true);return result;
-  }),context.snapshot ? {isolationLevel:'repeatable read',accessMode:'read only'} : context.reportSnapshot ? {isolationLevel:'repeatable read'} : undefined)});
+  }),context.snapshot ? {isolationLevel:'repeatable read',accessMode:config.appEnv==='simulation'?'read write':'read only'} : context.reportSnapshot ? {isolationLevel:'repeatable read'} : undefined)});
 }
 
 export function withContext<T>(context: DatabaseContext, fn: (tx: DbExecutor) => Promise<T>) {

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { validateRuntimeEnv } from '@gifters/config';
 import { databaseConnectionOptions } from '@gifters/db';
+import {readRegistry} from '@gifters/chains';
 
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
@@ -31,7 +32,9 @@ if (process.argv.includes('--hosted')) {
   if(env.AUTH_ACCESS_PREVIOUS_KEY&&!env.AUTH_ACCESS_KEY)throw new Error('Authentication rotation requires a current key');
   let web:URL;try{web=new URL(env.WEB_ORIGIN??'')}catch{throw new Error('Hosted WEB_ORIGIN must be configured')}
   if(web.protocol!=='https:'||web.origin!==env.WEB_ORIGIN||web.username||web.password)throw new Error('Hosted WEB_ORIGIN must be an exact HTTPS origin');
-  if(env.AUTH_PROVIDER==='google'&&(!env.GOOGLE_CLIENT_ID||!env.GOOGLE_CLIENT_SECRET))throw new Error('Google identity requires owner-provisioned credentials');
+  if(config.providers.AUTH_PROVIDER==='google'&&(!env.GOOGLE_CLIENT_ID||!env.GOOGLE_CLIENT_SECRET))throw new Error('Google identity requires owner-provisioned credentials');
+  if(config.providers.CAPTCHA_PROVIDER==='turnstile'&&(!env.CAPTCHA_SITE_KEY||!env.CAPTCHA_SECRET_KEY))throw new Error('Turnstile requires owner-provisioned site and secret keys');
+  readRegistry(env);
   if(env.SIMULATION_TOOL_AUTH_KEY)throw new Error('Operator fixture keys must stay outside hosted runtime');
   databaseConnectionOptions(config.databaseUrl,env);
   let database: URL;

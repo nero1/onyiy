@@ -1,3 +1,4 @@
+import {runtimeProviders} from '@gifters/config';
 import crypto from 'node:crypto';
 import { and,eq,sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -5,7 +6,7 @@ import { authFlows,userIdentities,users,readManifest,withContext } from '@gifter
 import { authResponse,cookie,databaseNow,issueSession,normalizeUsername,origin,setCookie,validateUsername } from './auth';
 import { equalText,hash,randomToken,seal,unseal } from './auth-crypto';
 import { enforceRate } from './rate-limits';
-function configuration(request:Request){if(process.env.AUTH_PROVIDER!=='google')throw new Error('FEATURE_DISABLED');const client=process.env.GOOGLE_CLIENT_ID??'',secret=process.env.GOOGLE_CLIENT_SECRET??'';if(!client||client.length>300||!secret||secret.length>300)throw new Error('PROVIDER_UNAVAILABLE');return {client,secret,redirect:origin(request)+'/api/v1/auth/google/callback'};}
+function configuration(request:Request){if(runtimeProviders().AUTH_PROVIDER!=='google')throw new Error('FEATURE_DISABLED');const client=process.env.GOOGLE_CLIENT_ID??'',secret=process.env.GOOGLE_CLIENT_SECRET??'';if(!client||client.length>300||!secret||secret.length>300)throw new Error('PROVIDER_UNAVAILABLE');return {client,secret,redirect:origin(request)+'/api/v1/auth/google/callback'};}
 async function boundedJson(response:Response){if(!response.ok||!response.body)throw new Error('PROVIDER_UNAVAILABLE');const reader=response.body.getReader();let size=0;const chunks:Uint8Array[]=[];try{while(true){const row=await reader.read();if(row.done)break;size+=row.value.length;if(size>65536)throw new Error('PROVIDER_UNAVAILABLE');chunks.push(row.value)}return JSON.parse(Buffer.concat(chunks).toString('utf8'));}finally{await reader.cancel().catch(()=>{})}}
 let jwks: {expires:number;keys:JsonWebKey[]}|undefined;let loading:Promise<JsonWebKey[]>|undefined;
 async function googleKeys(){if(jwks&&jwks.expires>Date.now())return jwks.keys;if(!loading){loading=(async()=>{const value=await boundedJson(await fetch('https://www.googleapis.com/oauth2/v3/certs',{signal:AbortSignal.timeout(5000),redirect:'error',cache:'no-store'}));if(!Array.isArray(value.keys)||value.keys.length<1||value.keys.length>16)throw new Error('PROVIDER_UNAVAILABLE');jwks={keys:value.keys,expires:Date.now()+300000};return jwks.keys;})();void loading.finally(()=>{loading=undefined}).catch(()=>{});}return loading;}

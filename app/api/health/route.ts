@@ -15,6 +15,7 @@ export async function GET() {
     return Response.json({
       status: 'ok',
       environment: config.appEnv,
+      deployment: process.env.VERCEL_ENV ?? 'unhosted',
       database: config.dbProvider,
       cache: config.cacheProvider,
       signer: process.env.SIGNER_PROVIDER ?? 'disabled',

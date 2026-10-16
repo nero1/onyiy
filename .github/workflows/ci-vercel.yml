@@ -37,11 +37,12 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && 'production' || 'preview' }}
     concurrency:
-      group: vercel-${{ github.ref }}
+      group: vercel-shared-hosted-database
       cancel-in-progress: false
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      DEPLOYMENT_GIT_BRANCH: ${{ github.head_ref || github.ref_name }}
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -63,19 +64,27 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ENV: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && 'production' || 'preview' }}
-        run: npx --no-install vercel pull --yes --environment="$VERCEL_ENV" --token="$VERCEL_TOKEN"
+        run: |
+          if [ "$VERCEL_ENV" = preview ]; then
+            npx --no-install vercel pull --yes --environment=preview --git-branch="$DEPLOYMENT_GIT_BRANCH" --token="$VERCEL_TOKEN"
+          else
+            npx --no-install vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          fi
       - name: Validate hosted settings
         env:
           VERCEL_ENV: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && 'production' || 'preview' }}
           EXPECTED_DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: node --env-file=".vercel/.env.$VERCEL_ENV.local" --import tsx scripts/validate-deployment.ts --hosted
-      - name: Migrate and seed the validated hosted environment without signing
+      - name: Verify manual schema and initialize the hosted environment without signing
         env:
+          # Owner tooling runs on GitHub, even if pulled settings contain VERCEL=1.
+          # Keep the real Vercel runtime marker/owner-credential rejection intact.
+          VERCEL: "0"
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
           DATABASE_TLS_CA_PEM: ${{ secrets.DATABASE_TLS_CA_PEM }}
           VERCEL_ENV: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && 'production' || 'preview' }}
-        run: node --env-file=".vercel/.env.$VERCEL_ENV.local" --import tsx scripts/migrate-hosted.ts
+        run: node --env-file=".vercel/.env.$VERCEL_ENV.local" --import tsx scripts/initialize-hosted.ts
       - name: Build and deploy prebuilt output
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -84,9 +93,9 @@ jobs:
           if [ "$VERCEL_ENV" = production ]; then
             npx --no-install vercel build --prod --token="$VERCEL_TOKEN"
             npm run check:secrets
-            npx --no-install vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+            npx --no-install vercel deploy --prebuilt --prod --meta githubDeployment=1 --meta "githubCommitRef=$DEPLOYMENT_GIT_BRANCH" --token="$VERCEL_TOKEN"
           else
             npx --no-install vercel build --token="$VERCEL_TOKEN"
             npm run check:secrets
-            npx --no-install vercel deploy --prebuilt --token="$VERCEL_TOKEN"
+            npx --no-install vercel deploy --prebuilt --meta githubDeployment=1 --meta "githubCommitRef=$DEPLOYMENT_GIT_BRANCH" --token="$VERCEL_TOKEN"
           fi

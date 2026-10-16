@@ -1,3 +1,4 @@
+import {runtimeProviders} from '@gifters/config';
 import {currentRequestId} from '@gifters/db';
 import {expireSuspensions} from './account-expiry';
 import crypto from 'node:crypto';
@@ -47,7 +48,7 @@ export async function issueSession(request:Request,userId:string){
   await tx.update(authSessions).set({accessHash:hash(access)}).where(eq(authSessions.id,session.id));if(!preAuth)await tx.insert(authRefreshTokens).values({tokenHash:hash(refresh),sessionId:session.id,expiresAt:absolute});
   return {user,session,access,preAuth,minutes,absoluteSeconds:policy.absolute_days*86400};
  });
- const response=authResponse({user:result.preAuth?null:userDto(result.user),generation:result.session.generation,requires_mfa:result.preAuth,provider:process.env.AUTH_PROVIDER??'simulation'});clearCookies(response,request);setCookie(response,request,result.preAuth?'gw_pre_auth':'gw_access',result.access,result.preAuth?'/api/v1/auth':'/api/v1',result.minutes*60);setCookie(response,request,'gw_csrf',csrfToken,'/',result.absoluteSeconds,false);if(!result.preAuth)setCookie(response,request,'gw_refresh',refresh,'/api/v1/auth',result.absoluteSeconds);return response;
+ const response=authResponse({user:result.preAuth?null:userDto(result.user),generation:result.session.generation,requires_mfa:result.preAuth,provider:runtimeProviders().AUTH_PROVIDER});clearCookies(response,request);setCookie(response,request,result.preAuth?'gw_pre_auth':'gw_access',result.access,result.preAuth?'/api/v1/auth':'/api/v1',result.minutes*60);setCookie(response,request,'gw_csrf',csrfToken,'/',result.absoluteSeconds,false);if(!result.preAuth)setCookie(response,request,'gw_refresh',refresh,'/api/v1/auth',result.absoluteSeconds);return response;
 }
 export async function refreshSession(request:Request){assertOrigin(request);const csrfToken=cookie(request,'gw_csrf');if(!equalText(csrfToken,request.headers.get('x-csrf-token')??'')||!/^[A-Za-z0-9_-]{43}$/.test(csrfToken))throw new Error('FORBIDDEN');const token=cookie(request,'gw_refresh');if(!/^[A-Za-z0-9_-]{43}$/.test(token))throw new Error('UNAUTHENTICATED');const next=randomToken();
  const outcome=await withContext({access:'service'},async tx=>{

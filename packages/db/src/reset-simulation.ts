@@ -1,3 +1,4 @@
+import {fenceOwnerInitialization} from './deployment-mode';
 import { ne, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { assets, migrationClient, schema, readManifest } from './index';
@@ -11,6 +12,7 @@ if (!databaseName || process.env.SIMULATION_RESET_CONFIRM !== `reset:${databaseN
 const client = migrationClient();
 try {
   await drizzle(client,{schema}).transaction(async (transaction) => {
+    await fenceOwnerInitialization(transaction, 'simulation');
     // PostgreSQL-specific maintenance locks serialize inspection and truncation.
     // No reset endpoint or production reset capability is introduced.
     await transaction.execute(sql.raw('LOCK TABLE x_manifest, assets IN ACCESS EXCLUSIVE MODE'));

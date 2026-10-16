@@ -1,3 +1,4 @@
+import {fenceOwnerInitialization} from './deployment-mode';
 import {helpSeed} from './help-seed';
 import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
@@ -9,6 +10,7 @@ const environment=validateRuntimeEnv().appEnv;
 const client = migrationClient();
 try {
   await drizzle(client,{schema}).transaction(async (database) => {
+    await fenceOwnerInitialization(database, environment);
     await seedManifest(database);
     const manifest = await readManifest(database);
     await database.insert(environmentInstances).values({environment}).onConflictDoNothing();

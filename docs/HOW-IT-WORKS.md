@@ -1,6 +1,6 @@
 # How Gifters World works
 
-For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v49.md).
+For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v50.md).
 
 ## Main parts
 
@@ -17,6 +17,18 @@ For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); pro
 | GitHub Actions | Checks and controlled Vercel deployment | `.github/workflows/` |
 
 Supabase hosts PostgreSQL; the app does not depend on Supabase Auth, Storage, Realtime or browser Data API access. Vercel never receives signer decryption keys. PostgreSQL/Redis/Node-compatible alternatives remain behind provider boundaries.
+
+## Shared hosting and payment modes
+
+- One Supabase project/database, Upstash database and Vercel project can serve the main and trusted preview sites. They share users, configuration, history and quotas; no independent copy is created.
+- `APP_ENV=simulation|testnet` chooses payment behavior. `runtimeProviders()` supplies matching defaults, including Google/Turnstile for testnet. Explicit incompatible overrides fail; credentials stay in secret settings.
+- Vercel's Preview/Production chooses the website build/domain. It does not activate real money. Health reports both stage and payment mode.
+- CI retrieves Preview settings for the actual branch and supplies GitHub branch metadata when uploading prebuilt output, so branch-specific settings/domains are associated correctly. Hosted association remains a provider acceptance check.
+- Owner initialization explicitly runs as GitHub tooling (`VERCEL=0` for that step only); real Vercel handlers still reject owner credentials. Hosted initialization checks the manually installed SQL receipts before seeding; it never applies SQL. One deployment queue serializes preview/main initialization.
+- Promotion registers the existing testnet namespace. Simulation transactions hold a shared transaction fence; initialization takes its exclusive counterpart. A locked configuration row also rejects a stale repeatable snapshot after promotion, without changing its settings/version. Simulation access, reseeding and reset then fail closed; records are retained.
+- Old releases without this guard must lose their old runtime credentials before promotion. Setup includes rotation and terminating only the old runtime sessions. Do not give older code the new password.
+- Inline `ASSET_REGISTRY_JSON` accepts the same bounded verified testnet registry as the operator file. Exactly one source is allowed; equivalent content has the same fingerprint.
+- Mainnet and safe mainnet-preview access are **not implemented**. Reusing provider accounts is the deployment preference, not permission to expose real financial mutations through preview.
 
 ## Database and access
 
@@ -42,6 +54,7 @@ Supabase hosts PostgreSQL; the app does not depend on Supabase Auth, Storage, Re
 ## Identity and browser data
 
 - Simulation accounts are demo identities. Google verifies real sign-in; app-issued sessions still enforce consent, account status and permissions.
+- First Google-admin setup uses an owner-only SQL Editor transaction after verified identity and two-factor enrollment. It checks for existing Google admins/prior bootstrap, writes a permanent key and audit, and invalidates old sessions. Later recovery is separate.
 - Session refresh is coordinated across tabs. Responses from an old account/session are discarded.
 - Sensitive actions require fresh authentication; staff settings and protected actions also require current two-factor verification. One-use recovery codes and TOTP replay steps are retained securely.
 - Wallet ownership proofs bind the domain, account, address, network, environment, purpose, nonce and expiry. A deposit is not permission to change a payout address.
@@ -112,4 +125,4 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Relevant named manual checks cover rollback/replay, concurrent admission, missing-wallet liabilities, rejected withdrawals, account isolation, cache expiry/outage, signing recovery and exact restore. Use isolated data and preserve failed evidence. Never reset a shared source to repeat a check.
 - Hosted Google, Upstash, RPC, alerts, mobile performance and release readiness require observations on the selected services. Health/compilation alone do not satisfy them.
 - Keep **five core docs** plus the two explicitly requested bug trackers. Use clear lists/tables and short explanations; update current facts instead of appending repeated history. Only add a document when explicitly requested or essential. Prior versions remain in Git.
-- All application work remains paused. [LLM handover](LLM-HANDOVER_v49.md) records the exact continuation boundary.
+- Unrelated bug rounds and Phase Two remain paused. [LLM handover](LLM-HANDOVER_v50.md) records the exact continuation boundary.

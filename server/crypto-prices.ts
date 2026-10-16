@@ -1,3 +1,4 @@
+import {runtimeProviders} from '@gifters/config';
 import crypto from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -44,7 +45,7 @@ export async function ingestSignedPrice(
 ) {
   assertFinancialEnvironment();
   if (
-    process.env.PRICE_PROVIDER !== "manual_signed" &&
+    runtimeProviders().PRICE_PROVIDER !== "manual_signed" &&
     !(
       process.env.APP_ENV === "simulation" &&
       process.env.CHAIN_FIXTURE_MODE === "isolated"

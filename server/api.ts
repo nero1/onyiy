@@ -1,3 +1,4 @@
+import {runtimeProviders} from '@gifters/config';
 import {staffReorgs,staffAlerts,staffAlertsInput,staffUsers,staffCases,staffJobs,staffRecovery,staffUsersInput,staffCasesInput,staffJobsInput,staffRecoveryInput} from './staff-reads';
 import {ownMemberRecords,memberRecordInput} from './member-records';
 import {applicationError} from './errors';
@@ -463,7 +464,7 @@ async function routeApiRequest(method:string,path:string[],request:Request){
  try{
   const route='/'+path.join('/');
   if(route.startsWith('/auth/'))return await handleAuthRequest(method,route,request);
-  if(route==='/sim/users'&&(process.env.AUTH_PROVIDER??'simulation')!=='simulation')throw new Error('FEATURE_DISABLED');
+  if(route==='/sim/users'&&(runtimeProviders().AUTH_PROVIDER)!=='simulation')throw new Error('FEATURE_DISABLED');
   if(['/manifest','/statistics','/plans','/help','/sim/users','/internal/tick','/internal/financial','/crypto/catalog'].includes(route))return await dispatchApiRequest(method,path,request);
   const identity=await authenticate(request);
   const account=request.headers.get('x-client-account');const generation=request.headers.get('x-client-session');if(!identity.tool&&((account&&account!==identity.user.username)||(generation&&generation!==identity.session!.generation)))throw new Error('VERSION_CONFLICT');

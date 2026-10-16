@@ -937,7 +937,7 @@ Display validated network addresses in monospace with chain-appropriate checksum
 
 ### §30.4 Testnet guide requirements
 
-Provide separate DB/registry namespaces and treasury wallets for simulation, testnet, and mainnet. Use Ethereum Sepolia, BNB testnet, Solana devnet, and a verified supported TRON test network with separate registry entries. A mainnet USDT/JAGA contract must not be copied into a testnet registry. Where official token deployments are unavailable, admin must configure an existing documented test token or a clearly labelled mock token; mock deployment is optional tooling outside the production app, not a mandatory platform contract.
+Keep distinct financial environments/registries and treasury wallets for simulation, testnet and mainnet. Prefer one existing Supabase project/database and reuse provider accounts. Separate paid/free instances are not required merely because a hosting stage changes; never convert test balances into real funds. Use Ethereum Sepolia, BNB testnet, Solana devnet, and a verified supported TRON test network with separate registry entries. A mainnet USDT/JAGA contract must not be copied into a testnet registry. Where official token deployments are unavailable, admin must configure an existing documented test token or a clearly labelled mock token; mock deployment is optional tooling outside the production app, not a mandatory platform contract.
 
 - Every simulated test account must receive 5,000 GIV once after simulated consent via `GIV_GRANT`; display no redemption/export-to-chain action.
 - Seed bulk accounts within batch cap.
@@ -965,6 +965,17 @@ Provide separate DB/registry namespaces and treasury wallets for simulation, tes
 - Preview stays simulation-only, separate from real-money data. Failed checks block deployment. Emergency deployment requires recorded owner authorization and later status reconciliation.
 - Fresh owner-held transaction locks must be visible through the restricted runtime connection. Copied namespace IDs alone cannot prove the two connections target the same database.
 - Each creating migration must classify public-table grants/revokes and RLS. Application tables stay closed to browser/Data API roles; native handlers use restricted server roles. Supabase-specific role handling must also work when those provider roles are absent on another host. Missing classification fails review.
+
+**Shared resources and payment selection**
+
+- Prefer **one Supabase project/database, one Upstash database and one Vercel project**, reusing the owner's existing accounts and quotas. Names are labels; keep Supabase's supplied database name. Add infrastructure only for an evidenced need, not by default for every environment.
+- `APP_ENV` selects the payment environment: `simulation` or `testnet` in this release. Provider defaults follow it, without mutating the environment or masking incompatible explicit overrides. Credentials must still be provisioned once for the selected real provider.
+- Vercel Preview/Production are hosting stages chosen by the workflow, not additional payment modes. They may use the same connections and payment mode. Document that their users/settings/data are shared; this is not preview isolation.
+- Testnet initialization retires simulation access on that shared database. Fence in-flight simulation transactions, including repeatable snapshots; reject later simulation requests, seeding and resets. Preserve existing records and keys. Retire pre-safeguard deployments through runtime-password rotation and connection termination before promotion.
+- Hosted initialization verifies exact manual SQL receipts, binds connections, adds missing seeds and checks runtime; it must not execute SQL migrations. Queue deployment initialization across branches for the shared resource.
+- First verified Google administrator setup may use the owner's SQL Editor: require an active Google-linked member with enrolled two-factor authentication, no existing Google administrator and no prior permanent bootstrap key. Grant, session invalidation, permanent key and audit must commit atomically. It must not become a general role/recovery bypass; later recovery retains its maintenance rules.
+- Support bounded `ASSET_REGISTRY_JSON` in protected server settings for browser-only hosted setup. Retain file input for operator use; reject simultaneous sources and keep the same strict registry/fingerprint validation.
+- Mainnet production is still unsupported and disabled. Before reusing this database with real funds, implement/verify its financial namespace and restricted non-sending preview contract. Shared test previews are not evidence of mainnet isolation. No new provider accounts are inherently required by that future design.
 
 **Cost and capacity**
 
@@ -1201,7 +1212,7 @@ uj*****p3 just received $9.5 referral commission
 
 ## §33. Current scope and continuation
 
-**Owner directive, 16 October 2026:** documentation cleanup only. Finish its checks, PR and verified merge, report the result, then **halt**. Do not resume application bugs, additional audit rounds or Phase Two until the owner explicitly says to continue. This overrides earlier autonomous-continuation wording in §§31–32.
+**Owner directive, 16 October 2026:** implement shared hosted-resource configuration and expand browser-only preview/testnet/production setup. Finish this scoped PR, then halt. P1-009/P1-028, new bug rounds and Phase Two remain paused. The owner confirms “production” means real-money mainnet; this task does not certify or implement the unfinished mainnet release.
 
 | Area | Current boundary |
 |---|---|
@@ -1237,4 +1248,4 @@ The owner explicitly approved P1-065 on **14 October 2026 at 02:25:24 PM WAT**, 
 - Closed signed-archive dependencies accept pgcrypto-only older packets or an additional pg_trgm declaration; unknown names, duplicates, versions and schemas fail.
 - Signatures/checksums, empty-target verification and exact post-restore inventories remain mandatory. Search approval does not activate financial gates.
 
-Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v49.md](PROJECT-STATUS_v49.md). Current bug evidence/tasks: [report](custom-bugs-report_v49.md) and [plan](custom-bugs-fix-plan_v49.md).
+Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v50.md](PROJECT-STATUS_v50.md). Current bug evidence/tasks: [report](custom-bugs-report_v50.md) and [plan](custom-bugs-fix-plan_v50.md).

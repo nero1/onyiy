@@ -1,10 +1,12 @@
-# Bug report — Round One v49
+# Bug report — Round One v50
 
-Updated: **16 October 2026 at 12:15:35 PM WAT**.
+Updated: **16 October 2026 at 08:06:03 PM WAT**.
 
 **Paused at the owner’s request.** Round One: **72 of 74 findings implemented and locally verified; 2 open** (P1-009, P1-028). Rounds Two/Three and Phase Two have not started. These counts are not a completion percentage or hosted acceptance.
 
 Historical numbered migration paths below identify the original fixes in Git history. Fresh installations use only `000_initial_schema.sql`; do not run the removed historical files.
+
+This v50 pass changes shared-hosting configuration/setup only. It closes no additional Round One finding and does not resume later rounds or Phase Two.
 
 ## Findings at a glance
 
@@ -89,7 +91,7 @@ Historical numbered migration paths below identify the original fixes in Git his
 - “Defect” means a source/contract failure; “requirement gap” means missing requested behavior; “hardening” means a conditional defensive improvement; “maintenance” means structural/dependency risk.
 - Initial audit ratings (current → projected after fixes): money/recovery 5 → 8; security/privacy 6.5 → 8.5; performance 5 → 8; maintainability 6 → 8; product/accessibility/SEO 6 → 8, out of 10. These were qualitative judgments, not measured guarantees or updated release ratings.
 - Original audit: 70 findings; four more were found during remediation. Three analysis passes were one audit round. CRON frequency and test-only issues were excluded.
-- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v49.md).
+- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v50.md).
 
 ## Original evidence by finding
 
@@ -544,6 +546,6 @@ Historical numbered migration paths below identify the original fixes in Git his
 - [PR46](https://github.com/nero1/onyiy/pull/46) completed P1-039 ledger counters. [PR47](https://github.com/nero1/onyiy/pull/47) consolidated the fresh schema; neither closed P1-009/P1-028 nor started Phase Two.
 - Detailed prior evidence remains in Git history and private retained fixtures. Never delete, reset or rewrite source financial records, signed bytes, failed fixtures, original archives or keys as cleanup.
 
-Signed: **16 October 2026 at 12:15:35 PM WAT**.
+Signed: **16 October 2026 at 08:06:03 PM WAT**.
 
-v49
+v50
