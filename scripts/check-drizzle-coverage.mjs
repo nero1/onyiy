@@ -41,9 +41,9 @@ console.log(`Drizzle coverage check passed (${schemaTables.size}/${migrationTabl
 // This reviewed baseline was established by creating the exported Drizzle DDL
 // in a fresh database and comparing owner catalogs. A changed model or forward
 // migration requires another catalog comparison, not a table-count-only pass.
-const baselines=fs.readdirSync(path.join(root,'docs')).filter(name=>/^custom-bugs-schema-contract_v\d+\.json$/.test(name));
+const baselines=fs.readdirSync(path.join(root,'packages/db')).filter(name=>/^schema-contract_v\d+\.json$/.test(name));
 if(baselines.length!==1)throw new Error('Exactly one current verified schema contract is required');
-const baseline=JSON.parse(fs.readFileSync(path.join(root,'docs',baselines[0]),'utf8'));
+const baseline=JSON.parse(fs.readFileSync(path.join(root,'packages/db',baselines[0]),'utf8'));
 const hash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('base64');
 for(const [file,expected] of Object.entries(baseline.source_sha256_base64)){
  if(hash(path.join(root,file))!==expected)throw new Error('Drizzle declarations changed: re-verify the owner/model catalog and update the versioned schema contract');
