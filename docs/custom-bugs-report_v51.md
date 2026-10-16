@@ -1,12 +1,12 @@
-# Bug report — Round One v50
+# Bug report — Round One v51
 
-Updated: **16 October 2026 at 08:06:03 PM WAT**.
+Updated: **16 October 2026 at 09:21:01 PM WAT**.
 
-**Paused at the owner’s request.** Round One: **72 of 74 findings implemented and locally verified; 2 open** (P1-009, P1-028). Rounds Two/Three and Phase Two have not started. These counts are not a completion percentage or hosted acceptance.
+**Resumed by the owner on 16 October 2026.** Round One: **73 of 74 findings implemented and locally verified; 1 open** (P1-028). Rounds Two/Three and Phase Two have not started. These counts are not a completion percentage or hosted acceptance.
 
-Historical numbered migration paths below identify the original fixes in Git history. Fresh installations use only `000_initial_schema.sql`; do not run the removed historical files.
+Historical numbered migration paths below identify the original fixes in Git history. Fresh installations use `000_initial_schema.sql` then the new `001_historical_treasury_fence.sql`; do not run removed historical files.
 
-This v50 pass changes shared-hosting configuration/setup only. It closes no additional Round One finding and does not resume later rounds or Phase Two.
+This v51 pass implements P1-009: permanent historical-address inventory, bounded monitoring and common-cutoff custody reconciliation. P1-028 is next, followed by the authorized later rounds and Phase Two.
 
 ## Findings at a glance
 
@@ -18,7 +18,7 @@ This v50 pass changes shared-hosting configuration/setup only. It closes no addi
 6. **P1-006 — Recovery can journal the same transaction fees more than once.** (High; defect) — Implemented; local checks passed.
 7. **P1-007 — Solana fee attribution treats other transfers as account setup cost.** (High; defect) — Implemented; local checks passed.
 8. **P1-008 — Saved expired Solana or TRON attempts can indefinitely block a recovery scan.** (Medium; defect) — Implemented; local checks passed.
-9. **P1-009 — Previous receiving addresses have no complete recovery monitoring inventory.** (High; requirement gap) — Open.
+9. **P1-009 — Previous receiving addresses have no complete recovery monitoring inventory.** (High; requirement gap) — Implemented; local checks passed.
 10. **P1-010 — Pausing a plan rejects payments already committed under its frozen terms.** (High; defect) — Implemented; local checks passed.
 11. **P1-011 — Accepted bootstrap destinations have no complete liability and payout support.** (High; defect) — Implemented; local checks passed.
 12. **P1-012 — The signer's oldest fixed candidate batch can starve later payable work.** (Medium; defect) — Implemented; local checks passed.
@@ -91,7 +91,7 @@ This v50 pass changes shared-hosting configuration/setup only. It closes no addi
 - “Defect” means a source/contract failure; “requirement gap” means missing requested behavior; “hardening” means a conditional defensive improvement; “maintenance” means structural/dependency risk.
 - Initial audit ratings (current → projected after fixes): money/recovery 5 → 8; security/privacy 6.5 → 8.5; performance 5 → 8; maintainability 6 → 8; product/accessibility/SEO 6 → 8, out of 10. These were qualitative judgments, not measured guarantees or updated release ratings.
 - Original audit: 70 findings; four more were found during remediation. Three analysis passes were one audit round. CRON frequency and test-only issues were excluded.
-- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v50.md).
+- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v51.md).
 
 ## Original evidence by finding
 
@@ -148,6 +148,8 @@ This v50 pass changes shared-hosting configuration/setup only. It closes no addi
 **Files:** `server/financial-config.ts`, `server/chain-recovery.ts`, `workers/signer/store.ts`, `docs/PRD.md`
 
 **High · Requirement gap.** Address roles and scans use the active receiving treasury. The PRD requires monitoring prior versions until unresolved invoice exposure closes. Submitted old invoices have their own observation path, but unmatched funds at a previous receiving address are outside the active checkpoint scan.
+
+**v51 result:** An immutable, trigger-maintained address inventory survives archival. Staff can page all addresses and checkpoint a known historical address. Scheduled monitoring advances a durable least-recently-attempted cursor through the complete historical set. Recovery aggregates all saved address witnesses at one canonical cutoff; missing evidence stays pending, and the database service/signer fence checks every address’s latest scan. Generated 40+60 custody, 104-address aggregation, expired-invoice backfill, access restrictions, EVM/SOL adapter checks and exact encrypted restore passed locally. No live-chain or hosted acceptance is claimed.
 
 ### 10: BUG P1-010: Pausing a plan rejects payments already committed under its frozen terms
 
@@ -546,6 +548,10 @@ This v50 pass changes shared-hosting configuration/setup only. It closes no addi
 - [PR46](https://github.com/nero1/onyiy/pull/46) completed P1-039 ledger counters. [PR47](https://github.com/nero1/onyiy/pull/47) consolidated the fresh schema; neither closed P1-009/P1-028 nor started Phase Two.
 - Detailed prior evidence remains in Git history and private retained fixtures. Never delete, reset or rewrite source financial records, signed bytes, failed fixtures, original archives or keys as cleanup.
 
-Signed: **16 October 2026 at 08:06:03 PM WAT**.
+Signed: **16 October 2026 at 09:21:01 PM WAT**.
 
-v50
+## Follow-up for the next archival batch
+
+**R2-001 candidate:** `packages/db/src/recovery-inventory.ts` fingerprints table/function/schema grants but omits per-column grants (`pg_attribute.attacl`). Confirm with a fresh drift fixture and include column privileges in archive verification before treating exact security equivalence as complete. Original Round One counts above remain separate.
+
+v51

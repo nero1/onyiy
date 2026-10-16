@@ -1,12 +1,12 @@
-# Bug fix plan — Round One v50
+# Bug fix plan — Round One v51
 
-Updated: **16 October 2026 at 08:06:03 PM WAT**.
+Updated: **16 October 2026 at 09:21:01 PM WAT**.
 
-**Paused at the owner’s request.** Round One: **72 of 74 findings implemented and locally verified; 2 open** (P1-009, P1-028). Rounds Two/Three and Phase Two have not started. These counts are not a completion percentage or hosted acceptance.
+**Resumed by the owner on 16 October 2026.** Round One: **73 of 74 findings implemented and locally verified; 1 open** (P1-028). Rounds Two/Three and Phase Two have not started. These counts are not a completion percentage or hosted acceptance.
 
-Historical numbered migration paths below identify the original fixes in Git history. Fresh installations use only `000_initial_schema.sql`; do not run the removed historical files.
+Historical numbered migration paths below identify the original fixes in Git history. Fresh installations use `000_initial_schema.sql` then the new `001_historical_treasury_fence.sql`; do not run removed historical files.
 
-This v50 pass changes shared-hosting configuration/setup only. It closes no additional Round One finding and does not resume later rounds or Phase Two.
+This v51 pass implements P1-009: permanent historical-address inventory, bounded monitoring and common-cutoff custody reconciliation. P1-028 is next, followed by the authorized later rounds and Phase Two.
 
 ## Complete task list
 
@@ -18,7 +18,7 @@ This v50 pass changes shared-hosting configuration/setup only. It closes no addi
 6. **P1-006 — Recovery can journal the same transaction fees more than once.** Implemented; local checks passed; high priority; package B.
 7. **P1-007 — Solana fee attribution treats other transfers as account setup cost.** Implemented; local checks passed; high priority; package B.
 8. **P1-008 — Saved expired Solana or TRON attempts can indefinitely block a recovery scan.** Implemented; local checks passed; medium priority; package B.
-9. **P1-009 — Previous receiving addresses have no complete recovery monitoring inventory.** Open; high priority; package B.
+9. **P1-009 — Previous receiving addresses have no complete recovery monitoring inventory.** Implemented; local checks passed; high priority; package B.
 10. **P1-010 — Pausing a plan rejects payments already committed under its frozen terms.** Implemented; local checks passed; high priority; package A.
 11. **P1-011 — Accepted bootstrap destinations have no complete liability and payout support.** Implemented; local checks passed; high priority; package A.
 12. **P1-012 — The signer's oldest fixed candidate batch can starve later payable work.** Implemented; local checks passed; medium priority; package C.
@@ -85,16 +85,16 @@ This v50 pass changes shared-hosting configuration/setup only. It closes no addi
 73. **P1-073 — Testnet identity and rate infrastructure remains simulation-only.** (High; requirement gap) — Implemented and locally verified in v43.
 74. **P1-074 — TRON reconciliation accepts live balances beyond the declared scan cutoff.** (Medium; defect) — Implemented and locally verified in v45.
 
-## Work after the owner resumes
+## Current implementation order
 
-1. **P1-009 — old receiving addresses:** retain every address version with unresolved exposure; monitor unmatched inflows and old invoices; reconcile custody across the correct address set. Verify rotation while old funds/invoices remain unresolved.
+1. **P1-009 — implemented/locally verified:** permanent inventory/backfill/capture, staff pagination, historical checkpoints, rotating monitoring and common-cutoff custody with an all-address service/signer fence. Preserve these checks during retention work.
 2. **P1-028 — retention and archives:** use bounded, resumable archival/compaction; honor retention holds and permanent operation keys; verify checksums and restored financial evidence before treating archival as complete.
-3. Finish Round One with relevant checks, documentation and verified PR merges. Do not call it complete while either item is open.
-4. Only when the owner authorizes continuation: repeat full-codebase bug finding/fixing for Rounds Two and Three, then implement PRD §32 milestones P2.0–P2.4 and final bug fixes. A clean round does not excuse an older unresolved finding.
+3. Finish Round One with relevant checks, documentation and verified PR merges. Do not call it complete while P1-028 is open.
+4. Continuation is authorized: repeat full-codebase bug finding/fixing for Rounds Two and Three, then implement PRD §32 milestones P2.0–P2.4 and final bug fixes. A clean round does not excuse an older unresolved finding.
 
 ## Fix and acceptance reference
 
-These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v50.md).
+These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v51.md).
 
 ### 1: BUG P1-001: Expired or dismissed native invoices prevent another checkout
 
@@ -468,14 +468,18 @@ These are named manual checks, not instructions to add an automated test suite. 
 
 ## Rules for the next implementation batch
 
-- Stay paused until the owner resumes application work. Documentation cleanup does not authorize bug fixes.
+- Continue through remaining Round One work, Rounds Two/Three, Phase Two and final fixes without milestone-acceptance pauses.
 - Use substantial, related batches; avoid progress-only iterations. Routine choices use best recommendations.
 - Preserve exact integer money, atomic writes, immutable evidence, unique operation keys, beneficiary holds, positive expiry proof and signed-send lineage. Never enable financial/mainnet gates for verification.
 - Use fresh isolated fixtures and rollback-only generated records where possible. Keep original financial sources, failed fixtures, signed bytes, archives and keys.
 - Run relevant verification and required checks; record what actually ran. Both exact-final-head **push** and **pull_request** CI must succeed before merge. No direct pushes to main.
 - Keep five core docs plus these two requested trackers. Rename status, handover, report and plan together. Fold decisions into existing files; keep old versions in Git.
-- See [current status](PROJECT-STATUS_v50.md) for release evidence and [handover](LLM-HANDOVER_v50.md) for the exact stop boundary.
+- See [current status](PROJECT-STATUS_v51.md) for release evidence and [handover](LLM-HANDOVER_v51.md) for the exact stop boundary.
 
-Signed: **16 October 2026 at 08:06:03 PM WAT**.
+Signed: **16 October 2026 at 09:21:01 PM WAT**.
 
-v50
+## Follow-up for the next archival batch
+
+**R2-001 candidate:** `packages/db/src/recovery-inventory.ts` fingerprints table/function/schema grants but omits per-column grants (`pg_attribute.attacl`). Confirm with a fresh drift fixture and include column privileges in archive verification before treating exact security equivalence as complete. Original Round One counts above remain separate.
+
+v51

@@ -1,6 +1,6 @@
 # How Gifters World works
 
-For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v50.md).
+For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v51.md).
 
 ## Main parts
 
@@ -33,14 +33,14 @@ Supabase hosts PostgreSQL; the app does not depend on Supabase Auth, Storage, Re
 ## Database and access
 
 - The fresh installer is [000_initial_schema.sql](../packages/db/src/migrations/000_initial_schema.sql). It creates final objects directly: **92 tables, 848 columns, 274 CHECK constraints and 105 standalone indexes**, plus views, functions, triggers, row security and grants.
-- The file installs atomically and records its checksum. It rejects a nonempty application schema. Keep it unchanged after installation; use forward migrations for later changes.
+- The initial file installs atomically and records its checksum. The later `001_historical_treasury_fence.sql` adds the permanent historical-address inventory/capture and recovery fence, and records its own checksum; paste it once after `000`. It rejects a nonempty application schema. Keep it unchanged after installation; use forward migrations for later changes.
 - Application queries use Drizzle. PostgreSQL-specific locking, security, counters, schema work and recovery use reviewed SQL.
 - `gw_runtime` is a restricted login. Within each transaction it uses `gw_read` for allowed reads or `gw_service` for authorized writes. Actor, environment, role and search path reset when the transaction ends.
 - Row-level security restricts user-owned records. Staff privileges are checked against the current database, not a token's old role. Browser/Data API roles receive no application-table access.
 - Every new public table needs explicit grant/revoke classification in the same migration. Never fix permission errors by granting all tables to `anon`, `authenticated` or `service_role`.
 - The owner connection stays outside Vercel. Binding checks use two fresh owner-held transaction locks observed through the runtime connection; no bootstrap table or permanent proof is created. Copied database IDs cannot satisfy the fresh check.
 - Hosted connections verify TLS certificates and hostnames. The app uses a small transaction-pooler connection; owner administration uses direct/session connections.
-- [The reviewed schema contract](../packages/db/schema-contract_v48.json) pins declaration/migration hashes and inventories 22 SQL-only constraint triggers and two deferred-FK timing differences. Moving the file does not change its evidence or hashes.
+- [The reviewed schema contract](../packages/db/schema-contract_v51.json) pins declaration/migration hashes and inventories 22 SQL-only constraint triggers and two deferred-FK timing differences. The forward-reviewed total is 93 tables/852 columns/275 checks/107 standalone indexes; the original initial installer stays unchanged.
 
 ## Settings and API responses
 
@@ -95,7 +95,8 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Actual network fees, account-creation costs, reserve contributions, refunds and company losses have separate once-only accounting.
 - Recovery pauses the asset, binds a checkpoint to the actual database, scans bounded pages and reconciles saved attempts and beneficiary custody.
 - SOL/TRON balance witnesses freeze a common finalized cutoff. A later balance cannot prove that earlier cutoff; contradictory/unknown evidence remains held for review.
-- **Still open:** complete monitoring of historical receiving addresses (P1-009).
+- A permanent address inventory is populated atomically from invoices, checkpoints, obligations and unmatched inflows, including expired invoices. Owner-controlled source triggers capture new addresses before future archival; runtime roles cannot add, change or remove address identities. A scoped owner function advances the least-recently-attempted timestamp, so missed ticks and failed RPC calls cannot starve other addresses. Admin can page the complete inventory and scan an old address. Scheduled monitoring rotates through historical addresses and flags retained funds for review.
+- Recovery records an address balance at one canonical cutoff and requires the full retained address set before comparing combined custody with the ledger. Missing/mismatched evidence stays pending. The database release fence checks the latest checkpoint/run for every known address; one successful current-address scan cannot clear an older review. The full address set is aggregated in PostgreSQL under its query deadline; no first-page cap can report completion.
 
 ## Jobs, cache and operational limits
 
@@ -125,4 +126,4 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Relevant named manual checks cover rollback/replay, concurrent admission, missing-wallet liabilities, rejected withdrawals, account isolation, cache expiry/outage, signing recovery and exact restore. Use isolated data and preserve failed evidence. Never reset a shared source to repeat a check.
 - Hosted Google, Upstash, RPC, alerts, mobile performance and release readiness require observations on the selected services. Health/compilation alone do not satisfy them.
 - Keep **five core docs** plus the two explicitly requested bug trackers. Use clear lists/tables and short explanations; update current facts instead of appending repeated history. Only add a document when explicitly requested or essential. Prior versions remain in Git.
-- Unrelated bug rounds and Phase Two remain paused. [LLM handover](LLM-HANDOVER_v50.md) records the exact continuation boundary.
+- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v51.md) records the exact continuation boundary.

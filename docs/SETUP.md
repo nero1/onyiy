@@ -40,7 +40,7 @@ Use this repository: the existing deployment workflow is restricted to `nero1/on
 
 If your existing project already has this app installed, reuse it and confirm its receipt in step 3; do not install again. A first installation requires an empty application namespace. Do not delete existing tables to make this guide work. Supabase's own `auth` and other provider schemas are normal.
 
-## 3. Paste the single migration into SQL Editor
+## 3. Paste the schema into SQL Editor
 
 If already installed, run the receipt query below first and skip installation when it matches. Otherwise:
 
@@ -56,8 +56,10 @@ select name from public.schema_migrations;
 ```
 
 7. Confirm the result contains `000_initial_schema.sql`.
+8. Open [001_historical_treasury_fence.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/001_historical_treasury_fence.sql), click **Raw**, copy the entire file, then paste it into **SQL Editor → New query** and click **Run** once.
+9. Run the receipt query again. Confirm both filenames appear. If `001` is already listed, skip it.
 
-Run the installation file once. It creates the final tables, views, functions, security rules and indexes together. It does **not** create all plans and demo accounts; the existing deployment workflow adds those in step 8. There are no earlier migration files to paste.
+Run the installation file once. It creates the final tables, views, functions, security rules and indexes together. It does **not** create all plans and demo accounts; the existing deployment workflow adds those in step 8. The old 99-file chain remains consolidated in `000`; `001` is a later recovery safeguard. Keep the installed `000` unchanged. Deployment checks receipts and never runs migrations for you.
 
 If installation fails, keep the error and check the troubleshooting table below. Do not split the file, remove checks, or rerun it over existing application tables. [SQL Editor reference](https://supabase.com/docs/guides/database/functions).
 
@@ -175,7 +177,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. Two Round One bugs remain open; Phase Two is not started. See [PROJECT-STATUS_v50.md](PROJECT-STATUS_v50.md).
+Health passing does not prove financial readiness. One Round One bug remains open (retention/archives); Phase Two is not started. See [PROJECT-STATUS_v51.md](PROJECT-STATUS_v51.md).
 
 ## 10. Preview using the same projects and database
 

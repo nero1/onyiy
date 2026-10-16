@@ -16,6 +16,7 @@ export default function ChainRecoveryAdmin({
     [lossId, setLossId] = useState(""),
     [lossAmount, setLossAmount] = useState(""),
     [asset, setAsset] = useState("bnb"),
+    [treasury, setTreasury] = useState(""),
     [height, setHeight] = useState(""),
     [hash, setHash] = useState(""),
     [confirmation, setConfirmation] = useState(""),
@@ -33,6 +34,11 @@ export default function ChainRecoveryAdmin({
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const [view,setView]=useState<'current'|'history'>('current'),[lookup,setLookup]=useState('');
+  const [inventory,setInventory]=useState<{current_address:string;rows:{address:string;current:boolean}[];next_after:string|null}|null>(null);
+  async function loadTreasuries(after?:string){
+    const query=new URLSearchParams({asset_key:asset});if(after)query.set('after',after);
+    await act(async()=>{const value=await api<NonNullable<typeof inventory>>('/admin/crypto/checkpoints?'+query,owner,{signal:AbortSignal.timeout(10000)});setInventory(value);return {status:'loaded'};});
+  }
   async function loadRecords(kind?:'runs'|'inflows'|'outflows',cursor?:string){
     const query=new URLSearchParams({view});if(lookup.trim())query.set('id',lookup.trim());if(kind&&cursor)query.set('cursor_'+kind,cursor);
     await act(async()=>{const value=await api<any>('/admin/crypto/recovery-state?'+query,owner,{signal:AbortSignal.timeout(10000)});setRows((old:any)=>kind?{...old,[kind]:value[kind],['next_'+kind]:value['next_'+kind]}:value);return {status:'loaded'};});
@@ -64,6 +70,7 @@ export default function ChainRecoveryAdmin({
           : "A new checkpoint pauses activity. Two providers must confirm evidence; resuming requires complete reconciliation."}
       </p>
       {error && <p role="alert">{error}</p>}
+      {result?.reason==='ADDRESS_CUSTODY_INCOMPLETE'&&<p role="status">{fr?'Scannez chaque adresse conservée jusqu’au même bloc finalisé, puis relancez la comparaison. Les fonds restent réservés.':'Scan every retained address through the same finalized block, then repeat the balance comparison. Funds remain held.'}</p>}
       {result?.expiry_closure && <p role="status">
         {fr?'Expiration confirmée : clôturez cette obligation via la récupération appropriée, puis lancez un nouveau rapprochement. Les fonds restent réservés.':'Expiry verified: close this obligation through its recovery action, then start a fresh reconciliation. Funds remain held.'}
         {' '}{result.expiry_closure.obligation_id} · {result.expiry_closure.kind}
@@ -79,7 +86,7 @@ export default function ChainRecoveryAdmin({
               <button onClick={() => setRunId(r.id)}>{r.id}</button>
               <p>
                 {r.state} · {r.cursor_height}/{r.through_height} ·{" "}
-                {r.reason_code}
+                {r.reason_code==='ADDRESS_CUSTODY_INCOMPLETE'?(fr?'Autres adresses encore à rapprocher':'Other addresses still need reconciliation'):r.reason_code}
                 {r.scan_stage&&<> · {stageLabel(r.scan_stage)}</>}
                 {r.scan_cursor&&<> · {fr?'Transaction / événement':'Transaction / event'} {r.scan_cursor.transaction} / {r.scan_cursor.event}</>}
               </p>
@@ -115,10 +122,18 @@ export default function ChainRecoveryAdmin({
           {fr ? "Actif" : "Asset"}
           <input
             value={asset}
-            onChange={(e) => setAsset(e.target.value)}
+            onChange={(e) => {setAsset(e.target.value);setInventory(null);setTreasury("");}}
             maxLength={30}
           />
         </label>
+        <button onClick={()=>void loadTreasuries()}>{fr?'Charger les adresses de réception':'Load receiving addresses'}</button>
+        {inventory&&<div>
+          <p>{fr?'Adresse actuelle':'Current address'}: {inventory.current_address}</p>
+          {inventory.rows.map(row=><p key={row.address}><button onClick={()=>setTreasury(row.address)}>{row.address}</button> · {row.current?(fr?'Actuelle':'Current'):(fr?'Historique — surveillance conservée':'Historical — monitoring retained')}</p>)}
+          {inventory.next_after&&<button onClick={()=>void loadTreasuries(inventory.next_after!)}>{fr?'Adresses suivantes':'Next addresses'}</button>}
+        </div>}
+        <label>{fr?'Adresse à scanner (vide = actuelle)':'Address to scan (blank = current)'}<input value={treasury} maxLength={128} onChange={event=>setTreasury(event.target.value)}/></label>
+        <p>{fr?'Rapprochez toutes les adresses conservées au même bloc finalisé. Un solde nul ne retire pas une ancienne adresse de la surveillance.':'Reconcile every retained address at the same finalized block. A zero balance does not retire an old address from monitoring.'}</p>
         <label>
           {fr ? "Hauteur finalisée" : "Finalized height"}
           <input
@@ -146,7 +161,7 @@ export default function ChainRecoveryAdmin({
             maxLength={500}
           />
         </label>
-        <p>{`checkpoint:${asset}:${height}:${hash}`}</p>
+        <p>{`checkpoint:${asset}:${treasury.trim()?treasury.trim()+':':''}${height}:${hash}`}</p>
         <label>
           {fr ? "Confirmation exacte" : "Exact confirmation"}
           <input
@@ -162,6 +177,7 @@ export default function ChainRecoveryAdmin({
                 owner,
                 {
                   asset_key: asset,
+                  ...(treasury.trim()?{treasury_address:treasury.trim()}:{}),
                   height,
                   block_hash: hash,
                   proof_reference: reference,

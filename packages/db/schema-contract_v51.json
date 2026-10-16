@@ -1,9 +1,9 @@
 {
   "format": "gw-drizzle-congruence-v1",
-  "verified_columns": 848,
-  "verified_standalone_indexes": 105,
-  "verified_check_constraints": 274,
-  "verified_tables": 92,
+  "verified_columns": 852,
+  "verified_standalone_indexes": 107,
+  "verified_check_constraints": 275,
+  "verified_tables": 93,
   "sql_only_constraint_triggers": [
     {
       "table_name": "chain_fee_claims",
@@ -153,11 +153,12 @@
     }
   ],
   "source_sha256_base64": {
-    "packages/db/src/schema.ts": "PyipXktRevOgoTgtUgiShOtJUXb10yjF2JH8VVBtSJs=",
+    "packages/db/src/schema.ts": "y5IECQSPXdviDhO+07bNqUl5CxRm+kglVhEj31MNd+w=",
     "packages/db/src/schema-contracts.ts": "vwnUvk8dlKrdKf+0zFPJskiNrC9rsEB18P850LQVmI8="
   },
   "migrations_sha256_base64": {
-    "000_initial_schema.sql": "/8uTC5dPlh3nz8T4e7+39ITUe/KzB3fTsBCRtZ6z8yA="
+    "000_initial_schema.sql": "/8uTC5dPlh3nz8T4e7+39ITUe/KzB3fTsBCRtZ6z8yA=",
+    "001_historical_treasury_fence.sql": "AnaXqjRLsZmREkce7CFRMuvCWkqpm9h+wk8YUasj2Oo="
   },
   "consolidated_baseline": {
     "file": "000_initial_schema.sql",
@@ -166,5 +167,23 @@
     "verified_schema_security_entries": 3523,
     "verified_column_grants": true,
     "hostile_default_grants_verified": true
+  },
+  "forward_function_review": {
+    "migration": "001_historical_treasury_fence.sql",
+    "changed_function": "gw_native_asset_fence(uuid)",
+    "new_table": "treasury_addresses",
+    "new_source_triggers": 4,
+    "new_retention_trigger": 1,
+    "new_address_checkpoint_index": true,
+    "prior_schema_security_entries_preserved_except_reviewed_function": 3523,
+    "generated_drizzle_new_table_catalog_match": true,
+    "hostile_default_acl_removal_verified": true,
+    "baseline_000_unchanged": true,
+    "new_functions": [
+      "gw_capture_treasury_address()",
+      "gw_treasury_inventory_guard()",
+      "gw_next_treasury_monitor(uuid,text)"
+    ],
+    "new_monitoring_index": true
   }
 }
