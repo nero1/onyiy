@@ -4,6 +4,8 @@ Follow these steps in order. You need no terminal or local installation. Start w
 
 Menu names checked against official platform documentation on **16 October 2026**. Your account's plan may change which options appear.
 
+**Already used Google login with this database?** Do not apply the demo settings or create a shared demo preview. Keep your existing credentials and follow step 12 to promote the database to testnet first; then add the preview in testnet mode. The shared simulation walkthrough is for demo identities, not real Google-user data.
+
 ## One account and one shared database
 
 Use **one Supabase project/database, one Upstash database and one Vercel project**. Keep the database name supplied by Supabase, usually `postgres`. Names such as `gifters-simulation` below are labels, not a requirement to create another instance for every mode.
@@ -197,14 +199,14 @@ Do not approve older/untrusted preview code against this shared database. Featur
 2. Open your registrar's DNS screen. Add the exact records Vercel displays. Wait for verification.
 3. Update `WEB_ORIGIN` to the new HTTPS origin and any Google callback. Repeat step 8 to publish.
 
-**Google sign-in for the simulation site**
+**Prepare Google sign-in for testnet**
 
 1. Open [Google Cloud Console](https://console.cloud.google.com). Select or create a project.
 2. Open **Google Auth platform → Get started** if prompted. Complete **Branding**, choose your **Audience**, and add your email as a test user while the app is in testing.
 3. Open **Clients → Create client → Web application**. Enter a name.
 4. Add `https://YOUR-DOMAIN/api/v1/auth/google/callback` under **Authorized redirect URIs**. Click **Create**.
-5. Save its client ID and secret privately. In Vercel, set `AUTH_PROVIDER` to `google`. Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
-6. Repeat step 8 and try a configured test user. A Google-created account is not automatically an admin.
+5. Save its client ID and secret privately. Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in Vercel for Production and Preview. Leave the provider selectors unset.
+6. Continue with step 12 before signing in with Google. After promotion, `APP_ENV=testnet` selects Google automatically. A Google-created account is not automatically an admin. Do not introduce real Google identities while any shared deployment still offers demo login.
 
 [Google client setup](https://developers.google.com/workspace/guides/create-credentials) · [Callback requirements](https://developers.google.com/identity/protocols/oauth2/web-server). This does not enable testnet payments or real sending.
 
