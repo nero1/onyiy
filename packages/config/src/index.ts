@@ -121,9 +121,30 @@ export function loadManifest(root = process.cwd()): Manifest {
   catch { throw new Error('CONFIGURATION_INVALID'); }
 }
 
+// Hosting stage (Vercel preview/production) is independent of payment mode.
+// Resolve defaults without mutating process.env, including for copied CI envs.
+export function runtimeProviders(env: NodeJS.ProcessEnv = process.env) {
+  const environment = env.APP_ENV ?? 'simulation';
+  if (!['simulation', 'testnet'].includes(environment)) {
+    throw new Error('MAINNET_NOT_IMPLEMENTED: APP_ENV must be simulation or testnet; preview/production are hosting stages');
+  }
+  const native = environment === 'testnet';
+  return {
+    AUTH_PROVIDER: env.AUTH_PROVIDER ?? (native ? 'google' : 'simulation'),
+    PAYMENT_PROVIDER: env.PAYMENT_PROVIDER ?? (native ? 'chain_rpc' : 'giv_simulation'),
+    WALLET_PROVIDER: env.WALLET_PROVIDER ?? (native ? 'wallet_standard' : 'dummy'),
+    SIGNER_PROVIDER: env.SIGNER_PROVIDER ?? 'disabled',
+    CAPTCHA_PROVIDER: env.CAPTCHA_PROVIDER ?? (native ? 'turnstile' : 'dummy'),
+    REALTIME_PROVIDER: env.REALTIME_PROVIDER ?? 'none',
+    PRICE_PROVIDER: env.PRICE_PROVIDER ?? (native ? 'manual_signed' : 'manual_simulation'),
+    ALERT_PROVIDER: env.ALERT_PROVIDER ?? (native ? 'https_webhook' : 'none'),
+    DEPLOYMENT_PROFILE: env.DEPLOYMENT_PROFILE ?? 'test_iteration',
+  };
+}
+
 export function validateRuntimeEnv(env = process.env) {
   const appEnv = env.APP_ENV ?? "simulation";
-  if(!['simulation','testnet'].includes(appEnv))throw new Error('Mainnet is disabled');
+  const providers = runtimeProviders(env);
   const simulationSelectors = {
     PAYMENT_PROVIDER: 'giv_simulation',
     WALLET_PROVIDER: 'dummy', SIGNER_PROVIDER: 'disabled',
@@ -131,12 +152,12 @@ export function validateRuntimeEnv(env = process.env) {
     DEPLOYMENT_PROFILE: 'test_iteration',
   };
   const testnetSelectors:Record<string,string[]>={PAYMENT_PROVIDER:['chain_rpc'],WALLET_PROVIDER:['wallet_standard'],SIGNER_PROVIDER:['disabled'],CAPTCHA_PROVIDER:['turnstile','none'],REALTIME_PROVIDER:['none'],PRICE_PROVIDER:['manual_signed'],ALERT_PROVIDER:['https_webhook'],DEPLOYMENT_PROFILE:['test_iteration']};
-  if(appEnv==='testnet'){for(const [name,choices]of Object.entries(testnetSelectors))if(env[name]&&!choices.includes(env[name]!))throw new Error('Unsupported testnet provider');if(env.AUTH_PROVIDER!=='google'||env.SIMULATION_TOOL_AUTH_KEY)throw new Error('Testnet requires verified Google identity and prohibits fixture authority');if(env.CHAIN_FIXTURE_MODE)throw new Error('Fixture mode is simulation only');}
-  if(env.CAPTCHA_PROVIDER&&!(appEnv==='simulation'?['dummy','none']:['turnstile','none']).includes(env.CAPTCHA_PROVIDER))throw new Error('Unsupported CAPTCHA provider');
+  if(appEnv==='testnet'){for(const [name,choices]of Object.entries(testnetSelectors))if(!choices.includes(providers[name as keyof typeof providers]))throw new Error('Unsupported testnet provider');if(providers.AUTH_PROVIDER!=='google'||env.SIMULATION_TOOL_AUTH_KEY)throw new Error('Testnet requires verified Google identity and prohibits fixture authority');if(env.CHAIN_FIXTURE_MODE)throw new Error('Fixture mode is simulation only');}
+  if(!(appEnv==='simulation'?['dummy','none']:['turnstile','none']).includes(providers.CAPTCHA_PROVIDER))throw new Error('Unsupported CAPTCHA provider');
   for (const [name, supported] of Object.entries(appEnv==='simulation'?simulationSelectors:{})) {
-    if (env[name] !== undefined && env[name] !== supported) throw new Error(`Unsupported ${name} for the current simulation build`);
+    if (providers[name as keyof typeof providers] !== supported) throw new Error(`Unsupported ${name} for the current simulation build`);
   }
-  if(!['simulation','google'].includes(env.AUTH_PROVIDER??'simulation'))throw new Error('CONFIGURATION_INVALID');
+  if(!['simulation','google'].includes(providers.AUTH_PROVIDER))throw new Error('CONFIGURATION_INVALID');
   for(const name of ['AUTH_ACCESS_KEY','AUTH_ACCESS_PREVIOUS_KEY','MFA_ENCRYPTION_KEY','SIMULATION_TOOL_AUTH_KEY'])if(env[name]&&(!/^[A-Za-z0-9_-]{43}$/.test(env[name]!)||Buffer.from(env[name]!,'base64url').toString('base64url')!==env[name]))throw new Error('CONFIGURATION_INVALID');
   if(env.AUTH_ACCESS_PREVIOUS_KEY&&!env.AUTH_ACCESS_KEY)throw new Error('CONFIGURATION_INVALID');
   if(env.VERCEL==='1'&&env.SIMULATION_TOOL_AUTH_KEY)throw new Error('Simulation tool credentials must stay outside Vercel');
@@ -159,5 +180,5 @@ export function validateRuntimeEnv(env = process.env) {
   if ((cacheProvider === 'ioredis' || cacheProvider === 'redis') && env.NODE_ENV === 'production' && !env.REDIS_URL) {
     throw new Error(`${cacheProvider} requires REDIS_URL in production`);
   }
-  return { appEnv, dbProvider, databaseUrl, cacheProvider };
+  return { appEnv, dbProvider, databaseUrl, cacheProvider, providers };
 }

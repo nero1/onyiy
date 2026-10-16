@@ -1,10 +1,12 @@
-# Bug fix plan — Round One v49
+# Bug fix plan — Round One v50
 
-Updated: **16 October 2026 at 12:15:35 PM WAT**.
+Updated: **16 October 2026 at 08:06:03 PM WAT**.
 
 **Paused at the owner’s request.** Round One: **72 of 74 findings implemented and locally verified; 2 open** (P1-009, P1-028). Rounds Two/Three and Phase Two have not started. These counts are not a completion percentage or hosted acceptance.
 
 Historical numbered migration paths below identify the original fixes in Git history. Fresh installations use only `000_initial_schema.sql`; do not run the removed historical files.
+
+This v50 pass changes shared-hosting configuration/setup only. It closes no additional Round One finding and does not resume later rounds or Phase Two.
 
 ## Complete task list
 
@@ -92,7 +94,7 @@ Historical numbered migration paths below identify the original fixes in Git his
 
 ## Fix and acceptance reference
 
-These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v49.md).
+These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v50.md).
 
 ### 1: BUG P1-001: Expired or dismissed native invoices prevent another checkout
 
@@ -472,8 +474,8 @@ These are named manual checks, not instructions to add an automated test suite. 
 - Use fresh isolated fixtures and rollback-only generated records where possible. Keep original financial sources, failed fixtures, signed bytes, archives and keys.
 - Run relevant verification and required checks; record what actually ran. Both exact-final-head **push** and **pull_request** CI must succeed before merge. No direct pushes to main.
 - Keep five core docs plus these two requested trackers. Rename status, handover, report and plan together. Fold decisions into existing files; keep old versions in Git.
-- See [current status](PROJECT-STATUS_v49.md) for release evidence and [handover](LLM-HANDOVER_v49.md) for the exact stop boundary.
+- See [current status](PROJECT-STATUS_v50.md) for release evidence and [handover](LLM-HANDOVER_v50.md) for the exact stop boundary.
 
-Signed: **16 October 2026 at 12:15:35 PM WAT**.
+Signed: **16 October 2026 at 08:06:03 PM WAT**.
 
-v49
+v50

@@ -111,8 +111,15 @@ export function validateRegistry(value: unknown): AssetRegistry[] {
   }
   return rows;
 }
-export function readRegistry() {
-  const file = process.env.ASSET_REGISTRY_FILE;
+export function readRegistry(env: NodeJS.ProcessEnv = process.env) {
+  const file = env.ASSET_REGISTRY_FILE;
+  const json = env.ASSET_REGISTRY_JSON;
+  if (file && json) throw new Error('REGISTRY_SOURCE_CONFLICT');
+  if (json !== undefined) {
+    if (!json.trim() || Buffer.byteLength(json, 'utf8') > 65536) throw new Error('REGISTRY_INVALID');
+    try { return validateRegistry(JSON.parse(json)); }
+    catch { throw new Error('REGISTRY_INVALID'); }
+  }
   if (!file) return [];
   const stat = fs.statSync(file);
   if (!stat.isFile() || stat.size > 65536) throw new Error("REGISTRY_INVALID");
