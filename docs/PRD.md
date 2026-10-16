@@ -1212,11 +1212,11 @@ uj*****p3 just received $9.5 referral commission
 
 ## §33. Current scope and continuation
 
-**Owner directive, 16 October 2026:** resume application work and continue through completed Phase Two and final bug fixes. Finish remaining P1-028 (P1-009 is implemented and locally verified), then fresh bug rounds Two/Three and §32 milestones. Make substantial batches, update concise versioned docs, and create/merge PRs after both exact-head CI events pass; do not pause for milestone acceptance. Real-money mainnet remains an unfinished, separately evidenced release: never mark unimplemented gates ready.
+**Owner directive, 16 October 2026:** resume application work and continue through completed Phase Two and final bug fixes. Merge the verified retention batch, then complete fresh bug rounds Two/Three and §32 milestones. Make substantial batches, update concise versioned docs, and create/merge PRs after both exact-head CI events pass; do not pause for milestone acceptance. Real-money mainnet remains an unfinished, separately evidenced release: never mark unimplemented gates ready.
 
 | Area | Current boundary |
 |---|---|
-| Round One | 73/74 findings implemented and locally verified; P1-028 remains open |
+| Round One | 74/74 findings implemented and locally verified; v52 release checks pending |
 | Later rounds / Phase Two | Authorized; follow remaining Round One fixes |
 | Financial execution | Web and signer readiness gates remain false; mainnet prohibited |
 | Historical completion claims | Feature checklists are not bug-free, hosted or financial acceptance |
@@ -1248,4 +1248,8 @@ The owner explicitly approved P1-065 on **14 October 2026 at 02:25:24 PM WAT**, 
 - Closed signed-archive dependencies accept pgcrypto-only older packets or an additional pg_trgm declaration; unknown names, duplicates, versions and schemas fail.
 - Signatures/checksums, empty-target verification and exact post-restore inventories remain mandatory. Search approval does not activate financial gates.
 
-Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v51.md](PROJECT-STATUS_v51.md). Current bug evidence/tasks: [report](custom-bugs-report_v51.md) and [plan](custom-bugs-fix-plan_v51.md).
+Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v52.md](PROJECT-STATUS_v52.md). Current bug evidence/tasks: [report](custom-bugs-report_v52.md) and [plan](custom-bugs-fix-plan_v52.md).
+
+### Retention implementation clarification (v52)
+
+Use the same database for online monthly archives of ledger postings, scan pages and audit events. Keep journals/events as global identity registries; enforce cross-month record uniqueness separately. Freeze eligible months, process at most 100 rows per step and require a second matching checksum pass. Preserve all financial evidence indefinitely (including beyond the minimum retention period); no automatic financial purge. Archives remain readable and still count toward provider storage quotas. Retention holds stop compaction and archival. Expire message bodies and compact only completed expendable task payloads, preserving permanent keys and unresolved/financial work. Recovery must bind column ACLs and partition metadata under signed schema contract v2; historical packets require matching historical releases.

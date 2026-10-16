@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 import { inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { users, auditEvents, readManifest, type DbExecutor } from "@gifters/db";
-import { migrationFingerprint } from "../packages/db/src/recovery-inventory";
+import { migrationFingerprint, schemaContractVersion } from "../packages/db/src/recovery-inventory";
 const fields = [
   "username",
   "email",
@@ -132,6 +132,7 @@ async function archive(tx: DbExecutor) {
   const packet = JSON.parse(await fsp.readFile(file + ".json", "utf8"));
   if (
     packet.inventory?.archive_sha256 !== expected ||
+    packet.inventory?.schema_contract_version !== schemaContractVersion ||
     packet.inventory?.environment !== process.env.APP_ENV ||
     packet.inventory?.migrations_sha256 !== (await migrationFingerprint())
   )

@@ -7,13 +7,14 @@ import { validateRuntimeEnv } from '@gifters/config';
 import { closeDb, migrationClient, readManifest, schema, withContext } from './index';
 import { verifyDatabaseBinding } from './verify-binding';
 import { recoveryExtensions, provisionRecoveryExtensions } from './recovery-extensions';
-import { canonical, digest, migrationFingerprint, recoveryInventory } from './recovery-inventory';
+import { canonical, digest, migrationFingerprint, recoveryInventory, schemaContractVersion } from './recovery-inventory';
 import { archiveChecksum, authenticatedCopy, encryptedDump, exclusiveFile, nativeDatabaseName, recoveryKey, recoveryPath, restoreArchive } from './recovery-files';
 
 const hash=z.string().regex(/^[0-9a-f]{64}$/);
 const inventorySchema=z.object({
   format:z.enum(['gw-simulation-backup-v1','gw-financial-backup-v2']),environment:z.enum(['simulation','testnet']),created_at:z.string().datetime(),
   archive_sha256:hash,schema_sha256:hash,migrations_sha256:hash,
+  schema_contract_version:z.literal(schemaContractVersion),
   extensions:recoveryExtensions,
   records:z.record(z.object({rows:z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),sha256:hash}).strict()),
 }).strict().refine(v=>(v.format==='gw-simulation-backup-v1')===(v.environment==='simulation'));
@@ -37,7 +38,9 @@ async function ensureEmpty(owner:ReturnType<typeof migrationClient>) {
 async function validatePacket(file:string,key:Buffer) {
   const stats=await fs.stat(file+'.json');
   if(!stats.isFile()||stats.size>262144) throw new Error('RECOVERY_INVENTORY_INVALID');
-  const parsed=packetSchema.safeParse(JSON.parse(await fs.readFile(file+'.json','utf8')));
+  const raw=JSON.parse(await fs.readFile(file+'.json','utf8'));
+  if(raw?.inventory?.schema_contract_version!==schemaContractVersion)throw new Error('RECOVERY_VERSION_MISMATCH');
+  const parsed=packetSchema.safeParse(raw);
   if(!parsed.success) throw new Error('RECOVERY_INVENTORY_INVALID');
   const packet=parsed.data;
   if(!crypto.timingSafeEqual(Buffer.from(packet.signature,'hex'),Buffer.from(signature(packet.inventory,key),'hex'))) throw new Error('RECOVERY_INVENTORY_INVALID');

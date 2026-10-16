@@ -1,3 +1,4 @@
+import {retentionInput,retentionStatus,manualArchiveStep} from './retention';
 import {runtimeProviders} from '@gifters/config';
 import {staffReorgs,staffAlerts,staffAlertsInput,staffUsers,staffCases,staffJobs,staffRecovery,staffUsersInput,staffCasesInput,staffJobsInput,staffRecoveryInput} from './staff-reads';
 import {ownMemberRecords,memberRecordInput} from './member-records';
@@ -280,6 +281,8 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
       }));
     }
 
+    if(method==='GET'&&route==='/admin/retention'){const actor=await admin(request),input=retentionInput.parse(Object.fromEntries(new URL(request.url).searchParams));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>retentionStatus(tx,actor.id,input)));}
+    if(method==='POST'&&route==='/admin/retention'){const actor=await admin(request),input=z.object({reason:z.string().trim().min(10).max(500)}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>manualArchiveStep(tx,actor.id,input.reason,idempotencyKey(request))));}
     if(method==='GET'&&route==='/admin/operations'){const actor=await admin(request);return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},readStaffOperations));}
     if(method==='POST'&&route==='/admin/operations/quota'){const actor=await admin(request),input=quotaReportInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>reportProviderQuota(tx,actor.id,input)));}
 

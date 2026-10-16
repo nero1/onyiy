@@ -52,3 +52,13 @@ export async function advanceLedgerCounters(database:DbExecutor) {
   if(!row||!['backfilling','sealed','review'].includes(row.result.state))throw new Error('FINANCIAL_SAFETY_PAUSE');
   return row.result;
 }
+
+export async function retireEphemeralPayloads(database:DbExecutor) {
+  const policy=await readManifest(database);
+  const held=operationalRetentionHeld();
+  if(held)return {notifications:0,jobs:0,outbox:0,held:true,more_possible:false};
+  await database.execute(sql`select set_config('gw.operational_retention_hold','false',true)`);
+  const [row]=await database.execute<{result:{notifications:number;jobs:number;outbox:number;held:boolean;more_possible:boolean}}>(sql`select public.gw_retire_ephemeral_batch(${Math.min(policy.job_policy.chunk_size,100)}) as result`);
+  if(!row)throw new Error('CONFIGURATION_INVALID');
+  return row.result;
+}
