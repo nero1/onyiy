@@ -12,7 +12,7 @@ Source requirements: `GIVERSIFTERS Lite MVP REQUIREMENTS.txt`. Specification str
 - **Product and users:** §§1–3. **Data, identity and payments:** §§4–10.
 - **Jobs, browser behavior and providers:** §§11–18. **Settings and security:** §§19–23.
 - **Verification, recovery and documentation:** §§24–29. **Networks and milestones:** §§30–31.
-- **Phase Two requirements:** §32. **Current pause, schema and approval decisions:** §33.
+- **Phase Two requirements:** §32. **Current scope, schema and approval decisions:** §33.
 - **Terms:** a *ledger* is the permanent money record; a *liability* is money owed; a *queue partition* is one independent waiting list; *idempotent* means repeating a request cannot repeat its effect; *RLS* means database rules restricting which rows a role can access.
 
 ## §1. Product summary
@@ -1212,24 +1212,24 @@ uj*****p3 just received $9.5 referral commission
 
 ## §33. Current scope and continuation
 
-**Owner directive, 16 October 2026:** implement shared hosted-resource configuration and expand browser-only preview/testnet/production setup. Finish this scoped PR, then halt. P1-009/P1-028, new bug rounds and Phase Two remain paused. The owner confirms “production” means real-money mainnet; this task does not certify or implement the unfinished mainnet release.
+**Owner directive, 16 October 2026:** resume application work and continue through completed Phase Two and final bug fixes. Finish remaining P1-028 (P1-009 is implemented and locally verified), then fresh bug rounds Two/Three and §32 milestones. Make substantial batches, update concise versioned docs, and create/merge PRs after both exact-head CI events pass; do not pause for milestone acceptance. Real-money mainnet remains an unfinished, separately evidenced release: never mark unimplemented gates ready.
 
 | Area | Current boundary |
 |---|---|
-| Round One | 72/74 findings implemented and locally verified; P1-009 and P1-028 remain open |
-| Later rounds / Phase Two | Not started; paused |
+| Round One | 73/74 findings implemented and locally verified; P1-028 remains open |
+| Later rounds / Phase Two | Authorized; follow remaining Round One fixes |
 | Financial execution | Web and signer readiness gates remain false; mainnet prohibited |
 | Historical completion claims | Feature checklists are not bug-free, hosted or financial acceptance |
 | PR workflow | Both push and pull-request CI must succeed for the exact final head before merge; no direct push to main |
 
-After the owner resumes, finish unresolved Round One work, perform fresh bug-finding/fixing Rounds Two and Three, then implement all §32 milestones and final bug fixes. Use substantial related batches and best recommendations; do not add milestone-acceptance pauses. A clean audit cannot excuse an unresolved finding. CRON frequency and test-only issues remain outside the requested audit scope. The existing no-automated-test-suite instruction remains binding until changed by the owner.
+Finish unresolved Round One work, perform fresh bug-finding/fixing Rounds Two and Three, then implement all §32 milestones and final bug fixes. Use substantial related batches and best recommendations; do not add milestone-acceptance pauses. A clean audit cannot excuse an unresolved finding. CRON frequency and test-only issues remain outside the requested audit scope. The existing no-automated-test-suite instruction remains binding until changed by the owner.
 
 ### Fresh installation and historical compatibility
 
 - The owner confirmed no migrations were applied to the intended installation. One final-state file, `packages/db/src/migrations/000_initial_schema.sql`, replaces the old 99-file upgrade chain. It creates final objects directly; it is not a concatenation of historical changes.
 - Paste the entire file into Supabase SQL Editor once, against an empty application namespace. Keep the receipt/checksum intact. Seeds are separate from schema installation; SETUP explains the existing hosted initialization path.
 - The file installs final least-privilege grants/RLS and rejects unsafe existing objects or incompatible extensions. Existing data must never be dropped or silently adopted to force installation.
-- Preserve the baseline after installation. Later changes require forward migrations. Old signed archives require their matching historical code/schema release (`e6f7888034afae01d0c7803965f1c17889783171`); do not bypass version checks or rewrite signed inventories.
+- Preserve the baseline after installation. Later changes require forward migrations. The new `001_historical_treasury_fence.sql` adds the permanent address inventory/capture and updates the historical-address release fence. Paste it in full; its checksum receipt is validated. Old signed archives require their matching historical code/schema release (`e6f7888034afae01d0c7803965f1c17889783171`); do not bypass version checks or rewrite signed inventories.
 
 ### Binding safeguards retained during remediation
 
@@ -1248,4 +1248,4 @@ The owner explicitly approved P1-065 on **14 October 2026 at 02:25:24 PM WAT**, 
 - Closed signed-archive dependencies accept pgcrypto-only older packets or an additional pg_trgm declaration; unknown names, duplicates, versions and schemas fail.
 - Signatures/checksums, empty-target verification and exact post-restore inventories remain mandatory. Search approval does not activate financial gates.
 
-Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v50.md](PROJECT-STATUS_v50.md). Current bug evidence/tasks: [report](custom-bugs-report_v50.md) and [plan](custom-bugs-fix-plan_v50.md).
+Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v51.md](PROJECT-STATUS_v51.md). Current bug evidence/tasks: [report](custom-bugs-report_v51.md) and [plan](custom-bugs-fix-plan_v51.md).

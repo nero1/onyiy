@@ -34,6 +34,7 @@ import {
 } from "./financial-config";
 import { account, postJournal, lockUser } from "./core";
 import { settleCryptoAttempt } from "./crypto-settlement";
+import { assertKnownTreasury, treasuryFingerprint, treasuryInventory } from "../packages/db/src/treasury-inventory";
 const binding = scopedDatabaseBinding;
 const digest = (v: unknown) =>
   crypto
@@ -45,6 +46,7 @@ const digest = (v: unknown) =>
 export const checkpointInput = z
   .object({
     asset_key: z.string().max(30),
+    treasury_address: z.string().min(1).max(128).optional(),
     height: z.string().regex(/^(0|[1-9][0-9]{0,77})$/),
     block_hash: z.string().min(20).max(100),
     proof_reference: z.string().regex(/^[-A-Za-z0-9:_]{5,200}$/),
@@ -84,17 +86,18 @@ export async function registerCheckpoint(
     chain = await adapter(registry),
     height = BigInt(input.height),
     canonical = await chain.getCanonicalBlock(height);
+  const selectedAddress=input.treasury_address===undefined?undefined:await chain.normalizeAddress(input.treasury_address);
   if (
     canonical.hash !== input.block_hash ||
     input.confirmation !==
-      `checkpoint:${input.asset_key}:${input.height}:${canonical.hash}`
+      `checkpoint:${input.asset_key}:${selectedAddress===undefined?'':selectedAddress+':'}${input.height}:${canonical.hash}`
   )
     throw new Error("INVALID_PROOF");
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtextextended('financial-policy',0))`,
   );
   const config = await financialConfiguration(tx, registry),
-    sender = await platformAddress(registry, "RECEIVING"),
+    currentSender = await platformAddress(registry, "RECEIVING"),
     [asset] = await tx
       .select()
       .from(assets)
@@ -108,12 +111,14 @@ export async function registerCheckpoint(
       .limit(1);
   if (!asset) throw new Error("PLAN_UNAVAILABLE");
   assertRegistryBinding(asset, registry);
+  const sender = selectedAddress ?? currentSender;
+  if (sender !== currentSender) await assertKnownTreasury(tx, asset.id, sender);
   const [row] = await tx
     .insert(chainCheckpoints)
     .values({
       assetId: asset.id,
       bindingFingerprint: await binding(tx),
-      treasuryFingerprint: config.treasuryFingerprint,
+      treasuryFingerprint: treasuryFingerprint(registry, sender),
       treasurySender: sender,
       registrySnapshot: registry,
       configurationHash: config.hash,
@@ -136,6 +141,25 @@ export async function registerCheckpoint(
     afterState: result,
   });
   return result;
+}
+
+export async function listTreasuries(tx: DbExecutor, actorId: string, assetKey: string, after?: string) {
+  await staff(tx, actorId);
+  assertFinancialEnvironment();
+  const registry = registryAsset(assetKey);
+  const [asset] = await tx.select().from(assets).where(and(
+    eq(assets.environment, "testnet"), eq(assets.symbol, registry.key.toUpperCase()),
+    eq(assets.chainId, registry.network),
+  )).limit(1);
+  if (!asset) throw new Error("PLAN_UNAVAILABLE");
+  assertRegistryBinding(asset, registry);
+  const current = await platformAddress(registry, "RECEIVING");
+  const rows = await treasuryInventory(tx, asset.id, after, 101);
+  const page = rows.slice(0, 100);
+  return { asset_id: asset.id, current_address: current,
+    rows: page.map(row => ({ address: row.address, current: row.address === current,
+      treasury_fingerprint: treasuryFingerprint(registry, row.address), monitoring_required: true })),
+    next_after: rows.length > 100 ? page.at(-1)!.address : null };
 }
 export async function startRecoveryScan(
   tx: DbExecutor,
@@ -277,7 +301,8 @@ amount:z.string().regex(/^[1-9][0-9]{0,77}$/),height:z.string().regex(/^(0|[1-9]
 const storedEvidenceSchema=z.object({state:z.enum(['confirmed','failed']),hash:z.string().min(1).max(100),index:z.number().int().min(0).max(2147483647),
 observedAt:z.string().datetime(),blockHash:z.string().min(1).max(100),height:z.string().regex(/^(0|[1-9][0-9]{0,77})$/),sender:z.string().max(128).optional(),destination:z.string().max(128).optional(),
 amount:z.string().regex(/^(0|[1-9][0-9]{0,77})$/).optional(),actualNativeFee:z.string().regex(/^(0|[1-9][0-9]{0,77})$/).optional(),actualNetworkFee:z.string().regex(/^(0|[1-9][0-9]{0,77})$/).optional(),accountSetupCost:z.string().regex(/^(0|[1-9][0-9]{0,77})$/).optional(),contradiction:z.literal(false).optional()}).strict();
-const scanProgressSchema=z.object({stage:z.enum(['discover','verify','book','known_next','known_index','known_settle','known_expiry','balance']),cursor:scanCursorSchema,candidate:scanCandidateSchema.optional(),afterCursor:scanCursorSchema.optional(),afterHeight:z.string().regex(/^(0|[1-9][0-9]{0,77})$/).optional(),proof:storedEvidenceSchema.optional(),attemptId:z.string().uuid().optional(),eventIndex:z.number().int().min(0).max(2147483647).optional()}).strict().superRefine((value,context)=>{
+const custodyWitnessSchema=z.object({format:z.literal('gw-address-custody-v1'),asset_id:z.string().uuid(),binding_fingerprint:z.string().regex(/^[a-f0-9]{64}$/),address:z.string().min(1).max(128),height:z.string().regex(/^(0|[1-9][0-9]{0,77})$/),block_hash:z.string().min(1).max(100),amount_base_units:z.string().regex(/^(0|[1-9][0-9]{0,77})$/)}).strict();
+const scanProgressSchema=z.object({stage:z.enum(['discover','verify','book','known_next','known_index','known_settle','known_expiry','balance']),custodyWitness:custodyWitnessSchema.optional(),cursor:scanCursorSchema,candidate:scanCandidateSchema.optional(),afterCursor:scanCursorSchema.optional(),afterHeight:z.string().regex(/^(0|[1-9][0-9]{0,77})$/).optional(),proof:storedEvidenceSchema.optional(),attemptId:z.string().uuid().optional(),eventIndex:z.number().int().min(0).max(2147483647).optional()}).strict().superRefine((value,context)=>{
  if(['verify','book'].includes(value.stage)&&(!value.candidate||!value.afterCursor||value.afterHeight===undefined))context.addIssue({code:'custom',message:'SCAN_PROGRESS_INVALID'});
  if(value.stage==='book'&&!value.proof)context.addIssue({code:'custom',message:'SCAN_PROGRESS_INVALID'});
  if(['known_index','known_settle','known_expiry'].includes(value.stage)&&!value.attemptId)context.addIssue({code:'custom',message:'SCAN_PROGRESS_INVALID'});
@@ -288,9 +313,42 @@ const finalizedBalanceWitness=z.object({format:z.literal('gw-finalized-balance-v
  block_hash:z.string().min(1).max(100),amount_base_units:z.string().regex(/^(0|[1-9][0-9]{0,77})$/)}).strict();
 type FinalizedBalanceWitness=z.infer<typeof finalizedBalanceWitness>;
 type ScanProgress=z.infer<typeof scanProgressSchema>;
+type CustodyWitness=z.infer<typeof custodyWitnessSchema>;
+/** All addresses must finish discovery/known-attempt resolution at one exact
+ * canonical cutoff. A missing page, address, or witness remains pending; an
+ * equal amount at a different height is not evidence for this cutoff. */
+async function custodySet(tx:DbExecutor,checkpoint:typeof chainCheckpoints.$inferSelect,witness:CustodyWitness,runId:string){
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('financial-policy',0))`);
+  const current=await platformAddress(checkpoint.registrySnapshot as AssetRegistry,'RECEIVING');
+  // PostgreSQL lateral selection and JSON validation are infrastructure SQL:
+  // aggregate the complete address set under the statement deadline instead of
+  // declaring a capped page complete or loading unbounded history into Node.
+  const [result]=await tx.execute<{complete:boolean;total:string}>(sql`
+    with addresses as (
+      select address from public.treasury_addresses where asset_id=${checkpoint.assetId}::uuid
+      union select ${current}::text
+    ), observed as (
+      select a.address,c.binding_fingerprint as checkpoint_binding,r.binding_fingerprint as run_binding,r.through_height,r.state,
+        case when r.id=${runId}::uuid then 'balance' else r.scan_progress->>'stage' end as stage,
+        case when r.id=${runId}::uuid then ${JSON.stringify(witness)}::jsonb else r.scan_progress->'custodyWitness' end as witness
+      from addresses a
+      left join lateral (select * from public.chain_checkpoints where asset_id=${checkpoint.assetId}::uuid and treasury_sender=a.address order by created_at desc,id desc limit 1) c on true
+      left join lateral (select * from public.chain_recovery_runs where checkpoint_id=c.id order by created_at desc,id desc limit 1) r on true
+    ) select coalesce(bool_and((checkpoint_binding=${checkpoint.bindingFingerprint} and run_binding=${checkpoint.bindingFingerprint}
+      and through_height=${witness.height}::numeric and state in ('scanning','reconciled') and stage='balance'
+      and witness->>'format'='gw-address-custody-v1' and witness->>'asset_id'=${witness.asset_id}
+      and witness->>'binding_fingerprint'=${witness.binding_fingerprint} and witness->>'address'=address
+      and witness->>'height'=${witness.height} and witness->>'block_hash'=${witness.block_hash}
+      and (witness->>'amount_base_units') ~ '^(0|[1-9][0-9]{0,77})$') is true),false) as complete,
+      coalesce(sum(case when (witness->>'amount_base_units') ~ '^(0|[1-9][0-9]{0,77})$' then (witness->>'amount_base_units')::numeric else 0 end),0)::text as total from observed
+  `);
+  return {complete:result?.complete===true,total:BigInt(result?.total??'0')};
+}
 const stored=(value:unknown)=>JSON.parse(JSON.stringify(value,(_key,v)=>typeof v==='bigint'?v.toString():v));
 function evidence(value:z.infer<typeof storedEvidenceSchema>):TransferEvidence{return {...value,height:BigInt(value.height),amount:value.amount===undefined?undefined:BigInt(value.amount),actualNativeFee:value.actualNativeFee===undefined?undefined:BigInt(value.actualNativeFee),actualNetworkFee:value.actualNetworkFee===undefined?undefined:BigInt(value.actualNetworkFee),accountSetupCost:value.accountSetupCost===undefined?undefined:BigInt(value.accountSetupCost)}}
-export function recoverScanPage(tx:DbExecutor,id:string){return withRpcBudget(()=>recoverPagedStep(tx,id))}
+// The EVM balance step checks the checkpoint and both cutoff anchors plus two
+// historical balances: 26 requests. Keep the existing 18-second total budget.
+export function recoverScanPage(tx:DbExecutor,id:string){return withRpcBudget(()=>recoverPagedStep(tx,id),18000,32)}
 async function recoverPagedStep(tx:DbExecutor,id:string){
   await tx.execute(sql`select set_config('gw.environment','testnet',true)`);
   assertFinancialEnvironment();
@@ -418,6 +476,8 @@ async function recoverPagedStep(tx:DbExecutor,id:string){
       else {reason='KNOWN_ATTEMPT_PENDING';progress={stage:'known_index',cursor:progress.cursor,attemptId:attempt.id}}
     }
   }else if(priorProgress.stage==='balance'&&state!=='review'){
+    const balanceAnchor=await chain.getCanonicalBlock(target);
+    if(!balanceAnchor.finalized)throw new Error('FINALITY_UNAVAILABLE');
     let physical:bigint;
     if(run.balanceWitness!==null){
       const witness=finalizedBalanceWitness.parse(run.balanceWitness);
@@ -426,10 +486,16 @@ async function recoverPagedStep(tx:DbExecutor,id:string){
       if(!cutoff.finalized||cutoff.hash!==witness.block_hash)throw new Error('CHECKPOINT_REORGED');
       physical=BigInt(witness.amount_base_units);
     }else physical=await chain.getReconciledBalance(registry,checkpoint.treasurySender,target);
+    const cutoff=await chain.getCanonicalBlock(target);
+    if(!cutoff.finalized||cutoff.hash!==balanceAnchor.hash)throw new Error('CHECKPOINT_REORGED');
+    const witness:CustodyWitness={format:'gw-address-custody-v1',asset_id:checkpoint.assetId,binding_fingerprint:checkpoint.bindingFingerprint,address:checkpoint.treasurySender,height:target.toString(),block_hash:cutoff.hash,amount_base_units:physical.toString()};
+    progress={...progress,custodyWitness:witness};pageEvidence=witness;
+    const custody=await custodySet(tx,checkpoint,witness,id);
     const book= -await assetLedgerBalance(tx,checkpoint.assetId,['treasury_asset']);
-    if(physical!==book){state='review';reason='UNEXPLAINED_BALANCE'}else{
+    if(!custody.complete){state='scanning';reason='ADDRESS_CUSTODY_INCOMPLETE'}
+    else if(custody.total!==book){state='review';reason='UNEXPLAINED_BALANCE'}else{
       const owed=await assetLedgerBalance(tx,checkpoint.assetId,beneficiaryLiabilityPurposes);
-      if(physical<owed){state='review';reason='CUSTODY_BELOW_LIABILITIES'}else{state='reconciled';reason=null}
+      if(custody.total<owed){state='review';reason='CUSTODY_BELOW_LIABILITIES'}else{state='reconciled';reason=null}
     }
 
   }

@@ -19,6 +19,7 @@ import {
 } from "./financial-config";
 import { openFinancialAlert } from "./financial-alerts";
 import { priceUnits } from "@gifters/domain";
+import { monitoringTreasury, treasuryFingerprint } from "../packages/db/src/treasury-inventory";
 export async function monitorFinancials(assetKey?:string) {
   assertFinancialEnvironment();
   const registry = readRegistry().filter((v) => v.enabled && v.verified && (!assetKey||v.key===assetKey)).slice(0,8),
@@ -26,8 +27,13 @@ export async function monitorFinancials(assetKey?:string) {
   for (const item of registry) {
     try {
       const chain = await adapter(item),
-        sender = await platformAddress(item, "RECEIVING"),
-        [physical, nativePhysical, height] = await Promise.all([
+        sender = await platformAddress(item, "RECEIVING");
+      const historical = await withContext({access:'service'},async tx=>{
+        const [asset]=await tx.select({id:assets.id}).from(assets).where(and(eq(assets.environment,'testnet'),eq(assets.symbol,item.key.toUpperCase()),eq(assets.chainId,item.network))).limit(1);
+        return asset ? monitoringTreasury(tx,asset.id,sender) : {address:null,historical_count:'0'};
+      });
+      const [historicalBalance, physical, nativePhysical, height] = await Promise.all([
+          historical.address ? chain.getBalance(item,historical.address,true) : Promise.resolve(null),
           chain.getBalance(item, sender, true),
           chain.getNativeBalance(sender, true),chain.currentBlockHeight(),
         ]);
@@ -81,6 +87,9 @@ export async function monitorFinancials(assetKey?:string) {
           .orderBy(sql`${priceQuotes.observedAt} desc`)
           .limit(1);
         const label = `${item.chain}:${item.network}:${config.treasuryFingerprint}`;
+        if(historical.address&&historicalBalance!==null&&historicalBalance>0n)await openFinancialAlert(tx,
+          `historical:${item.key}:${treasuryFingerprint(item,historical.address)}`,'chain_exception','warning',
+          {asset_key:item.key,reason:'HISTORICAL_ADDRESS_FUNDS_REQUIRE_RECONCILIATION'});
         const priceStale=!rate||Date.now()-rate.observedAt.getTime()>policy.price_max_age_minutes*60000;if(priceStale)await openFinancialAlert(tx,`price:${item.key}:${label}`,"chain_exception","warning",{asset_key:item.key,reason:"PRICE_STALE"});
         const held=await tx.select({id:cryptoObligations.id,status:cryptoObligations.status,created:cryptoObligations.createdAt}).from(cryptoObligations).where(and(eq(cryptoObligations.assetId,asset.id),sql`${cryptoObligations.completedAt} is null`,inArray(cryptoObligations.status,['approved','signing','broadcast','exception','awaiting_requote']),sql`${cryptoObligations.createdAt}<clock_timestamp()-${policy.crypto_monitor_policy.exception_age_hours}*interval '1 hour'`)).orderBy(asc(cryptoObligations.createdAt),asc(cryptoObligations.id)).limit(100);
         for(const obligation of held)await openFinancialAlert(tx,`hold:${obligation.id}`,"chain_exception","warning",{asset_key:item.key,obligation_id:obligation.id,reason:"LONG_HELD_LIABILITY"});
@@ -94,7 +103,7 @@ export async function monitorFinancials(assetKey?:string) {
             `liability:${label}`,
             "balance_shortfall",
             "critical",
-            { asset_key: item.key, reason: "CUSTODY_BELOW_LIABILITIES" },
+            { asset_key: item.key, reason: historical.historical_count==='0'?"CUSTODY_BELOW_LIABILITIES":"ACTIVE_TREASURY_BELOW_LIABILITIES" },
           );
         const nativeDecimals =
             item.chain === "sol" ? 9 : item.chain === "tron" ? 6 : 18,
@@ -135,6 +144,9 @@ export async function monitorFinancials(assetKey?:string) {
           asset_key: item.key,
           network: item.network,
           physical_base_units: physical.toString(),
+          custody_scope:historical.historical_count==='0'?'single_address':'active_address_only',
+          historical_address_count:historical.historical_count,
+          historical_observation:historical.address?{treasury_fingerprint:treasuryFingerprint(item,historical.address),physical_base_units:historicalBalance?.toString()??null}:null,
           liability_base_units: liability.amount,
           native_physical: nativePhysical.toString(),
           native_reserved: reserved.toString(),

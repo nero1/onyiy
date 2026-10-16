@@ -21,7 +21,7 @@ try {
   await database.transaction(async tx=>{
    await tx.execute(sql.raw(migration.statement));
    // The standalone initial file inserts its own validated receipt.
-   if(migration.name!==initialSchemaFile)await tx.insert(migrationHistory).values({name:migration.name,sha256:migration.sha256});
+   if(!migration.selfReceipted)await tx.insert(migrationHistory).values({name:migration.name,sha256:migration.sha256});
   });console.log('ok');
  }
 }finally{await client.end({timeout:3})}

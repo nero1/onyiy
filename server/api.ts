@@ -6,7 +6,7 @@ import {admitPublicMiss} from './public-admission';
 import {readStaffOperations,reportProviderQuota,quotaReportInput} from './operational-diagnostics';
 import {selectedUserExport,selectedExportInput,portabilityStatus,prepareSiteSnapshot,siteSnapshotResponse,stageSnapshot} from './portability';
 import {boundedJson} from './request-body';
-import {registerCheckpoint,startRecoveryScan,recoverScanPage,checkpointInput,resolveRecoveryOutflow,outflowResolutionInput} from './chain-recovery';
+import {registerCheckpoint,startRecoveryScan,recoverScanPage,checkpointInput,resolveRecoveryOutflow,outflowResolutionInput,listTreasuries} from './chain-recovery';
 import {unmatchedRefundStatement,reserveUnmatchedRefund,unmatchedRefundInput} from './unallocated-refunds';
 import {recoverOperationalObligation} from './crypto-operational-recovery';
 import {quoteTreasurySweep,confirmTreasurySweep,recoverTreasurySweep,sweepInput} from './treasury-sweeps';
@@ -154,6 +154,7 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
     if(method==='POST'&&route==='/admin/portability/stage'){const actor=await admin(request);return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>stageSnapshot(tx,actor.id,request)));}
     if(method==='GET'&&route==='/admin/crypto/recovery-state'){const actor=await admin(request),input=staffRecoveryInput.parse(Object.fromEntries(new URL(request.url).searchParams));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>staffRecovery(tx,actor.id,input)));}
     if(method==='POST'&&route==='/admin/crypto/scans/resolve'){const actor=await admin(request),input=outflowResolutionInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>resolveRecoveryOutflow(tx,actor.id,input)));}
+    if(method==='GET'&&route==='/admin/crypto/checkpoints'){const actor=await admin(request),input=z.object({asset_key:z.string().min(1).max(30),after:z.string().min(1).max(128).optional()}).strict().parse(Object.fromEntries(new URL(request.url).searchParams));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>listTreasuries(tx,actor.id,input.asset_key,input.after)));}
     if(method==='POST'&&route==='/admin/crypto/checkpoints'){const actor=await admin(request),input=checkpointInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>registerCheckpoint(tx,actor.id,input,idempotencyKey(request))));}
     if(method==='POST'&&route==='/admin/crypto/scans/start'){const actor=await admin(request),input=z.object({checkpoint_id:z.string().uuid(),through_height:z.string().regex(/^(0|[1-9][0-9]{0,77})$/)}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>startRecoveryScan(tx,actor.id,input.checkpoint_id,input.through_height,idempotencyKey(request))));}
     if(method==='POST'&&route==='/admin/crypto/scans/page'){const actor=await admin(request),input=z.object({run_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>recoverScanPage(tx,input.run_id)));}
