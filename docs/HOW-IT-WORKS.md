@@ -1,6 +1,6 @@
 # How Gifters World works
 
-For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v51.md).
+For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v52.md).
 
 ## Main parts
 
@@ -106,7 +106,8 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Database queues, statements, requests and outbound RPC/cache calls have explicit deadlines and byte/row limits. Recovery and diagnostics cannot hide unbounded history scans behind a small page size.
 - Redis is a bounded cache, not the financial source of truth. Unknown/missing provider configuration fails explicitly. Selected hosted adapters need their own expiry, increment, outage and error-response observations.
 - Expired session/rate records have bounded cleanup. Account deletion redacts private message content while preserving required financial/audit history.
-- **Still open:** complete notification/job and financial/audit retention/archival (P1-028). Existing cleanup is not full retention compliance.
+- Retention honors the operational hold. Old notification bodies expire; completed expendable task payloads compact while permanent identifiers and retry protection remain. Financial and unresolved work payloads are retained.
+- Ledger postings, network scan pages and audit events use monthly online archives with two bounded checksum passes. Journals and financial events retain global identities. Archives remain readable in the same database and still consume its quota; financial records are not automatically deleted. Admin **Operations → Data retention** shows progress and can process one batch.
 
 ## Help, exports and recovery
 
@@ -118,6 +119,7 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Restore verifies signatures, checksums, compatible versions, approved extensions and exact rows/schema/security. It requires a fresh empty inactive simulation target, disabled signing and absent scheduler keys; it never merges into an occupied database or automatically resumes jobs.
 - Closed extension dependencies allow `pgcrypto` 1.3 and optional `pg_trgm` 1.6 in their approved schemas. Unknown names, versions, duplicates or incompatible installed extensions are rejected.
 - Vercel full-site archive transfer is operator-only; its UI does not offer a complete upload/download/restore path. Optional persistent-host staging is separate, bounded and encrypted. Failed/quarantined evidence is retained for review.
+- Signed schema contract v2 also binds column permissions and partition bounds/indexes. Packets without that contract require their matching historical code: the release immediately before this change is `922661dbfa88832069f459f42838c8352eff4f59`. Never relabel an old packet.
 - Keep MFA and archive keys separately. Old 99-migration archives require release `e6f7888034afae01d0c7803965f1c17889783171`; the fresh installer does not convert their signed histories.
 
 ## Verification and documentation
@@ -126,4 +128,4 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Relevant named manual checks cover rollback/replay, concurrent admission, missing-wallet liabilities, rejected withdrawals, account isolation, cache expiry/outage, signing recovery and exact restore. Use isolated data and preserve failed evidence. Never reset a shared source to repeat a check.
 - Hosted Google, Upstash, RPC, alerts, mobile performance and release readiness require observations on the selected services. Health/compilation alone do not satisfy them.
 - Keep **five core docs** plus the two explicitly requested bug trackers. Use clear lists/tables and short explanations; update current facts instead of appending repeated history. Only add a document when explicitly requested or essential. Prior versions remain in Git.
-- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v51.md) records the exact continuation boundary.
+- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v52.md) records the exact continuation boundary.

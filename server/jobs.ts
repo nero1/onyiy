@@ -2,14 +2,16 @@ import {recordProofFailure} from './bot-check';
 import {observationPayload,observationForJob,deferObservation} from "./crypto-observer";
 import {exportJob,buildExportPage} from './own-data';
 import crypto from 'node:crypto';
+import {setTimeout as delay} from 'node:timers/promises';
 import { and, asc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { dataExports, auditEvents, financialReconciliationResults, maintenanceResults, jobs, notifications, operationKeys, outbox, readManifest, schedulerRuns, users, chainObservations, withContext, withRequestContext, activeRequestId, type DbExecutor } from '@gifters/db';
+import { dataExports, auditEvents, financialReconciliationResults, maintenanceResults, jobs, notifications, operationKeys, outbox, readManifest, schedulerRuns, users, chainObservations, withContext, withRequestContext, activeRequestId, remainingExecutionTime, type DbExecutor } from '@gifters/db';
 import { validateRuntimeEnv } from '@gifters/config';
 import { reconcile } from './reconcile';
-import { advanceLedgerCounters,cleanupSchedulerRecords } from './maintenance';
+import { advanceLedgerCounters,cleanupSchedulerRecords,retireEphemeralPayloads } from './maintenance';
 import {cleanupAuthentication} from './auth-cleanup';
 import {redactDeletedUserContent,enqueuePrivacyRedaction} from './privacy-redaction';
+import {advanceArchivesForJob} from './retention';
 
 export const notificationPayload = z.object({
   user_id:z.string().uuid(),title_key:z.enum(['gift_sent','gift_received','withdrawal_settled','incoming_exception','financial_review','account_update','admin_message']),body:z.string().min(1).max(2000),
@@ -21,6 +23,11 @@ export async function enqueueNotification(database: DbExecutor, businessKey:stri
   const inserted=await database.insert(outbox).values({businessKey,environment,kind:'notification',payload:parsed}).onConflictDoNothing({target:outbox.businessKey}).returning({id:outbox.id});
   if (!inserted.length) {
     const [prior]=await database.select().from(outbox).where(eq(outbox.businessKey,businessKey)).limit(1);
+    if(prior?.retiredAt){
+      const [match]=await database.execute<{valid:boolean}>(sql`select ${prior.retiredPayloadHash}=encode(sha256(convert_to(${JSON.stringify(parsed)}::jsonb::text,'UTF8')),'hex') as valid`);
+      if(prior.environment!==environment||prior.kind!=='notification'||!match?.valid)throw new Error('VERSION_CONFLICT');
+      return;
+    }
     const original=notificationPayload.safeParse(prior?.payload);
     if (prior?.environment!==environment || prior.kind!=='notification' || !original.success || JSON.stringify(original.data)!==JSON.stringify(parsed)) throw new Error('VERSION_CONFLICT');
   }
@@ -81,7 +88,7 @@ export async function claimJob(run?:RunFence) {
   });
 }
 
-async function executeJobWithinContext(id:string,token:string,generation:number,run?:RunFence) {
+async function executeJobWithinContext(id:string,token:string,generation:number,run?:RunFence,archiveMore=false) {
   return withContext({access:'service',reportSnapshot:true},async database=>{
     await database.execute(sql`set local statement_timeout='2000ms'`);
     await fence(database,run);
@@ -136,7 +143,8 @@ async function executeJobWithinContext(id:string,token:string,generation:number,
       const result=await cleanupSchedulerRecords(database);
       const authentication=await cleanupAuthentication(database);
       const counters=await advanceLedgerCounters(database);
-      result.more_possible=result.more_possible||authentication.more_possible||counters.more_possible;
+      const retirement=await retireEphemeralPayloads(database);
+      result.more_possible=result.more_possible||authentication.more_possible||counters.more_possible||retirement.more_possible||archiveMore;
       await database.insert(maintenanceResults).values({sourceJobId:row.id,environment:row.environment,runDate:payload.data.anchor,pageNumber:payload.data.page,leaseGeneration:generation,
         noncesDeleted:result.nonces_deleted,runsDeleted:result.runs_deleted,batchLimit:result.batch_limit,held:result.held,morePossible:result.more_possible,
       });
@@ -160,11 +168,20 @@ async function executeJobWithinContext(id:string,token:string,generation:number,
 function transient(error:unknown):boolean {
   if(error instanceof Error&&['RPC_UNAVAILABLE','RPC_CAPACITY_EXCEEDED','OBSERVATION_UNAVAILABLE'].includes(error.message))return true;
   const code=error && typeof error==='object' && 'code' in error ? String(error.code) : '';
-  if (['40001','40P01','57014','53300','57P01','57P02','57P03','CONNECTION_CLOSED','CONNECT_TIMEOUT','CONNECTION_ENDED','EPIPE','ECONNRESET','ETIMEDOUT'].includes(code) || /^08/.test(code)) return true;
+  if (['40001','40P01','55P03','57014','53300','57P01','57P02','57P03','CONNECTION_CLOSED','CONNECT_TIMEOUT','CONNECTION_ENDED','EPIPE','ECONNRESET','ETIMEDOUT'].includes(code) || /^08/.test(code)) return true;
   // Drizzle wraps database errors without changing the underlying SQLSTATE.
   return !!(error && typeof error==='object' && 'cause' in error && error.cause!==error && transient(error.cause));
 }
 export async function failJob(id:string,token:string,generation:number,error:unknown,run?:RunFence) {
+  try{return await recordFailedJob(id,token,generation,error,run);}catch(recordError){
+    // Admission cooldown never exceeds two seconds. Respect it once, then
+    // recheck the original job/run leases before recording the failure.
+    if(!(recordError instanceof Error)||recordError.message!=='DB_CIRCUIT_OPEN'||remainingExecutionTime()<=2200)throw recordError;
+    await delay(2000);remainingExecutionTime();
+    return recordFailedJob(id,token,generation,error,run);
+  }
+}
+async function recordFailedJob(id:string,token:string,generation:number,error:unknown,run?:RunFence) {
   if (error instanceof Error && error.message==='LEASE_LOST') return;
   return withContext({access:'service'},async database=>{
     await database.execute(sql`set local statement_timeout='2000ms'`);
@@ -231,6 +248,9 @@ export async function replayDeadJob(database:DbExecutor,actorId:string,jobId:str
 }
 
 export async function executeJob(id:string,token:string,generation:number,run?:RunFence){
- const [origin]=await withContext({access:'service'},tx=>tx.select({requestId:jobs.requestId}).from(jobs).where(eq(jobs.id,id)).limit(1));
- return withRequestContext(()=>executeJobWithinContext(id,token,generation,run),origin?.requestId);
+ const [origin]=await withContext({access:'service'},tx=>tx.select({requestId:jobs.requestId,kind:jobs.kind}).from(jobs).where(eq(jobs.id,id)).limit(1));
+ return withRequestContext(async()=>{
+  const archive=origin?.kind==='operational_cleanup'?await advanceArchivesForJob(id,token,generation,run):undefined;
+  return executeJobWithinContext(id,token,generation,run,archive?.more_possible??false);
+ },origin?.requestId);
 }

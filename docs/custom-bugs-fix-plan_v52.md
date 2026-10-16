@@ -1,12 +1,12 @@
-# Bug fix plan — Round One v51
+# Bug fix plan — Round One v52
 
-Updated: **16 October 2026 at 09:21:01 PM WAT**.
+Updated: **17 October 2026 at 12:42:22 AM WAT**.
 
-**Resumed by the owner on 16 October 2026.** Round One: **73 of 74 findings implemented and locally verified; 1 open** (P1-028). Rounds Two/Three and Phase Two have not started. These counts are not a completion percentage or hosted acceptance.
+**Resumed by the owner on 16 October 2026.** Round One: **74 of 74 findings implemented and locally verified; release checks pending**. Rounds Two/Three and Phase Two have not started. These counts are not a completion percentage or hosted acceptance.
 
-Historical numbered migration paths below identify the original fixes in Git history. Fresh installations use `000_initial_schema.sql` then the new `001_historical_treasury_fence.sql`; do not run removed historical files.
+Historical numbered migration paths below identify the original fixes in Git history. Fresh installations use `000_initial_schema.sql` then the forward files `001`, `002` and `003` in filename order; do not run removed historical files.
 
-This v51 pass implements P1-009: permanent historical-address inventory, bounded monitoring and common-cutoff custody reconciliation. P1-028 is next, followed by the authorized later rounds and Phase Two.
+This v52 pass implements P1-028 retention/archival and fixes archive permission fingerprints and lock-timeout classification. Later rounds and Phase Two follow the verified merge.
 
 ## Complete task list
 
@@ -37,7 +37,7 @@ This v51 pass implements P1-009: permanent historical-address inventory, bounded
 25. **P1-025 — Concurrent Google registrations can collide and fallback names violate configured lengths.** Implemented; local checks passed; medium priority; package D.
 26. **P1-026 — Account deletion leaves private message content in notifications and job payloads.** Implemented; local checks passed; medium priority; package E.
 27. **P1-027 — Expired authentication and rate records have no bounded cleanup lifecycle.** Implemented; local checks passed; medium priority; package E.
-28. **P1-028 — Declared notification, terminal-job, ledger and audit retention is not implemented.** Open; medium priority; package E.
+28. **P1-028 — Declared notification, terminal-job, ledger and audit retention is not implemented.** Implemented; local checks passed; package E.
 29. **P1-029 — Pending chain observation ignores poll policy and creates a new durable job each round.** Implemented; local checks passed; medium priority; package C.
 30. **P1-030 — Configured DLQ, backlog, lock-wait and quota alert thresholds have no complete alert path.** Implemented; local checks passed; medium priority; package C.
 31. **P1-031 — Acknowledged or resolved alerts can still send queued reminders.** Implemented; local checks passed; medium priority; package C.
@@ -88,13 +88,13 @@ This v51 pass implements P1-009: permanent historical-address inventory, bounded
 ## Current implementation order
 
 1. **P1-009 — implemented/locally verified:** permanent inventory/backfill/capture, staff pagination, historical checkpoints, rotating monitoring and common-cutoff custody with an all-address service/signer fence. Preserve these checks during retention work.
-2. **P1-028 — retention and archives:** use bounded, resumable archival/compaction; honor retention holds and permanent operation keys; verify checksums and restored financial evidence before treating archival as complete.
-3. Finish Round One with relevant checks, documentation and verified PR merges. Do not call it complete while P1-028 is open.
+2. **P1-028 — implemented/locally verified:** bounded payload compaction, holds, permanent keys, monthly online archives, checksum passes and actual encrypted restore verification.
+3. Required checks/build/bundle passed. Finish this batch with both exact-head CI events successful and a verified PR merge.
 4. Continuation is authorized: repeat full-codebase bug finding/fixing for Rounds Two and Three, then implement PRD §32 milestones P2.0–P2.4 and final bug fixes. A clean round does not excuse an older unresolved finding.
 
 ## Fix and acceptance reference
 
-These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v51.md).
+These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v52.md).
 
 ### 1: BUG P1-001: Expired or dismissed native invoices prevent another checkout
 
@@ -474,12 +474,17 @@ These are named manual checks, not instructions to add an automated test suite. 
 - Use fresh isolated fixtures and rollback-only generated records where possible. Keep original financial sources, failed fixtures, signed bytes, archives and keys.
 - Run relevant verification and required checks; record what actually ran. Both exact-final-head **push** and **pull_request** CI must succeed before merge. No direct pushes to main.
 - Keep five core docs plus these two requested trackers. Rename status, handover, report and plan together. Fold decisions into existing files; keep old versions in Git.
-- See [current status](PROJECT-STATUS_v51.md) for release evidence and [handover](LLM-HANDOVER_v51.md) for the exact stop boundary.
+- See [current status](PROJECT-STATUS_v52.md) for release evidence and [handover](LLM-HANDOVER_v52.md) for the exact stop boundary.
 
 Signed: **16 October 2026 at 09:21:01 PM WAT**.
 
-## Follow-up for the next archival batch
+## Retention and follow-up findings
 
-**R2-001 candidate:** `packages/db/src/recovery-inventory.ts` fingerprints table/function/schema grants but omits per-column grants (`pg_attribute.attacl`). Confirm with a fresh drift fixture and include column privileges in archive verification before treating exact security equivalence as complete. Original Round One counts above remain separate.
+- **P1-028 implemented/local checks passed:** notifications expire; only old completed expendable job/outbox payloads compact. Permanent keys, unresolved work and financial payloads remain. Same-database monthly partitions freeze ledger postings, network scan pages and audit events; bounded checksum and independent verification passes precede archived status. Journals/events remain global identity registries. No financial deletion; archives still consume database quota.
+- **R2-001 fixed/local checks passed:** column grants and partition bounds/indexes enter the security fingerprint. Signed schema contract v2 rejects older packets before touching the target. Existing signatures are never rewritten.
+- **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
+- **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-v51
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v52.md). Original finding descriptions and acceptance conditions remain above.
+
+v52

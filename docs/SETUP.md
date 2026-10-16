@@ -57,9 +57,10 @@ select name from public.schema_migrations;
 
 7. Confirm the result contains `000_initial_schema.sql`.
 8. Open [001_historical_treasury_fence.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/001_historical_treasury_fence.sql), click **Raw**, copy the entire file, then paste it into **SQL Editor → New query** and click **Run** once.
-9. Run the receipt query again. Confirm both filenames appear. If `001` is already listed, skip it.
+9. Repeat the same whole-file copy/paste for [002_ephemeral_retention.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/002_ephemeral_retention.sql), then [003_monthly_financial_archives.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/003_monthly_financial_archives.sql). Run them separately, in that order. If a filename is already in the receipt query, skip that file.
+10. Run the receipt query again. Confirm all four filenames appear before deploying the matching app release.
 
-Run the installation file once. It creates the final tables, views, functions, security rules and indexes together. It does **not** create all plans and demo accounts; the existing deployment workflow adds those in step 8. The old 99-file chain remains consolidated in `000`; `001` is a later recovery safeguard. Keep the installed `000` unchanged. Deployment checks receipts and never runs migrations for you.
+Run the installation file once. It creates the final tables, views, functions, security rules and indexes together. It does **not** create all plans and demo accounts; the existing deployment workflow adds those in step 8. The old 99-file chain remains consolidated in `000`; `001`–`003` are later recovery and retention safeguards. Keep the installed `000` unchanged. Deployment checks receipts and never runs migrations for you.
 
 If installation fails, keep the error and check the troubleshooting table below. Do not split the file, remove checks, or rerun it over existing application tables. [SQL Editor reference](https://supabase.com/docs/guides/database/functions).
 
@@ -177,7 +178,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. One Round One bug remains open (retention/archives); Phase Two is not started. See [PROJECT-STATUS_v51.md](PROJECT-STATUS_v51.md).
+Health passing does not prove financial readiness. Round One fixes have local evidence; later bug rounds and Phase Two are still pending. See [PROJECT-STATUS_v52.md](PROJECT-STATUS_v52.md).
 
 ## 10. Preview using the same projects and database
 
@@ -360,7 +361,7 @@ Other supported test-network registry values: Ethereum Sepolia `11155111`, BNB t
 2. In the existing Vercel project, open **Settings → Domains** and attach the real domain using step 11. Update Production `WEB_ORIGIN`, Google's production callback and Turnstile hostname.
 3. Review the existing account's hosting plan. Vercel Hobby is personal/non-commercial; choose a compliant plan on the **same account** before operating this commercial service. Free database/cache quotas are shared by every deployment, not multiplied by changing mode.
 4. Keep the current main domain on simulation or testnet with signing disabled while implementation finishes. Do not tell users to send real assets to it.
-5. Have the maintainer complete: P1-009/P1-028, the authorized later bug rounds, Phase Two's transparent presentation, supported mainnet registry/adapters, isolated custody/signing, funding/fees, external alert evidence and verified backup/restore. These are existing release requirements, not checkboxes that environment variables can replace.
+5. Have the maintainer complete: the authorized later bug rounds, Phase Two's transparent presentation, supported mainnet registry/adapters, isolated custody/signing, funding/fees, external alert evidence and verified backup/restore. These are existing release requirements, not checkboxes that environment variables can replace.
 6. Before reusing this database for real funds, require a reviewed implementation that isolates mainnet financial records and disables demo/preview financial writes. Retain all GIV/testnet history in its original environment; never convert its balances, queues or receipts to real money.
 7. Keep previews on reviewed code with a restricted non-sending access path before they can see a real-money database. Current shared previews are suitable for simulation/testnet development, **not an implemented mainnet isolation contract**. A safe future design can still use the same provider accounts/project.
 8. After that release is implemented and verified, the maintainer must update this section with exact supported mainnet settings and rollout steps. Until then, keep deployments and financial activation at their supported simulation/testnet settings. There is no honest “flip one variable and go live” step today.
