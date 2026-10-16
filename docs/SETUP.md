@@ -1,830 +1,218 @@
-# Gifters World — Hosted Developer Setup
+# Set up Gifters World in your browser
 
-This guide is for getting Gifters World **live on Vercel** using hosted services from start to finish.
+Follow these steps in order. You need no terminal or local installation. This creates a **simulation site using GIV**, not a real-money service. Keep passwords and tokens in a password manager.
 
-The deployment path is:
+Menu names checked against official platform documentation on **16 October 2026**. Your account's plan may change which options appear.
 
-**GitHub → GitHub Actions CI → Vercel**
+## 1. Open GitHub
 
-Hosted services:
+1. Go to [github.com](https://github.com). Create an account if needed.
+2. Open [nero1/onyiy](https://github.com/nero1/onyiy). Ask the owner for administrator access if you cannot see **Settings**.
+3. Open **Actions**. Enable workflows if GitHub asks. Leave deployments disabled until step 8.
 
-- **Vercel** — Next.js 16 App Router application and native Node.js Route Handlers
-- **Supabase PostgreSQL** — primary hosted database
-- **Drizzle ORM** — application database access
-- **Upstash Redis REST** — default Redis/cache provider, used sparingly
-- **GitHub Actions** — validation, database migration, build, preview deployment, production deployment, and later isolated scheduled worker jobs
+Use this repository: the existing deployment workflow is restricted to `nero1/onyiy`. Copying it elsewhere requires a reviewed workflow change.
 
-The product is still in the Phase One `test_iteration` profile. Keep mainnet and real signing disabled.
+## 2. Create an empty Supabase project
 
-## 1. Accounts you need
+1. Go to [supabase.com/dashboard](https://supabase.com/dashboard). Sign up or sign in.
+2. Choose your organization, or create one when prompted.
+3. Click **New project**. Name it `gifters-simulation`.
+4. Generate a random database password of at least 32 letters and numbers. Save it as **Supabase owner password** in your password manager.
+5. Choose a nearby region, review the price, then click **Create new project**. Wait until ready.
 
-Create or have access to:
+Use a new project with no application tables. Do not delete existing tables to make this guide work. Supabase's own `auth` and other provider schemas are normal.
 
-1. a **GitHub** account and repository,
-2. a **Vercel** account/team,
-3. a **Supabase** project,
-4. an **Upstash** account with a Redis database.
+## 3. Paste the single migration into SQL Editor
 
-
-## 2. Put the repository on GitHub
-
-Create a GitHub repository and upload/push the project files so that the repository root contains files such as:
-
-```text
-.github/
-app/
-components/
-lib/
-server/
-packages/
-docs/
-package.json
-next.config.ts
-vercel.json
-xmanifest.json
-```
-
-Use `main` as the production branch unless you intentionally change the workflow.
-
-Do not upload real secrets, `.env` files, database dumps, private keys, wallet seed phrases, RPC credentials, Supabase passwords, Upstash tokens, or Vercel tokens.
-
-### 2.1 Run CI before hosted accounts are configured
-
-The committed `.github/workflows/ci-vercel.yml` runs on pushes, pull requests, and manual **Actions → ci-vercel → Run workflow** requests. The `checks` job installs the committed lockfile with `npm ci`, runs `check:all`, builds Next.js, measures homepage JavaScript, and scans source/client bundles. These checks need no Supabase, Upstash, or Vercel settings.
-
-Deployment is deliberately skipped until the repository Actions variable `ENABLE_VERCEL_DEPLOYMENTS` equals the exact string `true`. Leave it absent or `false` while building without provider settings. A skipped deployment does not mean the CI checks failed. Enable GitHub Actions in repository settings if workflows are disabled.
-
-## 3. Create the Supabase PostgreSQL database
-
-### 3.1 Create the project
-
-In Supabase:
-
-1. Create a new project.
-2. Choose a region reasonably close to the Vercel Functions region you intend to use.
-3. Save the database password securely.
-4. Open the project's **Connect** dialog.
-
-Gifters World uses Supabase as hosted PostgreSQL. The application does not require Supabase Auth, Storage, Realtime, Edge Functions, or the Data API for its core database path.
-
-### 3.2 Copy the runtime connection string
-
-For Next.js Route Handlers on Vercel, use Supabase's **Transaction pooler** connection string for `DATABASE_URL`. Follow the current Supabase Connect instructions for the postgres-js driver. Only driver-compatible SSL query settings are accepted; Prisma-specific pooler options do not apply.
-
-It normally uses port `6543` and is designed for serverless workloads with many short-lived connections.
-
-Example shape only:
-
-```text
-postgresql://gw_runtime.<project-ref>:<password>@<pooler-host>:6543/postgres
-```
-
-Do not invent the hostname. Copy the actual value from Supabase's Connect screen and select the restricted runtime role described below, rather than the migration owner.
-
-The application disables prepared statements for the Supabase runtime connection and keeps the serverless connection pool small. Runtime, migration and health connections require trusted certificates and matching hostnames for hosted PostgreSQL, including URLs with `sslmode=require`. Never use `sslmode=disable`, `NODE_TLS_REJECT_UNAUTHORIZED=0` or a verification bypass to unblock deployment.
-
-Use the provider hostname and its documented trust chain. If the provider requires a custom CA, put the exact provider-issued public PEM certificate chain in the server-only `DATABASE_TLS_CA_PEM` environment value in Vercel and the matching GitHub environment. It contains certificates only, never private keys. Standard system trust works without this variable. URL options are limited to `sslmode` and `sslrootcert=system`; remove unsupported query settings. Optional pool/idle/connect settings are positive bounded integers; the default serverless pool is one connection. The database code runs only in the Next.js Node.js runtime, never in browser components.
-
-Set:
-
-```text
-DB_PROVIDER=supabase
-DATABASE_URL=<Supabase Transaction pooler URL>
-DATABASE_POOL_MAX=1
-```
-
-### 3.3 Copy the migration connection string
-
-Database migrations should use a connection intended for migration/admin work rather than the Vercel transaction-pooler connection.
-
-Preferred:
-
-```text
-DATABASE_MIGRATION_URL=<Supabase Direct connection URL>
-```
-
-Supabase recommends a direct connection for migrations, backup/restore, and other native PostgreSQL administration.
-
-If a hosted CI runner cannot reach the direct endpoint because of network/IP-version restrictions, use the Supabase **Session pooler** connection for the migration job after confirming the migration works through it. Do not use the transaction pooler as the default migration connection.
-
-### 3.4 Provision the restricted runtime login
-
-Before enabling deployments, use the Supabase SQL editor as the database owner to create the two application groups. These commands contain no credentials:
+1. In GitHub, open [000_initial_schema.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/000_initial_schema.sql).
+2. Click **Raw**. Select and copy the **entire file**, including its first and last lines.
+3. Return to the correct Supabase project. Click **SQL Editor → New query**.
+4. Use the owner role, normally **postgres**. Paste the SQL without changing it.
+5. Click **Run**. If warned about database changes, confirm only after checking this is your new simulation project.
+6. Wait for success. Open a new query, paste the following, and click **Run**:
 
 ```sql
-create role gw_read nologin noinherit nosuperuser nocreatedb nocreaterole nobypassrls;
-create role gw_service nologin noinherit nosuperuser nocreatedb nocreaterole nobypassrls;
-create role gw_runtime login noinherit nosuperuser nocreatedb nocreaterole nobypassrls;
+select name from public.schema_migrations;
+```
+
+7. Confirm the result contains `000_initial_schema.sql`.
+
+Run the installation file once. It creates the final tables, views, functions, security rules and indexes together. It does **not** create all plans and demo accounts; the existing deployment workflow adds those in step 8. There are no earlier migration files to paste.
+
+If installation fails, keep the error and check the troubleshooting table below. Do not split the file, remove checks, or rerun it over existing application tables. [SQL Editor reference](https://supabase.com/docs/guides/database/functions).
+
+## 4. Create the app login and copy its connection URLs
+
+1. Generate a separate random password of at least 32 letters and numbers in your password manager. Save it as **Gifters runtime password**. Letters and numbers avoid URL-encoding mistakes.
+2. In **SQL Editor → New query**, paste this SQL. Replace `REPLACE_WITH_RUNTIME_PASSWORD` privately before clicking **Run**:
+
+```sql
+create role gw_runtime login noinherit nosuperuser nocreatedb
+  nocreaterole nobypassrls password 'REPLACE_WITH_RUNTIME_PASSWORD';
 grant gw_read, gw_service to gw_runtime;
 grant connect on database postgres to gw_runtime;
 ```
 
-Run each creation only if that role does not already exist. Set a strong generated password for `gw_runtime` through the provider's secure role settings or SQL editor; never save the password-setting statement to GitHub or chat. Store the resulting custom-role transaction-pooler URL as `DATABASE_URL` in Vercel and the matching GitHub environment. Store the owner direct/session URL only as GitHub `DATABASE_MIGRATION_URL`. Do not give the runtime login ownership, BYPASSRLS, superuser, role creation or inherited table access. Compatible PostgreSQL hosts use the same role contract with their actual database name and supported connection endpoint.
+3. Delete the saved password-bearing query using its query menu. Never share it or put it in GitHub. The migration already created `gw_read` and `gw_service`.
+4. Click **Connect** at the top of the project. Choose the connection-string/URI view and **Transaction pooler**.
+5. Save the copied URL privately as **DATABASE_URL**. Change `postgres.PROJECT_REF` to `gw_runtime.PROJECT_REF`, retaining your actual project reference. Replace the password placeholder with the **runtime** password. Keep the copied host and port, normally `6543`.
+6. In **Connect**, choose **Session pooler**. Save its owner URL as **DATABASE_MIGRATION_URL**, normally port `5432`. Replace the password placeholder with the **Supabase owner** password. Keep `postgres.PROJECT_REF` as its username.
+7. If a URL has no query options, append `?sslmode=require`. Retain only supported `sslmode=require` and optional `sslrootcert=system` options.
 
-The single initial schema installs explicit privileges and RLS: member reads use own rows; financial services receive only their required server permissions; public catalog data is served by native handlers. No browser or Data API key receives application tables/views, including ledger/audit/configuration. Migration/seed/reset tooling uses the separate owner connection. A migration user without permission to create the groups must have them provisioned by the provider owner beforehand.
+The owner URL goes into GitHub only. The runtime URL goes into GitHub and Vercel. Both must target the same project. Session pooling avoids the direct endpoint's IPv6 requirement on many hosted runners. [Connection guide](https://supabase.com/docs/guides/database/connecting-to-postgres) · [Role guide](https://supabase.com/docs/guides/database/postgres/roles).
 
-Before application migrations, `npm run db:check:binding` verifies two fresh owner-held transaction locks through the restricted runtime and its actual database namespace. It creates no table, runs no migration and leaves no persistent proof or lock. Provision the application groups above first. Different projects fail even when backups copied stored IDs; failure prevents schema installation. After migration/seed, `npm run db:check:runtime` repeats binding and validates roles/configuration. No proof or credential reaches the browser. Simulation's account chooser still does not replace OAuth/session/MFA acceptance.
+## 5. Create Upstash Redis
 
+1. Go to [console.upstash.com](https://console.upstash.com). Sign up or sign in.
+2. Open **Redis → + Create Database**. Name it `gifters-simulation`.
+3. Choose a primary region close to your database. Click **Next**, review the plan and price, then create the database.
+4. Open its **Details/Connect → REST** section. Save `UPSTASH_REDIS_REST_URL` and the standard `UPSTASH_REDIS_REST_TOKEN` privately. Do not choose the read-only token.
 
-### 3.5 Supabase GRANT requirement
+[Creation steps](https://upstash.com/docs/redis/overall/getstarted) · [REST credentials](https://upstash.com/docs/redis/features/restapi).
 
-Every migration that creates a new table in `public` must include its explicit Supabase Data API grant classification in that same migration.
+## 6. Create Vercel and enter the app settings
 
-Supabase now requires explicit `GRANT` permissions for newly created public-schema tables before the Data API can access them. Migrations count as table creation.
-
-Typical syntax is:
+1. Go to [vercel.com/signup](https://vercel.com/signup). Choose **Continue with GitHub** and authorize access to `nero1/onyiy`.
+2. Click **Add New → Project → Import** beside `onyiy`. If missing, use **Adjust GitHub App Permissions** to grant access.
+3. Name it `gifters-world-simulation` or another available name. Keep **Framework Preset: Next.js** and **Root Directory: repository root**. Keep the repository's build settings.
+4. Create the project with **Deploy**. This initial import may fail before settings exist; finish the steps below before retrying through GitHub Actions.
+5. Open **Settings → Build and Deployment → Node.js Version**. Select **22.x** and save.
+6. Copy the assigned production domain from **Settings → Domains**. Save its HTTPS origin, such as `https://YOUR-PROJECT.vercel.app`, as **WEB_ORIGIN**. Use no trailing slash or path.
+7. Return to Supabase **SQL Editor → New query**. Run this query once to generate two independent app keys:
 
 ```sql
-grant select
-on public.your_table
-to anon;
-
-grant select, insert, update, delete
-on public.your_table
-to authenticated;
-
-grant select, insert, update, delete
-on public.your_table
-to service_role;
+set search_path = public, extensions;
+select
+  translate(rtrim(encode(gen_random_bytes(32), 'base64'), '='), '+/', '-_')
+    as auth_access_key,
+  translate(rtrim(encode(gen_random_bytes(32), 'base64'), '='), '+/', '-_')
+    as mfa_encryption_key;
 ```
 
-Do **not** blindly grant those permissions to every table.
-
-For Gifters World:
-
-- public catalog data is served through native handlers; configuration is projected by its registered scope,
-- financial, identity, ledger, admin, queue, payout, and audit tables should not be exposed to `anon` or `authenticated` merely to silence a permission error,
-- application tables/views remain closed to `anon`, `authenticated` and Data API `service_role`; native handlers use the restricted application groups. Do not restore broad Data API grants to fix a dashboard warning.
-
-The repository's migration checks are intended to catch new public tables that lack a grant classification.
-
-## 4. Create Upstash Redis
-
-Create an Upstash Redis database.
-
-Copy these two values from the Upstash console:
-
-```text
-UPSTASH_REDIS_REST_URL
-UPSTASH_REDIS_REST_TOKEN
-```
-
-Gifters World intentionally uses Redis sparingly because the expected default plan has low limits.
-
-Redis is not the financial source of truth. PostgreSQL remains authoritative. Browser caching, request coalescing, Vercel/CDN caching where safe, and in-process caching should absorb ordinary read traffic before adding more Redis calls.
-
-The default hosted cache configuration is:
-
-```text
-CACHE_PROVIDER=upstash
-UPSTASH_REDIS_REST_URL=<your Upstash REST URL>
-UPSTASH_REDIS_REST_TOKEN=<your Upstash REST token>
-```
-
-The cache adapter also supports `ioredis`/compatible Redis providers through `REDIS_URL`, but Upstash is the deployment default. Selecting that adapter without its configuration fails; unknown cache selectors fail rather than silently substituting memory. Increment/expiry requires Redis Lua (`EVAL`) permission. Run the named cache provider contract in HOW-IT-WORKS against isolated keys before accepting the selected hosted adapter; include an HTTP-success/command-error response and outage. Do not use cache counters as durable rate limits. Browser v3 upgrades discard previous snapshot envelopes and apply public `cache_policy` entry/byte limits; this needs no credential or financial migration.
-
-## 5. Create the Vercel project
-
-### 5.1 Import the repository once
-
-In Vercel:
-
-1. Choose **Add New → Project**.
-2. Import the GitHub repository.
-3. Keep the repository root as the Vercel project root.
-4. Use Node.js 22.
-5. Create the project.
-
-The repository is a root-level Next.js application. Vercel should detect Next.js automatically and use the root `package.json`, `next.config.ts`, and `vercel.json`. Do not set an `apps/web` root directory or a custom static output directory.
-
-### 5.2 Make GitHub Actions the deployment authority
-
-This project is intended to deploy through GitHub Actions rather than having Vercel create a second automatic deployment for every Git push.
-
-Ensure `vercel.json` contains:
-
-```json
-{
-  "git": {
-    "deploymentEnabled": false
-  }
-}
-```
-
-If this property is absent, add it before relying on the CI workflow. Otherwise the connected Vercel Git integration and GitHub Actions can both deploy the same commit.
-
-### 5.3 Choose the Functions region
-
-In Vercel:
-
-**Project → Settings → Functions**
-
-Choose a Functions region near the Supabase database region where practical. This reduces latency on database-backed API requests.
-
-## 6. Configure Vercel environment variables
-
-Open:
-
-**Vercel Project → Settings → Environment Variables**
-
-For the first hosted Phase One deployment, configure the following for **Production**.
-
-```text
-APP_ENV=simulation
-DEPLOYMENT_PROFILE=test_iteration
-MAINNET_ENABLED=false
-
-DB_PROVIDER=supabase
-DATABASE_URL=<Supabase Transaction pooler URL>
-DATABASE_POOL_MAX=1
-
-CACHE_PROVIDER=upstash
-UPSTASH_REDIS_REST_URL=<Upstash REST URL>
-UPSTASH_REDIS_REST_TOKEN=<Upstash REST token>
-
-AUTH_PROVIDER=simulation
-PAYMENT_PROVIDER=giv_simulation
-WALLET_PROVIDER=dummy
-SIGNER_PROVIDER=disabled
-CAPTCHA_PROVIDER=dummy
-REALTIME_PROVIDER=none
-PRICE_PROVIDER=manual_simulation
-ALERT_PROVIDER=none
-```
-
-Set `WEB_ORIGIN` to the final production origin, for example:
-
-```text
-WEB_ORIGIN=https://giftersworld.org
-```
-
-If you do not yet have the custom domain, initially use the Vercel production URL. Add/update `WEB_ORIGIN` only when the authentication milestone consumes it; the current simulation API is same-origin.
-
-Do not place real signer/decryption keys in Vercel. The future signer must remain a separate isolated workload.
-
-### Preview environments
-
-Preview deployments should remain simulation-only.
-
-Do not connect a preview deployment to a future real-money/mainnet database. For early Phase One work you may either:
-
-- use a separate Supabase preview project, which is preferred, or
-- deliberately share the simulation database while accepting that preview activity can affect the same test data.
-
-## 7. Configure Vercel deployment credentials in GitHub
-
-The existing GitHub Actions workflow deploys with the Vercel CLI.
-
-Create a Vercel access token, then collect:
-
-- `VERCEL_TOKEN`
-- `VERCEL_ORG_ID`
-- `VERCEL_PROJECT_ID`
-
-You can find the Project ID under the Vercel project's **Settings → General**. The Team ID is available from the Vercel team settings.
-
-In GitHub, open:
-
-**Repository → Settings → Secrets and variables → Actions**
-
-Create two GitHub environments at **Repository → Settings → Environments**:
-
-- `preview` for trusted same-repository PRs and the `preview` branch,
-- `production` for pushes/manual runs on `main`.
-
-Use required reviewers where your GitHub plan supports them. Review the changed code before approving a preview because that code executes with preview credentials. Fork PRs run checks only; never use `pull_request_target` to build untrusted PR code with secrets. Restrict the production environment to `main`, protect that branch, and require the `checks` job before merging.
-
-In **each environment**, add secrets:
-
-```text
-VERCEL_TOKEN
-VERCEL_ORG_ID
-VERCEL_PROJECT_ID
-```
-
-The workflow uses these to run `vercel pull`, `vercel build`, and `vercel deploy --prebuilt`.
-
-## 8. Configure database migration secrets in GitHub
-
-Vercel runtime environment variables do not automatically become GitHub Actions secrets for arbitrary commands such as `npm run db:migrate`.
-
-In **both** GitHub environments (`production` and `preview`), add:
-
-```text
-DATABASE_URL=<Supabase Transaction pooler URL>
-DATABASE_MIGRATION_URL=<Supabase Direct or approved Session pooler URL>
-```
-
-Give `preview` a separate simulation Supabase database; PR migrations and seeds can change its state. Configure the corresponding Vercel **Preview** environment with that same database and Upstash bindings. Multiple PR previews share the selected preview database unless you provision isolated projects; do not reset it while another preview uses it. Keep all preview data separate from future real-money data.
-
-The workflow requires `DATABASE_MIGRATION_URL` explicitly before deployment and migrates/seeds the selected environment before building. It checks that Vercel and GitHub have the exact same restricted runtime URL, verifies the fresh owner/runtime binding before financial migrations, then validates seeds and privileges afterward. The migration URL is prohibited in Vercel runtime settings. If your provider needs a custom CA, add the same public certificate chain as GitHub environment secret `DATABASE_TLS_CA_PEM` as well as the Vercel server variable. The database setup/migration step runs with:
-
-```text
-APP_ENV=simulation
-DB_PROVIDER=supabase
-MAINNET_ENABLED=false
-```
-
-Do not expose these values in logs.
-
-## 9. Make production CI run migrations before deployment
-
-For a fresh Supabase project, the database must be migrated and seeded before the site can work correctly.
-
-The production GitHub Actions job should run these commands after dependencies are installed and before the Vercel production build/deploy:
-
-```bash
-npm run db:check:binding
-npm run db:migrate
-npm run db:seed
-npm run db:check:runtime
-```
-
-with:
-
-```yaml
-env:
-  APP_ENV: simulation
-  DB_PROVIDER: supabase
-  MAINNET_ENABLED: "false"
-  DATABASE_URL: ${{ secrets.DATABASE_URL }}
-  DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
-  DATABASE_TLS_CA_PEM: ${{ secrets.DATABASE_TLS_CA_PEM }}
-```
-
-There is exactly one active migration: [000_initial_schema.sql](../packages/db/src/migrations/000_initial_schema.sql). It creates the final schema directly in an empty public application namespace and records one baseline checksum. `npm run db:migrate` applies it once and safely skips a matching receipt on later runs. It refuses partial/nonempty schemas and historical migration chains; no legacy backfill/reset is performed. Application seed content is separate and preserves existing values. See [INITIAL-SCHEMA_v48.md](INITIAL-SCHEMA_v48.md) for direct SQL execution and verification.
-
-For later real-money releases, migration/seed policy must be reviewed again before deployment.
-
-### 9.1 Safe refresh and simulation reset
-
-The initial schema executes atomically and installs final manifest metadata, immutable USD snapshots, ledger/owner constraints, queue counters and allocation/withdrawal guards directly. Repeated seeds insert missing defaults and preserve configured values, disabled assets and existing plans. Invalid stored settings stop financial work rather than silently replacing them with file defaults.
-
-Use a fresh, isolated Supabase simulation project for milestone acceptance. Never reset a shared preview or a real-money database. If an isolated reset is deliberately required, stop its writes, set `APP_ENV=simulation`, confirm the actual owner/migration target database name through `SIMULATION_RESET_CONFIRM=reset:<database-name>`, and run `npm run db:reset:simulation` followed by `npm run db:seed`. Reset refuses production runtime/deployment context, a disabled database reset policy, or any non-simulation asset. Supabase projects often share the database name `postgres`; independently verify the selected project/connection before confirming it. Reset clears all simulation financial and durable work/report/scheduler/proof records before reseeding; old jobs cannot target new accounts. No reset is part of ordinary CI/deployment.
-
-There are no numbered historical backfills to run for a fresh installation. Original migrations001–098 (including053a) remain available in Git history at release e6f7888034afae01d0c7803965f1c17889783171. Existing databases/old archives need their matching release or a separately reviewed forward upgrade; never delete financial records or disable guards to force the fresh baseline onto them. Once the baseline has been applied, preserve its checksum and add new forward migrations for later schema changes.
-
-After first hosted M1 acceptance, the optional integrity scenario is documented in HOW-IT-WORKS.md. Both scenarios require isolated simulation data and actual deployment evidence; skipped provider configuration does not count as a deployment.
-
-## 10. Drizzle ORM requirement
-
-Application database access should use Drizzle ORM wherever practical, targeting effectively 100% application-table coverage.
-
-New database work must follow both rules:
-
-1. create/change the table in a migration,
-2. represent that table/change in the Drizzle schema.
-
-Raw SQL should be limited to PostgreSQL-specific operations that are clearer or safer outside the ORM, such as:
-
-- DDL migrations,
-- `GRANT` and RLS policy statements,
-- explicit row/advisory locking where required,
-- specialized recovery/reconciliation operations, exported snapshots and PostgreSQL catalog fingerprints for native backup/restore.
-
-Do not introduce Supabase client-library calls into domain logic merely because Supabase hosts PostgreSQL.
-
-## 11. Enable deployments and deploy from PRs
-
-Complete these prerequisites first:
-
-1. Link the repository to a Vercel project using Node 22 and the root application directory; keep Vercel native Git deployment disabled.
-2. Fill the Vercel **Preview** and **Production** environment settings from section 6, including the corresponding Supabase and Upstash values. No signer credentials belong here.
-3. Provision the restricted database roles from section 3.4. Fill **both** GitHub `preview` and `production` environments with `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `DATABASE_URL`, and `DATABASE_MIGRATION_URL`. Apply the reviewer and branch controls from section 7.
-4. At **Repository → Settings → Secrets and variables → Actions → Variables**, create the **repository variable** `ENABLE_VERCEL_DEPLOYMENTS` with value `true`. This is a non-secret switch, not a credential.
-5. Open or update a same-repository pull request. If the PR was already open before enabling the variable, push a new commit or rerun its workflow after saving the settings.
-6. In **Actions → ci-vercel**, confirm `checks` passes. Approve the protected `preview` environment when prompted. The `deploy` job retrieves Vercel Preview configuration, validates required bindings, migrates/seeds the preview database, runs `vercel build`, and runs `vercel deploy --prebuilt`. The CLI prints the preview deployment URL in the job log; this workflow does not post a PR comment.
-7. Verify the preview using section 12 and the manual M1 procedure in `HOW-IT-WORKS.md` before accepting its behavior. Merge the approved PR into `main`.
-8. The resulting `main` push runs checks again and targets the protected `production` environment. After approval, it migrates/seeds that database, runs `vercel build --prod`, and runs `vercel deploy --prebuilt --prod`. Verify the production URL and record acceptance in the current project status.
-
-Fork PRs always run checks without deployment credentials. Other branch pushes run checks only, except the designated `preview` branch. Manual workflow runs use the same branch and enablement rules. Setting the variable back to `false` stops future deployment jobs while preserving CI checks.
-
-Missing/invalid hosted bindings fail the deployment preflight; they are never replaced with invented credentials or a successful mock deployment. Workflow files being present does not prove a hosted run succeeded. GitHub Actions remains the sole deployment authority.
-
-## 12. Verify the live site
-
-At minimum verify:
-
-### API
-
-Open:
-
-```text
-https://<your-domain>/api/health
-```
-
-It should respond successfully and identify the Phase One/simulation configuration.
-
-### Database-backed UI
-
-Open the main site and confirm that:
-
-- the application loads,
-- the seeded gift plans are available to the simulation/admin flow,
-- simulation users can be retrieved,
-- dashboard/API-backed pages do not return database errors.
-
-`/api/health` now probes database configuration readiness within the configured bootstrap time budget and returns a redacted 503 on failure. It does not verify every financial route, Redis connectivity, signing or treasury readiness; still inspect the dashboard and run the applicable manual acceptance.
-
-### Supabase
-
-In Supabase verify that the migrated tables exist and seed rows were created.
-
-Do not manually edit ledger/queue/financial rows from the Supabase table editor to make the application appear to work.
-
-### Upstash
-
-Confirm the Vercel deployment has the two Upstash environment variables and that no missing-credential errors appear in Vercel function logs.
-
-Keep Redis command volume low. Redis usage should be justified by a cross-instance coordination or rate-limit/cache requirement, not simply added to every read path.
-
-## 13. Custom domain
-
-When ready:
-
-1. Add the domain in **Vercel Project → Settings → Domains**.
-2. Follow Vercel's DNS instructions.
-3. Wait for Vercel to confirm the domain and TLS certificate.
-4. Set `WEB_ORIGIN` to the final HTTPS domain.
-5. Redeploy production.
-6. Update any future Google OAuth callback URLs to the same production origin when M2 authentication is implemented.
-
-## 14. Reproducible dependencies and build checks
-
-`package-lock.json` is committed. CI and Vercel both use `npm ci --no-audit --no-fund`; `actions/setup-node` caches npm downloads using the lockfile. Use the pinned Node version in `.nvmrc` (Node 22.23.3; Vercel runtime major 22). The Vercel CLI is also pinned in the development dependencies.
-
-For a deliberate dependency update, edit the manifest, regenerate the lockfile with Node 22, then run:
-
-```bash
-npm ci --no-audit --no-fund
-npm run check:all
-npm run build
-npm run check:bundle
-npm run check:secrets
-```
-
-Commit the manifest and matching lockfile together. `check:deployment` validates runtime, lockfile consistency, Vercel install/deployment settings, and upload-safe application paths without hosted credentials. During deployment, its `--hosted` mode also checks selected simulation providers and credential presence; it does not prove provider connectivity. The current application accepts only simulation, the `test_iteration` profile, and a disabled real signer; testnet/mainnet integration is future work.
-
-## 15. Troubleshooting
-
-### A PR passes checks but deployment is skipped
-
-Check that the repository variable `ENABLE_VERCEL_DEPLOYMENTS` is exactly `true`, the PR originates in this same repository, and the `preview` environment exists. A run waiting for a required reviewer must be approved before secrets are released. Fork PRs deliberately do not deploy. Ensure Actions is enabled and the PR contains the workflow file.
-
-### Vercel deploys the same commit twice
-
-Git integration is probably auto-deploying in addition to GitHub Actions.
-
-Ensure `vercel.json` has:
-
-```json
-"git": {
-  "deploymentEnabled": false
-}
-```
-
-### Supabase reports `permission denied`
-
-Check the migration that created the table. New public-schema tables need explicit Supabase grants.
-
-Do not fix a sensitive table by broadly granting `anon` or `authenticated` access. Add the intended least-privilege grant and, when the Data API is used, the corresponding RLS policy.
-
-### Vercel reports too many PostgreSQL connections
-
-Verify that:
-
-```text
-DATABASE_URL=<Supabase Transaction pooler URL>
-DATABASE_POOL_MAX=1
-```
-
-and that you did not accidentally give Vercel the direct database URL.
-
-### GitHub migration cannot reach Supabase Direct
-
-The direct endpoint may not be reachable from the runner's network/IP mode. Use Supabase's Session pooler for the migration secret if necessary and verify the migrations complete correctly, or use an approved network option that can reach the direct endpoint.
-
-### Upstash configuration error
-
-For hosted production with `CACHE_PROVIDER=upstash`, both variables are required:
-
-```text
-UPSTASH_REDIS_REST_URL
-UPSTASH_REDIS_REST_TOKEN
-```
-
-After changing Vercel environment variables, redeploy so the new values are available to the Functions.
-
-### Site builds but API calls fail
-
-Check, in order:
-
-1. Vercel Function logs,
-2. `DATABASE_URL`,
-3. Supabase project availability,
-4. database migrations,
-5. whether the Next.js Route Handler exists under `app/api/`,
-6. Upstash credentials if the failing route uses cache,
-7. whether Vercel detected the project as Next.js rather than a static site.
-
-### CI fails on `npm ci`
-
-Use Node 22 and verify `package.json` and `package-lock.json` match. Regenerate the lockfile only for an intentional dependency change, then rerun `npm ci`. Do not replace `npm ci` in CI to hide a mismatch.
-
-## 16. Documentation rule
-
-Project documentation stays limited to:
-
-- `docs/PRD.md`
-- `docs/SETUP.md`
-- `docs/HOW-IT-WORKS.md`
-- the current `docs/PROJECT-STATUS_vN.md`
-- the current `docs/LLM-HANDOVER_vN.md`
-
-Keep routine progress, handoff, acceptance, deployment, database, and build-state notes in the current status/handover pair whenever practical. Extra Markdown files are allowed when genuinely useful and must not fail CI solely because they exist.
-
-Use:
-
-- `PRD.md` for product requirements,
-- `SETUP.md` for the hosted deployment/setup procedure,
-- `HOW-IT-WORKS.md` for concise technical explanations,
-- `PROJECT-STATUS_vN.md` for progress, known issues, validation results, blockers, deviations, and the exact next task.
-- `LLM-HANDOVER_vN.md` for the self-contained continuation prompt for the next LLM.
-
-## 13. Enable non-signing notification jobs
-
-Migration 011 adds the transactional outbox, durable jobs and scheduler replay/lease records. Pending work is retained; existing immediate notifications stay unchanged. New financial notifications are delivered by the signed tick, so they can remain pending while scheduling is disabled. No real signer or financial send is enabled here.
-
-After the production simulation deployment works:
-
-1. Generate a cryptographically random key of at least 32 bytes, encoded as unpadded base64url, using your secure password/secret tooling. Store it as server-only `SCHEDULER_HMAC_KEY` in Vercel **Production** and as a matching secret in GitHub's protected `production` environment. Never put the key in GitHub files, chat, logs, public variables or exports.
-2. Set the GitHub `production` environment variable `SCHEDULER_ORIGIN` to the exact production HTTPS origin, without a trailing slash or path. Redeploy Vercel after changing its environment values.
-3. Set repository Actions variable `ENABLE_SCHEDULER=true`, then run **Actions → non-signing-scheduler → Run workflow** on `main`. Check its result and staff `GET /api/v1/admin/jobs` diagnostics. The workflow runs a signed notification tick every five minutes thereafter; it requires no migration credentials or signer material. Leave this flag absent/false until settings are ready. PRs/forks do not run this scheduler.
-
-Protected environments with required reviewers also hold scheduled runs for approval. GitHub scheduled runs can be delayed and consume Actions quota; five minutes is the desired cadence, not guaranteed delivery. Review your plan's budget or use a compatible external scheduler calling the same signed endpoint. New work catches up from database due times. `ENABLE_VERCEL_DEPLOYMENTS` controls deployment separately; both workflows remain opt-in during credential-free iterations.
-
-For key rotation, put the old key in Vercel's optional `SCHEDULER_HMAC_PREVIOUS_KEY`, install a new current key in Vercel, redeploy, then update GitHub's current secret. Retire the previous key after outstanding requests' maximum skew/replay window. Use separate keys/origins if manually exercising an isolated preview; never point preview jobs at production data. Hosted key delivery and scheduling remain unverified until executed.
-
-Staff may explicitly replay a reviewed dead-letter notification through `POST /api/v1/admin/jobs/<id>/replay` with an empty JSON body and UUID `Idempotency-Key`. This preserves the original operation and attempts. Invalid payloads are refused; never edit immutable work or financial history to force a retry. Long-running workers, alerts and retention/recovery orchestration remain later milestones.
-
-## 14. Exercise GIV withdrawal recovery
-
-Use only an isolated simulation deployment. Create a normal user quote, then as the selected simulation admin call `POST /api/v1/admin/simulation/withdrawals/<id>/control` with `{ "outcome": "hold", "reason": "Your named scenario" }` or outcome `reject`, and a UUID `Idempotency-Key`. Configure it before confirmation; its outcome is immutable. Without a control, GIV retains normal immediate settlement.
-
-The user confirms the quote normally. A `hold` reserves funds without settlement; the wallet shows a cancellable held withdrawal. A `reject` records a balanced release and cancellation. The user can call `POST /api/v1/me/withdrawals/<id>/cancel` with `{}`; the withdrawal ID is its single-use state identity. This moves no money for an unused quote and releases an unsent GIV hold once.
-
-For a reviewed delayed hold, admin calls `POST /api/v1/admin/simulation/withdrawals/<id>/resolve` with `{ "action": "settle", "reason": "Your review reason" }` or action `cancel`, plus a UUID `Idempotency-Key`. Inspect the returned state and staff reconciliation; duplicate requests preserve the original result. No mode permits reopening settlement or exporting GIV. The named recovery procedure is in HOW-IT-WORKS.md. Real-chain cancellation/signing and reorg handling remain separate, unimplemented gates.
-
-## 15. Inspect scheduled reconciliation
-
-Migration 013 adds immutable staff-only results. The existing signed tick queues one named reconciliation per UTC day; no additional credential or Redis operation is needed. Successful job completion stores a coherent snapshot and capped diagnostics. A timeout stores no success report and leaves retryable work; a recorded discrepancy is not repaired automatically.
-
-Read summary history at `GET /api/v1/admin/reconcile/reports`, then a selected result at `GET /api/v1/admin/reconcile/reports/<id>`. Inspect its snapshot/check timestamps, `balanced`, `consistent` and `lineage_complete` separately. A stored daily report describes its snapshot, not every later transaction. The normal admin reconciliation button runs a fresh bounded check.
-
-The schema-free fresh owner/runtime lock challenge protects against backup-cloned IDs. The guarded simulation reset clears old work and reports. These contracts passed in tooling; hosted provider validation, scheduling, larger-dataset capacity and external alerts remain unverified.
-
-## 17. Exercise incoming GIV exceptions
-
-Migration 015 adds server-only invoices and immutable simulation control/event/refund history. It grants no browser/Data API access and requires no chain secret. Normal GIV UI uses invoice review then separate confirmation. Keep real asset/payment/signing selectors disabled.
-
-On an isolated simulation deployment, create a member invoice through `POST /api/v1/gifts/invoices` with `{ "plan_id": "<plan UUID>" }` and a UUID `Idempotency-Key`. Before submission, staff may call `POST /api/v1/admin/simulation/invoices/<id>/control` with outcome `reject`, `under`, `over`, `late` or `delay`, a named `reason`, and an idempotency key. Optional `actual_base_units` must match the chosen outcome; defaults differ by one base unit for under/over. Controls are immutable and cannot be added after submission/expiry.
-
-The member submits `{}` to `POST /api/v1/gifts/invoices/<id>/transaction`; its invoice ID deduplicates retries. A delayed payment keeps funds held. Staff resolves it through `POST /api/v1/admin/simulation/invoices/<id>/resolve` with `{ "action": "confirm", "reason": "<review reason>" }` or `cancel`, and an idempotency key. Valid pre-expiry submissions can confirm after expiry; failed current eligibility preserves the hold for review. Cancellation creates refundable liability, which a separate reviewed `refund` action returns to the original internal GIV sender. Under/late and surplus refunds use the same action. Neither endpoint accepts arbitrary destinations or performs a blockchain send.
-
-For named acceptance, run `M1_INCOMING_CONFIRM=isolated-simulation APP_BASE_URL=<verified origin> npm run scenario:m1:incoming` after the fresh M1/integrity/jobs/recovery order. It changes isolated Silver data and never resets it. Inspect incoming/refundable balances and staff reconciliation; a balanced ledger alone is insufficient. Hosted, restore and reorg acceptance remain separate.
-
-## 18. Exercise GIV reorg review
-
-Migration 016 adds immutable server-only review/resolution records, own-row views and commit-time financial guards. Apply it through the normal binding/migration/seed/runtime-check deployment path. It requires no RPC, signer or new hosted credential.
-
-On isolated simulation data, use a captured `allocation_id` returned by a confirmed GIV gift. Staff calls `POST /api/v1/admin/simulation/allocations/<id>/reorg` with a named `reason` and UUID `Idempotency-Key`. Repeated requests for the same unresolved source preserve the same review and compensation. Staff diagnostics are `GET /api/v1/admin/simulation/reorgs`. Inspect its principal/loss and post-source settled-outflow exposure; do not interpret that exposure as exact source-to-withdrawal attribution.
-
-The affected partition and user/asset spends remain paused. Existing balances, held liabilities and settled withdrawals stay intact; cancelled unsent GIV holds remain recoverable. For a positively reconfirmed simulation source, call `POST /api/v1/admin/simulation/reorgs/<review_id>/reconfirm` with a review reason and idempotency key. It appends an inverse principal/point correction, not another admission/payout. Do not use this GIV endpoint as live-chain evidence or blindly clear a persistent invalid source. A future real adapter needs independently observed canonical finality and signed-attempt recovery.
-
-Run `M1_REORG_CONFIRM=isolated-simulation APP_BASE_URL=<verified origin> npm run scenario:m1:reorg` only after the fresh M1/integrity/jobs/recovery/incoming order. It changes isolated Bronze data and never resets it. Preserve any failing evidence and inspect fresh reconciliation; open review must report inconsistent even when journals balance. Original stored daily reports remain historical snapshots.
-
-## 19. Operate bounded scheduler retention
-
-Migration 017 adds server-only immutable maintenance reports and protects scheduler identities/deletion windows. Apply it through the ordinary binding → migrate → seed → runtime-check path before deploying this version. It does not delete financial history or require another provider. The signed non-signing scheduler from section 13 supplies the daily root and later continuation pages; no second schedule or owner database credential is added to Vercel.
-
-`retention_policy.http_replay_days` controls completed scheduler-window retention. Each job page caps each resource at 100 rows or the smaller configured job chunk. Inspect `GET /api/v1/admin/maintenance/reports`: `more_possible` means a durable continuation is pending, not success for the entire backlog. Undispatched/pending/running/retry/DLQ jobs, permanent work keys, financial/audit/report history and notifications are retained. Other retention fields still have no deletion implementation; never assume they archive or erase records.
-
-For an operational/legal preservation hold, set server-only `OPERATIONAL_RETENTION_HOLD=true` on the affected deployment and redeploy. The exact values are `true` and `false`; other values fail closed. This suppresses daily cleanup and routine nonce pruning. Reports record held pages with zero deletion; they are not a claim of empty backlog. Review the hold before setting `false` and redeploying. The next daily root resumes cleanup. A hold increases coordination storage; monitor backlog and database quota. No financial deletion is enabled when the hold is removed.
-
-Before hosted acceptance, perform the named isolated procedure in HOW-IT-WORKS.md, check fresh reconciliation, and verify the restricted runtime cannot delete a current nonce/run or change completed-window identity. Never bypass these guards, remove pending jobs, or infer live-chain nonbroadcast from a scheduler record.
-
-
-## 20. Verify an isolated simulation backup and restore
-
-These operator-only commands preserve the current GIV application database, including unpaid liabilities, ledger/receipt history, queue tickets/counters, retained reports and pending/retry/running/DLQ work. They implement neither member/site portability exports nor hosted/live-chain recovery. Hosted acceptance remains deferred. Do not run them in Vercel or schedule them automatically.
-
-Use an owner maintenance host with Node 22.23.3 and compatible native `pg_dump`/`pg_restore` on PATH (PG17.5 was observed). Use a direct/session owner connection, never a transaction pooler for native tools or the shared snapshot. Provision the same restricted runtime groups and closed browser roles from section 3 separately on the target. Set owner/runtime URLs to one dedicated simulation namespace; fresh binding is required even if copied namespace IDs match. Native remote connections require hostname/certificate verification with system trust or the exact `DATABASE_TLS_CA_PEM`; no weakening URL option is accepted. Loopback plaintext remains limited to disposable simulation tooling. Native remote TLS/provider acceptance was not run in this pass.
-
-Create a private operator environment file and archive directory outside source control (file mode 600, directory mode 700). Keep `DATABASE_MIGRATION_URL` and a cryptographically generated 32-byte `EXPORT_ENCRYPTION_KEY` (canonical 43-character base64url) in the maintenance secret store, outside Vercel, browser, manifest and logs. Store the key separately from the archives; losing it prevents recovery. Restore and verify require the same key. This command does not rotate keys or manage backup retention. Never paste credentials or command environment contents into chat.
-
-Require `APP_ENV=simulation`, `MAINNET_ENABLED=false`, `SIGNER_PROVIDER=disabled`, `RECOVERY_CONFIRM=isolated-simulation` and unset both scheduler HMAC keys. Choose an absolute, new file path with an allowlisted basename ending `.gwbackup`. The CLI refuses existing archive/inventory paths. For example, after loading the private maintenance environment into the process:
-
-```sh
-npm run db:backup:simulation -- /secure/backups/simulation-snapshot.gwbackup
-```
-
-It streams an application-`public`-schema native dump through AES-256-GCM without saving plaintext. Provider auth/storage/vault and unrelated schemas are excluded. The paired `.gwbackup.json` contains only counts/hashes, extension/version metadata and an HMAC signature. Retain both files together. Ephemeral binding challenges are excluded and must be freshly proved. Drizzle keyset hashes and native dump share a repeatable-read snapshot; unknown public tables, unknown manifest keys and non-simulation assets stop backup. Current proof covers 34 retained tables of 35 implemented tables, not future PRD resources.
-
-Create an empty, unpublished staging database with no other clients. Set its owner and restricted runtime URLs in the private environment and `RECOVERY_RESTORE_CONFIRM=restore:<exact database name>`. Keep the scheduler and signer off. Database names must be literal ASCII names, not libpq connection strings. Then:
-
-```sh
-npm run db:restore:simulation -- /secure/backups/simulation-snapshot.gwbackup
-npm run db:verify:restore -- /secure/backups/simulation-snapshot.gwbackup
-```
-
-Restore verifies signed metadata, migration fingerprint, ciphertext checksum and full AEAD authentication before target bootstrap. It uses a private ciphertext copy to prevent input replacement. It provisions only the signed pgcrypto dependency, preserves the existing public schema/fresh proof and imports application objects/data/ACLs in one native transaction. It does not use `--clean`, merge into populated tables, erase evidence, run a job or publish staging. Row hashes, constraints/functions/triggers/RLS/grants/schema privileges, extension version, counters and fresh owner/runtime/configuration binding must match exactly afterward. Failure prints a fixed redacted category; keep the archive, inventory, failure observations and quarantined staging intact. A content mismatch after native commit still requires explicit review; never promote it or edit history to pass.
-
-For named acceptance, retain submitted incoming holds, refundable amounts, unsent withdrawal holds, pending/retry/running/DLQ jobs and an open financial review; take a backup and restore to a separate empty namespace. Compare own dashboards and staff reconciliation, confirming liabilities/review survive, unauthorized staff access fails and unsigned ticks remain rejected. Verify bad keys, metadata/version/ciphertext tamper, active/populated targets, unknown source resources and output overwrite rejection. Use a separately signed disposable corrupt-FK archive to observe a real import rollback; preserve that target and do not alter the source ledger. This pass verified these GIV contracts in PG17.5. Before any future scheduler resumption, reconcile, inspect stale leases/due work, unresolved obligations and reviews, and explicitly authorize publication/resumption. No live signer, sessions/TOTP, chain finality, failover, large-dataset capacity or hosted-provider restore is accepted by this procedure.
-
-
-## 21. Operate public display cache budgets
-
-No provider, role, migration or secret is added by the public IndexedDB store. Deploy the ordinary Next.js build after checks. `cache_policy.max_public_help_mb` bounds its versioned public documents (10 MiB by default); the entry ceiling is `min(max_memory_entries,1000)`. Compact v3 localStorage snapshots retain their separate `max_memory_entries`/`max_memory_mb` budget. IndexedDB uses conservative UTF-8/UTF-16 payload accounting plus metadata allowance, fixed expiry and LRU; these caps do not promise a browser disk quota or hosted capacity. A smaller policy trims existing records. Invalid settings cannot raise the deployment ceilings.
-
-The current dashboard writes only approved simulation catalog fields. Text-help DTOs have separate locale/slug keys, but the full help publisher, search and offline shell remain later work. Never put authenticated responses, arbitrary URLs, invoice bodies, destinations, credentials or session material into this store. Cached plans are display-only: the financial transaction still loads current configuration and verifies economics/version/eligibility. Successful writes refresh the catalog. No offline write is queued.
-
-Browser storage denial, blocked opening, transaction timeout or quota rejection returns a cache miss without failing the action. The compact catalog remains the fallback when the larger store is unavailable. The public disk namespace is independent of private identity generations; it survives account changes while private snapshots are purged. Public data can be explicitly cleared with the cache module's `clearPublicData` without touching private scope or server history.
-
-Observe the named cache procedure in HOW on an isolated browser profile. Verify catalog ETag/304 and current database TTL through the deployed public endpoint, plus private/no-store dashboard responses. Repeat separate hosted CDN/provider/quota measurements before acceptance; credential-free Chromium observations do not prove Vercel/Upstash behavior or a complete PWA.
-
-
-## 22. Operate public server L1 reads
-
-Public manifest/catalog loaders coalesce misses within one Node.js process. Only public DTOs enter a bounded in-process cache; no Redis/provider call, credentials, staff policy, actor/session state or financial authority is stored. Validated database `max_memory_entries`/`max_memory_mb` apply. L1 lifetime is the smaller of `manifest_server_seconds` and the resource's public TTL. The catalog rejects more than 1,000 rows rather than returning a truncated list. Data-query statements have a five-second PostgreSQL timeout; existing connection/security checks still apply. Failed catalog loads are evicted. Manifest seed fallback remains display-only and expires from L1 within five seconds.
-
-Plan activation invalidates both DTOs after commit. Generation fencing prevents an older load from repopulating the cache or deleting a newer flight. This is process-local invalidation; other Function instances, CDN copies and out-of-band maintenance changes remain bounded by their TTLs. Restart/redeploy or explicitly invalidate after owner maintenance where immediate display propagation is needed. Cached age reduces outward CDN `s-maxage`, so a warm hit cannot restart an old snapshot's full freshness window. Financial actions always recheck current database configuration/version/status; do not use display caching as an activation or authorization gate.
-
-Perform HOW's named source-lock/concurrency/expiry/invalidation/timeout and live-boundary procedure on a dedicated simulation namespace. Hosted multi-instance/CDN invalidation, latency and quotas still require provider observations; local coalescing proves neither hosted capacity nor production identity. No signer or scheduled business work is enabled by this change.
-
-
-## 23. Configure sessions, Google and staff MFA
-
-Provide independent canonical base64url-encoded 32-byte `AUTH_ACCESS_KEY` and `MFA_ENCRYPTION_KEY` through server-only secret settings, plus the exact `WEB_ORIGIN` HTTPS origin with no path/trailing slash. Generate/store keys privately; never print them or add NEXT_PUBLIC aliases. `AUTH_ACCESS_PREVIOUS_KEY` may temporarily accept the prior access-signing key during rotation; a current key remains required. Preserve the MFA key separately from encrypted backups: it is never in an archive. Replacing it prevents existing factors from being decrypted; do not rotate it casually. Hosted preflight validates these bindings before deployment.
-
-Set `AUTH_PROVIDER=google` and privately provision `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`. Register exactly `<WEB_ORIGIN>/api/v1/auth/google/callback` in the owner-controlled Google client. API-created sessions remain platform-issued; Google tokens are never returned, cached or archived. No Supabase Auth/Data API/browser credential is needed. Failed callbacks return a generic sign-in failure; real Google consent/callback remains a separate hosted observation.
-
-For isolated GIV use `AUTH_PROVIDER=simulation`. The browser chooser/sign-up route issues cookie families, not a trusted username header. Require unchecked current terms and adult attestation to consent. Staff must enroll an authenticator and verify a code before staff actions; save one-use recovery codes privately when shown. Member withdrawal confirmation needs a recent session or an enrolled factor's recent proof. If it returns STEP_UP_REQUIRED, reauthenticate/verify before confirming the original quote; revalidate expiry and never silently issue another withdrawal.
-
-Migrate/seed 001–024 with the separate owner credentials and fresh binding procedure. New identity tables are server-only and browser/reader roles cannot read hashes/factors. Role/status changes revoke access; ordinary blocked account access does not delete money. Moderation/deletion and another-admin lost-factor recovery now exist; CAPTCHA, last-admin and verified blocked-account liability recovery remain later work.
-
-Named operator M1 scripts now also require a separately generated `SIMULATION_TOOL_AUTH_KEY` in the isolated server and operator environment. Their helper adds it only to same-origin calls already carrying x-sim-user. Headers alone fail. This explicit fixture capability can bypass sessions/MFA for financial observations; never expose it to the browser, enable it on Vercel, or treat fixture observations as real login evidence. Vercel/runtime preflight rejects the setting. Keep scheduler keys separate, and unset them for recovery CLI runs.
-
-Cookies, raw TOTP/recovery values, PKCE verifiers and OAuth/access/refresh tokens never enter local storage, logs or JSON exports. New recovery archives retain identity/factor ciphertext/recovery hashes/replay steps, exclude session/refresh/auth-flow/rate data, and verify all 51 table schemas with 46 retained row inventories. A restore has zero active sessions and cannot reuse source cookies. Older version-bound archives remain valid only with their matching revision; restore with that revision into isolated staging, then perform reviewed migrations. Never rewrite old inventories to bypass version checks.
-
-Nonce CSP makes HTML dynamic and private/no-store; public catalog/manifest retain bounded CDN caching. Observe fresh distinct nonces, matching Next script nonces, working mobile hydration and blocked untrusted inline event code after deployment. `check:bundle` launches an isolated production renderer to measure actual homepage scripts; no hosted credentials are needed. Secure cookies/HSTS and platform-trusted forwarded IP rate keys still need hosted HTTPS acceptance. Keep deployments disabled until the owner provisions the deferred hosted settings.
-
-## 24. Product and administration rollout
-
-Migrate019 with owner credentials and seed missing EN/FR help only; existing edits are preserved. Restricted runtime grants/RLS cover help/redirects/own notification views. Editors require staff MFA, version, audit reason and permanent request key. Disabled administration remains read-only; re-enabling after explicit closure requires owner maintenance, not a member bypass. Keep plan/asset financial editing in dedicated domain operations.
-
-Enable PWA/help/notifications/priority using their existing typed flags. Serve the service worker at/sw.js with no-cache and root scope; the closed five-asset shell must use same-origin scripts/styles and public IndexedDB only. Check actual offline navigation in a browser after a transport outage, installed update/reload and feature-disable cleanup. Never substitute cached authenticated HTML or queue writes. Hosted Safari/Chrome installation is still an owner/provider observation.
-
-Native encrypted recovery now fingerprints51 schemas and46 retained tables, including published/draft help, redirects and notification view markers. Ephemeral auth state still does not transfer. Restore old archives with matching revisions then migrate; never rewrite retained evidence. Product portability and moderation are separate remaining implementations. Run HOW's named product procedure and check actual homepage JS≤200KiB before merging.
-
-## 25. Account moderation rollout
-
-Migrate020 with owner credentials. Review live moderator permissions before assigning a member/moderator role through the audited admin control. Staff must enroll MFA and provide current proof; role change revokes old sessions. Moderator pages expose redacted account fields without email/balances. Restrict verified deletion/lost-factor recovery to admin and a recorded owner-verification reference; deletion requires the exact delete:<UUID> confirmation. Never remove financial rows or reset a shared namespace. Last-admin/blocked-account liability recovery remain pending procedures, not implicit permission to bypass the API.
-
-Check temporary suspension expiry/relogin and scheduled bounded pages, current one-use family-bound appeal proof, restricted access and preserved receiver credit. Authenticated component memory carries tokens only until submit/scope change. Run HOW's named procedure, preserve failed evidence, and inspect EN/FR390px pages. Encrypted native recovery retains46 inventories/51 schemas and excludes ephemeral session authority; old archives still require matching migrations. Admin messages accept at most100 selected recipients/2000 characters and run through signed ticks/outbox delivery, never direct email or peer messages.
-
-## 26. Own exports and plan rollout
-
-Provision independent private canonical32-byte base64url DATA_EXPORT_KEY in the server/job scope for own exports. Do not reuse native EXPORT_ENCRYPTION_KEY, MFA or access keys. Keep native backup keys outside web/Vercel; neither export key enters archives/client/logs/native subprocesses. Preserve the own-export key separately to decrypt retained customer artifacts after a restore. Missing own key fails its adapter closed without enabling a financial action.
-
-Apply001–024 through the owner-only checksum migration CLI, seed absent values and verify fresh runtime binding. A new migration ledger initially runs existing idempotent files once, then records actual hashes; every later invocation skips unchanged files. Applied-file edits fail. Do not modify bodies after deployment; add a forward file. Native encrypted restore carries signed provenance and migrate afterward should skip matching files. Old pre-ledger archives require their matching code, then reviewed upgrades.
-
-Enable portability/member flags with existing typed settings. Signed ticks build100-row file pages, with continuation on subsequent ticks. Two new requests/day and two active builds bound default work; polling/reads/replays have their own allowance. Files expire under retention policy; legal/operational hold suppresses scheduled pruning. Verified profile erasure removes copied chunks and retains financial/request/work history. Observe50MiB/10000-page/1MiB bounds and use authenticated paged collection for larger personal datasets; whole-site native encrypted CLI remains the streaming path above UI upload limits.
-
-Staff MFA controls disabled plan drafts/new economics versions and current revisions. Resolve existing cycle/invoice/queue obligations before economics replacement; do not edit snapshots in SQL. Manual new limits are100 plans/100 initial positions; bootstrap pages100, one due scheduled launch/tick. Pauses/retirement retain rights; remove only wholly unfunded system entries. Lost author privileges stop scheduled activation. Run HOW's named procedure and inspect member/staff390px EN/FR and settled PNG download; actual OS share/mobile install/live wallet/provider acceptance stays unrun.
-
-## 27. Stage native financial adapters and isolated signer
-
-Continue implementing M0–M8 regardless of earlier acceptance. This procedure stages contracts; both native execution code gates remain false until implementation closure and separate release review. Do not enable them to satisfy a fixture or infer readiness from compilation.
-
-1. Run migrations001–034 with owner credentials, then verify the restricted web runtime. Application tables total63. Native resources are server-only; gw_signer is NOLOGIN/NOINHERIT and never owns schema/objects. Provision a separate worker LOGIN/NOINHERIT member of gw_signer only, without gw_read/gw_service, owner, bypass-RLS, DDL or other elevated capabilities. Use verified TLS/correct CA and host; testnet worker does not accept plaintext. Leave that URL out of web/Vercel.
-2. Provision ASSET_REGISTRY_FILE privately from official owner-verified sources. The closed registry permits eth11155111, bnb97, soldevnet and tronNile/Shasta, with native/token decimals, contract/mint, finality, dust, verification/source/time and HTTPS public explorer. Public provenance must contain no credentials/query secrets. Enabled requires verified; default file absence disables all native assets. Do not guess test tokens/JAGA addresses. Pin matching immutable assets.registry_binding before live use; changing a contract under an existing asset ID is prohibited. Provisioning/native plan UI remains under implementation.
-3. Configure two independent HTTPS RPC_PRIMARY_<CHAIN>_TESTNET/RPC_SECONDARY_<CHAIN>_TESTNET endpoints and PLATFORM_RECEIVING/DEV/MARKETING/BOOTSTRAP/SWEEP_ADDRESS_<CHAIN>_TESTNET as needed. CHAIN is ETH/BNB/SOL/TRON. Credentials stay in env, never registry/manifests/client. Bound requests3/second per endpoint,5seconds/response,2MiB; loopback HTTP is only a named isolated fixture. A Vercel instance cannot use fixture mode. Book native top-ups with independently verified proof before sending; that accounting path is still required.
-4. For PRICE_PROVIDER=manual_signed, provision only PRICE_FEED_PUBLIC_KEY (base64url Ed25519 SPKI DER) in web. Sign the closed document externally:version1/environmenttestnet/asset_key/network/asset_usd/native_usd/observed_at/expires_at/source, in that schema order. Decimal strings are positive with at most18 places, validity at most5minutes, no future observation. Submit document/signature to staff POST/admin/crypto/prices with recent MFA, CSRF and actor scope. Never place the private feed-signing key in web/archive. CoinMarketCap selection remains incomplete and does not fabricate a quote.
-5. Keep SIGNER_PROVIDER=disabled in web. On a private worker, use APP_ENV=testnet, MAINNET_ENABLED=false, SIGNER_PROVIDER=encrypted_worker, SIGNER_DATABASE_URL, SIGNER_KEY_FILE, independent SIGNER_DECRYPTION_SECRET and canonical32-byte SIGNED_PAYLOAD_ENCRYPTION_KEY. Never copy web AUTH/MFA/export/Google/migration/tool keys into that process. Private key file version1 binds chain/network/public address; scrypt16384/8/1 derives its AES-GCM key, and scope is authenticated. An offline utility accepts platform-owned raw private input only on the private host:node --import tsx workers/signer/seal-key.ts <eth|bnb|sol|tron> <testnet-network> <0600-binary-input> <new-encrypted-output>. Raw input is32bytes for EVM/TRON,64 for SOL; output is0600/exclusive. It leaves input untouched and never prints material. Never request user wallet keys/phrases.
-6. FINANCIAL_API_ORIGIN and separate FINANCIAL_WORKER_AUTH_KEY authenticate POST/internal/financial. Actions currently verify,settle,alerts,monitor,cleanup; signed headers cover v1/testnet/purposefinancial/method/path/timestamp/UUID/bodySHA. Window5minutes, retained nonce10minutes,16KiB body cap. Do not expose the key to client or use member credentials for work. Manual observer scheduling/cursor/reorg closure remains. The separate node --import tsx workers/signer/run.ts --once runner is bounded20 candidates and stops on SIGTERM. Its execution code gate is false; configuration alone cannot send. Known attempts are retained and reconciled by hash even after quote expiry; never delete/rebuild them after ambiguity.
-7. Configure ALERT_WEBHOOK_URL (HTTPS) and independent ALERT_WEBHOOK_KEY. Receiver dedupes Idempotency-Key, verifies X-GW-Signature HMAC over the exact body, and returns JSON delivery_key/body_sha256/signature, where ACK HMAC covers `ack\n<delivery_key>\n<body_sha256>`. Request/ACK keys never enter public config. Response≤2KiB/5seconds, eight retained attempts with backoff. Staff POST/admin/crypto/alert-probe snapshots configuration; workload alerts performs delivery. HTTP200 alone is rejected. Future release also requires actual delivered evidence within24hours for the exact financial fingerprint and owner FINANCIAL_CONFIG_APPROVAL/ALERT_ACCEPTANCE_FINGERPRINT; currently hard code gates still prevent activation. No real endpoint acceptance is claimed.
-8. Own wallet endpoints are POST/me/wallets/challenge and /proof; crypto gifts use POST/gifts/crypto/invoices then /transaction; withdrawals use /me/withdrawals/crypto/quotes,/confirm,/cancel. Staff business/refund/approve routes are under /admin/crypto. Requests remain current-session/CSRF/MFA/rate/feature fenced; DTOs contain no signed bytes. Native wallet browser/profile UI is still required. Business daily/manual scheduling must retain one UTC-date/UUID operation and source lock; fees never reduce beneficiary percentages. Refund destination remains the verified original sender.
-
-Use named generated/local RPC probes for bigint, wrong asset/network/sender, finality/canonical membership, independent disagreement, signed-instruction tamper, fee/refund, nonce crash/lease fences, business races, retained custody and ACK/replay. They are manual scratch observations, not an automated suite or live acceptance. Preserve failed fixtures/holds/logs; never reset the shared/real source. Close distinct SOL rent/setup, native prefunding, failed-fee/requote/expiry/replacement/reorg/checkpoints, sweeps/hot caps, reminders/monitor/admin/provider contracts before enabling execution.
-
-## 28. Verify native testnet-format recovery
-
-The existing owner-only recovery-cli supports APP_ENV=simulation/RECOVERY_CONFIRM=isolated-simulation (v1 envelope) or APP_ENV=testnet/RECOVERY_CONFIRM=isolated-testnet (v2). Testnet profile requires valid nonfixture runtime selectors/Google identity configuration and verified database TLS, but backup/restore runs no login/provider transfer. Mainnet staysfalse and SIGNER_PROVIDER=disabled; remove scheduler keys. Strip fixture/tool authority from this profile. Native recovery refuses mainnet assets; a testnet-format isolated acceptance archive may retain explicitly labeled GIV fixture rows without making them externally spendable.
-
-Use a fresh unique .gwbackup filename, independent private EXPORT_ENCRYPTION_KEY and owner/direct database URL. Run recovery-cli backup, then restore only into a new empty inactive target with RECOVERY_RESTORE_CONFIRM=restore:<database>. Neither command may start a scheduler/signer. Native child env strips every signing/payload/MFA/auth/export/workload/alert key; pg_dump archives only application schema/data, including encrypted signed bytes. Provision fixed roles/pgcrypto outside the archive. Verify all56 retained inventories/all63 schemas/RLS/grants and rerun unchanged checksummed migrations; ephemeral sessions/challenges/nonces remain empty. Older archives require their matching migration fingerprint/revision before forward upgrades. Keep transitional/failed backups unchanged.
-
-The v24 final local archive is work/backups/v24-crypto-final.gwbackup with a signed inventory; gw_v24_crypto_restore_final verified on TLS55433 and remained inactive. This proves portability of generated financial/held/signed records, not real-chain recovery. Before any future live resume, reconcile every saved hash and trusted checkpoint against the chain and preserve ambiguity/holds. Do not restore then automatically send queued obligations.
-
-## v25 native product and operational procedures
-
-Run forward migrations001–041; never modify already-applied bodies. Native provisioning endpoints POST /api/v1/admin/crypto/assets and /plans require active admin/current MFA. Supply only asset_key, enabled/reason for assets and asset_key/plan_id/reason for activation; identity comes from ASSET_REGISTRY_FILE, actual platform wallets remain private environment bindings. A registry must be independently verified/enabled for validation; the database currency can still be staged disabled. Operational trx is gas only. Signed current prices are required for plan activation.
-
-Under APP_ENV=testnet, home/gifts/wallet use the native portal. Native ownership and incoming approval use installed injected wallets on Sepolia/BNB97/SOLdevnet/TRONNile/Shasta; no user private keys/seed phrases are requested. Each quote shows original asset/network and fees; approval is separate. Hash submission may use event_index=-1, resolved by durable observation. Use the authenticated non-signing scheduler for observation ticks; never treat an RPC outage or unknown/expired hash as nonbroadcast proof.
-
-POST /admin/crypto/funding/statement then /funding records explicit operator-owned contributed native reserve. Sign the returned ownership/contribution statement with the funder wallet and supply the known transaction hash; independent receipt verification books treasury/equity only. No member balance is granted and the funder's wallet-paid network fee is not a company expense. Preserve the original transaction and reason.
-
-Own POST /me/withdrawals/crypto/cancel can close a known failed request only after the isolated worker records every attempt failed and independent current proof agrees. It charges actual attributable fees up to approval and returns unspent balance. /requote cancels a positively unsigned request or closes a resolved failure, then creates a linked immutable quote with renewed confirmation; failure rolls the whole operation back. Never manually mark ambiguous attempts failed to unlock a hold.
-
-GET/POST /admin/crypto/alerts exposes only safe metadata and audited acknowledge/resolve. Set ENABLE_FINANCIAL_SCHEDULER=true, FINANCIAL_API_ORIGIN exact HTTPS origin and separate FINANCIAL_WORKER_AUTH_KEY only after configured endpoint review. The opt-in workflow performs monitor/reminders/one UTC business role/alert delivery/ephemeral cleanup, never signing. Keep it disabled while owner inputs are deferred. Real testnet activation still cannot override the false web/signer implementation gates.
-
-Latest isolated native archive work/backups/v25-native.gwbackup has57 retained/64 schema definitions; restore target gw_v25_native_restore on verified TLS55433 is inactive and exact. Earlier version-bound archives remain unchanged. No real funding/broadcast/hosted/mobile acceptance is claimed. Reconcile trusted checkpoints and every saved hash before future live worker resume.
-
-## CAPTCHA and reviewed recovery
-
-Configure CAPTCHA_PROVIDER=dummy only for simulation, or turnstile for testnet. CAPTCHA_SITE_KEY is public provider configuration; CAPTCHA_SECRET_KEY is server-only and must never enter signer/browser/backup environments. Configure the provider's allowed HTTPS hostname. Missing/rejected/outage proof fails closed on enabled consent/flagged checkout surfaces. Real provider acceptance remains separate from generated contracts.
-
-Retained-liability recovery is available in native administration with current staff MFA: verify the claimant's external identity case, enter retained financial UUID/asset/gross/case/reason, review costs and original linked destination, then create the temporary /recover fragment link. Treat the link as private until expiry. The claimant signs the exact statement with the original wallet and returns approval to staff; staff independently reviews and confirms. This grants no login or replacement destination. Cancel only if positively unsigned; reconcile saved hashes otherwise.
-
-Last-administrator maintenance must run outside Vercel with owner migration/runtime URLs and verified TLS/binding. Disable signer and remove both scheduler HMAC variables. Independently review the original Google identity case; wallet possession is insufficient. Supply RECOVERY_USER_ID, RECOVERY_REQUEST_KEY, RECOVERY_PROOF_REFERENCE, RECOVERY_REASON and RECOVERY_STAFF_CONFIRM=recover-last-admin:<UUID> through private environment storage, then run `npx tsx workers/recovery/last-admin-cli.ts`. It permits only the sole original administrator (or a known original admin when none is active), resets factors/revokes families and requires original identity login plus reenrollment. Never run against an existing account-security source without authorization. Generated acceptance uses a fresh isolated namespace.
-
-Native archive v26 includes59 retained tables/69 schema resources. Old archives require their matching code/migration fingerprint before forward migration. Restore to a fresh empty inactive target, verify exact inventory and reconcile trusted chain checkpoints before explicitly resuming any worker. No deployment or automatic sending is enabled by restore.
-
-## Native review and reserve operations
-
-Configure PLATFORM_SWEEP_ADDRESS_<CHAIN>_TESTNET only through environment secrets; unset disables sweep. The staff form cannot replace it. Review the exact quote, surplus and gas policy before explicit fresh-MFA confirmation. Above-cap monitoring alerts; it never moves funds automatically. Original sender/refund and business recovery requires either no saved signed attempt or independent proof for every attempt. Do not infer nonbroadcast from a missing hash or timeouts.
-
-Keep the current trusted recovery anchor after each reconfirmed native reorg. Staff review preserves rights and books compensating loss, not another credit/admission. A changed unrecorded historic anchor must remain paused rather than guessed. Renewed refund legs need distinct obligation-bound holds.
-
-Current native archive supports80 schema resources/70 retained inventories. Use matching code/migration fingerprints for old archives, restore only to a fresh inactive target and verify exact content before any chain checkpoint/recovery review. The first v27 refund failure fixture is explicitly inconsistent and must remain inactive; use the separately verified fresh corrected source. No archive or schema upgrade starts a signer or scheduler.
-
-## Final Phase One recovery and portability setup
-
-Apply migrations through072 plus053a (73 checksummed files;80 schema tables). Preserve every existing archive and failed source. The new recovery/signing evidence is retained; schema migration never runs a signer or scheduler.
-
-Before resuming a restored deployment, keep both readiness gates disabled. Configure private receiving/key/provider/price/alert bindings separately. With current admin MFA, register an exact dual-provider finalized checkpoint and case reference. Process bounded pages until scans and saved signed lineage reconcile. Review unknown outflows explicitly, retaining principal/network/setup company losses and all beneficiary rights, then start a fresh scan. A missing hash, outage, balance disagreement or old copied database binding never authorizes resumption. Native gas/contributed reserve funding remains an actual owner input.
-
-For unmatched custody, prepare the original-sender statement in native administration. Obtain that wallet's signature outside the account-login flow, review the case and reserve the full-principal return. No new destination is accepted. Use operational recovery only for positively unsigned or independently proved failed/expired attempts; reference the closed previous obligation for a retry.
-
-The authenticated financial scheduler reads a closed asset inventory, makes one monitor request per enabled asset and performs the other non-signing actions within its bounded workflow budget. The daily alert limit includes initial and retried HTTP attempts. ACK acceptance still requires an authenticated payload hash/delivery key and current configuration fingerprint; HTTP200 alone is insufficient.
-
-Staff portability has selected-field JSON/CSV exports. Full archives default to owner CLI, and Vercel always uses CLI-only mode. Optional encrypted-site download/staging requires SITE_PORTABILITY_MODE=persistent_host on an operator-managed persistent private volume. To expose an owner-produced archive, configure SITE_BACKUP_FILE (private absolute .gwbackup path) and SITE_BACKUP_SHA256 (its exact checksum). Keep its matching .json signed inventory beside it. Both files must be private0600, match environment/current migrations and fit the configured cap. The web process needs no backup decryption key or owner DB connection. Unconfigured artifacts disable download.
-
-On a persistent operator host, configure SITE_IMPORT_STAGING_DIR only as a dedicated private0700 directory, shared by all web instances. Owner retention procedure: inventory every staged UUID and sidecar, verify byte counts/checksum/failure category and corresponding audit, preserve failed evidence in an operator-controlled quarantine, record the retention decision and its audit reference, then manually move only the reviewed items outside the staging quota or delete only explicitly approved expired evidence. Never run automatic pruning. UI staging checks size/header/checksum, bounds stored data to twice the upload cap and marks the archive encrypted_unverified. Copy its matching signed inventory through the private operator workflow; use the separately stored backup key with the existing CLI to authenticate it and restore only into a fresh empty inactive database. Supply typed restore:<database> confirmation. For larger archives use the CLI streaming path. Never import into the running financial database, publish a staged upload, discard failure evidence or start workers automatically.
-
-Local final artifacts are v28-native-final.gwbackup (70 retained inventories/80 schemas/73 migrations) and the matching fresh inactive restore. Earlier v28/v27 archives are bound to their original migration fingerprints. Signing/payload encryption keys must be transferred/reprovisioned through their private operator process, never as manifest content or plaintext UI exports.
-
-Automatic approval review rejected enabling the two readiness gates because that could permit real testnet operations. Leave them false until explicit approval of that change and independent owner/provider acceptance. Hosted OAuth/Turnstile/RPC, actual custody/wallet/broadcast, external ACK, mobile installation/LCP, quota/latency/capacity and release observation periods remain separate unrun acceptance items. Coding completion does not assert those outcomes.
-
-
-## Current v37 remediation and continuation
-
-The owner approved all fixes and autonomous audit/plan/fix rounds through Phase Two and final bug fixes. Round One has 65 implemented and locally verified findings, with 8 still open. See [custom-bugs-report_v48.md](custom-bugs-report_v48.md), [custom-bugs-fix-plan_v48.md](custom-bugs-fix-plan_v48.md), [PROJECT-STATUS_v48.md](PROJECT-STATUS_v48.md) and [LLM-HANDOVER_v48.md](LLM-HANDOVER_v48.md). All four current filenames use matching versions; maintain cross-links together. Continue substantial batches without milestone acceptance waits, merge only after both exact-head CI events pass, retain financial gates disabled and tests deferred. Historical v29 review holds are satisfied. Phase One remediation and Phase Two are incomplete.
-
-V33 adds bounded RPC queue/cache lifecycle, nonblocking age-labelled public statistics, private-route noindex/noarchive and atomic saved-help inventory replacement. Round One now48/71 locally verified;23 open. Financial gates remain false and Phase Two has not started.
-
-V34 portability contract: Full encrypted-site archives default to owner CLI mode. Vercel always uses CLI-only mode, regardless of filesystem settings, reports upload cap zero, and declines web staging/download. Selected-field staff exports remain available. Optional web staging requires explicit SITE_PORTABILITY_MODE=persistent_host on an operator-managed private persistent volume; its configured file cap remains separate from serverless body limits.
-
-Failed staged files remain in the private folder with bounded metadata sidecars. Staff inventory includes byte counts, failure category and observation time; missing metadata and transaction/session-completion rollbacks are visible as quarantine. No failed evidence is automatically removed. Physical files and sidecars count toward the shared quota and entry ceiling; the owner must review retention before moving or deleting evidence.
-
-Downloads capture bounded encrypted bytes, verify their checksum, append the export audit and close the file descriptor within the transaction. The response is constructed only after the final session/authorization fence commits. Later filesystem mutation cannot change the captured bytes; rejected fences create no response, and cancelled responses own no descriptor. Web upload remains encrypted_unverified and never decrypts, restores, publishes or starts financial work.
-
-Round One now52/71 locally verified;19 open. Financial gates remain false; Phase Two not started.
-
-V35 outbound destination contract: RPC, signed alert POSTs and REST cache traffic now use one server-only transport. Exact hostnames must appear in OUTBOUND_ALLOWED_HOSTS. Every resolved address must be public; mixed private/public DNS results reject, as do redirects and unsafe IP ranges. The socket receives the already validated address through a pinned lookup, with the original hostname retained for TLS identity verification and certificate checks explicitly enabled. DNS and sockets share caller deadlines and bounded admission.
-
-Owned Redis connections require rediss, validate database/path/query shape, resolve and approve the destination once, connect directly to that pinned IP with original-host TLS SNI, and disable reconnect loops. Injected Redis clients remain caller-owned trusted transports; no app URL creates those sockets. Display caching grants no financial authority.
-
-Narrow loopback fixtures require explicit fixture mode in simulation outside Vercel; fixture flags cannot bypass policy in testnet. Default host allowlist is empty and fails closed until the operator supplies each RPC/provider/webhook/cache hostname. No wildcard or IP-literal allowlists are accepted. Existing real hosted destinations must be explicitly configured before use.
-
-Round One now53/71 locally verified;18 open. Financial gates remain false; Phase Two not started.
-
-V36 recovery contract: Recovery scans retain a within-block transaction/event cursor and explicit discovery, verification, booking, known-attempt index/settlement/expiry and final custody-comparison stages. Every committed step appends immutable progress evidence. Incoming and outgoing booking remain exact-once; confirmed evidence is reused only after identity/amount checks and a fresh canonical block check. Failed evidence also requires the matching canonical block/height. Unknown funds/outflows retain their existing rights and review fences.
-
-Each discovery step covers one transaction and at most50 event/instruction slots per provider. EVM uses block hash lists, SOL signature lists and one selected transaction, and TRON reads only one selected receipt per provider. A busy block no longer requires100 verifications or1000 receipts in one HTTP invocation. Cursor advancement denotes a completed block only after every transaction/event is covered. Both providers must agree, including skipped SOL finalized slots; changed canonical hashes reject.
-
-All nested RPC requests share an18-second/24-request budget for a recovery step, including throttle/queue/body time. Known signed attempts are processed individually across committed stages; positive expiry still requires both independent finalized providers and audited closure, never releasing a hold on absence alone. Staff recovery records display translated stage labels and within-block positions. Forward088 adds persisted progress/history, forward089 strengthens the JSON shape and cursor-height checks without rewriting applied checksums.
-
-Round One now54/71 locally verified;17 open. P1-009 historical treasury inventory and P1-067 SOL cutoff remain open. Financial gates remain false; Phase Two not started.
-
-V37 native-accounting contract: New P1-072: two independent EVM provider contracts confirmed native/ERC20 self-transfers as positive principal, although sender=recipient produces no incoming asset movement. Native invoice creation and funding/deposit accounting previously lacked that equality fence. SDK transfer validation, fee estimation and payload construction now reject same-address participants across EVM/SOL/TRON; invoice/payout quotes and settlement also fence this path. English/French errors explain that another verified wallet is required. Existing records, holds and signed histories remain unchanged and require review if inconsistent; no automatic financial correction is inferred.
-
-Native wallet summaries now expose exact per-asset available, total held, income-held, refundable principal, refund-held, settled net payouts and net income. Immutable journal/obligation identity separates refund holds from income holds; refund capital never enters net income. Native portfolio reads use a repeatable snapshot with the current-session completion fence. Disabled currencies with historical net payouts remain visible. Labels and the income definition are bilingual; the private summary is lazy-loaded to preserve the homepage budget.
-
-Round One now56/72 locally verified;16 open. Newly discovered P1-072 is addressed. Phase One remediation and Phase Two remain incomplete; financial gates remain false.
-
-
-V47 current counter/continuation contract (14 October 2026 at 04:41:01 PM WAT): migration096 adds owner-maintained exact counters/audits. The authenticated operational maintenance chain advances at most100 source rows per page and reports incomplete coverage explicitly; retention holds never authorize source deletion and do not block counter bootstrap continuations. Keep financial gates disabled, preserve all source histories, and use current v47 schema/archive proof. Finish Round One (remaining P1-009/P1-028), update docs and merge verified PRs, then HALT until the owner explicitly authorizes Round Two. Phase Two remains pending.
-
-
-Latest continuation boundary: The owner's latest credit-refill directive (14 October 2026 at 05:15:19 PM WAT) is to merge only the current P1-039 ledger-counter PR, then report its result and HALT. Do not start P1-009, P1-028, Round Two or Phase Two until the owner explicitly resumes. This supersedes the earlier request to finish every Round One finding before stopping. P1-009 (historical receiving-address monitoring) and P1-028 (retention/archival) remain OPEN. Round One is72/74 locally verified, with P1-039 awaiting the current exact-head dual CI and merge; Phase Two has not started.
-
-
-## V48 current migration contract
-
-Updated: **15 October 2026 at 12:27:07 PM WAT**. The owner confirmed no migrations have been applied to the intended installation and requested one final-state migration. The99 active SQL files have been replaced by packages/db/src/migrations/000_initial_schema.sql. It creates the final schema directly, not concatenated upgrades, and records one validated body-checksum receipt. Direct SQL runs atomically; db:migrate uses the same receipt in its own transaction and skips matching history. Unknown/legacy histories and nonempty application schemas are rejected before installation. Do not apply this fresh-install baseline to a populated database or rewrite it after deployment; later changes need new forward migrations.
-
-A new empty PostgreSQL reference applied all99 historical migrations solely to derive/verify final definitions. Baseline/direct/runner catalogs match all3523 schema/security entries, including column grants;92 tables/848 columns/274 checks/105 standalone indexes, the same final views/functions/triggers/policies and deferred timing. An independent target with broad browser/unknown-role default privileges matches the same final ACLs. The schema-free128-bit owner/runtime advisory-lock challenge replaces the deleted014 bootstrap dependency and retains restricted-runtime/ownership checks; empty/post-install checks pass, wrong database and owner-runtime checks fail, and no schema/locks remain after preflight. Mandatory initialization creates fresh identity rows and seals only the known-empty ledger; published test privacy notices remain. Application seeding is separate.
-
-Named isolated verification covers direct/runner checksum parity and rerun, edited body/footer denial, nonempty-schema preservation, late-DDL rollback, legacy-history refusal, seed/runtime verification and encrypted79-inventory backup/exact restore. Existing failed fixtures, financial sources, archive packets/keys and signed evidence remain untouched. Older99-migration archives require their matching historical release (e6f7888034afae01d0c7803965f1c17889783171); the version guard is retained, not bypassed or re-signed. Required source checks/build/bundle and both exact-head CI events must pass before merge. Current evidence is private under /workspace/work/schema-consolidation-v48.
-
-PR46 is merged at e6f7888034afae01d0c7803965f1c17889783171 after exact-head push38596587666 and pull_request38596599068 both succeeded for1f2ab151bca8c5f587e0fa73ed7718a29ebd7e36. Round One remains72/74; P1-009/P1-028 are OPEN. This task authorizes migration consolidation only. Finish its documentation and verified PR, then halt; do not resume those bugs, Round Two or Phase Two without the owner's explicit go-ahead. Both financial readiness gates remain false; no signing, broadcast, reset or broad deferred suite ran.
+8. Save each result privately as `AUTH_ACCESS_KEY` and `MFA_ENCRYPTION_KEY`. Back up the MFA key: replacing it can make existing two-factor settings unreadable. Do not use a public key-generator website.
+9. In Vercel, open **Settings → Environment Variables → Add Environment Variable**. Add every row below to **Production**. Enter values without extra quotes.
+
+| Name | Value |
+|---|---|
+| `APP_ENV` | `simulation` |
+| `DEPLOYMENT_PROFILE` | `test_iteration` |
+| `MAINNET_ENABLED` | `false` |
+| `DB_PROVIDER` | `supabase` |
+| `DATABASE_URL` | Runtime URL from step 4 |
+| `DATABASE_POOL_MAX` | `1` |
+| `CACHE_PROVIDER` | `upstash` |
+| `UPSTASH_REDIS_REST_URL` | Your Upstash REST URL |
+| `UPSTASH_REDIS_REST_TOKEN` | Your Upstash standard REST token |
+| `WEB_ORIGIN` | Your exact HTTPS site origin |
+| `AUTH_ACCESS_KEY` | First generated key |
+| `MFA_ENCRYPTION_KEY` | Second generated key |
+| `AUTH_PROVIDER` | `simulation` |
+| `PAYMENT_PROVIDER` | `giv_simulation` |
+| `WALLET_PROVIDER` | `dummy` |
+| `SIGNER_PROVIDER` | `disabled` |
+| `CAPTCHA_PROVIDER` | `dummy` |
+| `REALTIME_PROVIDER` | `none` |
+| `PRICE_PROVIDER` | `manual_simulation` |
+| `ALERT_PROVIDER` | `none` |
+
+Do not add `DATABASE_MIGRATION_URL`, signer keys or `SIMULATION_TOOL_AUTH_KEY` to Vercel. Do not prefix these names with `NEXT_PUBLIC_`. The workflow must retrieve the server settings to validate them; do not choose a setting type that prevents this.
+
+[Project settings](https://vercel.com/docs/project-configuration/project-settings) · [Environment-variable screen](https://vercel.com/academy/vercel-foundations/vercel-settings) · [Node version](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions).
+
+## 7. Give GitHub permission to deploy
+
+1. In Vercel, open the project's **Settings → General**. Save **Project ID** as `VERCEL_PROJECT_ID`.
+2. Switch to the owning team's **Settings → General**. Save **Team ID** as `VERCEL_ORG_ID`.
+3. Open [Vercel account tokens](https://vercel.com/account/tokens). Click **Create Token**. Name it `gifters-github`, choose the owning team's scope and a suitable expiry, then create it. Save as `VERCEL_TOKEN`.
+4. In GitHub, open **onyiy → Settings → Environments → New environment**. Enter `production`, then click **Configure environment**.
+5. Add yourself as a **Required reviewer** if your plan offers it. Restrict deployment branches to `main`. If the plan cannot protect private-repository deployments, leave deployment enablement off until the owner chooses a supported plan or approved protection arrangement.
+6. Under **Environment secrets → Add environment secret**, add these names and saved values:
+
+| Name | Value |
+|---|---|
+| `VERCEL_TOKEN` | Vercel token |
+| `VERCEL_ORG_ID` | Vercel Team ID |
+| `VERCEL_PROJECT_ID` | Vercel Project ID |
+| `DATABASE_URL` | Exactly the runtime URL saved in Vercel |
+| `DATABASE_MIGRATION_URL` | Supabase owner session-pooler URL |
+
+7. Create another environment named `preview` and protect it too. Leave its secrets empty until you prepare a separate preview project below.
+
+The repository already disables Vercel's automatic Git deployments. Keep GitHub Actions as the deployment path. [Vercel tokens](https://vercel.com/docs/accounts/access-tokens) · [GitHub environments and plan limits](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments).
+
+## 8. Deploy from GitHub's website
+
+1. Confirm step 3 succeeded and all Production settings are saved.
+2. In GitHub, open **Settings → Secrets and variables → Actions → Variables → New repository variable**.
+3. Enter name `ENABLE_VERCEL_DEPLOYMENTS` and value `true`. Click **Add variable**.
+4. Open **Actions → ci-vercel → Run workflow**. Select branch **main**, then click **Run workflow**.
+5. Open the new run. Wait for **checks** to pass. If prompted, select **Review deployments → production → Approve and deploy**.
+6. Wait for **deploy** to pass. Open its **Build and deploy prebuilt output** log and follow the URL. Your production domain is also listed in Vercel.
+
+The existing workflow verifies the manually installed schema's receipt, adds missing default settings/plans/help/demo accounts, checks the restricted login, and publishes the site. It preserves existing seeded settings. No separate seed button or additional SQL installation is needed. A green **checks** job alone does not mean deployment happened.
+
+Do not approve preview runs before configuring preview credentials. To stop future deployments, set `ENABLE_VERCEL_DEPLOYMENTS` to `false`. [Run workflow instructions](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
+
+## 9. Check the site
+
+1. Open `https://YOUR-DOMAIN/api/health`. Confirm it is healthy. A `503` means the app is not ready.
+2. Open the homepage. Check plans and English/French switching.
+3. Use the simulation account chooser to select `member_01`. Complete consent and check the 5,000 GIV starter balance. GIV has no cash value.
+4. Complete a simulated gift. Check the cycle, balance, history and notification. Refresh and confirm they persist.
+5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
+6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
+
+Health passing does not prove financial readiness. Two Round One bugs remain open; Phase Two is not started. See [PROJECT-STATUS_v49.md](PROJECT-STATUS_v49.md).
+
+## 10. If you need a preview site
+
+1. Repeat steps 2–7 with a **different Supabase project, Upstash database and Vercel project**. Use names ending in `preview`.
+2. In the preview Vercel project, put its values in the **Preview** environment. Use the actual stable HTTPS preview origin for `WEB_ORIGIN`.
+3. In GitHub's `preview` environment, add the five secrets from step 7 using preview values.
+4. Run **Actions → ci-vercel → Run workflow** on the `preview` branch, if it exists, or open a trusted same-repository pull request. Approve only preview.
+5. Verify the resulting URL separately. Never connect preview to real-money data. Google login, if used, needs an exact callback for each actual origin.
+
+## 11. Optional domain and Google login
+
+**Custom domain**
+
+1. Open Vercel **Settings → Domains → Add Domain**. Enter a domain you own.
+2. Open your registrar's DNS screen. Add the exact records Vercel displays. Wait for verification.
+3. Update `WEB_ORIGIN` to the new HTTPS origin and any Google callback. Repeat step 8 to publish.
+
+**Google sign-in for the simulation site**
+
+1. Open [Google Cloud Console](https://console.cloud.google.com). Select or create a project.
+2. Open **Google Auth platform → Get started** if prompted. Complete **Branding**, choose your **Audience**, and add your email as a test user while the app is in testing.
+3. Open **Clients → Create client → Web application**. Enter a name.
+4. Add `https://YOUR-DOMAIN/api/v1/auth/google/callback` under **Authorized redirect URIs**. Click **Create**.
+5. Save its client ID and secret privately. In Vercel, set `AUTH_PROVIDER` to `google`. Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+6. Repeat step 8 and try a configured test user. A Google-created account is not automatically an admin.
+
+[Google client setup](https://developers.google.com/workspace/guides/create-credentials) · [Callback requirements](https://developers.google.com/identity/protocols/oauth2/web-server). This does not enable testnet payments or real sending.
+
+## If something fails
+
+| What you see | What to do |
+|---|---|
+| SQL says application schema is not empty | Check whether step 3 succeeded using its receipt query. Use a new project for a new installation; preserve existing data. |
+| Extension/version error | Keep the error. Required: `pgcrypto` 1.3 in `public` or `extensions`; `pg_trgm` 1.6 in `public`. Ask the maintainer to check compatibility, without removing guards. |
+| `gw_runtime` already exists | Check whether step 4 was completed. Do not recreate it or change privileges blindly. |
+| Password failure or “Tenant or user not found” | Recopy Connect details. Check project reference, pooler host, username and correct runtime/owner password. |
+| TLS/certificate error | Keep verification enabled. If required, obtain the provider's public CA chain and add `DATABASE_TLS_CA_PEM` to Vercel and the matching GitHub environment secret. Never use a private key or disable verification. |
+| `Run workflow` missing | Select **ci-vercel** and check it exists on `main`. Ask the administrator to enable Actions. |
+| Deploy skipped | Check the repository variable is exactly `true` and branch is `main` for production. Ordinary feature-branch pushes run checks only. |
+| Missing deployment binding | Check the five GitHub environment secrets and that the token belongs to the Vercel project team. |
+| Schema fingerprint/history mismatch | Keep the error. Do not edit receipts, delete migration history or overwrite the database. |
+| Google `redirect_uri_mismatch` | Match the exact HTTPS origin and callback path in Google and Vercel, then publish updated settings. |
+| Site shows old settings | Save in the correct Vercel environment, then repeat step 8. |
+
+## Limits and later operations
+
+- **Costs:** review current plans before creating resources. Vercel Hobby is for personal, non-commercial use; commercial hosting needs a suitable plan. Free quotas do not prove large-user capacity. Domain, gas and backup costs are separate.
+- **Testnets:** this guide stays on simulation. Testnet release also needs Google identity, a verified registry/network, two approved RPC endpoints, custody addresses, gas/fee policy and tested alerts. Both financial readiness gates remain disabled. No dashboard button safely completes that release process.
+- **Background work:** deployment does not activate all workers. Non-signing scheduler workflows need separate URL/key settings. Do not enable workers or signing just to remove a warning.
+- **Backups:** keep the MFA key separately. Vercel has no complete web-only application archive/restore flow; full encrypted recovery requires supervised operator tooling. Supabase backups do not replace the app's signed archive checks. Never restore onto an occupied project.
+- **Later schema changes:** preserve the installed baseline. Add a reviewed forward migration for later changes. Old 99-file archives require their matching historical release, not this fresh installer.
+
+**Documentation rule:** keep five core guides plus the two owner-requested bug trackers. Fold notes into them unless a new file is explicitly requested or essential. Use beginner language, exact clicks/values, web UIs and manual SQL installation. Keep old versions in Git history.
