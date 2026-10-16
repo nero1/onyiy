@@ -295,7 +295,7 @@ export async function stageSnapshot(
     if (!reader) throw new Error("INVALID_INPUT");
     while (true) {
       if (Date.now() > deadline) {
-        await reader.cancel();
+        void reader.cancel().catch(() => {});
         throw new Error("EXPORT_LIMIT_EXCEEDED");
       }
       let timer: ReturnType<typeof setTimeout> | undefined;
@@ -311,7 +311,7 @@ export async function stageSnapshot(
           }),
         ]);
       } catch (error) {
-        await reader.cancel().catch(() => {});
+        void reader.cancel().catch(() => {});
         throw error;
       } finally {
         if (timer) clearTimeout(timer);
@@ -322,7 +322,7 @@ export async function stageSnapshot(
         bytes > policy.export_import_limits.upload_mb * 1048576 ||
         stored + bytes > 2 * policy.export_import_limits.upload_mb * 1048576
       ) {
-        await reader.cancel();
+        void reader.cancel().catch(() => {});
         throw new Error("EXPORT_LIMIT_EXCEEDED");
       }
       if (header.length < 37)
@@ -360,7 +360,7 @@ export async function stageSnapshot(
     failureCode = error instanceof Error && ['INVALID_INPUT','EXPORT_LIMIT_EXCEEDED','RECOVERY_CONTENT_MISMATCH'].includes(error.message) ? error.message : 'STAGING_FAILED';
     throw error;
   } finally {
-    reader?.releaseLock();
+    if(reader){void reader.cancel().catch(()=>{});reader.releaseLock();}
     await handle.close();
     // Sidecar is independent of the transaction: rollback cannot hide retained
     // partial evidence. A missing sidecar is also inventoried, never erased.

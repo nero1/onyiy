@@ -1,3 +1,4 @@
+import {applicationError} from './errors';
 import {recordProofFailure} from './bot-check';
 import {observationPayload,observationForJob,deferObservation} from "./crypto-observer";
 import {exportJob,buildExportPage} from './own-data';
@@ -166,11 +167,14 @@ async function executeJobWithinContext(id:string,token:string,generation:number,
 }
 
 function transient(error:unknown):boolean {
-  if(error instanceof Error&&['RPC_UNAVAILABLE','RPC_CAPACITY_EXCEEDED','OBSERVATION_UNAVAILABLE'].includes(error.message))return true;
-  const code=error && typeof error==='object' && 'code' in error ? String(error.code) : '';
-  if (['40001','40P01','55P03','57014','53300','57P01','57P02','57P03','CONNECTION_CLOSED','CONNECT_TIMEOUT','CONNECTION_ENDED','EPIPE','ECONNRESET','ETIMEDOUT'].includes(code) || /^08/.test(code)) return true;
-  // Drizzle wraps database errors without changing the underlying SQLSTATE.
-  return !!(error && typeof error==='object' && 'cause' in error && error.cause!==error && transient(error.cause));
+  if(applicationError(error).retryable)return true;
+  // Retain the transport's broken-pipe retry, including wrapped driver errors.
+  let cause:unknown=error;
+  for(let depth=0;depth<6&&cause&&typeof cause==='object';depth++){
+    if('code' in cause&&cause.code==='EPIPE')return true;
+    cause='cause' in cause?cause.cause:undefined;
+  }
+  return false;
 }
 export async function failJob(id:string,token:string,generation:number,error:unknown,run?:RunFence) {
   try{return await recordFailedJob(id,token,generation,error,run);}catch(recordError){

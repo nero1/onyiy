@@ -1,12 +1,12 @@
-# Bug fix plan — Round One v52
+# Bug fix plan — Rounds One/Two/Three v53
 
-Updated: **17 October 2026 at 12:42:22 AM WAT**.
+Updated: **17 October 2026 at 12:58:03 AM WAT**.
 
-**Resumed by the owner on 16 October 2026.** Round One: **74 of 74 findings implemented and locally verified; release checks pending**. Rounds Two/Three and Phase Two have not started. These counts are not a completion percentage or hosted acceptance.
+**Resumed by the owner on 16 October 2026.** Round One: **74 of 74 findings implemented, locally verified and merged**. Round Two found and locally verified fixes for R2-004–006; local release checks passed; exact-head CI/merge pending. Round Three also fixed R3-001; Phase Two follows the checked merge. These counts are not a completion percentage or hosted acceptance.
 
 Historical numbered migration paths below identify the original fixes in Git history. Fresh installations use `000_initial_schema.sql` then the forward files `001`, `002` and `003` in filename order; do not run removed historical files.
 
-This v52 pass implements P1-028 retention/archival and fixes archive permission fingerprints and lock-timeout classification. Later rounds and Phase Two follow the verified merge.
+PR51 completed Round One and incidental R2-001–003. This v53 batch fixes the three fresh Round Two findings below; The same batch includes the Round Three recovery fix below; Phase Two follows its verified merge.
 
 ## Complete task list
 
@@ -89,12 +89,12 @@ This v52 pass implements P1-028 retention/archival and fixes archive permission 
 
 1. **P1-009 — implemented/locally verified:** permanent inventory/backfill/capture, staff pagination, historical checkpoints, rotating monitoring and common-cutoff custody with an all-address service/signer fence. Preserve these checks during retention work.
 2. **P1-028 — implemented/locally verified:** bounded payload compaction, holds, permanent keys, monthly online archives, checksum passes and actual encrypted restore verification.
-3. Required checks/build/bundle passed. Finish this batch with both exact-head CI events successful and a verified PR merge.
+3. PR51 merged after push38983188930 and PR38983219042 succeeded at exact head3884e51fa1c34d384726b7e5bac01eb67b1dc9eb. Complete the fresh Round Two batch next.
 4. Continuation is authorized: repeat full-codebase bug finding/fixing for Rounds Two and Three, then implement PRD §32 milestones P2.0–P2.4 and final bug fixes. A clean round does not excuse an older unresolved finding.
 
 ## Fix and acceptance reference
 
-These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v52.md).
+These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v53.md).
 
 ### 1: BUG P1-001: Expired or dismissed native invoices prevent another checkout
 
@@ -474,7 +474,7 @@ These are named manual checks, not instructions to add an automated test suite. 
 - Use fresh isolated fixtures and rollback-only generated records where possible. Keep original financial sources, failed fixtures, signed bytes, archives and keys.
 - Run relevant verification and required checks; record what actually ran. Both exact-final-head **push** and **pull_request** CI must succeed before merge. No direct pushes to main.
 - Keep five core docs plus these two requested trackers. Rename status, handover, report and plan together. Fold decisions into existing files; keep old versions in Git.
-- See [current status](PROJECT-STATUS_v52.md) for release evidence and [handover](LLM-HANDOVER_v52.md) for the exact stop boundary.
+- See [current status](PROJECT-STATUS_v53.md) for release evidence and [handover](LLM-HANDOVER_v53.md) for the exact stop boundary.
 
 Signed: **16 October 2026 at 09:21:01 PM WAT**.
 
@@ -485,6 +485,22 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v52.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v53.md). Original finding descriptions and acceptance conditions remain above.
 
-v52
+## Fresh Round Two findings (v53)
+
+| ID | Finding | Fix and local evidence |
+|---|---|---|
+| R2-004 | Oversized bodies can hang while cancellation never settles; worker/scheduler readers also lack a body deadline | One bounded UTF-8 reader preserves exact signed bytes and enforces byte/time/abort limits. Cancellation never extends the deadline. Applied to worker/scheduler authentication, Google/Turnstile responses and alert acknowledgements; binary staging retains streaming with nonblocking cancellation. Oversize, invalid UTF-8, abort, exact HMAC and nonce replay procedures passed. |
+| R2-005 | Application-level temporary database/provider errors become permanent job failures | Use the same retry classification as HTTP errors, retaining wrapped broken-pipe handling and bounded cause traversal. Generated capacity/circuit/temporary failures now remain retry_wait; original probes demonstrated dead letters. |
+| R2-006 | Database outage re-enables seeded public features and demo activity | Public API/SSR fallbacks disable every feature and statistics/activity, return neutral EN/FR unavailable copy and expire within five seconds. An empty-database probe changed from enabled gifts/50 demo statements to disabled gifts/no statements. |
+
+These are locally verified code fixes, not hosted acceptance. Private named procedures: `/workspace/work/round-two-v53`. Required checks/build/bundle and exact-head dual CI remain necessary before merge. Preserve the original source/failure fixtures. No broad automated suite was added.
+
+## Round Three recovery finding
+
+**R3-001 — Native backup/restore can wait indefinitely after cancellation.** The tool runner sent SIGTERM and awaited exit even if the owned subprocess ignored it. It now allows two seconds to stop, then sends SIGKILL only to that exact child. Any interrupted operation rejects even if the tool exits0; no archive is published. Generated ignoring/graceful tools passed, and a real encrypted backup, empty-target restore and independent verify still passed. Private evidence: `/workspace/work/round-three-v54`. Financial data, archive formats, migration receipts and readiness gates are unchanged.
+
+Fresh review covered request/worker admission, public configuration/cache boundaries, authentication cleanup, export/privacy handling, financial call sites and native recovery. The named findings are fixed locally; this is not a claim that every possible bug is absent or that hosted behavior was accepted.
+
+v53

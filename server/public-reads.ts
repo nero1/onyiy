@@ -24,13 +24,19 @@ function captured(data:unknown,manifest:Manifest,publicSeconds:number,fallback=f
   serverSeconds:Math.min(policy.manifest_server_seconds,publicSeconds,fallback?5:1_000_000),
   budget:{maxEntries:policy.max_memory_entries,maxBytes:policy.max_memory_mb*1024*1024}};
 }
+/** An unavailable live policy must never re-enable seeded features or demos. */
+export function unavailablePublicManifest(){
+ const value=publicManifest(seed),unavailable={en:'Service temporarily unavailable. Refresh to try again.',fr:'Service temporairement indisponible. Actualisez pour réessayer.'};
+ const features=Object.fromEntries(Object.keys(value).filter(key=>key.startsWith('feature_')).map(key=>[key,false]));
+ return {...value,...features,configuration_available:false as const,activity_statements:[],public_stats_policy:{...value.public_stats_policy,enabled:false},product_content:{...value.product_content,tagline:unavailable,short_description:unavailable}};
+}
 async function manifestLoader():Promise<Loaded> {
  let manifest=seed;let fallback=false;
  try{manifest=await withContext({access:'service',snapshot:true},async tx=>{
   await tx.execute(sql`set local statement_timeout='5000ms'`);return readManifest(tx);
  });}catch{fallback=true;}
  // Projection happens before either L1 or a shared promise contains a result.
- return captured({...publicManifest(manifest),payment_environment:process.env.APP_ENV==='testnet'?'testnet':'simulation'},manifest,manifest.cache_policy.manifest_public_seconds,fallback);
+ return captured({...(fallback?unavailablePublicManifest():publicManifest(manifest)),payment_environment:process.env.APP_ENV==='testnet'?'testnet':'simulation'},manifest,fallback?5:manifest.cache_policy.manifest_public_seconds,fallback);
 }
 async function catalogLoader():Promise<Loaded> {
  const manifest=await withContext({access:'service',snapshot:true},async tx=>{

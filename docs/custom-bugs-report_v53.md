@@ -1,12 +1,12 @@
-# Bug report — Round One v52
+# Bug report — Rounds One/Two/Three v53
 
-Updated: **17 October 2026 at 12:42:22 AM WAT**.
+Updated: **17 October 2026 at 12:58:03 AM WAT**.
 
-**Resumed by the owner on 16 October 2026.** Round One: **74 of 74 findings implemented and locally verified; release checks pending**. Rounds Two/Three and Phase Two have not started. These counts are not a completion percentage or hosted acceptance.
+**Resumed by the owner on 16 October 2026.** Round One: **74 of 74 findings implemented, locally verified and merged**. Round Two found and locally verified fixes for R2-004–006; local release checks passed; exact-head CI/merge pending. Round Three also fixed R3-001; Phase Two follows the checked merge. These counts are not a completion percentage or hosted acceptance.
 
 Historical numbered migration paths below identify the original fixes in Git history. Fresh installations use `000_initial_schema.sql` then the forward files `001`, `002` and `003` in filename order; do not run removed historical files.
 
-This v52 pass implements P1-028 retention/archival and fixes archive permission fingerprints and lock-timeout classification. Later rounds and Phase Two follow the verified merge.
+PR51 completed Round One and incidental R2-001–003. This v53 batch fixes the three fresh Round Two findings below; The same batch includes the Round Three recovery fix below; Phase Two follows its verified merge.
 
 ## Findings at a glance
 
@@ -91,7 +91,7 @@ This v52 pass implements P1-028 retention/archival and fixes archive permission 
 - “Defect” means a source/contract failure; “requirement gap” means missing requested behavior; “hardening” means a conditional defensive improvement; “maintenance” means structural/dependency risk.
 - Initial audit ratings (current → projected after fixes): money/recovery 5 → 8; security/privacy 6.5 → 8.5; performance 5 → 8; maintainability 6 → 8; product/accessibility/SEO 6 → 8, out of 10. These were qualitative judgments, not measured guarantees or updated release ratings.
 - Original audit: 70 findings; four more were found during remediation. Three analysis passes were one audit round. CRON frequency and test-only issues were excluded.
-- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v52.md).
+- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v53.md).
 
 ## Original evidence by finding
 
@@ -557,6 +557,22 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v52.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v53.md). Original finding descriptions and acceptance conditions remain above.
 
-v52
+## Fresh Round Two findings (v53)
+
+| ID | Finding | Fix and local evidence |
+|---|---|---|
+| R2-004 | Oversized bodies can hang while cancellation never settles; worker/scheduler readers also lack a body deadline | One bounded UTF-8 reader preserves exact signed bytes and enforces byte/time/abort limits. Cancellation never extends the deadline. Applied to worker/scheduler authentication, Google/Turnstile responses and alert acknowledgements; binary staging retains streaming with nonblocking cancellation. Oversize, invalid UTF-8, abort, exact HMAC and nonce replay procedures passed. |
+| R2-005 | Application-level temporary database/provider errors become permanent job failures | Use the same retry classification as HTTP errors, retaining wrapped broken-pipe handling and bounded cause traversal. Generated capacity/circuit/temporary failures now remain retry_wait; original probes demonstrated dead letters. |
+| R2-006 | Database outage re-enables seeded public features and demo activity | Public API/SSR fallbacks disable every feature and statistics/activity, return neutral EN/FR unavailable copy and expire within five seconds. An empty-database probe changed from enabled gifts/50 demo statements to disabled gifts/no statements. |
+
+These are locally verified code fixes, not hosted acceptance. Private named procedures: `/workspace/work/round-two-v53`. Required checks/build/bundle and exact-head dual CI remain necessary before merge. Preserve the original source/failure fixtures. No broad automated suite was added.
+
+## Round Three recovery finding
+
+**R3-001 — Native backup/restore can wait indefinitely after cancellation.** The tool runner sent SIGTERM and awaited exit even if the owned subprocess ignored it. It now allows two seconds to stop, then sends SIGKILL only to that exact child. Any interrupted operation rejects even if the tool exits0; no archive is published. Generated ignoring/graceful tools passed, and a real encrypted backup, empty-target restore and independent verify still passed. Private evidence: `/workspace/work/round-three-v54`. Financial data, archive formats, migration receipts and readiness gates are unchanged.
+
+Fresh review covered request/worker admission, public configuration/cache boundaries, authentication cleanup, export/privacy handling, financial call sites and native recovery. The named findings are fixed locally; this is not a claim that every possible bug is absent or that hosted behavior was accepted.
+
+v53
