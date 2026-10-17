@@ -1,12 +1,22 @@
 import fs from "node:fs";
 import {openKeyEnvelope} from './key-envelope';
 import type { Chain,FinancialEnvironment } from "../../packages/chains/src/types";
+import {nativePaymentEnvironment} from '../../packages/config/src/index';
+import {z} from 'zod';
+export function signerKeyFile(chain:Chain){
+ const mapping=process.env.SIGNER_KEY_FILES_JSON,single=process.env.SIGNER_KEY_FILE;
+ if(mapping!==undefined){
+  if(single||Buffer.byteLength(mapping)>4096)throw new Error('SIGNER_KEY_UNAVAILABLE');
+  try{const filename=z.object({eth:z.string().min(1).max(1024).optional(),bnb:z.string().min(1).max(1024).optional(),sol:z.string().min(1).max(1024).optional(),tron:z.string().min(1).max(1024).optional()}).strict().parse(JSON.parse(mapping))[chain];if(!filename)throw Error();return filename}catch{throw new Error('SIGNER_KEY_UNAVAILABLE')}
+ }
+ if(!single)throw new Error('SIGNER_KEY_UNAVAILABLE');
+ return single;
+}
 export function assertIsolated():FinancialEnvironment {
   if (
-    process.env.APP_ENV !== "testnet" ||
+    !['testnet','mainnet'].includes(process.env.APP_ENV??'') ||
     process.env.SIGNER_PROVIDER !== "encrypted_worker" ||
-    process.env.VERCEL === "1" ||
-    process.env.MAINNET_ENABLED === "true"
+    process.env.VERCEL === "1"
   )
     throw new Error("SIGNER_SCOPE_DENIED");
   for (const name of [
@@ -21,7 +31,7 @@ export function assertIsolated():FinancialEnvironment {
     "SIMULATION_TOOL_AUTH_KEY",
   ])
     if (process.env[name]) throw new Error("SIGNER_SECRET_SCOPE_MIXED");
-  return 'testnet';
+  try{return nativePaymentEnvironment()}catch{throw new Error('SIGNER_SCOPE_DENIED')}
 }
 export async function withSigningKey<T>(
   chain: Chain,
@@ -29,7 +39,7 @@ export async function withSigningKey<T>(
   fn: (key: Buffer, address: string) => Promise<T>,
 ) {
   const environment=assertIsolated();
-  const filename = process.env.SIGNER_KEY_FILE,
+  const filename = signerKeyFile(chain),
     secret = process.env.SIGNER_DECRYPTION_SECRET;
   if (!filename || !secret || secret.length < 32 || secret.length > 1024)
     throw new Error("SIGNER_KEY_UNAVAILABLE");

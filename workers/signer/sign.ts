@@ -13,7 +13,6 @@ export async function signPrepared(prepared:PreparedTransfer,nativeCap:bigint):P
  assertActive(prepared.intent.asset);
  if(prepared.environment!==environment||prepared.intent.asset.environment!==environment)throw new Error('SIGNED_INTENT_INVALID');
  const verified=validatePreparedIntent(prepared,nativeCap);
- if(verified.family==='evm'&&!['11155111','97'].includes(prepared.network))throw new Error('MAINNET_DENIED');
  // Verify the TRON network reference before opening a private-key file.
  if(verified.family==='tron'){
   const {runtimeAdapter}=await import('../../packages/chains/src/runtime'),chain=await runtimeAdapter(prepared.intent.asset);

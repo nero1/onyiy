@@ -4,7 +4,7 @@ validateSecurityCeilings(m);
 const split=m.payment_split_bps;
 const total=Object.values(split).reduce((a,b)=>a+b,0);
 if(total!==10000) throw new Error(`payment_split_bps totals ${total}, expected 10000`);
-if(m.mainnet_enabled!==false) throw new Error('Phase One handoff must keep mainnet disabled');
+if(m.mainnet_enabled!==false) throw new Error('Repository defaults must keep mainnet disabled; activation requires protected deployment settings and reviewed database configuration');
 if(m.deployment_profile!=='test_iteration') throw new Error('Phase One handoff must use test_iteration');
 if(!Array.isArray(m.activity_statements)||m.activity_statements.length!==50) throw new Error('Expected 50 ordered activity fixtures');
 if(!m.supported_locales.includes('en')||!m.supported_locales.includes('fr')) throw new Error('English and French must be present');

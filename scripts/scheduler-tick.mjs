@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 const origin=process.env.SCHEDULER_ORIGIN;
 const rawKey=process.env.SCHEDULER_HMAC_KEY;
 const environment=process.env.APP_ENV??'simulation';
-if(!['simulation','testnet'].includes(environment))throw Error('Invalid scheduler environment');
+if(!['simulation','testnet','mainnet'].includes(environment))throw Error('Invalid scheduler environment');
 if (!origin || !rawKey) throw new Error('Scheduler origin and key bindings are required');
 const url=new URL('/api/v1/internal/tick',origin);
 if (url.protocol!=='https:' || new URL(origin).origin!==origin || url.username || url.password) throw new Error('Scheduler requires an exact HTTPS origin');

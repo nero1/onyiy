@@ -46,6 +46,7 @@ export default function NativeAdmin({
     [obligation, setObligation] = useState(""),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
+  const [activationProbe,setActivationProbe]=useState<{asset_key:string;alert_id:string;configuration_hash:string}|null>(null);
   const keys = [
     "eth",
     "bnb",
@@ -73,7 +74,7 @@ export default function NativeAdmin({
     <AdminTimeZone owner={owner} locale={locale}><section className="card">
       <ChainRecoveryAdmin owner={owner} locale={locale} enabled={enabled}/>
       <h2>
-        {fr ? "Administration des réseaux de test" : "Testnet administration"}
+        {fr ? "Administration des paiements" : "Payment administration"}
       </h2>
       <p role="status">{message}</p>
       {!enabled && (
@@ -270,15 +271,16 @@ export default function NativeAdmin({
         </button>
         <button
           onClick={() =>
-            void run(() =>
-              mutation("/admin/crypto/alert-probe", owner, {
+            void run(async() =>{
+              const result=await mutation<{alert_id:string;configuration_hash:string}>("/admin/crypto/alert-probe", owner, {
                 asset_key: currency,
-              }),
-            )
+              });setActivationProbe({...result,asset_key:currency});
+            })
           }
         >
           {fr ? "Vérifier le canal d’alerte" : "Check alert channel"}
         </button>
+        {activationProbe&&<section aria-label={fr?'Configuration à vérifier':'Configuration to review'}><p>{activationProbe.asset_key} · {fr?'Alerte':'Alert'}: {activationProbe.alert_id}</p><label>{fr?'Empreinte de configuration':'Configuration hash'}<input readOnly value={activationProbe.configuration_hash} onFocus={event=>event.currentTarget.select()}/></label><p>{fr?'Attendez l’accusé de réception signé avant de copier cette empreinte dans les approbations du déploiement.':'Wait for the signed delivery acknowledgement before copying this hash into the deployment approvals.'}</p></section>}
       </fieldset>
       <fieldset disabled={busy || !enabled || reason.trim().length < 10}>
         <legend>

@@ -17,7 +17,7 @@ export async function advanceArchives(tx:DbExecutor):Promise<ArchiveStep>{
  const [row]=await tx.execute<{result:ArchiveStep}>(sql`select public.gw_advance_monthly_archive(${Math.min(policy.job_policy.chunk_size,100)}) as result`);
  if(!row||!archiveStep.safeParse(row.result).success)throw new Error('CONFIGURATION_INVALID');
  if(row.result.state==='review'||row.result.reason){
-  const [scope]=await tx.execute<{environment:'simulation'|'testnet'}>(sql`select current_setting('gw.environment') as environment`);
+  const [scope]=await tx.execute<{environment:'simulation'|'testnet'|'mainnet'}>(sql`select current_setting('gw.environment') as environment`);
   await openFinancialAlert(tx,`retention:${scope.environment}:${row.result.source_table??'default'}`,'job_backlog',row.result.reason==='ARCHIVE_CHECKSUM_MISMATCH'?'critical':'warning',{reason:row.result.reason??'ARCHIVE_REVIEW_REQUIRED'},scope.environment);
  }
  return row.result;

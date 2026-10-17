@@ -155,7 +155,7 @@
   "source_sha256_base64": {
     "packages/db/src/schema.ts": "QyJxy2963mV4Yg/stPdMmkz/q+KU7pK6a8QMATofji8=",
     "packages/db/src/schema-contracts.ts": "46f1C0h8HuSCRTgcljvOEJVmjNSydmdCF8NI6npdlHk=",
-    "packages/db/fresh-install.sql": "PZYnUQCYkyeRmh0NYuO0bXCy7z5DOE4Mpn3rj1+Wtts="
+    "packages/db/fresh-install.sql": "EA3M6PIge8UuwwBn6OT4JIGoimpNi/I7HYbKYbAl4wk="
   },
   "migrations_sha256_base64": {
     "000_initial_schema.sql": "/8uTC5dPlh3nz8T4e7+39ITUe/KzB3fTsBCRtZ6z8yA=",
@@ -163,7 +163,8 @@
     "002_ephemeral_retention.sql": "X3hHpSCKXHFmlU9hgfSROZYBrk/5Y98PQbdaKsNju24=",
     "003_monthly_financial_archives.sql": "HYWwiP1nTBVxKKPiW04AH6ySCEf5tyjvmaNu4x62d/4=",
     "004_transparent_profiles.sql": "F81Aac7y8kcVS5yoliVy6coLWJ60BfwvXBaqAi3yChw=",
-    "005_production_environments.sql": "4gzOpn/VtspbYmWice87LEhy1x877x2yfbpcB/HMtqs="
+    "005_production_environments.sql": "4gzOpn/VtspbYmWice87LEhy1x877x2yfbpcB/HMtqs=",
+    "006_public_queue_disclosure.sql": "kFzyoMhGRwwzN3uxrKxEdmvZZDBauzsgI0jgjL/tJkE="
   },
   "consolidated_baseline": {
     "file": "000_initial_schema.sql",
@@ -231,5 +232,14 @@
     ],
     "actual_cross_cluster_restore_verified": true,
     "mainnet_execution_enabled": false
+  },
+  "public_queue_parameter_review": {
+    "migration": "006_public_queue_disclosure.sql",
+    "positional_parameter_removes_version_column_ambiguity": true,
+    "declaration_shapes_unchanged": true,
+    "final_installer_seven_receipts": true,
+    "exact_schema_security_entries": 4222,
+    "column_grants_match": true,
+    "historical_sql000_005_unchanged": true
   }
 }

@@ -25,7 +25,7 @@ export const manifestSchema = z.object({
   feature_notifications: z.boolean(), feature_shares: z.boolean(), feature_help: z.boolean(), feature_pwa: z.boolean(),
   feature_activity: z.boolean(), feature_bootstrap: z.boolean(), feature_priority: z.boolean(), feature_admin: z.boolean(),
   feature_moderation: z.boolean(), feature_portability: z.boolean(), feature_simulation: z.boolean(),
-  mainnet_enabled: z.literal(false),
+  mainnet_enabled: z.boolean(),
   default_locale: z.enum(["en","fr"]),
   supported_locales: z.array(z.enum(["en","fr"])).length(2).refine((locales) => new Set(locales).size === 2),
   eligibility_min_age: z.number().int().positive().max(120),
@@ -148,20 +148,49 @@ export function loadManifest(root = process.cwd()): Manifest {
   catch { throw new Error('CONFIGURATION_INVALID'); }
 }
 
-// Resolve native scope without widening execution or isolated-fixture authority.
+export function selectedPaymentEnvironment(env:NodeJS.ProcessEnv=process.env):'simulation'|'testnet'|'mainnet'{
+ const value=env.APP_ENV??'simulation';
+ if(value!=='simulation'&&value!=='testnet'&&value!=='mainnet')throw new Error('CONFIGURATION_INVALID');
+ return value;
+}
+// Capability only; every send still requires the selected mode, reviewed policy,
+// configuration approval and an independently acknowledged alert receipt.
+export const nativePaymentExecutionSupported=true;
+export function assertFinancialActivationPolicy(policy:Manifest,environment:'testnet'|'mainnet'){
+ if(environment==='mainnet'&&(!policy.mainnet_enabled||policy.deployment_profile!=='transparent'||!policy.feature_transparency||policy.feature_simulation||!['verified','disabled'].includes(policy.activity_presentation)||policy.financial_readiness_record.status!=='approved'||!policy.financial_readiness_record.evidence_refs.length))throw new Error('FINANCIAL_SAFETY_PAUSE');
+}
+/** Several enabled networks have distinct configuration hashes. Each needs its
+ * own reviewed approval and independently acknowledged alert fingerprint. */
+export function financialConfigurationApproved(hash:string,env:NodeJS.ProcessEnv=process.env){
+ if(!/^[a-f0-9]{64}$/.test(hash))return false;
+ const approved=env.FINANCIAL_CONFIG_APPROVALS_JSON,alerts=env.ALERT_ACCEPTANCE_FINGERPRINTS_JSON;
+ if(approved!==undefined||alerts!==undefined){
+  if(env.FINANCIAL_CONFIG_APPROVAL||env.ALERT_ACCEPTANCE_FINGERPRINT)throw new Error('CONFIGURATION_INVALID');
+  const parse=(raw:string|undefined)=>{try{if(!raw||Buffer.byteLength(raw)>1024)throw Error();const values=z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(8).parse(JSON.parse(raw));if(new Set(values).size!==values.length)throw Error();return values}catch{throw new Error('CONFIGURATION_INVALID')}};
+  const approvals=parse(approved),fingerprints=parse(alerts);
+  return approvals.includes(hash)&&fingerprints.includes(hash);
+ }
+ return env.FINANCIAL_CONFIG_APPROVAL===hash&&env.ALERT_ACCEPTANCE_FINGERPRINT===hash;
+}
+// A selected mainnet deployment must be explicitly enabled; fixtures cannot
+// acquire that authority. Database/profile/configuration approvals are separate.
 export function nativePaymentEnvironment(env:NodeJS.ProcessEnv=process.env):'testnet'|'mainnet'{
+ if(env.APP_ENV==='mainnet'){
+  if(env.MAINNET_ENABLED!=='true'||env.CHAIN_FIXTURE_MODE||env.SIMULATION_TOOL_AUTH_KEY||env.PUBLIC_PREVIEW_MODE==='read_only')throw new Error('FINANCIAL_ENVIRONMENT_DENIED');
+  return 'mainnet';
+ }
  if(env.APP_ENV!=='testnet'&&!(env.APP_ENV==='simulation'&&env.CHAIN_FIXTURE_MODE==='isolated'&&env.VERCEL!=='1'))throw new Error('FINANCIAL_ENVIRONMENT_DENIED');
  if(env.MAINNET_ENABLED==='true')throw new Error('MAINNET_DENIED');
- return 'testnet'; // Mainnet remains closed until its complete execution release.
+ return 'testnet';
 }
 // Hosting stage is independent of payment mode; defaults never mutate env.
 export function runtimeProviders(env: NodeJS.ProcessEnv = process.env) {
   if(isReadOnlyPreview(env))return publicPreviewRuntime(env).providers;
-  const environment = env.APP_ENV ?? 'simulation';
-  if (!['simulation', 'testnet'].includes(environment)) {
-    throw new Error('MAINNET_NOT_IMPLEMENTED: APP_ENV must be simulation or testnet; preview/production are hosting stages');
+  const environment = selectedPaymentEnvironment(env);
+  if (!['simulation', 'testnet','mainnet'].includes(environment)) {
+    throw new Error('CONFIGURATION_INVALID');
   }
-  const native = environment === 'testnet';
+  const native = environment !== 'simulation';
   return {
     AUTH_PROVIDER: env.AUTH_PROVIDER ?? (native ? 'google' : 'simulation'),
     PAYMENT_PROVIDER: env.PAYMENT_PROVIDER ?? (native ? 'chain_rpc' : 'giv_simulation'),
@@ -171,13 +200,13 @@ export function runtimeProviders(env: NodeJS.ProcessEnv = process.env) {
     REALTIME_PROVIDER: env.REALTIME_PROVIDER ?? 'none',
     PRICE_PROVIDER: env.PRICE_PROVIDER ?? (native ? 'manual_signed' : 'manual_simulation'),
     ALERT_PROVIDER: env.ALERT_PROVIDER ?? (native ? 'https_webhook' : 'none'),
-    DEPLOYMENT_PROFILE: env.DEPLOYMENT_PROFILE ?? 'test_iteration',
+    DEPLOYMENT_PROFILE: env.DEPLOYMENT_PROFILE ?? (environment==='mainnet'?'transparent':'test_iteration'),
   };
 }
 
 export function validateRuntimeEnv(env = process.env) {
   if(isReadOnlyPreview(env))return publicPreviewRuntime(env);
-  const appEnv = env.APP_ENV ?? "simulation";
+  const appEnv = selectedPaymentEnvironment(env);
   const providers = runtimeProviders(env);
   const simulationSelectors = {
     PAYMENT_PROVIDER: 'giv_simulation',
@@ -202,7 +231,13 @@ export function validateRuntimeEnv(env = process.env) {
   const databaseUrl = env.DATABASE_URL;
   if (!databaseUrl) throw new Error('DATABASE_URL is required');
   if (env.VERCEL === '1' && env.DATABASE_MIGRATION_URL) throw new Error('Migration credentials must stay outside the Vercel runtime');
-  if (env.MAINNET_ENABLED === "true") throw new Error("Phase One deliberately disables mainnet");
+  for(const name of ['SIGNER_DATABASE_URL','SIGNER_KEY_FILE','SIGNER_KEY_FILES_JSON','SIGNER_KEY_PACKAGE_JSON','SIGNER_DECRYPTION_SECRET','SIGNED_PAYLOAD_ENCRYPTION_KEY'])if(env[name])throw new Error('SIGNER_SECRET_SCOPE_MIXED');
+  if(env.MAINNET_ENABLED!==undefined&&!['true','false'].includes(env.MAINNET_ENABLED))throw new Error('CONFIGURATION_INVALID');
+  if (env.MAINNET_ENABLED === "true"&&appEnv!=='mainnet') throw new Error('MAINNET_DENIED');
+  if(appEnv==='mainnet'){
+    for(const [name,choices]of Object.entries({...testnetSelectors,DEPLOYMENT_PROFILE:['transparent']}))if(!choices.includes(providers[name as keyof typeof providers]))throw new Error('CONFIGURATION_INVALID');
+    if(providers.AUTH_PROVIDER!=='google'||env.SIMULATION_TOOL_AUTH_KEY||env.CHAIN_FIXTURE_MODE)throw new Error('FINANCIAL_ENVIRONMENT_DENIED');
+  }
   if ((env.SIGNER_PROVIDER ?? "disabled") !== "disabled" && appEnv === "simulation") {
     throw new Error("simulation must not load a real signer");
   }

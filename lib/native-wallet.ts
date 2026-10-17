@@ -10,7 +10,8 @@ export type NativeCurrency = {
   contract?: string;
   mint?: string;
   enabled: boolean;
-  environment: "testnet";
+  execution_enabled?:boolean;
+  environment: "testnet"|"mainnet";
 };
 type Ethereum = {
   request(input: { method: string; params?: unknown[] }): Promise<any>;
@@ -35,11 +36,11 @@ declare global {
   }
 }
 function family(asset: NativeCurrency) {
-  return asset.key.includes("sol")
-    ? "sol"
-    : asset.key.includes("tron") || asset.key === "trx"
-      ? "tron"
-      : "evm";
+  const value=({eth:'evm',bnb:'evm',sol:'sol',trx:'tron',usdt_bnb:'evm',jaga_bnb:'evm',usdt_sol:'sol',usdt_tron:'tron'} as Record<string,'evm'|'sol'|'tron'>)[asset.key];
+  if(!value||!['testnet','mainnet'].includes(asset.environment))throw new Error('WRONG_NETWORK');
+  const allowed=value==='evm'?(asset.key==='eth'?(asset.environment==='mainnet'?['1']:['11155111']):(asset.environment==='mainnet'?['56']:['97'])):value==='sol'?(asset.environment==='mainnet'?['mainnet-beta']:['devnet']):(asset.environment==='mainnet'?['mainnet']:['nile','shasta']);
+  if(!allowed.includes(asset.network))throw new Error('WRONG_NETWORK');
+  return value;
 }
 function hex(bytes: Uint8Array) {
   return (
@@ -52,12 +53,7 @@ export async function connectNativeWallet(asset: NativeCurrency) {
   if (chain === "evm") {
     const provider = window.ethereum;
     if (!provider) throw new Error("WALLET_UNAVAILABLE");
-    const expected =
-      asset.network === "97"
-        ? "0x61"
-        : asset.network === "11155111"
-          ? "0xaa36a7"
-          : "";
+    const expected = ({testnet:{'97':'0x61','11155111':'0xaa36a7'},mainnet:{'1':'0x1','56':'0x38'}} as Record<string,Record<string,string>>)[asset.environment]?.[asset.network];
     if (!expected) throw new Error("WRONG_NETWORK");
     const network = String(
       await provider.request({ method: "eth_chainId" }),
@@ -80,12 +76,12 @@ export async function connectNativeWallet(asset: NativeCurrency) {
     return accounts[0] as string;
   }
   if (chain === "sol") {
-    if (asset.network !== "devnet" || !window.solana)
+    if (asset.network !== (asset.environment==="mainnet"?"mainnet-beta":"devnet") || !window.solana)
       throw new Error("WALLET_UNAVAILABLE");
     return (await window.solana.connect()).publicKey.toBase58();
   }
   if (
-    !["nile", "shasta"].includes(asset.network) ||
+    !(asset.environment==="mainnet"?["mainnet"]:["nile","shasta"]).includes(asset.network) ||
     !window.tronLink ||
     !window.tronWeb
   )
@@ -125,6 +121,8 @@ export async function signNativeOwnership(
 
 export type PreparedPayment = {
   profile_revision?:number;presentation?:ProfilePresentation;queue_disclosure?:PublicQueueDisclosure|null;plan?:PlanFinancialPresentation;
+  environment: "testnet"|"mainnet";
+  energy_fee_native?:string;
   invoice_id: string;
   asset_key: string;
   asset: string;
@@ -151,6 +149,7 @@ export async function sendNativePayment(
   prepared: PreparedPayment,
   isCurrent: () => boolean = () => true,
 ) {
+  try{currency=structuredClone(currency);prepared=structuredClone(prepared)}catch{throw new Error("SIGNED_INTENT_INVALID")}
   const assertCurrent = () => {
     if (!isCurrent()) throw new Error("SESSION_CHANGED");
   };
@@ -162,6 +161,7 @@ export async function sendNativePayment(
   )
     throw new Error("QUOTE_EXPIRED");
   if (
+    prepared.environment !== currency.environment ||
     prepared.asset_key !== currency.key ||
     prepared.network !== currency.network ||
     prepared.kind !== currency.kind ||
@@ -170,6 +170,7 @@ export async function sendNativePayment(
   )
     throw new Error("VERSION_CONFLICT");
   if (
+    prepared.sender===prepared.destination ||
     BigInt(prepared.network_fee_native) < 0n ||
     BigInt(prepared.account_setup_native) < 0n ||
     BigInt(prepared.total_fee_native) !==
@@ -204,7 +205,9 @@ export async function sendNativePayment(
       String(p.data).toLowerCase() !== expectedData ||
       BigInt(p.chainId) !== BigInt(currency.network) ||
       BigInt(p.value) !== (currency.kind === "native" ? amount : 0n) ||
-      BigInt(p.gasLimit) * BigInt(p.gasPrice) >
+      BigInt(p.gasLimit)<21000n || BigInt(p.gasPrice)<=0n ||
+      BigInt(prepared.account_setup_native)!==0n ||
+      BigInt(p.gasLimit) * BigInt(p.gasPrice) !==
         BigInt(prepared.total_fee_native)
     )
       throw new Error("SIGNED_INTENT_INVALID");
@@ -231,7 +234,7 @@ export async function sendNativePayment(
     return hash.toLowerCase();
   }
   if (chain === "sol") {
-    if (currency.network !== "devnet" || !window.solana)
+    if (currency.network !== (currency.environment==="mainnet"?"mainnet-beta":"devnet") || !window.solana)
       throw new Error("WRONG_NETWORK");
     const { Transaction, SystemProgram, PublicKey } = await import(
         "@solana/web3.js"
@@ -239,7 +242,7 @@ export async function sendNativePayment(
       {
         TOKEN_PROGRAM_ID,
         ASSOCIATED_TOKEN_PROGRAM_ID,
-        getAssociatedTokenAddressSync,
+        getAssociatedTokenAddressSync,createAssociatedTokenAccountIdempotentInstruction,createTransferCheckedInstruction,
       } = await import("@solana/spl-token"),
       { base64 } = await import("@scure/base"),
       tx = Transaction.from(base64.decode(String(prepared.payload)));
@@ -253,86 +256,16 @@ export async function sendNativePayment(
       throw new Error("SIGNED_INTENT_INVALID");
     if (tx.feePayer?.toBase58() !== prepared.sender)
       throw new Error("SIGNED_INTENT_INVALID");
-    if (currency.kind === "native") {
-      if (
-        tx.instructions.length !== 1 ||
-        !tx.instructions[0].programId.equals(SystemProgram.programId) ||
-        tx.instructions[0].data.length !== 12 ||
-        tx.instructions[0].keys.length !== 2 ||
-        tx.instructions[0].keys[0].pubkey.toBase58() !== prepared.sender ||
-        !tx.instructions[0].keys[0].isSigner ||
-        !tx.instructions[0].keys[0].isWritable ||
-        !tx.instructions[0].keys[1].isWritable ||
-        tx.instructions[0].keys[1].isSigner ||
-        tx.instructions[0].data.readUInt32LE(0) !== 2 ||
-        tx.instructions[0].data.readBigUInt64LE(4) !== amount ||
-        tx.instructions[0].keys[1].pubkey.toBase58() !== prepared.destination
-      )
-        throw new Error("SIGNED_INTENT_INVALID");
-    } else {
-      const mint = new PublicKey(currency.mint!),
-        to = getAssociatedTokenAddressSync(
-          mint,
-          new PublicKey(prepared.destination),
-        ),
-        from = getAssociatedTokenAddressSync(
-          mint,
-          new PublicKey(prepared.sender),
-        ),
-        transfers = tx.instructions.filter((i) =>
-          i.programId.equals(TOKEN_PROGRAM_ID),
-        );
-      if (
-        transfers.length !== 1 ||
-        tx.instructions.length > 2 ||
-        tx.instructions.some(
-          (i) =>
-            !i.programId.equals(TOKEN_PROGRAM_ID) &&
-            !i.programId.equals(ASSOCIATED_TOKEN_PROGRAM_ID),
-        )
-      )
-        throw new Error("SIGNED_INTENT_INVALID");
-      const transfer = transfers[0];
-      if (
-        transfer.data.length !== 10 ||
-        transfer.keys.length !== 4 ||
-        !transfer.keys[0].isWritable ||
-        transfer.keys[0].isSigner ||
-        transfer.keys[1].isWritable ||
-        transfer.keys[1].isSigner ||
-        !transfer.keys[2].isWritable ||
-        transfer.keys[2].isSigner ||
-        !transfer.keys[3].isSigner ||
-        transfer.data[0] !== 12 ||
-        transfer.data.readBigUInt64LE(1) !== amount ||
-        transfer.data[9] !== currency.decimals ||
-        !transfer.keys[0].pubkey.equals(from) ||
-        !transfer.keys[1].pubkey.equals(mint) ||
-        !transfer.keys[2].pubkey.equals(to) ||
-        transfer.keys[3].pubkey.toBase58() !== prepared.sender
-      )
-        throw new Error("SIGNED_INTENT_INVALID");
-      for (const creation of tx.instructions.filter((i) =>
-        i.programId.equals(ASSOCIATED_TOKEN_PROGRAM_ID),
-      ))
-        if (
-          creation.data.length !== 1 ||
-          creation.keys.length !== 6 ||
-          !creation.keys[0].isSigner ||
-          !creation.keys[0].isWritable ||
-          !creation.keys[1].isWritable ||
-          creation.keys[1].isSigner ||
-          !creation.keys[4].pubkey.equals(SystemProgram.programId) ||
-          !creation.keys[5].pubkey.equals(TOKEN_PROGRAM_ID) ||
-          creation.keys.slice(2).some((k) => k.isSigner || k.isWritable) ||
-          creation.data[0] !== 1 ||
-          creation.keys[0].pubkey.toBase58() !== prepared.sender ||
-          !creation.keys[1].pubkey.equals(to) ||
-          creation.keys[2].pubkey.toBase58() !== prepared.destination ||
-          !creation.keys[3].pubkey.equals(mint)
-        )
-          throw new Error("SIGNED_INTENT_INVALID");
+    const sender=new PublicKey(prepared.sender),destination=new PublicKey(prepared.destination),expected=new Transaction({feePayer:sender,recentBlockhash:tx.recentBlockhash});
+    if(sender.equals(destination)||!tx.recentBlockhash)throw new Error("SIGNED_INTENT_INVALID");
+    if(currency.kind==='native')expected.add(SystemProgram.transfer({fromPubkey:sender,toPubkey:destination,lamports:amount}));
+    else{
+      const mint=new PublicKey(currency.mint!),from=getAssociatedTokenAddressSync(mint,sender),to=getAssociatedTokenAddressSync(mint,destination),creations=tx.instructions.filter(i=>i.programId.equals(ASSOCIATED_TOKEN_PROGRAM_ID));
+      if(creations.length>1)throw new Error("SIGNED_INTENT_INVALID");
+      if(creations.length){if(BigInt(prepared.account_setup_native)<=0n)throw new Error("SIGNED_INTENT_INVALID");expected.add(createAssociatedTokenAccountIdempotentInstruction(sender,to,destination,mint));}
+      expected.add(createTransferCheckedInstruction(from,mint,to,sender,amount,currency.decimals));
     }
+    if(!expected.serializeMessage().equals(tx.serializeMessage()))throw new Error("SIGNED_INTENT_INVALID");
     assertCurrent();
     const result = await (
       window.solana as Solana & {
@@ -359,7 +292,7 @@ export async function sendNativePayment(
   if (
     host.protocol !== "https:" ||
     host.hostname !==
-      (currency.network === "nile"
+      (currency.environment==="mainnet"?"api.trongrid.io":currency.network === "nile"
         ? "nile.trongrid.io"
         : "api.shasta.trongrid.io")
   )
@@ -377,6 +310,8 @@ export async function sendNativePayment(
       ])
       .slice(2);
   if (
+    p.signature?.length || Number(c?.Permission_id??0)!==0 ||
+    !Number.isSafeInteger(p.raw_data?.expiration)||p.raw_data.expiration<=Date.now()||p.raw_data.expiration>Date.now()+600000 ||
     !utils.transaction.txCheck(p) ||
     p.raw_data.contract.length !== 1 ||
     c.type !== "TriggerSmartContract" ||
@@ -384,19 +319,24 @@ export async function sendNativePayment(
     values.contract_address.toLowerCase() !== asHex(currency.contract!) ||
     values.data.toLowerCase() !== data ||
     BigInt(values.call_value ?? 0) !== 0n ||
+    BigInt(values.call_token_value??0)!==0n || BigInt(values.token_id??0)!==0n ||
+    prepared.energy_fee_native===undefined || BigInt(prepared.energy_fee_native)<0n ||
+    BigInt(p.raw_data.fee_limit)!==BigInt(prepared.energy_fee_native) ||
     BigInt(p.raw_data.fee_limit) > BigInt(prepared.total_fee_native)
   )
     throw new Error("SIGNED_INTENT_INVALID");
   assertCurrent();
+  const expectedRaw=p.raw_data_hex,expectedHash=p.txID;
   const signed = await wallet.trx.sign(p);
   assertCurrent();
   if (
     !utils.transaction.txCheck(signed) ||
-    signed.raw_data_hex !== p.raw_data_hex ||
-    signed.txID !== p.txID
+    signed.signature?.length!==1 ||
+    signed.raw_data_hex !== expectedRaw ||
+    signed.txID !== expectedHash
   )
     throw new Error("SIGNED_INTENT_INVALID");
   const result = await wallet.trx.sendRawTransaction(signed);
   if (!result.result) throw new Error("BROADCAST_AMBIGUOUS");
-  return p.txID as string;
+  return expectedHash as string;
 }

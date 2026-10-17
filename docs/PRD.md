@@ -962,20 +962,20 @@ Keep distinct financial environments/registries and treasury wallets for simulat
 
 - Keep deployment off until `ENABLE_VERCEL_DEPLOYMENTS=true` and protected environments are configured. Secrets/project IDs stay out of source and client bundles.
 - Retrieve protected Vercel settings, validate, build in CI and deploy prebuilt output through the supported integration. Approved `main` pushes target production; trusted same-repository PRs may target preview after checks/review; forks run checks only.
-- Preview stays simulation-only, separate from real-money data. Failed checks block deployment. Emergency deployment requires recorded owner authorization and later status reconciliation.
+- Preview uses the restricted public, non-sending login for its selected payment environment. No private runtime credentials or financial writes are permitted. Failed checks block deployment. Emergency deployment requires recorded owner authorization and later status reconciliation.
 - Fresh owner-held transaction locks must be visible through the restricted runtime connection. Copied namespace IDs alone cannot prove the two connections target the same database.
 - Each creating migration must classify public-table grants/revokes and RLS. Application tables stay closed to browser/Data API roles; native handlers use restricted server roles. Supabase-specific role handling must also work when those provider roles are absent on another host. Missing classification fails review.
 
 **Shared resources and payment selection**
 
 - Prefer **one Supabase project/database, one Upstash database and one Vercel project**, reusing the owner's existing accounts and quotas. Names are labels; keep Supabase's supplied database name. Add infrastructure only for an evidenced need, not by default for every environment.
-- `APP_ENV` selects the payment environment: `simulation` or `testnet` in this release. Provider defaults follow it, without mutating the environment or masking incompatible explicit overrides. Credentials must still be provisioned once for the selected real provider.
+- `APP_ENV` selects `simulation`, `testnet` or `mainnet`. Mainnet additionally requires explicit protected enablement, transparent settings and reviewed financial approvals. Provider defaults follow it, without mutating the environment or masking incompatible explicit overrides. Credentials must still be provisioned once for the selected real provider.
 - Vercel Preview/Production are hosting stages chosen by the workflow, not additional payment modes. They may use the same connections and payment mode. Document that their users/settings/data are shared; this is not preview isolation.
 - Testnet initialization retires simulation access on that shared database. Fence in-flight simulation transactions, including repeatable snapshots; reject later simulation requests, seeding and resets. Preserve existing records and keys. Retire pre-safeguard deployments through runtime-password rotation and connection termination before promotion.
 - Hosted initialization verifies exact manual SQL receipts, binds connections, adds missing seeds and checks runtime; it must not execute SQL migrations. Queue deployment initialization across branches for the shared resource.
 - First verified Google administrator setup may use the owner's SQL Editor: require an active Google-linked member with enrolled two-factor authentication, no existing Google administrator and no prior permanent bootstrap key. Grant, session invalidation, permanent key and audit must commit atomically. It must not become a general role/recovery bypass; later recovery retains its maintenance rules.
 - Support bounded `ASSET_REGISTRY_JSON` in protected server settings for browser-only hosted setup. Retain file input for operator use; reject simultaneous sources and keep the same strict registry/fingerprint validation.
-- Mainnet production is still unsupported and disabled. Before reusing this database with real funds, implement/verify its financial namespace and restricted non-sending preview contract. Shared test previews are not evidence of mainnet isolation. No new provider accounts are inherently required by that future design.
+- Mainnet code supports the four networks in §30.1, their configured token protocols, restricted database namespaces and isolated encrypted signing. Registry provenance, live providers/custody, external acceptance and observation periods remain release requirements. Shared test previews do not prove mainnet isolation. Reuse existing accounts; do not convert test balances.
 
 **Cost and capacity**
 
@@ -1220,14 +1220,11 @@ uj*****p3 just received $9.5 referral commission
 - Collect owner credentials securely and record actual external alerts, chain transactions, restore reconciliation, capacity and the observation periods in §30. Do not manufacture approval, elapsed time or provider evidence.
 - Both exact-final-head push and pull-request CI must pass before each merge. No direct main pushes. Keep five core docs and two versioned trackers. Existing no-automated-test-suite instructions remain binding; named isolated manual verification continues.
 
-The current gap list and acceptance evidence belong in [status](PROJECT-STATUS_v66.md) and the [report](custom-bugs-report_v66.md)/[plan](custom-bugs-fix-plan_v66.md). Continue until all requirements have actual verification; report any owner-dependent blocker precisely.
+The current gap list and acceptance evidence belong in [status](PROJECT-STATUS_v67.md) and the [report](custom-bugs-report_v67.md)/[plan](custom-bugs-fix-plan_v67.md). Continue until all requirements have actual verification; report any owner-dependent blocker precisely.
 
 ### Fresh installation and historical compatibility
 
-- The owner confirmed no migrations were applied to the intended installation. One final-state file, `packages/db/src/migrations/000_initial_schema.sql`, replaces the old 99-file upgrade chain. It creates final objects directly; it is not a concatenation of historical changes.
-- Paste the entire file into Supabase SQL Editor once, against an empty application namespace. Keep the receipt/checksum intact. Seeds are separate from schema installation; SETUP explains the existing hosted initialization path.
-- The file installs final least-privilege grants/RLS and rejects unsafe existing objects or incompatible extensions. Existing data must never be dropped or silently adopted to force installation.
-- Preserve the baseline after installation. Later changes require forward migrations. The new `001_historical_treasury_fence.sql` adds the permanent address inventory/capture and updates the historical-address release fence. Paste it in full; its checksum receipt is validated. Old signed archives require their matching historical code/schema release (`e6f7888034afae01d0c7803965f1c17889783171`); do not bypass version checks or rewrite signed inventories.
+New owners paste only `packages/db/fresh-install.sql` into Supabase SQL Editor. It creates current final definitions directly, records seven receipts, preserving the original SQL000–005 values and refuses unsafe/nonempty targets. Preserve historical migration bytes, original signed archives, keys and matching release references. Later DDL requires forward migrations plus a refreshed, verified final-state installer; never concatenate upgrades or silently adopt existing records.
 
 ### Binding safeguards retained during remediation
 
@@ -1246,17 +1243,25 @@ The owner explicitly approved P1-065 on **14 October 2026 at 02:25:24 PM WAT**, 
 - Closed signed-archive dependencies accept pgcrypto-only older packets or an additional pg_trgm declaration; unknown names, duplicates, versions and schemas fail.
 - Signatures/checksums, empty-target verification and exact post-restore inventories remain mandatory. Search approval does not activate financial gates.
 
-Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v66.md](PROJECT-STATUS_v66.md). Current bug evidence/tasks: [report](custom-bugs-report_v66.md) and [plan](custom-bugs-fix-plan_v66.md).
+Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v67.md](PROJECT-STATUS_v67.md). Current bug evidence/tasks: [report](custom-bugs-report_v67.md) and [plan](custom-bugs-fix-plan_v67.md).
 
 ### Retention implementation clarification (v52)
 
 Use the same database for online monthly archives of ledger postings, scan pages and audit events. Keep journals/events as global identity registries; enforce cross-month record uniqueness separately. Freeze eligible months, process at most 100 rows per step and require a second matching checksum pass. Preserve all financial evidence indefinitely (including beyond the minimum retention period); no automatic financial purge. Archives remain readable and still count toward provider storage quotas. Retention holds stop compaction and archival. Expire message bodies and compact only completed expendable task payloads, preserving permanent keys and unresolved/financial work. Recovery must bind column ACLs, partition metadata and safe permission-group attributes/membership under signed schema contract4, including exact PostgreSQL timestamp precision; historical packets require matching historical releases.
 
 
-### Current Phase Two implementation record — v54
+### Phase Two presentation baseline — PR53
 
-P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v66.md).
+P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v67.md).
 
-P2.4 assessment: **not_reviewed**. Missing evidence: supported mainnet execution/asset registry; isolated custody/signing; funding, refund and closure model; target countries and jurisdiction review; owner-approved financial copy/terms; operating/gas budget; hosted capacity, alert and restore acceptance. The affected mainnet integration remains disabled. Presentation implementation is separate from financial/business/legal readiness.
+P2.4 external assessment remains **not_reviewed** until actual owner/provider evidence is recorded. Mainnet runtime, encrypted signing and local financial procedures are implemented in v67. Remaining evidence includes live registry/provider/custody operation, funding/refund/closure review, countries and terms, budget, hosted capacity/alerts/restore and observation periods. Local implementation does not approve public launch.
 
 Read-only shared preview contract: `PUBLIC_PREVIEW_MODE=read_only` is a Preview-hosting capability, separate from `APP_ENV`. Use the same database/project with a `gw_preview`-only login; allow public configuration/catalogue/published-help reads only. Reject private credentials, authentication, financial jobs and mutations; omit payment controls and mark the preview noindex. Production payment activation keeps its own verified gates.
+
+### Mainnet implementation and verification (v67)
+
+- Four configured mainnet networks and all eight asset protocols pass isolated preparation, encrypted-key signing and exact-byte transport procedures. TRX remains operational-only; token provenance must be verified separately.
+- Mainnet requires `APP_ENV=mainnet`, explicit enablement, transparent non-demo presentation, a reviewed readiness record, matching configuration/alert approvals and a recent signed delivery acknowledgement. Multiple network hashes are supported. Repository defaults remain disabled.
+- One isolated worker can load four environment-bound encrypted keys. Its browser-operated GitHub workflow validates the bundle before installing private files, then runs a bounded pass. Web and preview reject signer material.
+- Named local procedures also verify restricted roles, reserve funding, wallet proof, exact/underpayment handling, failed-refund rights and actual worker-to-web settlement. Fixtures are not live chain, contract provenance, hosted acceptance or elapsed observation evidence.
+- Continue the full gap list, browser recovery operations, remaining product fixes and final external checks. This delivery does not declare Phase One/Two100% complete.

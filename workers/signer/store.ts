@@ -37,6 +37,7 @@ import {
 import {
   parseManifest,
   validateSecurityCeilings,
+  assertFinancialActivationPolicy,
 } from "../../packages/config/src/index";
 import type {
   AssetRegistry,
@@ -143,8 +144,7 @@ export class SignerStore {
       return fn(tx);
     }),{isolationLevel:'read committed'});
   }
-  private async configurationIn(tx: DbExecutor, asset: AssetRegistry) {
-    if(asset.environment!==this.environment)throw new Error('SIGNER_SCOPE_DENIED');
+  private async policyIn(tx: DbExecutor) {
     await tx.execute(
       sql`select pg_advisory_xact_lock_shared(hashtextextended('financial-policy',0))`,
     );
@@ -158,6 +158,11 @@ export class SignerStore {
     const policy = parseManifest(values);
     validateSecurityCeilings(policy);
     this.drainMilliseconds=Math.min(20000,policy.worker_shutdown_seconds*1000);
+    return policy;
+  }
+  private async configurationIn(tx: DbExecutor, asset: AssetRegistry) {
+    if(asset.environment!==this.environment)throw new Error('SIGNER_SCOPE_DENIED');
+    const policy=await this.policyIn(tx);
     return {
       policy,
       ...(await configurationSnapshot(asset, financialPolicySnapshot(policy))),
@@ -171,6 +176,7 @@ export class SignerStore {
   }
   async activation(hash: string) {
     return this.context(async (tx) => {
+      try{assertFinancialActivationPolicy(await this.policyIn(tx),this.environment)}catch{return false}
       const [row] = await tx
         .select({ id: alertDeliveries.id })
         .from(alertDeliveries)
@@ -180,6 +186,7 @@ export class SignerStore {
         )
         .where(
           and(
+            eq(operationalAlerts.environment,this.environment),
             eq(operationalAlerts.category, "activation_probe"),
             eq(alertDeliveries.status, "delivered"),
             sql`${alertDeliveries.payloadText}::jsonb->'details'->>'configuration_hash'=${hash}`,
@@ -247,6 +254,7 @@ export class SignerStore {
         tx,
         row.registrySnapshot as AssetRegistry,
       );
+      assertFinancialActivationPolicy(live.policy,this.environment);
       if(live.hash!==fingerprint)throw new Error("SIGNER_CONFIGURATION_CHANGED");
       if(!live.policy.feature_wallets)throw new Error("SIGNER_FEATURE_PAUSED");
       if(row.kind==='business'&&live.addresses[businessAddressRole(row.sourcePurpose)]!==row.destination)throw new Error('SIGNER_INTENT_DENIED');
@@ -478,6 +486,7 @@ export class SignerStore {
         .limit(1);
       if (!activeAsset?.enabled && !(obligation.kind==="sweep"&&(obligation.registrySnapshot as AssetRegistry).kind==="native")) throw new Error("SIGNER_INTENT_DENIED");
       const live = await this.configurationIn(tx, prepared.intent.asset);
+      assertFinancialActivationPolicy(live.policy,this.environment);
       if (
         live.hash !== obligation.configurationHash ||
         !live.policy.feature_wallets
@@ -575,6 +584,7 @@ export class SignerStore {
         tx,
         row.registrySnapshot as AssetRegistry,
       );
+      assertFinancialActivationPolicy(live.policy,this.environment);
       if (live.hash !== row.configurationHash || !live.policy.feature_wallets)
         throw new Error("SIGNER_INTENT_DENIED");
       const [enabled] = await tx

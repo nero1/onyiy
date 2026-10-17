@@ -19,7 +19,7 @@ export async function monitorOperations(){
  return withContext({access:'service'},tx=>captureOperations(tx,locks));
 }
 export async function captureOperations(tx:DbExecutor,locks:{waiting:number;scope:'web_role'}){
- const environment=validateRuntimeEnv().appEnv as 'simulation'|'testnet',policy=(await readManifest(tx)).alert_policy;
+ const environment=validateRuntimeEnv().appEnv as 'simulation'|'testnet'|'mainnet',policy=(await readManifest(tx)).alert_policy;
  const due=and(eq(jobs.environment,environment),sql`(${jobs.status} in ('pending','retry_wait') and ${jobs.dueAt}<=clock_timestamp()) or (${jobs.status}='running' and ${jobs.leaseUntil}<=clock_timestamp())`);
  const queued=await tx.select({id:jobs.id}).from(jobs).where(due).orderBy(asc(jobs.dueAt)).limit(policy.backlog+1);
  const dead=await tx.select({id:jobs.id}).from(jobs).where(and(eq(jobs.environment,environment),eq(jobs.status,'dead_letter'))).limit(policy.dlq+1);
@@ -37,7 +37,7 @@ export async function captureOperations(tx:DbExecutor,locks:{waiting:number;scop
  await tx.insert(operationalDiagnostics).values({environment,snapshot,observedAt:sql`clock_timestamp()`}).onConflictDoUpdate({target:operationalDiagnostics.environment,set:{snapshot,observedAt:sql`clock_timestamp()`}});
  return snapshot;
 }
-const snapshotShape=z.object({observed_at:z.string().datetime(),environment:z.enum(['simulation','testnet']),pending_jobs_at_least:z.number().int().min(0).max(10001),pending_outbox_at_least:z.number().int().min(0).max(10001),dead_letters_at_least:z.number().int().min(0).max(10001),oldest_due_seconds:z.number().nonnegative(),lock_waits:z.number().int().nonnegative(),lock_scope:z.literal('web_role'),alert_budget_used:z.number().int().min(0).max(10001),alert_budget_limit:z.number().int().min(1).max(10000),provider_quotas:z.array(z.object({provider:z.enum(['postgres','vercel','cache','rpc']),used:z.string().regex(/^[0-9]{1,18}$/),capacity:z.string().regex(/^[0-9]{1,18}$/),observed_at:z.string().datetime(),stale:z.boolean(),warning:z.boolean(),revision:z.number().int().positive()}).strict()).max(4),unreported_providers:z.array(z.enum(['postgres','vercel','cache','rpc'])).max(4)}).strict();
+const snapshotShape=z.object({observed_at:z.string().datetime(),environment:z.enum(['simulation','testnet','mainnet']),pending_jobs_at_least:z.number().int().min(0).max(10001),pending_outbox_at_least:z.number().int().min(0).max(10001),dead_letters_at_least:z.number().int().min(0).max(10001),oldest_due_seconds:z.number().nonnegative(),lock_waits:z.number().int().nonnegative(),lock_scope:z.literal('web_role'),alert_budget_used:z.number().int().min(0).max(10001),alert_budget_limit:z.number().int().min(1).max(10000),provider_quotas:z.array(z.object({provider:z.enum(['postgres','vercel','cache','rpc']),used:z.string().regex(/^[0-9]{1,18}$/),capacity:z.string().regex(/^[0-9]{1,18}$/),observed_at:z.string().datetime(),stale:z.boolean(),warning:z.boolean(),revision:z.number().int().positive()}).strict()).max(4),unreported_providers:z.array(z.enum(['postgres','vercel','cache','rpc'])).max(4)}).strict();
 export async function readOperations(tx:DbExecutor){
  const environment=validateRuntimeEnv().appEnv,[row]=await tx.select().from(operationalDiagnostics).where(eq(operationalDiagnostics.environment,environment)).limit(1);
  const parsed=snapshotShape.safeParse(row?.snapshot);if(!row||!parsed.success)return {state:'unknown'};

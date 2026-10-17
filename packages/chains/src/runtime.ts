@@ -96,6 +96,7 @@ export function financialPolicySnapshot(policy: Record<string, unknown>) {
       "bootstrap_destination_role",
       "feature_wallets",
       "feature_gifts",
+      "mainnet_enabled","deployment_profile","feature_transparency","feature_simulation","activity_presentation","financial_readiness_record",
     ].map((key) => [key, policy[key]]),
   );
 }

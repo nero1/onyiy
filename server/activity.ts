@@ -1,3 +1,4 @@
+import {selectedPaymentEnvironment} from '@gifters/config';
 import crypto from 'node:crypto';
 import {and,desc,eq,gte,inArray,lte,sql} from 'drizzle-orm';
 import {alias} from 'drizzle-orm/pg-core';
@@ -46,7 +47,7 @@ export async function realStatisticsPreview(tx:DbExecutor,policy:Manifest){
  return {members:members.members,pending:pending.pending,paid_usd:paid.paid_usd,missing_prices:paid.missing_prices,excluded_environment:false};
 }
 export async function transparentStatisticsSnapshot(tx:DbExecutor,policy:Manifest){
- const environment=process.env.APP_ENV==='testnet'?'testnet':'simulation',clock=await now(tx),[cached]=await tx.select().from(publicStatistics).where(eq(publicStatistics.environment,environment)).limit(1);
+ const environment=selectedPaymentEnvironment(),clock=await now(tx),[cached]=await tx.select().from(publicStatistics).where(eq(publicStatistics.environment,environment)).limit(1);
  const project=(row:typeof publicStatistics.$inferSelect)=>({enabled:true,environment,profile_revision:policy.profile_revision,verified_only:true,scope:'real_money_only',consented_members:row.members.toString(),pending_registrations:row.pendingRegistrations.toString(),settled_member_usd:row.settledMemberUsd,observed_at:row.observedAt.toISOString(),excluded_environment:process.env.APP_ENV!=='mainnet'});
  if(cached?.verifiedOnly&&cached.profileRevision===policy.profile_revision&&cached.expiresAt>clock)return {...project(cached),stale:false};
  const [lock]=await tx.execute<{held:boolean}>(sql`select pg_try_advisory_xact_lock(hashtextextended(${`verified-statistics:${environment}`},0)) as held`);if(!lock.held)return {enabled:true,environment,profile_revision:policy.profile_revision,verified_only:true,pending:true};

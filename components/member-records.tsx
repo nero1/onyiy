@@ -5,7 +5,7 @@ import {errorMessage} from '@/lib/error-messages';
 import {formatBaseUnits} from '@gifters/domain';
 import type {Locale} from '@/lib/i18n';
 import type {MemberCollection,MemberRecord,MemberRecordPage} from '@/lib/member-records';
-type Props={owner:string;generation:string;environment:'simulation'|'testnet';locale:Locale;collections:MemberCollection[];history:boolean;disabled:boolean;revision?:object|null;onInvoice?:(row:MemberRecord)=>void;onCancelInvoice?:(row:MemberRecord)=>void;onWithdrawal?:(row:MemberRecord)=>void};
+type Props={owner:string;generation:string;environment:'simulation'|'testnet'|'mainnet';locale:Locale;collections:MemberCollection[];history:boolean;disabled:boolean;revision?:object|null;onInvoice?:(row:MemberRecord)=>void;onCancelInvoice?:(row:MemberRecord)=>void;onWithdrawal?:(row:MemberRecord)=>void};
 /** Each page replaces the previous page; neither financial work nor browser
  * memory is bounded by the dashboard's recent-history window. */
 export default function MemberRecords(props:Props){
@@ -45,7 +45,7 @@ export default function MemberRecords(props:Props){
    {row.credited_count!==undefined&&<p>{row.credited_count} / {row.receipts_required}{row.display_position?` · ${fr?'Position':'Position'} ${row.display_position}`:''}</p>}
    {(row.amount_base_units??row.gross_base_units)&&<p>{formatBaseUnits(BigInt(row.amount_base_units??row.gross_base_units!),row.decimals)} {row.asset}</p>}
    {collection==='invoices'&&view==='current'&&<>
-    {props.onInvoice&&(environment==='testnet'||row.status==='quoted')&&<button disabled={disabled||busy||!navigator.onLine} onClick={()=>props.onInvoice!(row)}>{fr?'Ouvrir le paiement enregistré':'Open saved payment'}</button>}
+    {props.onInvoice&&(environment!=='simulation'||row.status==='quoted')&&<button disabled={disabled||busy||!navigator.onLine} onClick={()=>props.onInvoice!(row)}>{fr?'Ouvrir le paiement enregistré':'Open saved payment'}</button>}
     {props.onCancelInvoice&&row.status==='quoted'&&<button disabled={disabled||busy||!navigator.onLine} onClick={()=>props.onCancelInvoice!(row)}>{fr?'Annuler le devis':'Cancel quote'}</button>}
    </>}
    {collection==='withdrawals'&&view==='current'&&props.onWithdrawal&&(!row.kind||row.kind==='withdrawal')&&(environment==='simulation'?row.status==='held':['held','quoted','approved','awaiting_requote','exception'].includes(row.status))&&<button disabled={disabled||busy||!navigator.onLine} onClick={()=>props.onWithdrawal!(row)}>{fr?'Annuler et récupérer le solde':'Cancel and recover balance'}</button>}

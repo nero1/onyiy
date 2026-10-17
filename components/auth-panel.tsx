@@ -6,7 +6,7 @@ import {useEffect,useState,useRef} from 'react';
 import {api,mutation,ApiError,clientSessionMatches} from '@/lib/api-client';
 import {copy,type Locale} from '@/lib/i18n';
 import type {AuthUser,SessionResult} from '@/lib/auth-client';
-type Props={environment?:'simulation'|'testnet';scope?:string;securityReady?:boolean;locale:Locale;user:AuthUser|null;requiresMfa:boolean;provider:string;accounts:{username:string}[];manifest:any;onSession:(value:SessionResult)=>void};
+type Props={environment?:'simulation'|'testnet'|'mainnet';scope?:string;securityReady?:boolean;locale:Locale;user:AuthUser|null;requiresMfa:boolean;provider:string;accounts:{username:string}[];manifest:any;onSession:(value:SessionResult)=>void};
 export default function AuthPanel({environment='simulation',scope,securityReady=true,locale,user,requiresMfa,provider,accounts,manifest,onSession}:Props){
  const renderScope=(user?.id??'anonymous')+':'+(scope??'')+':'+requiresMfa;const scopeRef=useRef(renderScope);scopeRef.current=renderScope;const mounted=useRef(true);useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);const valid=()=>mounted.current&&scopeRef.current===renderScope&&clientSessionMatches(user?.username??'',scope);
  const [botReady,setBotReady]=useState(false),[proof,setProof]=useState<BotProof|undefined>();
@@ -25,7 +25,7 @@ export default function AuthPanel({environment='simulation',scope,securityReady=
    <details><summary>{t.createTestAccount}</summary><label>{t.username}<input value={newName} onChange={e=>setNewName(e.target.value.toLowerCase())} autoComplete="username" maxLength={64}/></label><button disabled={busy||!newName} onClick={()=>run(async()=>session(await mutation<SessionResult>('/auth/simulation/signup','',{username:newName,locale})))}>{t.createTestAccount}</button></details>
   </>)}
   {user&&(user.status==='pending_consent'||!ageSatisfied||user.consent_version!==manifest?.terms_content?.version)&&<>
-   <h3>{environment==='testnet'?t.consentTitleNative:t.consentTitle}</h3><p>{environment==='testnet'?t.consentBodyNative:t.consentBody}</p><div className="terms-body">{manifest?.terms_content?.body?.[locale]}</div>
+   <h3>{environment!=='simulation'?t.consentTitleNative:t.consentTitle}</h3><p>{environment!=='simulation'?t.consentBodyNative:t.consentBody}</p><div className="terms-body">{manifest?.terms_content?.body?.[locale]}</div>
    <label>{t.username}<input value={username} disabled={!!user.consent_version} onChange={e=>setUsername(e.target.value.toLowerCase())} autoComplete="username" maxLength={64}/></label>
    <label className="checkbox-label"><input type="checkbox" checked={accepted} onChange={e=>setAccepted(e.target.checked)}/>{t.acceptTerms}</label>
    <label className="checkbox-label"><input type="checkbox" checked={adult} onChange={e=>setAdult(e.target.checked)}/>{t.ageConfirmation.replace('{age}',String(manifest?.eligibility_min_age??''))}</label>

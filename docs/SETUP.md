@@ -1,8 +1,8 @@
 # Set up Gifters World in your browser
 
-Follow these steps in order. You need no terminal or local installation. Start with a **simulation site using GIV**, then follow the preview/testnet sections. Mainnet production preparation is listed separately; this release cannot process real money. Keep passwords and tokens in a password manager.
+Follow these steps in order. You need no terminal or local installation. Start with a **simulation site using GIV**, then follow the preview/testnet sections. Mainnet configuration for controlled real-money testing is in section13. Public launch still requires the final checks. Keep passwords and tokens in a password manager.
 
-Menu names checked against official platform documentation on **16 October 2026**. Your account's plan may change which options appear.
+Menu names checked against official platform documentation on **17 October 2026**. Your account's plan may change which options appear.
 
 **Already used Google login with this database?** Do not apply the demo settings or create a shared demo preview. Keep your existing credentials and follow step 12 to promote the database to testnet first; then add the preview in testnet mode. The shared simulation walkthrough is for demo identities, not real Google-user data.
 
@@ -16,7 +16,7 @@ Use **one Supabase project/database, one Upstash database and one Vercel project
 | `APP_ENV=testnet` | Test networks and Google identity | One payment-mode switch, after adding the required credentials once |
 | Vercel **Preview** | A build for reviewing a branch | Selected by the workflow; never put `preview` in `APP_ENV` |
 | Vercel **Production** | The main site/domain | Selected by the workflow; does not mean mainnet payments |
-| Real-money **mainnet** | Actual assets and custody | Not implemented in this release; do not set `APP_ENV=mainnet` or enable its gates |
+| `APP_ENV=mainnet` | Actual assets and custody | Follow section13; protected approvals and a separate signer are required |
 
 **Shared database, restricted preview:** the main site can write; the read-only preview uses a separate login for public configuration/catalogue/help. It cannot sign in or change records. After testnet initialization, simulation writes/seed/reset are retired. Keep the preview payment mode aligned with the main site. Existing GIV records are retained, never converted to test tokens.
 
@@ -55,7 +55,7 @@ If already installed, run the receipt query below first and skip installation wh
 select name from public.schema_migrations order by name;
 ```
 
-7. Confirm six receipts appear, from `000_initial_schema.sql` through `005_production_environments.sql`. These identify the installed schema version; **do not run those six files separately**.
+7. Confirm seven receipts appear, from `000_initial_schema.sql` through `006_public_queue_disclosure.sql`. These identify the installed schema version; **do not run those files separately**.
 
 This one file creates the final tables, views, functions, indexes and security rules directly. It does not replay the old upgrades. Step 8 adds the remaining default settings/plans/accounts. Existing databases keep their original receipts and use reviewed upgrades; never run this fresh installer over existing tables. Deployment checks the schema and does not apply SQL automatically.
 
@@ -175,7 +175,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v66.md](PROJECT-STATUS_v66.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v67.md](PROJECT-STATUS_v67.md).
 
 ## 10. Read-only preview using the same database
 
@@ -378,20 +378,51 @@ Use the UTC format `YYYY-MM-DDTHH:MM:SSZ`. `verified=true` records a real networ
 
 Other supported test-network registry values: Ethereum Sepolia `11155111`, BNB testnet `97`, and reviewed TRON `nile`/`shasta`. Token assets additionally need independently verified contract/mint and decimals; do not copy a mainnet token address into a test registry. [Official Solana network details](https://solana.com/docs/references/clusters).
 
-## 13. Prepare real-money production on the same accounts
+## 13. Configure real-money mainnet on the same accounts
 
-**Mainnet payments are not available in this release.** `APP_ENV=mainnet` is accepted only for the restricted read-only preview; production payment execution still rejects it. `APP_ENV=production` and `MAINNET_ENABLED=true` remain rejected. Vercel's Production label only means “main website.” The steps below prepare existing resources; they are not a working mainnet activation procedure.
+Code supports Ethereum `1`, BNB `56`, Solana `mainnet-beta` and TRON `mainnet`. Tokens remain disabled until their exact contracts/mints and provenance are verified. These steps configure **controlled final testing**; finish the final-testing checklist before public launch.
 
-1. Keep the existing Supabase, Upstash, Google and Vercel accounts. Do not create a second set just because the site will use real money.
-2. In the existing Vercel project, open **Settings → Domains** and attach the real domain using step 11. Update Production `WEB_ORIGIN`, Google's production callback and Turnstile hostname.
-3. Review the existing account's hosting plan. Vercel Hobby is personal/non-commercial; choose a compliant plan on the **same account** before operating this commercial service. Free database/cache quotas are shared by every deployment, not multiplied by changing mode.
-4. Keep the current main domain on simulation or testnet with signing disabled while implementation finishes. Do not tell users to send real assets to it.
-5. Have the maintainer complete: supported mainnet registry/adapters, isolated custody/signing, funding/fees, external alerts and hosted backup/restore. Encrypted mainnet archive/restore code passes local checks; the owner’s browser recovery workflow and chain reconciliation are still pending. These are existing release requirements, not checkboxes that environment variables can replace.
-6. Before reusing this database for real funds, require a reviewed implementation that isolates mainnet financial records and disables demo/preview financial writes. Retain all GIV/testnet history in its original environment; never convert its balances, queues or receipts to real money.
-7. Use step10’s restricted read-only preview. Local mainnet-scope API/browser checks pass; owner-hosted acceptance remains required. It cannot run sign-in, financial jobs or payments and uses the same database/project.
-8. After that release is implemented and verified, the maintainer must update this section with exact supported mainnet settings and rollout steps. Until then, keep deployments and financial activation at their supported simulation/testnet settings. There is no honest “flip one variable and go live” step today.
+### Prepare the existing site
 
-[Vercel Hobby terms](https://vercel.com/docs/plans/hobby). The resource-reuse preference is recorded in PRD: prefer existing accounts/projects and one payment-mode selector; introduce extra infrastructure only for a demonstrated requirement.
+1. Keep your existing Supabase, Upstash, Google, GitHub and Vercel accounts. Keep Supabase's database name. Mainnet initialization retires testnet writes on this database; old balances/history remain in their original environment.
+2. In Vercel, open **Settings → Domains**. Attach the real domain using section11. Update Production `WEB_ORIGIN`, Google's callback and the Turnstile hostname.
+3. Check the existing hosting plan. Vercel Hobby is personal/non-commercial; choose a commercially permitted plan on the same account before operating this service. Database/cache quotas remain shared.
+4. While still in testnet, sign in as admin and complete MFA. Open **Admin → Release profiles**, choose **Transparent**, then **Stage → Commit**. Choose **Verified** or **Disabled** activity; never labelled demo on mainnet.
+5. In the admin configuration editor, set `feature_simulation` to `false`. Review the actual English/French terms, fee rules, receiving/business addresses and small initial limits. Save an encrypted backup before promotion; preserve all old archives and custody keys.
+6. Complete the countries, terms, funding/refund/closure, custody and budget review in **Final testing** below. Record its real evidence IDs under **Release profiles → Financial readiness**. Select **Approved** only after that review exists.
+7. Set the admin configuration value `mainnet_enabled` to `true`. This database setting alone cannot send money.
+
+### Set Production values in Vercel
+
+8. Open **Settings → Environment Variables**. Select **Production** and set:
+
+| Name | Value |
+|---|---|
+| `APP_ENV` | `mainnet` |
+| `MAINNET_ENABLED` | `true` |
+| `DEPLOYMENT_PROFILE` | `transparent` |
+| `SIGNER_PROVIDER` | `disabled` — private keys stay outside the website |
+| `CAPTCHA_PROVIDER` | `turnstile`, with your existing site/secret keys |
+| `ASSET_REGISTRY_JSON` | Reviewed mainnet entries; keep unverified assets disabled |
+| `FINANCIAL_ACTIVATION` | `mainnet-reviewed` |
+| `ALERT_WEBHOOK_URL`, `ALERT_WEBHOOK_KEY` | Your HTTPS alert receiver and its protected acknowledgement key |
+| `OUTBOUND_ALLOWED_HOSTS` | Comma-separated hostnames of the chosen RPC and alert services |
+
+9. Keep the existing database/cache, Google, MFA and application-authentication settings. Remove simulation-tool credentials. Never put signer files, the signer database login or decryption/payload keys in Vercel. Preview keeps its separate restricted login and `MAINNET_ENABLED=false`.
+10. Add two independent HTTPS RPC endpoints for each enabled network. Replace `SUFFIX` below with `ETH_MAINNET`, `BNB_MAINNET`, `SOL_MAINNET` or `TRON_MAINNET`: `RPC_PRIMARY_SUFFIX` and `RPC_SECONDARY_SUFFIX`. Example: `RPC_PRIMARY_BNB_MAINNET`.
+11. Add `PLATFORM_RECEIVING_ADDRESS_SUFFIX` from the matching custody inventory below. Add the approved `PLATFORM_DEV_ADDRESS_SUFFIX`, `PLATFORM_MARKETING_ADDRESS_SUFFIX`, `PLATFORM_BOOTSTRAP_ADDRESS_SUFFIX` and `PLATFORM_SWEEP_ADDRESS_SUFFIX` where used. Other destinations must differ from receiving. Copy identical values to the signer environment.
+12. Redeploy through the existing GitHub Production deployment workflow. It verifies your manually pasted SQL and initializes the selected namespace; it does not apply migrations. If promotion fails, inspect the failed check; do not erase history or change checksums.
+
+### Approve each network and connect the signer
+
+13. Prepare custody using **Prepare new encrypted custody keys** below, then configure **Run the isolated signer**. Do not replace an existing funded treasury with new keys.
+14. On the site, open native payment administration. Provision each reviewed asset; TRX is an operating/gas asset, not a member gift currency. Leave JAGA disabled unless its exact BNB contract is verified. Add current signed prices; keep plans disabled until the approvals below are in place.
+15. In the existing GitHub `production` environment, set `APP_ENV=mainnet` and the current `FINANCIAL_API_ORIGIN`. Run the existing non-signing financial scheduler as in section12 so queued deliveries can reach the receiver. Use **Check alert channel** in native payment administration for each enabled network. Confirm that the real receiver accepts the signed delivery and returns a valid acknowledgement. Keep the probe open for reminders/renewal; an old acknowledgement expires after24 hours.
+16. Copy every distinct returned configuration hash. In Vercel Production and the matching GitHub signer environment, set both `FINANCIAL_CONFIG_APPROVALS_JSON` and `ALERT_ACCEPTANCE_FINGERPRINTS_JSON` to the reviewed list, for example `["FIRST_64_CHARACTER_HASH","SECOND_64_CHARACTER_HASH"]`. Use real returned hashes. Remove the older singular approval/fingerprint variables when using these lists.
+17. Redeploy Production, then run the isolated signer workflow once. Check its run result and the site's signer heartbeat. A changed policy, registry, address or alert binding needs new hashes/probes; never reuse an unrelated approval.
+18. With the owner present, fund only the approved treasury/reserve amounts, activate the intended per-currency plans and perform the final tests with small limits. Confirm actual wallet approval, chain receipts, balances, fees, refunds, alerts and restore reconciliation. Complete the required observation periods before public launch.
+
+Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v67.md).
 
 ## If something fails
 
@@ -446,7 +477,7 @@ Provide these during final setup; coding can continue before they are available.
 4. Prepare dedicated treasury/gas and settlement addresses, per-transaction/daily limits, fee reserves and an HTTPS alert receiver. Keep custody/decryption material only in the separate signer host's protected settings.
 5. Put database, OAuth, CAPTCHA, archive and worker credentials in the protected provider settings identified above. Preview must receive restricted access before the shared database holds real funds.
 6. During final testing, verify actual OAuth/MFA, wallet approvals, every enabled asset's payments/refunds/recovery, received alerts and a fresh empty-target restore. Save the actual evidence; local fixtures cannot substitute for it.
-7. Complete the PRD's14-day beta and14-day initial-cap observation periods. Mainnet implementation remains in progress; this checklist does not activate it.
+7. Complete the PRD's14-day beta and14-day initial-cap observation periods. Configuration is not acceptance evidence; this checklist alone does not authorize public launch.
 
 ## Account checks after deployment
 
@@ -454,11 +485,11 @@ Provide these during final setup; coding can continue before they are available.
 2. When consent requests a birth date, enter the full date. The server checks the required age and retains the verification time, not the birth date.
 3. In native plan administration, choose USD-derived pricing or enter the exact token amount. Use **Resume the existing price unchanged** to preserve a paused plan's existing amount.
 
-New backups use recovery inventory contract4. Keep original archives, keys and release references. Contract3 archives require release `6c323dc43c45efa1957308e467ce06e7cc0b36c0`; do not edit or re-sign them.
+New backups use recovery inventory contract4. Keep original archives, keys and release references. Contract4 packets made before SQL006 need the matching pre-006 release (PR65 `0ea4cf5e62a0ef7e7f83c26c1a512d6935775ac3`) before a reviewed forward upgrade. Contract3 archives require release `6c323dc43c45efa1957308e467ce06e7cc0b36c0`; do not edit or re-sign them.
 
 ## Prepare new encrypted custody keys in your browser
 
-This creates **new, unfunded wallets** on a GitHub runner. Use it only if you trust the repository administrators with custody. Do not use it to replace an existing funded treasury. Mainnet payment activation remains unfinished.
+This creates **new, unfunded wallets** on a GitHub runner. Use it only if you trust the repository administrators with custody. Do not use it to replace an existing funded treasury. Generation alone does not activate payments.
 
 1. In Supabase **SQL Editor → New query**, run this once for each custody environment you intend to prepare:
 
@@ -473,6 +504,39 @@ select translate(rtrim(encode(gen_random_bytes(32), 'base64'), '='), '+/', '-_')
 5. Open **Actions → prepare-encrypted-custody → Run workflow**. Select **Branch: main**, then the matching **payment_environment**. Click **Run workflow**. If the button is missing, confirm the workflow is merged into main and you have repository write access.
 6. Open the completed run. Under **Artifacts**, click `encrypted-custody-ENVIRONMENT-RUN_ID` to download it. Download within **one day**; GitHub then expires the artifact.
 7. Keep private backup copies of the encrypted files and `inventory.json`. The inventory lists public addresses; it contains no recovery phrase or plaintext key. Keep the decryption secret backed up separately.
-8. During final signer-host setup, use the reviewed encrypted files and compare their public addresses with the configured treasury addresses. **Do not fund or install a replacement treasury merely because this workflow passed.** Existing custody import, host installation and actual activation still need their documented release steps.
+8. During final signer-host setup, use the reviewed encrypted files and compare their public addresses with the configured treasury addresses. **Do not fund or install a replacement treasury merely because this workflow passed.** Use the installation workflow below only after checking the inventory and selected environment.
 
 Official UI references: [run a workflow](https://docs.github.com/en/actions/managing-workflow-runs/manually-running-a-workflow), [download artifacts](https://docs.github.com/en/actions/managing-workflow-runs/downloading-workflow-artifacts), [environment secrets](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions).
+
+## Run the isolated signer from GitHub
+
+The repository is public; GitHub currently provides standard Linux runner usage free for public repositories. Storage, provider quotas and scheduling limits still apply. Keep the repository and protected environments restricted to trusted administrators.
+
+1. In GitHub **onyiy → Settings → Environments → New environment**, create `signer-testnet` or `signer-mainnet`. Open it and restrict deployment branches to **main**. This reuses GitHub; no extra server account is required.
+2. Under **Environment secrets → Add secret**, add these values:
+
+| Secret | Where it comes from |
+|---|---|
+| `SIGNER_KEY_PACKAGE_JSON` | Entire `encrypted-key-package.json` from the matching downloaded custody artifact |
+| `SIGNER_DECRYPTION_SECRET` | Separately saved secret used to create that package |
+| `SIGNER_DATABASE_URL` | Connection using a separate login holding only `gw_signer` |
+| `SIGNED_PAYLOAD_ENCRYPTION_KEY` | A new32-byte secret, generated like the custody secret; preserve it for retained signed attempts |
+| `FINANCIAL_WORKER_AUTH_KEY` | Same protected worker-authentication key as the website |
+| `ALERT_WEBHOOK_KEY` | Same protected alert acknowledgement key as the website |
+
+3. If you have no signer login, use Supabase **SQL Editor → New query**. Replace the password locally, then run:
+
+```sql
+create role gw_signer_runtime login noinherit password 'PASTE_A_NEW_STRONG_PASSWORD_HERE';
+grant gw_signer to gw_signer_runtime;
+```
+
+Use the existing database's connection details with that login, following the connection-format instructions above. Never grant it `gw_service`, `gw_read` or owner membership. Do not recreate an existing login merely to clear an error.
+
+4. Under this environment's **Environment variables → Add variable**, copy the matching website values: `ASSET_REGISTRY_JSON`, `ALERT_WEBHOOK_URL`, `OUTBOUND_ALLOWED_HOSTS`, both approval JSON lists, `FINANCIAL_ACTIVATION`, the enabled network RPC values and all configured platform addresses. Set `FINANCIAL_API_ORIGIN` to the website's exact HTTPS origin. Copy any non-default signer hard limits and custom database CA setting too.
+5. Keep website authentication, Google, MFA and migration credentials out of this environment. The workflow installs all four encrypted files into a new private runner directory and keeps the decryption secret separate.
+6. Open **Settings → Secrets and variables → Actions → Variables**. Add repository variable `SIGNER_PAYMENT_ENVIRONMENT` with `testnet` or `mainnet`. Add `ENABLE_SIGNER_WORKER` with `true` when ready to run. This also enables the five-minute schedule.
+7. Open **Actions → isolated-encrypted-signer → Run workflow**. Choose **main** and the matching payment environment, then **Run workflow**. Inspect the completed run and signer heartbeat. A paused result requires investigation; it never proves that a payment succeeded.
+8. To stop new signing during setup, set `ENABLE_SIGNER_WORKER=false`. Keep the non-signing financial scheduler configured to observe known attempts and process reports. Never delete signed attempts, reservations or keys to clear an error.
+
+Official UI: [environments and secrets](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments), [run a workflow](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow), [public-runner billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions).

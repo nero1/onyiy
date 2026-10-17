@@ -22,6 +22,7 @@ import {
   assertRegistryBinding,
   financialImplementationComplete,
   financialEnvironmentIn,
+  financialConfiguration,assertExternalActivation,
 } from "./financial-config";
 export async function nativeCatalog(tx: DbExecutor) {
   if(process.env.APP_ENV!=='testnet'&&process.env.APP_ENV!=='mainnet'&&process.env.CHAIN_FIXTURE_MODE!=='isolated')return {mode:'simulation',execution_enabled:false,assets:[],plans:[]};
@@ -36,7 +37,7 @@ export async function nativeCatalog(tx: DbExecutor) {
       .orderBy(asc(assets.symbol))
       .limit(20);
   if (rows.length > 10) throw new Error("CONFIGURATION_INVALID");
-  const currencies = rows.map((row) => {
+  const currencies = await Promise.all(rows.map(async (row) => {
     const item = registry.find(
       (v) => v.environment===mode && v.key.toUpperCase() === row.symbol && v.network === row.chainId,
     );
@@ -47,21 +48,23 @@ export async function nativeCatalog(tx: DbExecutor) {
         identityValid = true;
       } catch {}
     }
+    const enabled=row.enabled && identityValid && !!item?.enabled && !!item.verified;
+    let executionEnabled=false;
+    if(financialImplementationComplete&&enabled&&item)try{await assertExternalActivation(tx,(await financialConfiguration(tx,item)).hash);executionEnabled=true}catch{/* An unavailable financial configuration never enables checkout. */}
     return {
       id: row.id,
       key: row.symbol.toLowerCase(),
       symbol: row.symbol,
       network: row.chainId,
       decimals: row.decimals,
-      enabled:
-        row.enabled && identityValid && !!item?.enabled && !!item.verified,
+      enabled,execution_enabled:executionEnabled,
       contract: item?.contract,
       mint: item?.mint,
       kind: item?.kind ?? "native",
       explorer: item?.explorer,
       environment: mode,
     };
-  });
+  }));
   const versions = await tx
     .select({
       id: plans.id,
@@ -94,7 +97,7 @@ export async function nativeCatalog(tx: DbExecutor) {
   if (versions.length > 800) throw new Error("CONFIGURATION_INVALID");
   return {
     mode,presentation:presentationFromManifest(manifest),profile_revision:manifest.profile_revision,
-    execution_enabled: financialImplementationComplete,
+    execution_enabled: currencies.some(currency=>currency.enabled&&currency.execution_enabled),
     assets: currencies,
     plans: versions.map(row=>({...row,profile_revision:manifest.profile_revision,plan:planFinancialPresentation({amountBaseUnits:row.amount_base_units,usdReference:row.usd_reference,receiverBps:row.receiver_bps,marketingBps:row.marketing_bps,referralBps:row.referral_bps,developerBps:row.developer_bps,reserveBps:row.reserve_bps,receiptsRequired:row.receipts_required},{symbol:row.asset,decimals:row.decimals,chainId:row.network,environment:mode})})).filter((row) =>
       currencies.some(
