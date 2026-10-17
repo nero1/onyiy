@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import {migrationSource} from '../packages/db/src/migration-source';
+const root=process.cwd(),file=path.join(root,'packages/db/fresh-install.sql'),source=fs.readFileSync(file,'utf8');
+const marker='\n-- Final-state installer SHA256 (base64): ',offset=source.indexOf(marker);
+if(offset<0||offset!==source.lastIndexOf(marker)||source.slice(offset)!==marker+crypto.createHash('sha256').update(source.slice(0,offset)).digest('base64')+'\nCOMMIT;\n')throw new Error('FRESH_INSTALL_CHECKSUM_CHANGED');
+const dir=path.join(root,'packages/db/src/migrations'),expected=fs.readdirSync(dir).filter(name=>name.endsWith('.sql')).sort().map(name=>{const {sha256}=migrationSource(name,fs.readFileSync(path.join(dir,name),'utf8'));return[name,sha256]});
+const receipts=[...source.matchAll(/INSERT INTO public\.schema_migrations\(name,sha256\) VALUES\('([^']+)','([a-f0-9]{32})'\|\|'([a-f0-9]{32})'\);/g)].map(row=>[row[1],row[2]+row[3]]);
+if(JSON.stringify(receipts)!==JSON.stringify(expected))throw new Error('FRESH_INSTALL_LINEAGE_MISMATCH');
+if(!source.includes('INITIAL_SCHEMA_REQUIRES_EMPTY_DATABASE')||!source.startsWith('-- Gifters World: final-state schema')||source.includes('ALTER TABLE public.users ADD COLUMN'))throw new Error('FRESH_INSTALL_CONTRACT_INVALID');
+console.log('Single final-state installer checksum and immutable migration lineage verified.');

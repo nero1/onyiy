@@ -17,7 +17,7 @@
     "check:i18n": "node scripts/check-i18n.mjs",
     "check:manifest": "tsx scripts/validate-xmanifest.ts",
     "check:secrets": "node scripts/secret-scan.mjs",
-    "check:drizzle": "node scripts/check-drizzle-coverage.mjs",
+    "check:drizzle": "node scripts/check-drizzle-coverage.mjs && tsx scripts/check-fresh-install.ts",
     "check:supabase-grants": "node scripts/check-supabase-grants.mjs",
     "check:docs": "node scripts/check-docs-layout.mjs",
     "check:all": "npm run typecheck && npm run lint && npm run check:i18n && npm run check:manifest && npm run check:drizzle && npm run check:supabase-grants && npm run check:docs && npm run check:secrets && npm run check:deployment",

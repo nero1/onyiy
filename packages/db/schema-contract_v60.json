@@ -154,7 +154,8 @@
   ],
   "source_sha256_base64": {
     "packages/db/src/schema.ts": "QyJxy2963mV4Yg/stPdMmkz/q+KU7pK6a8QMATofji8=",
-    "packages/db/src/schema-contracts.ts": "46f1C0h8HuSCRTgcljvOEJVmjNSydmdCF8NI6npdlHk="
+    "packages/db/src/schema-contracts.ts": "46f1C0h8HuSCRTgcljvOEJVmjNSydmdCF8NI6npdlHk=",
+    "packages/db/fresh-install.sql": "PZYnUQCYkyeRmh0NYuO0bXCy7z5DOE4Mpn3rj1+Wtts="
   },
   "migrations_sha256_base64": {
     "000_initial_schema.sql": "/8uTC5dPlh3nz8T4e7+39ITUe/KzB3fTsBCRtZ6z8yA=",

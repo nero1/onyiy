@@ -1,12 +1,12 @@
-# LLM handover v59
+# LLM handover v60
 
 ## Current owner instruction
 
-Complete the entire Phase One/Two product, including verified real-money mainnet and every missing feature. Do not stop at transparency implementation or a partial checklist. Continue code work without acceptance pauses; require actual evidence and owner-provisioned details for external activation. Read [PRD](PRD.md) §§29–33 and the complete [gap list](PROJECT-STATUS_v59.md) first.
+Complete the entire Phase One/Two product, including verified real-money mainnet and every missing feature. Do not stop at transparency implementation or a partial checklist. Continue code work without acceptance pauses; require actual evidence and owner-provisioned details for external activation. Read [PRD](PRD.md) §§29–33 and the complete [gap list](PROJECT-STATUS_v60.md) first.
 
 ## Active work
 
-- Repository `nero1/onyiy`, branch `feat/financial-worker-binding` based on PR57 merge4be23e3290ac4503240f692aa2e622d1011a6578.
+- Repository `nero1/onyiy`, branch `feat/final-state-installer` based on PR58 mergea736083d6425bc22f9e1e973700b796ccea0e1e6.
 - Private scratch `/workspace/work/production-v55` contains295 extracted requirement-bearing PRD lines and source research. Review every section; do not treat extraction or source reading as verified acceptance.
 - Merged foundation (PR54–57): `FinancialEnvironment`, mainnet/testnet closed network bindings, environment-specific RPC/address suffixes and fingerprints. Registry parsing can stage mainnet records, but active adapters/runtime still deny mainnet until the complete financial release. Initial typecheck passed.
 - C001–C017 in status/report/plan track the entire product; C006/C015/C016 now have locally verified implementations. Production recovery accepts no mainnet, many SQL/service/signer paths are testnet-specific, both readiness gates are false, and shared preview isolation is unfinished.
@@ -19,14 +19,14 @@ Use substantial related batches; exact-final-head push and pull_request CI must 
 
 ## Prior verified work and tooling
 
-PR51 completed Round One; PR52 later named rounds; PR53 Phase Two transparency and eight review fixes. Details remain in Git and trackers. PR53 head1fea99aeee7f68cbbf5c262ca8523204bd766322 passed push38989539011/PR38989542415. SQL000–004 must stay immutable after installation. Current schema contractv55:96 tables/897 columns/301 checks/119 standalone indexes. Recovery inventory contract4 preserves timestamp microseconds; older archives require matching historical code, never re-signing.
+PR51 completed Round One; PR52 later named rounds; PR53 Phase Two transparency and eight review fixes. Details remain in Git and trackers. PR53 head1fea99aeee7f68cbbf5c262ca8523204bd766322 passed push38989539011/PR38989542415. SQL000–004 must stay immutable after installation. Current schema contractv60:96 tables/897 columns/301 checks/119 standalone indexes. Recovery inventory contract4 preserves timestamp microseconds; older archives require matching historical code, never re-signing.
 
 Owned PostgreSQL cluster: `/workspace/work/shared-hosting-v50/pgdata`, TLS port55450; matching socket/certificate under that directory. Node22: `/workspace/work/tooling/node-v22.23.3-linux-x64/bin`; PostgreSQL tools: `/workspace/work/tooling/pg-tls/bin`. Stop/restart only the exact owned cluster with its port/socket/TLS arguments. Original failed `gw_v27_native_refund_isolated` must remain untouched.
 
 ## Latest implementation/evidence
 
 - SQL005 was merged in PR54; its applied bytes are immutable built by `/workspace/work/production-v55/build-migration.py`. Current immutable fixture is `gw_v55_simulation_r5`; r1–r4 and all failed targets remain preserved. Existing SQL000–004 are unchanged. Never overwrite an installed receipt with modified bytes.
-- Generated/model comparison passes:96 tables/897 columns/301 checks/119 standalone indexes, including normalized foreign keys/defaults. `schema-contract_v55.json` pins current source/migration hashes.
+- Generated/model comparison passes:96 tables/897 columns/301 checks/119 standalone indexes, including normalized foreign keys/defaults. `schema-contract_v60.json` pins current source/migration hashes.
 - SQL adds environment checks, target-aware helpers, active-mode RLS/write fences, safe promotion locks and least-privilege `gw_preview`. Actual retired-mode isolation and preview denial probes pass; preview application wiring is unfinished.
 - Fixed-token pricing binds exact asset amount and source rate, stores actual USD reference and immutable mode, and supports unchanged-price resume. `fixed-price-r2-r5.mts` passed rollback-only service checks; no network/signing/funds.
 - DOB eligibility uses server date, stores verification time/minimum only and preserves accrued-rights access. `birth-date-r1.mts` and actual `consent-api-r2.mts` pass; exact starter grant count is one.
@@ -87,4 +87,11 @@ Owned PostgreSQL cluster: `/workspace/work/shared-hosting-v50/pgdata`, TLS port5
 - Shared the existing v1 worker-signature format across receiver, signer and scheduler. Environment, purpose, route and exact body bytes are authenticated; signer inputs must match the captured worker scope. Mainnet execution remains disabled.
 - Named isolated procedures in `/workspace/work/financial-v59`: `wallet-before-fix-r1` reproduces the old bug; fresh `wallet-scope-r2` proves rejection, successful fresh linking, two exact audit/archive identities and unchanged financial hashes; `worker-binding-r2` proves compatibility, byte binding, replay/clock/scope rejection and unchanged financial hashes. Failed r1 harness fixtures are preserved. No RPC transfer or real funds.
 
-v59
+
+## One-paste fresh installation (v60)
+
+- `packages/db/fresh-install.sql` creates the final schema directly. The six historical migration files remain immutable for installed databases and recovery compatibility; new owners paste only the fresh installer. SETUP now says so.
+- Fresh unseeded reference and single-file target match all4222 schema/security metadata entries, including column grants. Named `final-installer-v60` procedures prove atomic installation, exact receipts, rerun/nonempty rejection without data loss and complete rollback after a late failure. The unchanged migration runner skips all six receipts; actual seeding and restricted-login verification pass. A second target with broad unknown-role defaults matches all4088 application/security entries; provider extension ACLs are deliberately preserved. The first comparator failure counted those extension grants and is preserved. Required checks pin the installer checksum and exact historical lineage. Current verified schema contract is `schema-contract_v60.json`; model counts are unchanged.
+- PR58 merged at a736083d6425bc22f9e1e973700b796ccea0e1e6 after exact-head push39023906817 and PR39023923825 passed. This installer batch does not complete mainnet execution, preview wiring or overall product acceptance. Continue C001–C017 without milestone pauses.
+
+v60
