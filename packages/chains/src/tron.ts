@@ -1,3 +1,4 @@
+import {tronChainId} from './network';
 import {scanTransferPage as boundedScanPage} from './scan-page';
 import type {TransferScanCursor} from './types';
 import { canonicalTransactionHash } from "./hash";
@@ -29,10 +30,6 @@ const erc20 = new Interface([
 const transferTopic = id("Transfer(address,address,uint256)")
   .slice(2)
   .toLowerCase();
-const chainIds: Record<string, bigint> = {
-  nile: 3448148188n,
-  shasta: 2494104990n,
-};
 const addressHex = (address: string) =>
   TronWeb.address.toHex(address).toLowerCase();
 const normalized = (address: string) =>
@@ -49,7 +46,7 @@ export class TronAdapter implements ChainAdapter {
     options: RpcOptions,
   ) {
     assertActive(asset);
-    if (asset.chain !== "tron" || !chainIds[asset.network])
+    if (asset.chain !== "tron" || !tronChainId(asset.network))
       throw new Error("WRONG_NETWORK");
     this.rpc = new DualRpc(options);
   }
@@ -57,7 +54,7 @@ export class TronAdapter implements ChainAdapter {
   async scanTransfers(address:string,after:bigint,through:bigint):Promise<TransferScan> {
     if(after<0n||through<=after||through-after>5n)throw new Error("SCAN_RANGE_INVALID");jsonInteger(through);const account=normalized(address);
     const results=await Promise.all(([0,1] as const).map(async side=>{
-      const identity=await this.rpc.post(side,"jsonrpc",{jsonrpc:"2.0",id:1,method:"eth_chainId",params:[]},true);if(BigInt(identity)!==chainIds[this.asset.network])throw new Error("WRONG_NETWORK");const solid=await this.rpc.post(side,"walletsolidity/getnowblock",{});if(integer(solid.block_header.raw_data.number)<through)throw new Error("FINALITY_UNAVAILABLE");const transfers:ScannedTransfer[]=[],blocks:{height:string;hash:string}[]=[];
+      const identity=await this.rpc.post(side,"jsonrpc",{jsonrpc:"2.0",id:1,method:"eth_chainId",params:[]},true);if(BigInt(identity)!==tronChainId(this.asset.network))throw new Error("WRONG_NETWORK");const solid=await this.rpc.post(side,"walletsolidity/getnowblock",{});if(integer(solid.block_header.raw_data.number)<through)throw new Error("FINALITY_UNAVAILABLE");const transfers:ScannedTransfer[]=[],blocks:{height:string;hash:string}[]=[];
       for(let height=after+1n;height<=through;height++){const block=await this.rpc.post(side,"walletsolidity/getblockbynum",{num:jsonInteger(height)});if(integer(block.block_header.raw_data.number)!==height||!/^[0-9a-f]{64}$/i.test(block.blockID)||!Array.isArray(block.transactions??[])||(block.transactions??[]).length>1000)throw new Error("SCAN_CAPACITY_EXCEEDED");
         blocks.push({height:height.toString(),hash:block.blockID.toLowerCase()});for(const tx of block.transactions??[]){const hash=canonicalTransactionHash("tron",tx.txID),contract=tx.raw_data?.contract?.[0];if(tx.raw_data?.contract?.length!==1)continue;
           if(this.asset.kind==="native"){if(contract.type!=="TransferContract")continue;const value=contract.parameter.value,sender=normalized(TronWeb.address.fromHex(value.owner_address)),destination=normalized(TronWeb.address.fromHex(value.to_address)),amount=integer(value.amount);if(amount<=0n||sender===destination||sender!==account&&destination!==account)continue;transfers.push({hash,index:0,height,blockHash:block.blockID.toLowerCase(),sender,destination,amount,direction:destination===account?"incoming":"outgoing"})}
@@ -108,7 +105,7 @@ export class TronAdapter implements ChainAdapter {
       .map((v) => (v as PromiseFulfilledResult<string>).value);
     if (
       !valid.length ||
-      valid.some((v) => BigInt(v) !== chainIds[this.asset.network])
+      valid.some((v) => BigInt(v) !== tronChainId(this.asset.network))
     )
       throw new Error("WRONG_NETWORK");
   }
@@ -145,7 +142,7 @@ export class TronAdapter implements ChainAdapter {
           { jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] },
           true,
         );
-        if (BigInt(identity) !== chainIds[this.asset.network])
+        if (BigInt(identity) !== tronChainId(this.asset.network))
           throw new Error("WRONG_NETWORK");
         const [block, solid] = await Promise.all([
           this.rpc.post(side, "walletsolidity/getblockbynum", { num: number }),
@@ -218,7 +215,7 @@ export class TronAdapter implements ChainAdapter {
   }
   private async finalizedBalancePair(asset:AssetRegistry,address:string,height:bigint){
     assertActive(asset);if(asset.key!==this.asset.key||height<0n)throw new Error("INVALID_INPUT");const account=normalized(address);
-    const values=await Promise.all(([0,1] as const).map(async side=>{const identity=await this.rpc.post(side,"jsonrpc",{jsonrpc:"2.0",id:1,method:"eth_chainId",params:[]},true);if(BigInt(identity)!==chainIds[asset.network])throw new Error("WRONG_NETWORK");const before=await this.rpc.post(side,"walletsolidity/getnowblock",{}),tip=integer(before.block_header.raw_data.number);if(tip<height||!/^[0-9a-f]{64}$/i.test(before.blockID))throw new Error("FINALITY_UNAVAILABLE");let amount:bigint;
+    const values=await Promise.all(([0,1] as const).map(async side=>{const identity=await this.rpc.post(side,"jsonrpc",{jsonrpc:"2.0",id:1,method:"eth_chainId",params:[]},true);if(BigInt(identity)!==tronChainId(asset.network))throw new Error("WRONG_NETWORK");const before=await this.rpc.post(side,"walletsolidity/getnowblock",{}),tip=integer(before.block_header.raw_data.number);if(tip<height||!/^[0-9a-f]{64}$/i.test(before.blockID))throw new Error("FINALITY_UNAVAILABLE");let amount:bigint;
     if(asset.kind==="native"){const result=await this.rpc.post(side,"walletsolidity/getaccount",{address:addressHex(account),visible:false});amount=integer(result.balance??0)}else{const result=await this.rpc.post(side,"walletsolidity/triggerconstantcontract",{owner_address:addressHex(account),contract_address:addressHex(asset.contract!),function_selector:"balanceOf(address)",parameter:addressHex(account).slice(-40).padStart(64,"0"),visible:false});if(!result.result?.result||!Array.isArray(result.constant_result)||result.constant_result.length!==1||! /^[0-9a-f]{64}$/i.test(result.constant_result[0]))throw new Error("RPC_EVIDENCE_INVALID");amount=BigInt("0x"+result.constant_result[0])}
     const after=await this.rpc.post(side,"walletsolidity/getnowblock",{});if(after.blockID!==before.blockID||integer(after.block_header.raw_data.number)!==tip)throw new Error("FINALITY_UNAVAILABLE");return {tip,hash:String(before.blockID).toLowerCase(),amount}}));return values;
   }
@@ -364,7 +361,7 @@ export class TronAdapter implements ChainAdapter {
           { jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] },
           true,
         );
-        if (BigInt(identity) !== chainIds[this.asset.network])
+        if (BigInt(identity) !== tronChainId(this.asset.network))
           throw new Error("WRONG_NETWORK");
         const current = await this.rpc.post(side, "wallet/getnowblock", {}),
           tip = integer(current.block_header.raw_data.number);
@@ -432,7 +429,7 @@ export class TronAdapter implements ChainAdapter {
       await this.assertReference(tx);
       return {
         family: "tron",
-        environment: "testnet",
+        environment: intent.asset.environment,
         network: intent.asset.network,
         intent,
         payload: tx,
@@ -480,7 +477,7 @@ export class TronAdapter implements ChainAdapter {
     await this.assertReference(tx);
     return {
       family: "tron",
-      environment: "testnet",
+      environment: intent.asset.environment,
       network: intent.asset.network,
       intent,
       payload: tx,
@@ -705,7 +702,7 @@ export class TronAdapter implements ChainAdapter {
         ),
       ),
     );
-    if (identities.some((v) => BigInt(v) !== chainIds[this.asset.network]))
+    if (identities.some((v) => BigInt(v) !== tronChainId(this.asset.network)))
       throw new Error("WRONG_NETWORK");
     const observations = await Promise.all(
       ([0, 1] as const).map(async (side) => {

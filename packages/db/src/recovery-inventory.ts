@@ -1,5 +1,6 @@
 import { recoveryExtensions } from './recovery-extensions';
 import {migrationSource} from './migration-source';
+import {recoveryRoleContract} from './recovery-roles';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -8,9 +9,10 @@ import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { manifestDefinition } from '@gifters/config';
 import { readManifest, schema, type DbExecutor } from './index';
 
-// Contract3 preserves PostgreSQL microseconds in row hashes and keyset cursors.
+// Contract4 also binds permission-group attributes and memberships. Contract3
+// introduced exact PostgreSQL microseconds in row hashes and keyset cursors.
 // Older signed inventories require their matching historical release.
-export const schemaContractVersion = 3 as const;
+export const schemaContractVersion = 4 as const;
 
 export function canonical(value:unknown):string {
   if (value===null || typeof value!=='object') return JSON.stringify(typeof value==='bigint'?value.toString():value);
@@ -90,5 +92,6 @@ export async function recoveryInventory(database:DbExecutor) {
     union all select 'function_grant',p.oid::regprocedure::text||'.'||case when a.grantee=0 then 'PUBLIC' when a.grantee=p.proowner then 'OWNER' else pg_get_userbyid(a.grantee) end||'.'||a.privilege_type,to_jsonb(a.is_grantable) from pg_proc p join pg_namespace n on n.oid=p.pronamespace cross join lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where n.nspname='public' and p.prokind='f'
     union all select 'schema_grant',n.nspname||'.'||case when a.grantee=0 then 'PUBLIC' when a.grantee=n.nspowner then 'OWNER' else pg_get_userbyid(a.grantee) end||'.'||a.privilege_type,to_jsonb(a.is_grantable) from pg_namespace n cross join lateral aclexplode(coalesce(n.nspacl,acldefault('n',n.nspowner))) a where n.nspname='public'
   ) evidence order by kind collate "C",name collate "C"`);
-  return {schema_contract_version:schemaContractVersion,records,extensions:[...extensions],schema_sha256:digest(metadata),migrations_sha256:migrationsSha};
+  const roleContract=await recoveryRoleContract(database);
+  return {schema_contract_version:schemaContractVersion,records,extensions:[...extensions],schema_sha256:digest({objects:metadata,permission_roles:roleContract}),migrations_sha256:migrationsSha};
 }

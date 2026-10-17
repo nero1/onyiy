@@ -281,7 +281,7 @@ export class EvmAdapter implements ChainAdapter {
     const tx = this.tx(intent);
     return {
       family: this.asset.chain,
-      environment: "testnet",
+      environment: intent.asset.environment,
       network: this.asset.network,
       intent,
       payload: {

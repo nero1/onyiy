@@ -1,3 +1,4 @@
+export type FinancialEnvironment = "testnet" | "mainnet";
 export type Chain = "eth" | "bnb" | "sol" | "tron";
 export type AssetKey =
   | "eth"
@@ -11,7 +12,7 @@ export type AssetKey =
 export type AssetRegistry = {
   key: AssetKey;
   chain: Chain;
-  environment: "testnet";
+  environment: FinancialEnvironment;
   network: string;
   kind: "native" | "token";
   decimals: number;
@@ -74,7 +75,7 @@ export type TransferIntent = {
 };
 export type PreparedTransfer = {
   family: Chain;
-  environment: "testnet";
+  environment: FinancialEnvironment;
   network: string;
   intent: TransferIntent;
   payload: unknown;

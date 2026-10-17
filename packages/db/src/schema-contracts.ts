@@ -119,7 +119,7 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
   "bot_challenges": [
     {
       "name": "bot_challenges_environment_check",
-      "expression": "(environment = ANY (ARRAY['simulation'::text, 'testnet'::text]))"
+      "expression": "(environment = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text]))"
     },
     {
       "name": "bot_challenges_provider_check",
@@ -133,7 +133,7 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
   "bot_token_uses": [
     {
       "name": "bot_token_uses_environment_check",
-      "expression": "(environment = ANY (ARRAY['simulation'::text, 'testnet'::text]))"
+      "expression": "(environment = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text]))"
     },
     {
       "name": "bot_token_uses_token_hash_check",
@@ -173,7 +173,7 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
     },
     {
       "name": "chain_fee_claims_environment_check",
-      "expression": "(environment = 'testnet'::text)"
+      "expression": "(environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))"
     },
     {
       "name": "chain_fee_claims_network_fee_base_units_check",
@@ -249,7 +249,7 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
     },
     {
       "name": "crypto_events_environment_check",
-      "expression": "(environment = 'testnet'::text)"
+      "expression": "(environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))"
     },
     {
       "name": "crypto_events_event_index_check",
@@ -263,7 +263,7 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
   "crypto_invoices": [
     {
       "name": "crypto_invoices_environment_check",
-      "expression": "(environment = 'testnet'::text)"
+      "expression": "(environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))"
     },
     {
       "name": "crypto_invoices_expected_base_units_check",
@@ -297,7 +297,7 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
     },
     {
       "name": "crypto_obligations_environment_check",
-      "expression": "(environment = 'testnet'::text)"
+      "expression": "(environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))"
     },
     {
       "name": "crypto_obligations_gross_base_units_check",
@@ -667,7 +667,7 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
     },
     {
       "name": "native_reserve_inflows_environment_check",
-      "expression": "(environment = 'testnet'::text)"
+      "expression": "(environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))"
     },
     {
       "name": "native_reserve_inflows_event_index_check",
@@ -691,7 +691,7 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
   "operational_alerts": [
     {
       "name": "operational_alerts_environment_check",
-      "expression": "(environment = ANY (ARRAY['simulation'::text, 'testnet'::text]))"
+      "expression": "(environment = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text]))"
     },
     {
       "name": "operational_alerts_escalation_step_check",
@@ -713,7 +713,7 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
   "operational_diagnostics": [
     {
       "name": "operational_diagnostics_environment_check",
-      "expression": "(environment = ANY (ARRAY['simulation'::text, 'testnet'::text]))"
+      "expression": "(environment = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text]))"
     },
     {
       "name": "operational_diagnostics_snapshot_check",
@@ -765,7 +765,7 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
     },
     {
       "name": "provider_quota_reports_environment_check",
-      "expression": "(environment = ANY (ARRAY['simulation'::text, 'testnet'::text]))"
+      "expression": "(environment = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text]))"
     },
     {
       "name": "provider_quota_reports_proof_reference_check",
@@ -787,7 +787,7 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
   "public_statistics": [
     {
       "name": "public_statistics_environment_check",
-      "expression": "(environment = ANY (ARRAY['simulation'::text, 'testnet'::text]))"
+      "expression": "(environment = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text]))"
     },
     {
       "name": "public_statistics_members_check",
@@ -985,7 +985,7 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
     },
     {
       "name": "signed_attempts_environment_check",
-      "expression": "(environment = 'testnet'::text)"
+      "expression": "(environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))"
     },
     {
       "name": "signed_attempts_intent_hash_check",
@@ -1025,7 +1025,7 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
     },
     {
       "name": "signer_heartbeats_environment_check",
-      "expression": "(environment = 'testnet'::text)"
+      "expression": "(environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))"
     },
     {
       "name": "signer_heartbeats_treasury_fingerprint_check",
@@ -1045,7 +1045,7 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
   "signer_states": [
     {
       "name": "signer_states_environment_check",
-      "expression": "(environment = 'testnet'::text)"
+      "expression": "(environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))"
     },
     {
       "name": "signer_states_next_nonce_check",
@@ -1169,7 +1169,7 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
     },
     {
       "name": "unallocated_inflows_environment_check",
-      "expression": "(environment = 'testnet'::text)"
+      "expression": "(environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))"
     },
     {
       "name": "unallocated_inflows_event_index_check",
@@ -1237,7 +1237,7 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
     },
     {
       "name": "wallet_challenges_environment_check",
-      "expression": "(environment = 'testnet'::text)"
+      "expression": "(environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))"
     }
   ],
   "wallet_links": [
@@ -1259,7 +1259,7 @@ const checks:Record<string,readonly {name:string;expression:string}[]>={
     },
     {
       "name": "worker_requests_environment_check",
-      "expression": "(environment = 'testnet'::text)"
+      "expression": "(environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))"
     }
   ],
   "x_manifest": [

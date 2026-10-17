@@ -7,6 +7,7 @@ import { validateRuntimeEnv } from '@gifters/config';
 import { closeDb, migrationClient, readManifest, schema, withContext } from './index';
 import { verifyDatabaseBinding } from './verify-binding';
 import { recoveryExtensions, provisionRecoveryExtensions } from './recovery-extensions';
+import {provisionRecoveryRoles} from './recovery-roles';
 import { canonical, digest, migrationFingerprint, recoveryInventory, schemaContractVersion } from './recovery-inventory';
 import { archiveChecksum, authenticatedCopy, encryptedDump, exclusiveFile, nativeDatabaseName, recoveryKey, recoveryPath, restoreArchive } from './recovery-files';
 
@@ -95,6 +96,7 @@ async function main() {
       await ensureEmpty(owner);
       // Schema-scoped native dumps exclude provider auth/storage/vault data.
       // Provision only authenticated, closed dependencies after empty-target checks.
+      await provisionRecoveryRoles(owner);
       await provisionRecoveryExtensions(owner,expected.extensions);
       await restoreArchive(input.file,key);
     }
@@ -117,6 +119,7 @@ main().catch(async(error:unknown)=>{
   // fixed category; failure never publishes, repairs or automatically resumes.
   const safe=new Set(['RECOVERY_INPUT_INVALID','RECOVERY_PATH_INVALID','RECOVERY_KEY_REQUIRED','RECOVERY_ENVIRONMENT_INVALID','RECOVERY_SCHEDULER_MUST_BE_OFF','DATABASE_MIGRATION_URL_REQUIRED','RECOVERY_TARGET_CONFIRMATION_REQUIRED',
     'RECOVERY_TARGET_NOT_EMPTY','RECOVERY_TARGET_ACTIVE','RECOVERY_INVENTORY_INVALID','RECOVERY_ARCHIVE_INVALID','RECOVERY_VERSION_MISMATCH','RECOVERY_CONTENT_MISMATCH','RECOVERY_SCHEMA_UNCLASSIFIED','RECOVERY_CONFIG_UNCLASSIFIED','RECOVERY_NATIVE_TOOL_FAILED','RECOVERY_OUTPUT_EXISTS','CONFIGURATION_INVALID']);
+  safe.add('RECOVERY_ROLE_UNSAFE');
   const category=error instanceof Error&&safe.has(error.message)?error.message:'RECOVERY_FAILED';
   console.error(`Financial recovery failed (${category}). Check guards, bindings, native tools and the preserved inventory; staging must remain unpublished.`);
   process.exitCode=1;

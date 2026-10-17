@@ -1,4 +1,5 @@
 "use client";
+import AdminTimeZone from './admin-time-zone';
 import {errorMessage} from "@/lib/error-messages";
 import ChainRecoveryAdmin from "./chain-recovery-admin";
 import { decimalToBaseUnits, formatBaseUnits } from "@gifters/domain";
@@ -24,6 +25,8 @@ export default function NativeAdmin({
     [approval, setApproval] = useState(""),
     [link, setLink] = useState("");
   const [previousId, setPreviousId] = useState("");
+  const [pricingMode,setPricingMode]=useState<'usd_at_activation'|'fixed_token'>('usd_at_activation');
+  const [fixedAmount,setFixedAmount]=useState('');
   const [obligations, setObligations] = useState<any[]>([]),
     [obligationCursor, setObligationCursor] = useState<string | null>(null);
   const [sweepGross, setSweepGross] = useState(""),
@@ -67,7 +70,7 @@ export default function NativeAdmin({
     }
   }
   return (
-    <section className="card">
+    <AdminTimeZone owner={owner} locale={locale}><section className="card">
       <ChainRecoveryAdmin owner={owner} locale={locale} enabled={enabled}/>
       <h2>
         {fr ? "Administration des réseaux de test" : "Testnet administration"}
@@ -93,7 +96,7 @@ export default function NativeAdmin({
       </button>
       <label>
         {fr ? "Monnaie" : "Currency"}
-        <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+        <select value={currency} onChange={(e) => {setCurrency(e.target.value);setFixedAmount('')}}>
           {keys.map((key) => (
             <option key={key}>{key}</option>
           ))}
@@ -163,13 +166,17 @@ export default function NativeAdmin({
             ))}
           </select>
         </label>
+        <label>{fr?'Prix du plan':'Plan price'}<select value={pricingMode} onChange={event=>setPricingMode(event.target.value as 'usd_at_activation'|'fixed_token')}><option value="usd_at_activation">{fr?'Valeur USD convertie à l’activation':'USD value converted at activation'}</option><option value="fixed_token">{fr?'Montant fixe dans la monnaie choisie':'Fixed amount in the selected currency'}</option></select></label>
+        {pricingMode==='fixed_token'&&<label>{fr?'Montant exact du don':'Exact gift amount'}<input inputMode="decimal" maxLength={100} value={fixedAmount} onChange={event=>setFixedAmount(event.target.value)}/><small>{fr?'Le montant est figé pour cette file. Une cotation récente reste nécessaire pour la valeur USD de référence.':'The amount is fixed for this queue. A fresh price is still required for its USD reference.'}</small></label>}
         <button
-          disabled={!plan}
+          disabled={!plan||pricingMode==='fixed_token'&&!fixedAmount.trim()}
           onClick={() =>
             void run(() =>
               mutation("/admin/crypto/plans", owner, {
                 asset_key: currency,
                 plan_id: plan,
+                pricing_mode:pricingMode,
+                ...(pricingMode==='fixed_token'?{amount_base_units:decimalToBaseUnits(fixedAmount.trim(),assets.find(asset=>asset.key===currency)?.decimals??-1).toString()}:{}),
                 reason,
               }),
             )
@@ -179,6 +186,7 @@ export default function NativeAdmin({
             ? "Activer le plan pour cette monnaie"
             : "Activate plan for this currency"}
         </button>
+        <button disabled={!plan} onClick={()=>void run(()=>mutation('/admin/crypto/plans',owner,{asset_key:currency,plan_id:plan,resume_only:true,reason}))}>{fr?'Reprendre le prix existant sans le modifier':'Resume the existing price unchanged'}</button>
       </fieldset>
       <fieldset disabled={busy || !enabled || reason.trim().length < 5}>
         <legend>{fr ? "Règlements" : "Settlements"}</legend>
@@ -682,6 +690,6 @@ export default function NativeAdmin({
           )}
         </article>
       ))}
-    </section>
+    </section></AdminTimeZone>
   );
 }

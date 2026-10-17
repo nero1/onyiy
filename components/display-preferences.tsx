@@ -1,0 +1,17 @@
+'use client';
+import {useEffect,useMemo,useRef,useState} from 'react';
+import {api} from '@/lib/api-client';
+import {errorMessage} from '@/lib/error-messages';
+import {defaultTimeZone} from '@/lib/display-time';
+import type {Locale} from '@/lib/i18n';
+import {useAppearance} from './appearance-provider';
+type Preferences={time_zone:string;locale:Locale;revision:number};
+export default function DisplayPreferences({owner,locale}:{owner:string;locale:Locale}){
+ const {setTimeZone,setLocale}=useAppearance(),fr=locale==='fr';
+ const [data,setData]=useState<Preferences|null>(null),[zone,setZone]=useState(defaultTimeZone),[language,setLanguage]=useState<Locale>(locale),[busy,setBusy]=useState(false),[error,setError]=useState<unknown>(),[saved,setSaved]=useState(false);
+ const epoch=useRef(0),flight=useRef(false),controller=useRef(new AbortController()),pending=useRef<{body:string;key:string}|null>(null);
+ const zones=useMemo(()=>[...new Set([defaultTimeZone,'UTC',...(typeof Intl.supportedValuesOf==='function'?Intl.supportedValuesOf('timeZone'):[]),zone])].sort(),[zone]);
+ useEffect(()=>{const generation=++epoch.current;controller.current=new AbortController();flight.current=false;pending.current=null;setBusy(false);setData(null);setSaved(false);setError(undefined);void api<Preferences>('/me/preferences',owner,{signal:AbortSignal.any([controller.current.signal,AbortSignal.timeout(15000)])}).then(value=>{if(generation===epoch.current){setData(value);setZone(value.time_zone);setLanguage(value.locale)}}).catch(value=>{if(generation===epoch.current)setError(value)});return()=>{epoch.current++;controller.current.abort()};},[owner]);
+ async function save(){if(!data||flight.current)return;const generation=epoch.current,body=JSON.stringify({time_zone:zone,locale:language,revision:data.revision});if(pending.current?.body!==body)pending.current={body,key:crypto.randomUUID()};flight.current=true;setBusy(true);setError(undefined);setSaved(false);try{const value=await api<Preferences>('/me/preferences',owner,{method:'POST',body,headers:{'Idempotency-Key':pending.current!.key},signal:AbortSignal.any([controller.current.signal,AbortSignal.timeout(15000)])});if(generation!==epoch.current)return;setData(value);setZone(value.time_zone);setLanguage(value.locale);pending.current=null;setTimeZone(value.time_zone);setLocale(value.locale);setSaved(true)}catch(value){if(generation===epoch.current)setError(value)}finally{if(generation===epoch.current){flight.current=false;setBusy(false)}}}
+ return <section className="card"><h2>{fr?'Langue et fuseau horaire':'Language and time zone'}</h2><p>{fr?'Ces réglages modifient l’affichage. Les échéances et limites de paiement restent inchangées.':'These settings change the display. Payment deadlines and limits stay the same.'}</p><fieldset disabled={busy||!data}><label>{fr?'Langue':'Language'}<select value={language} onChange={event=>setLanguage(event.target.value as Locale)}><option value="en">English</option><option value="fr">Français</option></select></label><label>{fr?'Fuseau horaire':'Time zone'}<select value={zone} onChange={event=>setZone(event.target.value)}>{zones.map(value=><option value={value} key={value}>{value.replaceAll('_',' ')}</option>)}</select></label><button disabled={data?.time_zone===zone&&data?.locale===language} onClick={()=>void save()}>{fr?'Enregistrer':'Save'}</button></fieldset>{saved&&<p role="status">{fr?'Préférences enregistrées.':'Preferences saved.'}</p>}{error!==undefined&&<p role="alert">{errorMessage(error,locale)}</p>}</section>;
+}

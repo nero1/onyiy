@@ -93,3 +93,5 @@ export function giftPointAward(usdReference: string, rules: { usd_threshold:numb
 
 export * from './fees';
 export {beneficiaryLiabilityPurposes,businessSettlementRoles,businessAddressRole} from './liabilities';
+
+export {assertMinimumAge} from './eligibility';

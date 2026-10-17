@@ -1,3 +1,4 @@
+import {assertNetworkBinding} from './network';
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { z } from "zod";
@@ -15,7 +16,7 @@ const schema = z
       "trx",
     ]),
     chain: z.enum(["eth", "bnb", "sol", "tron"]),
-    environment: z.literal("testnet"),
+    environment: z.enum(["testnet","mainnet"]),
     network: z.string().min(1).max(100),
     kind: z.enum(["native", "token"]),
     decimals: z.number().int().min(0).max(78),
@@ -76,13 +77,7 @@ export function validateRegistry(value: unknown): AssetRegistry[] {
     if (seen.has(row.key) || row.chain !== family[0] || row.kind !== family[1])
       throw new Error("REGISTRY_INVALID");
     seen.add(row.key);
-    if (
-      (row.chain === "eth" && row.network !== "11155111") ||
-      (row.chain === "bnb" && row.network !== "97") ||
-      (row.chain === "sol" && row.network !== "devnet") ||
-      (row.chain === "tron" && !["nile", "shasta"].includes(row.network))
-    )
-      throw new Error("MAINNET_DENIED");
+    assertNetworkBinding(row);
     if (
       row.kind === "native" &&
       row.decimals !== (row.chain === "sol" ? 9 : row.chain === "tron" ? 6 : 18)
@@ -146,5 +141,7 @@ export function assetReadiness(key: AssetKey) {
 export function assertActive(asset: AssetRegistry) {
   validateRegistry([asset]);
   if (!asset.enabled || !asset.verified) throw new Error("REGISTRY_UNVERIFIED");
+  // Mainnet records may be validated/staged before the full execution release.
+  if(asset.environment!=="testnet")throw new Error("MAINNET_NOT_IMPLEMENTED");
   if (process.env.MAINNET_ENABLED === "true") throw new Error("MAINNET_DENIED");
 }

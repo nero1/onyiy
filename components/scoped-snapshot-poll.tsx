@@ -1,4 +1,6 @@
 'use client';
+import {formatDisplayTime} from '@/lib/display-time';
+import {useDisplayTimeZone} from './appearance-provider';
 import type {DashboardDto,NativePortfolioDto} from '@/lib/financial-contracts';
 import {useEffect,useRef,useState} from 'react';
 import {subscribePrivatePoll,type PollPath,type PollState} from '@/lib/private-poll';
@@ -19,6 +21,7 @@ function publish(props:Props,value:unknown,token:unknown){
 }
 
 export default function ScopedSnapshotPoll(props:Props){
+ const timeZone=useDisplayTimeZone();
  const callbacks=useRef(props);callbacks.current=props;
  const [state,setState]=useState<PollState>({}),subscription=useRef<ReturnType<typeof subscribePrivatePoll>|null>(null),fr=props.locale==='fr';
  useEffect(()=>{
@@ -26,5 +29,5 @@ export default function ScopedSnapshotPoll(props:Props){
   const active=subscribePrivatePoll({owner:props.owner,generation:props.generation,path:props.path,seconds:props.seconds,start:()=>callbacks.current.onStart(),value:(value,token)=>publish(callbacks.current,value,token),state:(value,token)=>{setState(value);if(value.error)callbacks.current.onError?.(value.error,token);}});subscription.current=active;
   return()=>{active.dispose();subscription.current=null;};
  },[props.owner,props.generation,props.path,props.seconds,props.enabled]);
- return <div className="muted" role="status">{state.observedAt&&<span>{fr?'Actualisé à':'Updated at'} {new Date(state.observedAt).toLocaleTimeString(props.locale)}</span>}{!!state.error&&<><span>{errorMessage(state.error,props.locale)}</span>{state.stopped&&<button onClick={()=>subscription.current?.retry()}>{fr?'Réessayer les mises à jour':'Retry live updates'}</button>}</>}</div>;
+ return <div className="muted" role="status">{state.observedAt&&<span>{fr?'Actualisé à':'Updated at'} {formatDisplayTime(state.observedAt,props.locale,timeZone)}</span>}{!!state.error&&<><span>{errorMessage(state.error,props.locale)}</span>{state.stopped&&<button onClick={()=>subscription.current?.retry()}>{fr?'Réessayer les mises à jour':'Retry live updates'}</button>}</>}</div>;
 }

@@ -1,6 +1,6 @@
 # Gifters World — MVP Product Requirements Document
 
-Updated: 16 October 2026 · Scope: Phase One test iteration and Phase Two transparency specification
+Updated: 16 October 2026 · Scope: complete Phase One/Two product, including verified real-money mainnet delivery
 
 > **IMPORTANT — TEST ITERATION NOTICE**
 > Phase One uses ordinary-looking bootstrap positions, displayed joining order independent of administrative serving priority, and rotating illustrative activity statements for test iterations. It does not specify those elements as acceptable deceptive behaviour for a public real-money service: system-controlled positions, actual payment priority, and illustrative payout activity require an accurate public presentation before live use. This is one document-level notice, not an instruction to add frontend badges, repeated warnings, presentation-approval endpoints, or extra runtime release gates to the test build.
@@ -1212,17 +1212,15 @@ uj*****p3 just received $9.5 referral commission
 
 ## §33. Current scope and continuation
 
-**Owner directive, 16 October 2026:** resume application work and continue through completed Phase Two and final bug fixes. Complete fresh bug rounds Two/Three after the merged retention batch and §32 milestones. Make substantial batches, update concise versioned docs, and create/merge PRs after both exact-head CI events pass; do not pause for milestone acceptance. Real-money mainnet remains an unfinished, separately evidenced release: never mark unimplemented gates ready.
+**Owner directive, 17 October 2026:** audit and complete the entire Phase One/Two product, including real-money mainnet and every missing implementation/acceptance requirement. Continue substantial implementation and checked PR/merges without milestone-acceptance pauses. Earlier “Phase Two complete” statements describe the transparency batch only; they do not close the product. Missing credentials block their dependent live checks, not independent implementation. The owner subsequently deferred all required details to final testing: complete configurable technical paths now and list the protected setup fields in SETUP; do not pause coding to request them again.
 
-| Area | Current boundary |
-|---|---|
-| Round One | 74/74 findings implemented, locally verified and merged in PR51 |
-| Later rounds / Phase Two | Authorized; follow remaining Round One fixes |
-| Financial execution | Web and signer readiness gates remain false; mainnet prohibited |
-| Historical completion claims | Feature checklists are not bug-free, hosted or financial acceptance |
-| PR workflow | Both push and pull-request CI must succeed for the exact final head before merge; no direct push to main |
+- Track each requirement as implemented, locally verified, hosted/live verified, or unresolved; a feature checklist or bug count is not100% completion.
+- Finish verified mainnet registry/adapters, isolated signing/custody, shared-database financial isolation and restricted preview access, payment/fee/refund/recovery paths, all exposed UI/help and operational setup.
+- Retain configured limits and evidence-based activation. Replace unfinished implementation gates only after their dependent work is verified; never remove a financial safeguard merely to make a status green.
+- Collect owner credentials securely and record actual external alerts, chain transactions, restore reconciliation, capacity and the observation periods in §30. Do not manufacture approval, elapsed time or provider evidence.
+- Both exact-final-head push and pull-request CI must pass before each merge. No direct main pushes. Keep five core docs and two versioned trackers. Existing no-automated-test-suite instructions remain binding; named isolated manual verification continues.
 
-Finish unresolved Round One work, perform fresh bug-finding/fixing Rounds Two and Three, then implement all §32 milestones and final bug fixes. Use substantial related batches and best recommendations; do not add milestone-acceptance pauses. A clean audit cannot excuse an unresolved finding. CRON frequency and test-only issues remain outside the requested audit scope. The existing no-automated-test-suite instruction remains binding until changed by the owner.
+The current gap list and acceptance evidence belong in [status](PROJECT-STATUS_v55.md) and the [report](custom-bugs-report_v55.md)/[plan](custom-bugs-fix-plan_v55.md). Continue until all requirements have actual verification; report any owner-dependent blocker precisely.
 
 ### Fresh installation and historical compatibility
 
@@ -1248,15 +1246,15 @@ The owner explicitly approved P1-065 on **14 October 2026 at 02:25:24 PM WAT**, 
 - Closed signed-archive dependencies accept pgcrypto-only older packets or an additional pg_trgm declaration; unknown names, duplicates, versions and schemas fail.
 - Signatures/checksums, empty-target verification and exact post-restore inventories remain mandatory. Search approval does not activate financial gates.
 
-Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v54.md](PROJECT-STATUS_v54.md). Current bug evidence/tasks: [report](custom-bugs-report_v54.md) and [plan](custom-bugs-fix-plan_v54.md).
+Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v55.md](PROJECT-STATUS_v55.md). Current bug evidence/tasks: [report](custom-bugs-report_v55.md) and [plan](custom-bugs-fix-plan_v55.md).
 
 ### Retention implementation clarification (v52)
 
-Use the same database for online monthly archives of ledger postings, scan pages and audit events. Keep journals/events as global identity registries; enforce cross-month record uniqueness separately. Freeze eligible months, process at most 100 rows per step and require a second matching checksum pass. Preserve all financial evidence indefinitely (including beyond the minimum retention period); no automatic financial purge. Archives remain readable and still count toward provider storage quotas. Retention holds stop compaction and archival. Expire message bodies and compact only completed expendable task payloads, preserving permanent keys and unresolved/financial work. Recovery must bind column ACLs and partition metadata under signed schema contract3, including exact PostgreSQL timestamp precision; historical packets require matching historical releases.
+Use the same database for online monthly archives of ledger postings, scan pages and audit events. Keep journals/events as global identity registries; enforce cross-month record uniqueness separately. Freeze eligible months, process at most 100 rows per step and require a second matching checksum pass. Preserve all financial evidence indefinitely (including beyond the minimum retention period); no automatic financial purge. Archives remain readable and still count toward provider storage quotas. Retention holds stop compaction and archival. Expire message bodies and compact only completed expendable task payloads, preserving permanent keys and unresolved/financial work. Recovery must bind column ACLs, partition metadata and safe permission-group attributes/membership under signed schema contract4, including exact PostgreSQL timestamp precision; historical packets require matching historical releases.
 
 
 ### Current Phase Two implementation record — v54
 
-P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v54.md).
+P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v55.md).
 
 P2.4 assessment: **not_reviewed**. Missing evidence: supported mainnet execution/asset registry; isolated custody/signing; funding, refund and closure model; target countries and jurisdiction review; owner-approved financial copy/terms; operating/gas budget; hosted capacity, alert and restore acceptance. The affected mainnet integration remains disabled. Presentation implementation is separate from financial/business/legal readiness.

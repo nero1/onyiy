@@ -1,3 +1,5 @@
+import {ownPreferences,preferencesInput} from './preferences';
+import {assertMinimumAge} from '@gifters/domain';
 import {profilePreviewInput,profileStageInput,profileCommitInput,readinessInput,publicationInput,releaseProfile,stageProfile,commitProfile,recordReadiness,publicationConsent,assertProfileRevision} from './transparency';
 import {retentionInput,retentionStatus,manualArchiveStep} from './retention';
 import {runtimeProviders} from '@gifters/config';
@@ -361,11 +363,14 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
     if(route==='/moderation/users'&&method==='GET'){const actor=await moderator(request),input=staffUsersInput.parse(Object.fromEntries(new URL(request.url).searchParams));return ok(await withContext({access:'service',actorId:actor.id,requireModerator:true},tx=>staffUsers(tx,actor.id,input)));}
     if(route==='/moderation/users'&&method==='POST'){const actor=await moderator(request),input=accountAction.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireModerator:true},tx=>accountChange(tx,actor.id,input,idempotencyKey(request))));}
 
+    if(route==='/me/preferences'&&(method==='GET'||method==='POST')){const actor=await current(request),input=method==='POST'?preferencesInput.parse(await json(request)):undefined;return ok(await withContext({access:'service',actorId:actor.id},tx=>ownPreferences(tx,actor.id,input,input?idempotencyKey(request):undefined)));}
+    if(route==='/admin/display-policy'&&method==='GET'){const actor=await admin(request);return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},async tx=>({time_zone:(await readManifest(tx)).admin_timezone})));}
     if(method==='POST'&&route==='/me/consent'){
       const identity=await authenticate(request);const user=identity.user;
-      const input=z.object({accepted:z.literal(true),referral_code:z.string().uuid().optional(),terms_version:z.string().max(100).optional(),adult:z.literal(true).optional(),minimum_age:z.number().int().positive().optional(),username:z.string().max(64).optional(),bot_proof:botProof.optional()}).strict().parse(await json(request));
+      const input=z.object({accepted:z.literal(true),referral_code:z.string().uuid().optional(),terms_version:z.string().max(100).optional(),adult:z.literal(true).optional(),minimum_age:z.number().int().positive().optional(),birth_date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),username:z.string().max(64).optional(),bot_proof:botProof.optional()}).strict().parse(await json(request));
       const result=await withContext({access:'service',actorId:user.id},async tx=>{
-        await tx.select({id:users.id}).from(users).where(eq(users.id,user.id)).for('no key update');
+        const [lockedUser]=await tx.select().from(users).where(eq(users.id,user.id)).for('no key update');
+        if(!lockedUser)throw new Error('NOT_FOUND');
         if(!identity.tool){const [family]=await tx.select({id:authSessions.id}).from(authSessions).where(and(eq(authSessions.id,identity.session!.id),eq(authSessions.accessHash,identity.accessHash!),sql`${authSessions.revokedAt} is null and ${authSessions.accessExpiresAt}>clock_timestamp()`)).for('share');if(!family)throw new Error('UNAUTHENTICATED');}
         const manifest=await readManifest(tx);
         if(!identity.tool)await verifyBotCheck(tx,user.id,identity.session!.generation,'consent',input.bot_proof,idempotencyKey(request));
@@ -373,7 +378,10 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
         let username=user.username;
         if(!identity.tool&&user.status==='pending_consent')await validateUsername(tx,input.username!);
         if(input.username&&input.username!==user.username){if(user.consentedAt)throw new Error('VERSION_CONFLICT');username=await validateUsername(tx,input.username);await tx.update(users).set({username}).where(eq(users.id,user.id));}
-        await tx.update(users).set({ageConfirmedAt:await databaseNow(tx),ageMinimumAccepted:manifest.eligibility_min_age}).where(eq(users.id,user.id));
+        const ageTime=await databaseNow(tx);
+        if(input.birth_date)assertMinimumAge(input.birth_date,manifest.eligibility_min_age,ageTime);
+        else if(!identity.tool&&(!lockedUser.ageDobVerifiedAt||lockedUser.ageMinimumAccepted===null||lockedUser.ageMinimumAccepted<manifest.eligibility_min_age))throw new Error('CONSENT_REQUIRED');
+        await tx.update(users).set({ageConfirmedAt:ageTime,ageMinimumAccepted:manifest.eligibility_min_age,ageDobVerifiedAt:input.birth_date?ageTime:lockedUser.ageDobVerifiedAt}).where(eq(users.id,user.id));
         return consentUser(tx,username,input.referral_code);
       });
       if(identity.tool)return ok(result);
@@ -484,14 +492,14 @@ async function routeApiRequest(method:string,path:string[],request:Request){
   if(['/manifest','/transparency','/activity','/statistics','/plans','/help','/sim/users','/internal/tick','/internal/financial','/crypto/catalog'].includes(route))return await dispatchApiRequest(method,path,request);
   const identity=await authenticate(request);
   const account=request.headers.get('x-client-account');const generation=request.headers.get('x-client-session');if(!identity.tool&&((account&&account!==identity.user.username)||(generation&&generation!==identity.session!.generation)))throw new Error('VERSION_CONFLICT');
-  if(identity.user.status==='pending_consent'&&!['/me/consent','/me/bot-check'].includes(route))throw new Error('CONSENT_REQUIRED');
-  const restricted=['/me/account','/me/reports','/me/appeals','/me/appeals/token','/me/exports','/me/exports/download','/me/data'].includes(route);
+  if(identity.user.status==='pending_consent'&&!['/me/consent','/me/bot-check','/me/preferences'].includes(route))throw new Error('CONSENT_REQUIRED');
+  const restricted=['/me/preferences','/me/account','/me/reports','/me/appeals','/me/appeals/token','/me/exports','/me/exports/download','/me/data'].includes(route);
   if(identity.user.status==='suspended'&&(!restricted||(method!=='GET'&&route==='/me/account')))throw new Error('ACCOUNT_RESTRICTED');
   if(method!=='GET')csrf(request,identity);
   let exportReplay=false;if(route==='/me/exports'&&method==='POST'){z.object({}).strict().parse(await json(request.clone()));const key=`own-export:${identity.user.id}:${idempotencyKey(request)}`;exportReplay=!!(await withContext({access:'service'},async tx=>(await tx.select({key:operationKeys.businessKey}).from(operationKeys).where(eq(operationKeys.businessKey,key)).limit(1))[0]));}
-  if(!identity.tool){const family=route==='/admin/portability/stage'?'import_reset':route==='/admin/crypto/business'?'business_settlement':route==='/me/bot-check'?'consent':(route.startsWith('/admin/')||route.startsWith('/moderation/'))?'staff':route.includes('/reports')||route.includes('/appeals')?'reports':((route.startsWith('/me/exports')||route==='/me/data')&&method!=='GET'&&!exportReplay)?'own_data':route==='/me/consent'?'consent':route.startsWith('/gifts/')?(route.endsWith('/transaction')?'payment_proof':'invoice'):route.includes('/notifications')?'notifications':route.includes('/wallets')?'wallet':route.includes('/withdrawals')?'withdrawal':method==='GET'?'reads':'mutation';await enforceRate(request,family,identity.user.id);}
+  if(!identity.tool){const family=route==='/admin/portability/stage'?'import_reset':route==='/admin/crypto/business'?'business_settlement':route==='/me/bot-check'?'consent':(route.startsWith('/admin/')||route.startsWith('/moderation/'))?'staff':route.includes('/reports')||route.includes('/appeals')?'reports':((route.startsWith('/me/exports')||route==='/me/data')&&method!=='GET'&&!exportReplay)?'own_data':['/me/consent','/me/preferences'].includes(route)?'consent':route.startsWith('/gifts/')?(route.endsWith('/transaction')?'payment_proof':'invoice'):route.includes('/notifications')?'notifications':route.includes('/wallets')?'wallet':route.includes('/withdrawals')?'withdrawal':method==='GET'?'reads':'mutation';await enforceRate(request,family,identity.user.id);}
   if(identity.tool||route==='/me/consent'||(route==='/me/account'&&method==='POST'))return await dispatchApiRequest(method,path,request);
-  return await withSessionScope({userId:identity.user.id,sessionId:identity.session!.id,accessHash:identity.accessHash!,version:identity.user.sessionVersion,allowSuspended:restricted,requiresAdult:route.startsWith('/gifts/'),requiresWithdrawalProof:route==='/me/withdrawals/confirm'||route==='/me/withdrawals/crypto/confirm'||route==='/me/wallets/challenge'||route==='/me/wallets/proof'},()=>dispatchApiRequest(method,path,request));
+  return await withSessionScope({userId:identity.user.id,sessionId:identity.session!.id,accessHash:identity.accessHash!,version:identity.user.sessionVersion,allowSuspended:restricted,requiresAdult:method!=='GET'&&['/gifts/simulate','/gifts/invoices','/gifts/invoices/transaction','/gifts/crypto/invoices','/gifts/crypto/prepare','/gifts/crypto/validate'].includes(route),requiresWithdrawalProof:route==='/me/withdrawals/confirm'||route==='/me/withdrawals/crypto/confirm'||route==='/me/wallets/challenge'||route==='/me/wallets/proof'},()=>dispatchApiRequest(method,path,request));
  }catch(error){return fail(error);}
 }
 
