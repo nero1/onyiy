@@ -1257,6 +1257,6 @@ Use the same database for online monthly archives of ledger postings, scan pages
 
 ### Current Phase Two implementation record — v54
 
-P2.0–P2.3 are implemented on the current working branch: staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v54.md).
+P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v54.md).
 
 P2.4 assessment: **not_reviewed**. Missing evidence: supported mainnet execution/asset registry; isolated custody/signing; funding, refund and closure model; target countries and jurisdiction review; owner-approved financial copy/terms; operating/gas budget; hosted capacity, alert and restore acceptance. The affected mainnet integration remains disabled. Presentation implementation is separate from financial/business/legal readiness.
