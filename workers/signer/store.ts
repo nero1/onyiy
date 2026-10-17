@@ -1,7 +1,7 @@
 import {signerAssetLedgerBalance as assetLedgerBalance} from '../../packages/db/src/ledger-counters';
 import {withBoundedTransaction} from '../../packages/db/src/execution-budget';
 import {fenceWorkerEnvironment} from '../../packages/db/src/deployment-mode';
-import {databaseBinding} from '../../packages/db/src/binding-fingerprint';
+import {databaseBinding,scopedDatabaseBinding} from '../../packages/db/src/binding-fingerprint';
 import {beneficiaryLiabilityPurposes,businessAddressRole} from '../../packages/domain/src/liabilities';
 import { Transaction } from "ethers";
 import type { DbExecutor } from "../../packages/db/src/index";
@@ -165,7 +165,7 @@ export class SignerStore {
     const policy=await this.policyIn(tx);
     return {
       policy,
-      ...(await configurationSnapshot(asset, financialPolicySnapshot(policy))),
+      ...(await configurationSnapshot(asset, financialPolicySnapshot(policy,await scopedDatabaseBinding(tx)))),
     };
   }
   async configuration(asset: AssetRegistry) {

@@ -1,4 +1,4 @@
-# Project status v68
+# Project status v69
 
 **Phase One/Two is incomplete.** Mainnet execution is now implemented behind protected configuration, policy, registry and signed-alert checks. Local procedures pass; no real chain transaction, owner-hosted acceptance or observation period is claimed. Continue without milestone approval pauses. Owner launch details remain deferred to final testing.
 
@@ -13,10 +13,10 @@
 | C005 | Asset/RPC provenance | Owner must verify actual token contracts/mints/decimals and two independent providers per network. Generated contracts are not evidence. Keep JAGA/unverified assets disabled. |
 | C006 | Pricing | Exact fixed-token activation/replay/resume pass locally; complete full asset/lifecycle acceptance. |
 | C007 | UI/wallets | Mainnet EVM/SOL/TRON connections and canonical wallet sends pass isolated logic procedures; accurate environment labels/history wired. Finish actual browser/device/wallet and EN/FR acceptance. |
-| C008 | Backup/recovery | Mainnet encrypted backup/restore/exact verification pass locally, preserving original v55 archive compatibility. Browser operation, chain reconciliation/no-resend and hosted acceptance remain. |
+| C008 | Backup/recovery | Mainnet encrypted backup/restore/exact verification pass locally, preserving original v55 archive compatibility. Protected browser backup/restore/verify is implemented, with matching-release selection and database-bound approvals. Finish full chain reconciliation/no-resend and hosted acceptance. |
 | C009 | Hosted identity/access | Verify actual Google/MFA, roles, rate limits, CAPTCHA and account/financial recovery. |
 | C010 | Complete product | Audit every requirement/flag in §§1–29, queues/cooldowns/referrals/points/admin/export/delete/PWA/a11y and build/reload behavior. One-paste final-state installer is merged. |
-| C011 | Operations | Signer workflow added; finish browser recovery operation, actual external alerts/schedulers and incident/closure acceptance. |
+| C011 | Operations | Signer workflow added; browser recovery is implemented; finish actual external alerts/schedulers, backup cadence and incident/closure acceptance. |
 | C012 | Capacity/cost | Measure mobile/latency/quota targets and compliant hosting. Public standard GitHub runners are currently free; this does not prove production capacity. |
 | C013 | Observation periods | Actual14-day beta plus14-day initial-cap mainnet observation required; no elapsed evidence recorded. |
 | C014 | Owner launch review | Countries/terms, funding/refund/closure, custody and budget remain owner-deferred. Record real review/evidence at setup. |
@@ -26,16 +26,22 @@
 
 ## Current delivery
 
-- Branch `feat/native-launch-and-preferences`, based on PR66 merge `1acbe3b18fdf125186fec1541a74baecab92110c`. PR66 passed exact-head push39049426195 and PR39049451596 before merging.
-- Removed the hardcoded unsupported-mainnet path. Shared execution capability is implemented; repository defaults remain disabled. Actual sends require selected mode, explicit enablement, transparent non-demo settings, approved readiness, approved hashes and recent signed acknowledgement.
-- Fixed one-hash activation across several networks, one-file custody limitations, client transaction validation and testnet-only identity/record/label assumptions. Preview/web reject signer material. SQL006 corrects an ambiguous queue parameter; the final-state installer is refreshed and the original SQL000–005 bytes remain unchanged.
-- SETUP now has mainnet and isolated-signer browser steps. Remaining provider/owner details belong there; do not request them again while independent coding can continue.
+- Branch `feat/browser-financial-recovery`, based on PR67 merge `e364f0be9a6d606654ccbc1ecd6751f830086d36`. Exact PR67 headb7efda7 passed push39051551031 / PR39051574070 before merge.
+- Mainnet execution, four-key custody/workflow, wallet/environment integration, saved language and native scheduling are implemented behind their protected gates. Owner-hosted/live acceptance remains open.
+- New `.github/workflows/financial-recovery.yml` provides protected browser-operated backup, empty-target restore and independent exact verification. Only owner/runtime/CA/archive-key credentials enter recovery; signer/web/scheduler credentials are rejected. PostgreSQL17 is installed from its verified signed repository before credentials attach.
+- Short-term artifacts expire after one day. For longer retention, owners can keep the encrypted ZIP in a dedicated GitHub recovery release. Restore requires a verified successful run or an owner-selected original commit from trusted main history; the archive cannot choose executable code. No automatic schema upgrade, deployment or worker restart.
+- Financial hashes now include the actual database identity, shared across web/signer connections. Restored acknowledgements/approvals cannot enable the new target. Existing pre-change hashes are retained; upgrade/restore needs new reviewed hashes and acknowledgements, with old attempts reconciled rather than rewritten.
+- No DDL, migration receipt or retained-history rewrite. Five core guides and two versioned trackers remain.
 
-## Current batch
+## Current local evidence
 
-Saved-language restoration, native scheduling and the stale mainnet public label are fixed. Native schedules store currency/price intent only; activation uses database time, fresh prices and current financial approvals. Failures fully roll back, warn and retry with backoff; another ready plan can proceed. Cancelling clears pending intents. The public catalogue now fits narrow screens. No DDL, migration receipt or financial-history rewrite.
+`/workspace/work/browser-recovery-v69`:
 
-`/workspace/work/native-launch-v68`: `browser-language-r4` passes actual production Chromium390px language precedence/navigation/timezone checks; `native-schedules-r7` covers due prices, replay/concurrency, cancellation, expired-price rollback/retry, warning recovery and changed-approval/administrator fences. `simulation-schedule-r2` preserves GIV scheduling. `browser-scheduling-r3` passes the live countdown, no early checkout, native controls and narrow EN/FR public catalogue. Required checks, production build and bundle limits pass (home182.64KiB gzip; API trace1.450MiB gzip). Original failures and databases remain.
+- `archive-seven-migrations-r1`: actual encrypted mainnet backup, restore and independent exact verification on current seven-file lineage. Original packets/keys remain untouched.
+- `bound-financial-r1`: actual restricted-role funding/wallet/incoming/refund lineage and encrypted worker→separate web settlement pass with database-bound hashes. Transport uses named isolated endpoints; no public sends/funds.
+- `workflow-and-binding-r2`: actual controller backup/restore/verify, permanent-release input, occupied-target denial and pre-DDL release/confirmation/secret denials. Restored signed acknowledgement remains, while the target’s changed hash rejects source approval. Generated GitHub metadata is a local harness, not hosted Actions acceptance.
+- Bounded ZIP extraction accepts original bytes and rejects traversal, symlinks and extra/key files. YAML, shell and embedded Node/Python syntax pass. Official PostgreSQL signing-key fingerprint was verified. Required checks/build/bundle evidence is recorded with the PR; no hosted credentials were configured here.
+- PR67 evidence remains in `/workspace/work/native-launch-v68`: `native-schedules-r7`, `simulation-schedule-r2`, `browser-language-r4` and `browser-scheduling-r3`. Actual390px EN/FR passes include preference precedence, countdown, early-checkout denial and narrow catalogue layout.
 
 ## Earlier local evidence
 
@@ -60,4 +66,4 @@ Contract4 packets created before SQL006 require their matching pre-006 release (
 
 Follow-up UI acceptance: identify the background request/cancellation path that logged a bounded database deadline around MFA/reload. The selected alert-probe request returned200 and its hash displayed correctly; do not treat this as completed whole-app reliability acceptance.
 
-v68
+v69
