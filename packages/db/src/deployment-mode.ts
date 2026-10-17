@@ -3,6 +3,20 @@ import type {DbExecutor} from './index';
 import {environmentInstances,xManifest} from './schema';
 const modeLock='gw:shared-database:payment-mode:v1';
 
+/** Isolated workers use read committed transactions and have no UPDATE grant
+ * on configuration. Hold both promotion locks before any application read. */
+export async function fenceWorkerEnvironment(tx:DbExecutor,environment:'testnet'|'mainnet'){
+ if(environment!=='testnet'&&environment!=='mainnet')throw new Error('FINANCIAL_ENVIRONMENT_DENIED');
+ await tx.execute(sql`select pg_advisory_xact_lock_shared(hashtextextended('gw-release-profile',0))`);
+ await tx.execute(sql`select pg_advisory_xact_lock_shared(hashtextextended(${modeLock},0))`);
+ const [schema]=await tx.execute<{guarded:boolean;isolation:string}>(sql`select to_regprocedure('public.gw_runtime_environment_allowed()') is not null as guarded,current_setting('transaction_isolation') as isolation`);
+ if(!schema?.guarded)throw new Error('DATABASE_SCHEMA_MISMATCH');
+ if(schema.isolation!=='read committed')throw new Error('FINANCIAL_ENVIRONMENT_DENIED');
+ await tx.execute(sql`select set_config('gw.environment',${environment},true)`);
+ const [state]=await tx.execute<{allowed:boolean}>(sql`select public.gw_runtime_environment_allowed() as allowed`);
+ if(!state?.allowed)throw new Error('FINANCIAL_ENVIRONMENT_DENIED');
+}
+
 export async function fenceApplicationEnvironment(tx:DbExecutor,environment:string){
  const [state]=await tx.execute<{installed:boolean;guarded:boolean}>(sql`select pg_advisory_xact_lock_shared(hashtextextended(${modeLock},0)),to_regclass('public.environment_instances') is not null as installed,to_regprocedure('public.gw_runtime_environment_allowed()') is not null as guarded`);
  if(!state?.installed)return; // Owner/runtime binding proof before a fresh installation.

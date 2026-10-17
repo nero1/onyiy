@@ -1,4 +1,4 @@
-# Project status v56
+# Project status v57
 
 ## Actual completion objective
 
@@ -28,7 +28,7 @@ The owner requires the full Phase One/Two product, including verified real-money
 
 ## Current work
 
-- Branch `feat/custody-key-binding`, based on merged PR54 (`4757acf6aaa7de7b6d5080a6a37da7a28c6d46af`).
+- Branch `feat/signer-environment-fence`, based on merged PR55 (`6b567dd8fa548c40fecc1bc44d1503a1a745a3d0`).
 - Extracted295 requirement-bearing PRD lines into private scratch for line-by-line audit. This is an inventory, not completed acceptance.
 - Implementing environment-bound network registry validation and separate mainnet/testnet RPC/address selection. Type checking passed for the initial foundation. Execution remains blocked until isolation/signing/recovery are complete.
 - No configured hosted runtime credentials or outbound identities are available in the current managed environment. The owner deferred all launch details to final testing. Do not ask again during coding; put the required fields in SETUP and continue independent implementation. Keys/passwords must use protected settings.
@@ -69,4 +69,16 @@ Keep going through the list without milestone acceptance pauses; create/merge PR
 - Browser-r6 passed actual production390px EN/FR currency selection, idle rotation, focus, reduced motion, existing-invoice and active-cycle guards, and tile/card keyboard return. Only bot-challenge requests occurred; no financial call, signing or broadcast. Data was generated/intercepted.
 - Actual offline sealing tool passed five testnet bindings: v2 round-trip, private modes, retained input and existing-output refusal. This does not enable mainnet signing.
 
-v56
+
+## Current v57 batch
+
+- PR55 merged after exact head7faa3ea1390f01bd4e6f4c6abdd013cfea2d7b64 passed push39013318377/PR39013331702.
+- Signer transactions now hold profile/mode promotion locks before domain access. The captured environment binds configuration, key opening, asset reads and saved attempts. Mainnet runtime/signing remains denied.
+- Fresh worker-fence-r4 proves promotion waits for a restricted signer transaction, then retired signing is denied before writes. Financial/work record fingerprints remain unchanged. Earlier failed fixtures are preserved.
+- Browser-run custody preparation generates four independent unfunded keys into encrypted format2 packages. Actual packaging checks passed for both environments, derived addresses, private modes, checksums, overwrite denial and rejection of live credentials/weak secrets. It does not install keys or activate payments.
+- Full dashboard/scheduled-plan acceptance, browser recovery, mainnet payment paths and every remaining C-item are still open. Final setup must also deliver the requested single final-state installer; existing signed histories/installed baselines cannot be rewritten.
+
+
+- Clean install with lifecycle scripts disabled and the actual workflow generation command passed; actual GitHub hosted execution awaits protected setup secrets. Required checks/build/bundle passed locally.
+
+v57

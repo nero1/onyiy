@@ -1,12 +1,12 @@
-# LLM handover v56
+# LLM handover v57
 
 ## Current owner instruction
 
-Complete the entire Phase One/Two product, including verified real-money mainnet and every missing feature. Do not stop at transparency implementation or a partial checklist. Continue code work without acceptance pauses; require actual evidence and owner-provisioned details for external activation. Read [PRD](PRD.md) §§29–33 and the complete [gap list](PROJECT-STATUS_v56.md) first.
+Complete the entire Phase One/Two product, including verified real-money mainnet and every missing feature. Do not stop at transparency implementation or a partial checklist. Continue code work without acceptance pauses; require actual evidence and owner-provisioned details for external activation. Read [PRD](PRD.md) §§29–33 and the complete [gap list](PROJECT-STATUS_v57.md) first.
 
 ## Active work
 
-- Repository `nero1/onyiy`, branch `feat/custody-key-binding` based on PR54 merge4757acf6aaa7de7b6d5080a6a37da7a28c6d46af.
+- Repository `nero1/onyiy`, branch `feat/signer-environment-fence` based on PR55 merge6b567dd8fa548c40fecc1bc44d1503a1a745a3d0.
 - Private scratch `/workspace/work/production-v55` contains295 extracted requirement-bearing PRD lines and source research. Review every section; do not treat extraction or source reading as verified acceptance.
 - Uncommitted first foundation: `FinancialEnvironment`, mainnet/testnet closed network bindings, environment-specific RPC/address suffixes and fingerprints. Registry parsing can stage mainnet records, but active adapters/runtime still deny mainnet until the complete financial release. Initial typecheck passed.
 - C001–C017 in status/report/plan track the entire product; C006/C015/C016 now have locally verified implementations. Production recovery accepts no mainnet, many SQL/service/signer paths are testnet-specific, both readiness gates are false, and shared preview isolation is unfinished.
@@ -53,4 +53,18 @@ Owned PostgreSQL cluster: `/workspace/work/shared-hosting-v50/pgdata`, TLS port5
 - Browser-r6 passed actual production390px EN/FR currency selection, idle rotation, focus, reduced motion, existing-invoice and active-cycle guards, and tile/card keyboard return. Only bot-challenge requests occurred; no financial call, signing or broadcast. Data was generated/intercepted.
 - Actual offline sealing tool passed five testnet bindings: v2 round-trip, private modes, retained input and existing-output refusal. This does not enable mainnet signing.
 
-v56
+
+## Current v57 continuation
+
+- PR55 merged: exact head7faa3ea1390f01bd4e6f4c6abdd013cfea2d7b64, push39013318377/PR39013331702; merge6b567dd8fa548c40fecc1bc44d1503a1a745a3d0.
+- `fenceWorkerEnvironment` in deployment-mode.ts takes shared profile→mode locks before signer domain access, checks installed guard and active namespace. SignerStore captures assertIsolated's current environment and binds asset configuration/attempt persistence to it. assertIsolated STILL permits testnet only; both financial readiness flags remain false. No broad runtime enablement was attempted.
+- Scratch `/workspace/work/signer-v57`: worker-fence-r1/r2 failed on intentionally guarded/invalid fixture profile edits; preserve them. Fresh r3/r4 use the existing fixture profile guard and a valid transparent configuration, prove inherited repeatable-read defaults are overridden, unsafe snapshots rejected, promotion lock contention, retired signer rejection and unchanged retained financial/work hashes. Its mainnet metadata fence is not actual mainnet runtime acceptance.
+- New prepare-custody workflow is manual/trusted-main only, scoped to custody-testnet/custody-mainnet environment secrets. Generator accepts no DB, RPC or existing key; outputs four encrypted v2 files/public inventory, no plaintext key. One-day artifact retention requires owner backup. key-package-r1 passed actual generation in both environments, address/checksum/private-mode/overwrite/mixed-secret checks. Clean npm ci --ignore-scripts and the exact generation command passed on fresh copy r2 with a scratch cache. First copy failed because the sandbox forbids the default home npm cache; it remains preserved.
+- Official current GitHub workflow/artifact/environment-secret UI documentation was fetched into scratch before updating SETUP. Five core docs plus two trackers remain the limit. Add final browser recovery and restore operations before considering setup complete.
+- Both newly owned cross-host restore clusters (55455/55456) were stopped cleanly after successful evidence; their data/archive/key remain preserved. Source55450 remains running/in use.
+- Required checks and build/bundle for v57 passed: homepage182.19KiB, API1.441MiB, all clients0.678MiB. Exact-head dual CI/PR merge remain pending. Continue mainnet worker/API selectors, custody/provider matrix, safe preview, recovery, full product audit and final single-state installer after this batch; do not stop at a merge.
+
+
+- Clean install with lifecycle scripts disabled and the actual workflow generation command passed; actual GitHub hosted execution awaits protected setup secrets. Required checks/build/bundle passed locally.
+
+v57

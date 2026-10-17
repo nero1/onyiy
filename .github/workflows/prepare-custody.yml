@@ -1,0 +1,43 @@
+name: prepare-encrypted-custody
+on:
+  workflow_dispatch:
+    inputs:
+      payment_environment:
+        description: New unfunded keys only; this does not activate payments
+        required: true
+        default: testnet
+        type: choice
+        options:
+          - testnet
+          - mainnet
+permissions:
+  contents: read
+jobs:
+  prepare:
+    if: github.repository == 'nero1/onyiy' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.payment_environment == 'mainnet' && 'custody-mainnet' || 'custody-testnet' }}
+    timeout-minutes: 6
+    concurrency:
+      group: prepare-custody-${{ inputs.payment_environment }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Generate a new encrypted package without live-service credentials
+        env:
+          KEY_PACKAGE_ENVIRONMENT: ${{ inputs.payment_environment }}
+          KEY_PACKAGE_CONFIRM: new-unfunded-keys
+          MAINNET_ENABLED: 'false'
+          SIGNER_DECRYPTION_SECRET: ${{ secrets.SIGNER_DECRYPTION_SECRET }}
+        run: node --import tsx workers/signer/prepare-key-package.ts "$RUNNER_TEMP/encrypted-custody"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: encrypted-custody-${{ inputs.payment_environment }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/encrypted-custody/
+          if-no-files-found: error
+          retention-days: 1
