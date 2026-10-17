@@ -1,8 +1,10 @@
+import {isReadOnlyPreview} from '@gifters/config';
 import type { MetadataRoute } from 'next';
 import {readManifest} from '@gifters/db';import {notFound} from 'next/navigation';
 export const dynamic='force-dynamic';
 
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
+  if(isReadOnlyPreview())notFound();
   const manifest=await readManifest();if(!manifest.feature_pwa)notFound();
   return {
     name: 'Gifters World',

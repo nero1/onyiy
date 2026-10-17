@@ -49,7 +49,7 @@ export async function publicMetadata(path: string, locale: Locale, title?: strin
 export async function PublicCatalog({ locale }: { locale: Locale }) {
   const policy = await publicPolicy();
   if (!policy.feature_gifts) return null;
-  const native = process.env.APP_ENV === 'testnet';
+  const native = process.env.APP_ENV === 'testnet'||process.env.APP_ENV==='mainnet';
   let result: {data:unknown};
   try { result = native ? await getPublicNativeCatalog(await publicRequest('/crypto/catalog')) : await getPublicCatalog(await publicRequest('/plans')); }
   catch { return <section className="public-page" lang={locale}><h1>{locale==='fr'?'Catalogue des dons':'Gift catalog'}</h1><p>{locale==='fr'?'Le catalogue est temporairement indisponible. Actualisez avant de choisir un don.':'The catalog is temporarily unavailable. Refresh before choosing a gift.'}</p></section>; }
@@ -61,7 +61,7 @@ export async function PublicCatalog({ locale }: { locale: Locale }) {
     <script type="application/ld+json" nonce={nonce} dangerouslySetInnerHTML={{__html:structured}}/>
     <h1 id="public-gifts-title">{locale === 'fr' ? 'Catalogue des dons' : 'Gift catalog'}</h1>
     <p>{policy.product_content.tagline[locale]}</p><ProfileDisclosure presentation={policy.presentation} locale={locale}/>
-    <p>{native ? (locale === 'fr' ? 'Réseaux de test — aucune valeur monétaire réelle.' : 'Test networks — no real monetary value.') : (locale === 'fr' ? 'Simulation GIV — aucune valeur monétaire réelle.' : 'GIV simulation — no real monetary value.')}</p>
+    <p>{process.env.APP_ENV==='mainnet' ? (locale==='fr'?'Catalogue mainnet — aperçu en lecture seule, paiements indisponibles.':'Mainnet catalogue — read-only preview, payments unavailable.') : native ? (locale === 'fr' ? 'Réseaux de test — aucune valeur monétaire réelle.' : 'Test networks — no real monetary value.') : (locale === 'fr' ? 'Simulation GIV — aucune valeur monétaire réelle.' : 'GIV simulation — no real monetary value.')}</p>
     <div className="gift-tiles">{gifts.map((gift, index) => <article className="card" key={gift.id + ':' + index}>
       <h2>{gift.name}</h2><ProfileDisclosure presentation={policy.presentation} locale={locale} queue={gift.queue_disclosure} plan={gift.plan}/>
       <p>{gift.amount_giv ?? formatBaseUnits(BigInt(gift.amount_base_units), gift.decimals ?? 18)} {gift.symbol ?? gift.asset ?? 'GIV'}</p>

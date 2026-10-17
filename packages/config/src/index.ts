@@ -1,3 +1,5 @@
+import {isReadOnlyPreview,publicPreviewRuntime} from './public-preview';
+export {isReadOnlyPreview} from './public-preview';
 import {transparencyFields,validateTransparentConfiguration} from './transparency';
 export {transparencyDefaults,transparencySettingKeys} from './transparency';
 import fs from "node:fs";
@@ -154,6 +156,7 @@ export function nativePaymentEnvironment(env:NodeJS.ProcessEnv=process.env):'tes
 }
 // Hosting stage is independent of payment mode; defaults never mutate env.
 export function runtimeProviders(env: NodeJS.ProcessEnv = process.env) {
+  if(isReadOnlyPreview(env))return publicPreviewRuntime(env).providers;
   const environment = env.APP_ENV ?? 'simulation';
   if (!['simulation', 'testnet'].includes(environment)) {
     throw new Error('MAINNET_NOT_IMPLEMENTED: APP_ENV must be simulation or testnet; preview/production are hosting stages');
@@ -173,6 +176,7 @@ export function runtimeProviders(env: NodeJS.ProcessEnv = process.env) {
 }
 
 export function validateRuntimeEnv(env = process.env) {
+  if(isReadOnlyPreview(env))return publicPreviewRuntime(env);
   const appEnv = env.APP_ENV ?? "simulation";
   const providers = runtimeProviders(env);
   const simulationSelectors = {

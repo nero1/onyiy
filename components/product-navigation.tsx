@@ -1,9 +1,10 @@
 import type { Manifest } from '@gifters/config';
 import { copy, type Locale } from '@/lib/i18n';
 type Policy = Pick<Manifest, 'feature_gifts' | 'feature_wallets' | 'feature_referrals' | 'feature_help' | 'feature_admin' | 'feature_moderation'>;
-export default function ProductNavigation({ locale, policy, user }: { locale: Locale; policy: Policy | null; user?: {role:string;status:string} | null }) {
+export default function ProductNavigation({ locale, policy, user,readOnlyPreview=false }: { locale: Locale; policy: Policy | null; user?: {role:string;status:string} | null;readOnlyPreview?:boolean }) {
   const t = copy[locale], restricted = user && !['active', 'deactivated'].includes(user.status);
   const links: { href: string; label: string }[] = [];
+  if(readOnlyPreview)return <nav className="primary-navigation" aria-label={t.navigation}><a href={locale==='fr'?'/?locale=fr':'/'}>{locale==='fr'?'Accueil':'Home'}</a>{policy?.feature_gifts&&<a href={'/gifts'+(locale==='fr'?'?locale=fr':'')}>{t.gifts}</a>}{policy?.feature_help&&<a href={'/help'+(locale==='fr'?'?locale=fr':'')}>{t.help}</a>}</nav>;
   if (policy?.feature_gifts) links.push({ href: '/gifts', label: t.gifts });
   if (policy?.feature_wallets && !restricted) links.push({ href: '/wallet', label: t.wallet });
   if (policy?.feature_referrals && !restricted) links.push({ href: '/referrals', label: locale === 'fr' ? 'Parrainages' : 'Referrals' });

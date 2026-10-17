@@ -1,3 +1,4 @@
+import {previewManifest,previewCatalog,previewHelp,previewHelpRedirect,previewHelpSearch} from './preview-reads';
 import {activitySnapshot} from './activity';
 import {presentationFromManifest,planFinancialPresentation,type PublicQueueDisclosure} from './presentation';
 import {searchPublishedHelp,publicSearchPolicy} from './help-search';
@@ -6,7 +7,7 @@ import { statisticsSnapshot } from './public-statistics';
 import {nativeCatalog} from './crypto-reads';
 import { and,asc,eq,sql } from 'drizzle-orm';
 import { MemoryCache } from '@gifters/cache';
-import { loadManifest,publicManifest,validateRuntimeEnv,type Manifest } from '@gifters/config';
+import { isReadOnlyPreview,loadManifest,publicManifest,validateRuntimeEnv,type Manifest } from '@gifters/config';
 import { assets,plans,planVersions,helpArticles,slugRedirects,readManifest,withContext } from '@gifters/db';
 import { formatBaseUnits } from '@gifters/domain';
 
@@ -20,7 +21,7 @@ let generation=0;
 type PublicKey=`activity:${number}:${number}`|'manifest'|'catalog'|'native-catalog'|'statistics'|'help:en'|'help:fr'|'slugs:en'|'slugs:fr'|`search:${'en'|'fr'}:${string}`;
 const pending=new Map<PublicKey,Promise<Entry>>();
 
-function captured(data:unknown,manifest:Manifest,publicSeconds:number,fallback=false):Loaded {
+function captured(data:unknown,manifest:Pick<Manifest,'cache_policy'>,publicSeconds:number,fallback=false):Loaded {
  const policy=manifest.cache_policy;
  return {data,capturedAt:Date.now(),publicSeconds,
   serverSeconds:Math.min(policy.manifest_server_seconds,publicSeconds,fallback?5:1_000_000),
@@ -33,6 +34,7 @@ export function unavailablePublicManifest(){
  return {...value,...features,configuration_available:false as const,presentation:presentationFromManifest({...seed,...features,feature_activity:false,feature_transparency:false,activity_presentation:'disabled'}),activity_statements:[],public_stats_policy:{...value.public_stats_policy,enabled:false},product_content:{...value.product_content,tagline:unavailable,short_description:unavailable}};
 }
 async function manifestLoader():Promise<Loaded> {
+ if(isReadOnlyPreview()){const value=await previewManifest();return captured(value.data,value.policy,value.policy.cache_policy.manifest_public_seconds);}
  let manifest=seed;let fallback=false;
  try{manifest=await withContext({access:'service',snapshot:true},async tx=>{
   await tx.execute(sql`set local statement_timeout='5000ms'`);return readManifest(tx);
@@ -41,6 +43,7 @@ async function manifestLoader():Promise<Loaded> {
  return captured({...(fallback?unavailablePublicManifest():{...publicManifest(manifest),presentation:presentationFromManifest(manifest),configuration_available:true}),payment_environment:process.env.APP_ENV==='testnet'?'testnet':'simulation'},manifest,fallback?5:manifest.cache_policy.manifest_public_seconds,fallback);
 }
 async function catalogLoader():Promise<Loaded> {
+ if(isReadOnlyPreview()){const value=await previewCatalog();return captured(value.data.plans,value.policy,value.policy.cache_policy.catalog_seconds);}
  return withContext({access:'service',snapshot:true},async tx=>{
   await tx.execute(sql`set local statement_timeout='5000ms'`);const manifest=await readManifest(tx);
   if(!manifest.feature_gifts)throw new Error('FEATURE_DISABLED');
@@ -87,12 +90,14 @@ export function getPublicCatalog(request?:Request){return read('catalog',catalog
 export function invalidatePublicReads(){generation++;pending.clear();memory=new MemoryCache(budget);}
 
 export function getPublicHelp(locale:'en'|'fr',request?:Request){return read(`help:${locale}`,async()=>{
+ if(isReadOnlyPreview()){const value=await previewHelp(locale);return captured(value.data,value.policy,value.policy.cache_policy.catalog_seconds);}
  const manifest=await withContext({access:'service',snapshot:true},async tx=>{await tx.execute(sql`set local statement_timeout='5000ms'`);return readManifest(tx)});if(!manifest.feature_help)throw new Error('FEATURE_DISABLED');
  const rows=await withContext({access:'public',snapshot:true},async tx=>{await tx.execute(sql`set local statement_timeout='5000ms'`);return tx.select({locale:helpArticles.locale,slug:helpArticles.slug,title:helpArticles.title,body:helpArticles.body,version:helpArticles.version}).from(helpArticles).where(and(eq(helpArticles.locale,locale),eq(helpArticles.published,true))).orderBy(asc(helpArticles.slug)).limit(101)});if(rows.length>100||Buffer.byteLength(JSON.stringify(rows))>3*1024*1024)throw new Error('CONFIGURATION_INVALID');return captured(rows,manifest,manifest.cache_policy.catalog_seconds);
  },request);}
 export async function publicHelpSlug(locale:'en'|'fr',slug:string,request?:Request){
  const published=await getPublicHelp(locale,request);
  if((published.data as {slug:string}[]).some(article=>article.slug===slug))return slug;
+ if(isReadOnlyPreview())return previewHelpRedirect(locale,slug);
  const inventory=await read(`slugs:${locale}`,async()=>{
  const policy=await withContext({access:'service',snapshot:true},tx=>readManifest(tx));
  return withContext({access:'public',snapshot:true},async tx=>{
@@ -105,13 +110,14 @@ export async function publicHelpSlug(locale:'en'|'fr',slug:string,request?:Reque
  if(!redirected)throw new Error('NOT_FOUND');return redirected.slug;
 }
 
-export function getPublicNativeCatalog(request?:Request){return read('native-catalog',async()=>withContext({access:'service',snapshot:true},async tx=>{await tx.execute(sql`set local statement_timeout='5000ms'`);const policy=await readManifest(tx),data=await nativeCatalog(tx);if(Buffer.byteLength(JSON.stringify(data))>1024*1024)throw new Error('CONFIGURATION_INVALID');return captured(data,policy,policy.cache_policy.catalog_seconds)}),request);}
+export function getPublicNativeCatalog(request?:Request){return read('native-catalog',async()=>{if(isReadOnlyPreview()){const value=await previewCatalog();return captured(value.data,value.policy,value.policy.cache_policy.catalog_seconds);}return withContext({access:'service',snapshot:true},async tx=>{await tx.execute(sql`set local statement_timeout='5000ms'`);const policy=await readManifest(tx),data=await nativeCatalog(tx);if(Buffer.byteLength(JSON.stringify(data))>1024*1024)throw new Error('CONFIGURATION_INVALID');return captured(data,policy,policy.cache_policy.catalog_seconds)})},request);}
 
 export function getPublicStatistics(request?:Request){return read('statistics',async()=>withContext({access:'service'},async tx=>{
  const policy=await readManifest(tx);return captured(await statisticsSnapshot(tx),policy,60);
 }),request);}
 
 export function getPublicHelpSearch(locale:'en'|'fr',query:string,request:Request){return read(`search:${locale}:${query}`,async()=>{
+ if(isReadOnlyPreview()){const value=await previewHelpSearch(locale,query);return captured(value.data,value.policy,Math.min(60,value.policy.cache_policy.catalog_seconds));}
  const policy=await publicSearchPolicy();
  const rows=await searchPublishedHelp(locale,query);
  return captured({locale,query,rows},policy,Math.min(60,policy.cache_policy.catalog_seconds));

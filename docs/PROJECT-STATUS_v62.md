@@ -1,4 +1,4 @@
-# Project status v61
+# Project status v62
 
 **Phase One/Two is incomplete. Mainnet sending is disabled.** The owner requires the full real-money product, all missing features and actual verification. Continue without milestone approval pauses; defer owner setup details to final testing.
 
@@ -7,7 +7,7 @@
 | ID | Work | Current evidence / remaining work |
 |---|---|---|
 | C001 | Mainnet registry/configuration | Closed network registry and read-only mainnet observer verified locally; payment runtime/configuration still testnet-only. |
-| C002 | Shared database and preview isolation | SQL mode/promotion fences and restricted preview role are locally verified. Restricted preview transaction/public projection pass locally; application wiring and full production promotion remain open. |
+| C002 | Shared database and preview isolation | SQL mode/promotion fences and restricted preview role are locally verified. Restricted preview transaction/public projection pass locally; Application wiring passes local API/browser checks; hosted acceptance and full production promotion remain open. |
 | C003 | Signer and custody | Version2 environment-bound key envelopes pass local checks; legacy keys remain testnet-only. Actual mainnet signer/store/worker activation remains open. |
 | C004 | Payment/fee/recovery matrix | Every enabled asset needs inflow, withdrawal, business/refund/operating settlement, reorg, replacement/expiry and restart evidence. |
 | C005 | Asset and RPC provenance | Verify all §30 assets/networks, two independent RPCs, token decimals/contracts/mints; JAGA needs owner input. |
@@ -27,10 +27,11 @@
 
 ## Current batch
 
-- Branch `feat/public-preview-boundary`, based on PR59 merge `7e15ff1155720e43516e733927dd88411f5603a0`.
-- A separate preview-only login now runs bounded, read-only snapshots. Checks reject unsafe memberships, ownership and private table/column/function grants before domain reads.
-- Public configuration parses independently and rejects private/staff settings. Restricted-login procedures prove projection parity, simulation/mainnet public scopes, private-data/write/escalation denial and permission-drift rejection.
-- Preview routes, deployment settings and browser acceptance remain open. This foundation does not enable mainnet payments.
+- Branch `feat/public-preview-app`, following merged PR60 (`4061eec22d7c927588ecc94ef918bd38af2254fb`).
+- Explicit `PUBLIC_PREVIEW_MODE=read_only` is allowed only in a Preview deployment. It requires a restricted login, rejects private credentials and keeps signing disabled.
+- Public configuration, catalogue and published help/search use bounded read-only transactions. Private/authentication/job routes and public writes are rejected before handlers; private pages are unavailable.
+- Actual mainnet-scope API checks and production Chromium390px EN/FR checks pass against the restricted local database, without intercepted responses. Financial hashes remain unchanged. Hosted preflight accepts the restricted login and rejects owner login/mode mismatch.
+- Workflow skips owner initialization for this mode and verifies its public login/configuration instead. SETUP gives researched browser steps on the same provider resources. Hosted acceptance is still open; mainnet payments remain disabled.
 
 ## Recent verified deliveries
 
@@ -50,4 +51,9 @@
 - No hosted credentials are configured here. Document protected settings in SETUP; do not ask again during independent coding or invent hosted/live acceptance.
 - §30 requires14-day beta stability and14-day initial-cap observation. Do not fabricate elapsed evidence or claim a completion percentage.
 
-v61
+
+## Read-only preview app evidence (v62)
+
+`/workspace/work/public-preview-app-v62`: `api-r2` proves actual mainnet public reads,39 private/auth/job route denials, write/signing denial and unchanged retained hashes. `browser-r1` and final `browser-r2` prove actual production Chromium390px EN/FR catalogue/help/search, banner, public-only navigation, unavailable private pages/API and noindex; no response interception. `credential-scope-r1` rejects21 private credential names; `hosted-preflight-r1` accepts the restricted login and rejects owner login/mode mismatch. r1 API harness failure used the unsupported mainnet recovery inventory; preserved, then r2 hashes the unchanged simulation fixture outside request execution. Mainnet recovery itself remains unfinished. PR60 passed push39024849840 / PR39024875695 before merging.
+
+v62
