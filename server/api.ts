@@ -1,3 +1,4 @@
+import {APP_WIRE_VERSION,APP_MINIMUM_CLIENT_VERSION,appCompatibility,requestPeerCompatible} from '@gifters/domain';
 import {ownPreferences,preferencesInput} from './preferences';
 import {assertMinimumAge} from '@gifters/domain';
 import {profilePreviewInput,profileStageInput,profileCommitInput,readinessInput,publicationInput,releaseProfile,stageProfile,commitProfile,recordReadiness,publicationConsent,assertProfileRevision} from './transparency';
@@ -304,7 +305,7 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
     if(method==='GET'&&route==='/admin/jobs'){const actor=await admin(request),input=staffJobsInput.parse(Object.fromEntries(new URL(request.url).searchParams));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>staffJobs(tx,actor.id,input)));}
 
     if (method === 'GET' && route === '/manifest') {
-      const value=await getPublicManifest(request);return publicOk(value.data,value.ttlSeconds,request);
+      const value=await getPublicManifest(request);return publicOk({...value.data as Record<string,unknown>,client_compatibility:appCompatibility},value.ttlSeconds,request);
     }
 
     if(method==='GET'&&route==='/help'){
@@ -489,6 +490,7 @@ async function routeApiRequest(method:string,path:string[],request:Request){
  try{
   if(isReadOnlyPreview()&&(method!=='GET'||!['/manifest','/plans','/crypto/catalog','/help'].includes('/'+path.join('/'))))throw new Error('FEATURE_DISABLED');
   const route='/'+path.join('/');
+  if(!['GET','HEAD','OPTIONS'].includes(method)&&!route.startsWith('/internal/')&&route!=='/auth/logout'&&!requestPeerCompatible(request.headers.get('x-gw-client-protocol'),request.headers.get('x-gw-min-server-protocol')))throw new Error('CLIENT_UPDATE_REQUIRED');
   if(route.startsWith('/auth/'))return await handleAuthRequest(method,route,request);
   if(route==='/sim/users'&&(runtimeProviders().AUTH_PROVIDER)!=='simulation')throw new Error('FEATURE_DISABLED');
   if(['/manifest','/transparency','/activity','/statistics','/plans','/help','/sim/users','/internal/tick','/internal/financial','/crypto/catalog'].includes(route))return await dispatchApiRequest(method,path,request);
@@ -510,6 +512,7 @@ export async function handleApiRequest(method:string,path:string[],request:Reque
   let response:Response;try{response=await withExecutionBudget(50000,()=>routeApiRequest(method,path,request),request.signal);}catch(error){response=fail(error);}
   const headers=new Headers(response.headers);
   headers.set('X-Request-ID',requestId());
+  headers.set('X-GW-API-Protocol',String(APP_WIRE_VERSION));headers.set('X-GW-Min-Client-Protocol',String(APP_MINIMUM_CLIENT_VERSION));
   return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
  });
 }

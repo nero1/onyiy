@@ -1,5 +1,6 @@
 export const copy = {
   en: {
+    errorClientUpdate:'The app changed. Reload before continuing.',
     errorSelfTransfer:"Use a different verified wallet. Sending to the same address does not fund a gift or pay out income.",
     errorReauth:"Sign in again or verify your authenticator to continue.",
     errorCycle:"Finish the active cycle before starting another gift.",
@@ -38,6 +39,7 @@ export const copy = {
     gifts:'Choose a gift', expected:'Expected', send:'Send this gift', active:'Active cycles', completed:'Completed cycles', position:'Position', credited:'Gifts credited', noCycles:'No cycles yet.', wallet:'Wallet', linkWallet:'Link simulation wallet', linked:'Linked', withdraw:'Request withdrawal quote', reviewWithdrawal:'Review withdrawal', gross:'Gross', networkFee:'Network fee', net:'Net', confirmWithdrawal:'Confirm withdrawal', cancel:'Cancel', withdrawAmount:'Amount in GIV', notifications:'Notifications', admin:'Admin simulator', activate:'Activate', reconcile:'Reconcile journals', balanced:'All journals balanced', queue:'Inspect queue', language:'Language', theme:'Theme', light:'Light', dark:'Dark', offline:'Offline — financial actions are disabled.', loading:'Loading…', error:'Something went wrong', retry:'Retry', status:'Status', backToTop:'Back to gift tiles'
   },
   fr: {
+    errorClientUpdate:'L’application a changé. Rechargez-la avant de continuer.',
     errorSelfTransfer:"Utilisez un autre portefeuille vérifié. Un transfert vers la même adresse ne finance pas un don et ne verse pas de revenu.",
     errorReauth:"Reconnectez-vous ou vérifiez votre authentificateur pour continuer.",
     errorCycle:"Terminez le cycle actif avant de commencer un autre don.",

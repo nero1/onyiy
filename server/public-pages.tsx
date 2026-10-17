@@ -11,7 +11,7 @@ import type { Locale } from '@/lib/i18n';
 import type { PublicArticle, PublicGift } from '@/lib/public-content';
 import { getPublicCatalog, getPublicHelp, getPublicManifest, getPublicNativeCatalog, unavailablePublicManifest } from './public-reads';
 
-export type PublicPolicy = Pick<Manifest, 'product_content' | 'feature_help' | 'feature_gifts' | 'feature_wallets' | 'feature_referrals' | 'feature_admin' | 'feature_moderation' | 'terms_content'|'profile_revision'|'deployment_profile'> & {presentation?:ProfilePresentation};
+export type PublicPolicy = Pick<Manifest, 'product_content' | 'feature_help' | 'feature_gifts' | 'feature_wallets' | 'feature_referrals' | 'feature_admin' | 'feature_moderation'|'feature_pwa' | 'terms_content'|'profile_revision'|'deployment_profile'> & {presentation?:ProfilePresentation};
 export type LocaleQuery = Promise<{ locale?: string | string[]; article?: string | string[]; slug?: string | string[] }>;
 const publicRequest = cache(async (path: string) => {
   const incoming = await headers(), selected = new Headers();

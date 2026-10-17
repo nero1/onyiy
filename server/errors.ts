@@ -1,6 +1,7 @@
 import {ZodError} from 'zod';
 
 export const errorStatus={
+ CLIENT_UPDATE_REQUIRED:409,
  DB_CAPACITY_EXCEEDED:503,
  DB_DEADLINE_EXCEEDED:503,
  DB_CIRCUIT_OPEN:503,

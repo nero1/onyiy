@@ -1,12 +1,12 @@
-# LLM handover v70
+# LLM handover v71
 
 ## Owner direction
 
-Complete all Phase One/Two, including the real-money product, bugs and every unfinished requirement. Keep moving in substantial batches through [status](PROJECT-STATUS_v70.md), without milestone pauses. Owner launch details are deferred to final testing; put protected settings in SETUP and continue independent coding. **The product is incomplete; actual hosted/live acceptance and observation periods remain open.**
+Complete all Phase One/Two, including the real-money product, bugs and every unfinished requirement. Keep moving in substantial batches through [status](PROJECT-STATUS_v71.md), without milestone pauses. Owner launch details are deferred to final testing; put protected settings in SETUP and continue independent coding. **The product is incomplete; actual hosted/live acceptance and observation periods remain open.**
 
 ## Current branch and capability
 
-- `nero1/onyiy`, branch `feat/cycle-history-and-preview`, based on merged PR68 `a2fedf70cc0da54f07bd8bd459ea66a698daf03e`. Exact PR68 head7c47cda passed push39067342954 / PR39067372764 before merge.
+- `nero1/onyiy`, branch `feat/managed-recovery-and-client-compatibility`, based on PR69 merge `5405258bf111f924af4ec90099d9e4e2651d33c3`. Exact PR69 head2ca64f6 passed push39068469201 / PR39068485562 before merge.
 - Mainnet config/runtime, authentication issuer, native core credit, checkout/history/labels/wallets and signer now support the closed four-network registry. `nativePaymentExecutionSupported=true` is a capability, not launch acceptance. Defaults remain off. Mainnet requires explicit enablement, transparent non-demo policy, no simulation authority, reviewed readiness, matching configuration approvals and a recent signed alert acknowledgement.
 - Multiple network hashes use `FINANCIAL_CONFIG_APPROVALS_JSON` and `ALERT_ACCEPTANCE_FINGERPRINTS_JSON`; legacy singular values remain compatible but cannot be mixed with lists. Policy/readiness/profile changes participate in hashes. Per-currency catalogue readiness controls checkout.
 - `SIGNER_KEY_FILES_JSON` selects four environment-bound encrypted files; legacy single-file support remains. `prepare-key-package` emits a single encrypted bundle; installer validates every record before writing a new private directory. `.github/workflows/isolated-signer.yml` is opt-in, main-only, separately protected, bounded and browser-operated. No website/preview credentials or signer material may be mixed.
@@ -74,6 +74,18 @@ Finish required checks/exact-head CI/merge for this batch, then continue C004/C0
 
 `/workspace/work/cycle-history-v70`: `records-and-preview-r4` compares actual baseline source against fixed restricted-service reads: legacy1 versus true serving2 under disclosed priority,35 explicitly synthetic completed history rows hiding the retained active cycle, exact completion/cooldown/filter validation and member isolation. Ledger counts/totals unchanged. r1 failed CJS re-export before creating a database; r2 used read access even though real APIs use service+actor/reportSnapshot and was denied on x_manifest. Preserve those logs/targets; fresh r3/r4 pass. `browser-cycles-r1` actual Chromium390px EN/FR verifies correct position, Completed/live cooldown, no overflow and no rotation for12.5sec with two currencies; final r2 also checks localized raw states. Synthetic history is not funded-payment evidence.
 
-Continue without a milestone pause. Two further code gaps identified: (1) no API/client build compatibility/reload-before-mutation protocol; preserve additive wire compatibility when implementing it; (2) recovery’s blanket other-session check may reject normal idle provider sessions on Supabase. Verify provider-role/background-session behavior and fix narrowly without terminating sessions or allowing active application clients. Existing empty-target/signature/version/database identity gates must remain. Automatic backup cadence and external signed-alert receiver setup remain operational work. Do not claim full295-requirement or all-asset lifecycle acceptance.
+Continue without a milestone pause. The two v70 audit findings (client compatibility and managed recovery sessions) are implemented in v71 below. Automatic backup cadence and external signed-alert receiver setup remain operational work. Do not claim full295-requirement or all-asset lifecycle acceptance.
 
-v70
+## Managed recovery and client compatibility (v71)
+
+- Recovery now permits only known Supabase client roles that are idle, outside a transaction and accompanied by both provider schemas. Active/open-transaction/unknown sessions or hidden metadata still block; no session is terminated. Foreign tables also make a target occupied.
+- API responses declare wire compatibility; clients send their supported range. Incompatible writes fail before processing, and the browser blocks subsequent mutations before sending. Legacy clients remain supported; additive deployments do not force reloads. Worker authentication and logout retain their existing paths.
+- Native and simulation routes share PWA controls. The worker observes public manifest headers only; private reads and all writes bypass it. EN/FR reload notices wait for wallet interaction and offer to copy an existing returned hash. No automatic resend or stored pending request body.
+- Local evidence: `managed-recovery-v71/provider-sessions-r1` passes idle-provider restore/exact verification and active/transaction/unknown/missing-marker denials; `foreign-target-r2` rejects a handlerless foreign table without modifying it. Preserve the old-guard baseline and failed unavailable-extension r1 fixtures. `financial-regression-r1` passes actual encrypted worker→separate web settlement through authenticated callbacks using generated isolated endpoints.
+- `client-compatibility-v71/protocol-and-api-r2`, `client-lock-r2` and `worker-protocol-r2` pass API range validation, pre-fetch mutation lock, logout/401 handling, memory-only owner/invoice receipt scoping and public-only worker observation. Future peer messages are explicit fixtures, not hosted upgrade acceptance.
+- Final production build, required checks and actual390px Chromium EN/FR pass (`browser-compatibility-r2`): native PWA registration, real manifest metadata, stale worker tuple ignored, explicit future-peer banner, pre-POST mutation lock, unchanged saved locale and manual reload. The earlier r1 browser run also passes; fresh r2 verifies the final legacy0/server1 range.
+- Still open: hosted provider metadata/restore, all-asset reconciliation, full product audit, automatic backup cadence/external alerts, device/provider acceptance and real observation periods. No schema, receipt or financial-history rewrite.
+
+Publishing: injected gh CLI credential expired; use the connected GitHub Git Data/PR app. Verify its tree matches the reviewed local tree; require both push and pull_request CI on its exact final commit. Public unauthenticated fetch remains available. One financial command’s automatic approval review timed out; its single retry passed, with no pending approval or unsafe-action finding.
+
+v71
