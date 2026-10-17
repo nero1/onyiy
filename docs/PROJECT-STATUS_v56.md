@@ -1,4 +1,4 @@
-# Project status v55
+# Project status v56
 
 ## Actual completion objective
 
@@ -10,7 +10,7 @@ The owner requires the full Phase One/Two product, including verified real-money
 |---|---|---|
 | C001 | Mainnet registry/configuration | Testnet-only validation and provider assumptions; staged registry foundations in progress. |
 | C002 | Shared database and preview isolation | SQL mode/promotion fences and restricted preview role are locally verified. Preview application wiring and full production promotion remain open. |
-| C003 | Signer and custody | Both implementation gates remain false; environment-bound keys, scoped worker access and verified activation remain open. |
+| C003 | Signer and custody | Version2 environment-bound key envelopes pass local checks; legacy keys remain testnet-only. Actual mainnet signer/store/worker activation remains open. |
 | C004 | Payment/fee/recovery matrix | Every enabled asset needs inflow, withdrawal, business/refund/operating settlement, reorg, replacement/expiry and restart evidence. |
 | C005 | Asset and RPC provenance | Verify all §30 assets/networks, two independent RPCs, token decimals/contracts/mints; JAGA needs owner input. |
 | C006 | Pricing modes | Exact fixed-token activation, saved USD/rate reference, replay and unchanged-price resume pass locally. Full asset/lifecycle acceptance remains open. |
@@ -24,11 +24,11 @@ The owner requires the full Phase One/Two product, including verified real-money
 | C014 | Owner launch decisions | Launch countries/review, approved financial terms, funding/refund/closure model, custody and budget remain unresolved. |
 | C015 | Age eligibility | Implemented server-date DOB eligibility without retaining DOB; actual cookie/CSRF API checks pass. Hosted browser acceptance remains open. |
 | C016 | Display time zones | Saved user preferences, default Lagos, admin override and explicit UTC launch inputs implemented. DST/API checks pass; browser acceptance remains open. |
-| C017 | Product navigation/idle preview | Verify and finish §18 currency browsing/idle rotation, focus-safe behaviour and all scheduled-plan presentation; current native portal has no currency rotation implementation. |
+| C017 | Product navigation/idle preview | Enabled-currency browsing/idle rotation and keyboard return implemented. Actual390px EN/FR browser checks pass; scheduled-plan presentation and remaining dashboard layout still need acceptance. |
 
 ## Current work
 
-- Branch `feat/production-completion`, based on merged PR53 (`6c323dc43c45efa1957308e467ce06e7cc0b36c0`).
+- Branch `feat/custody-key-binding`, based on merged PR54 (`4757acf6aaa7de7b6d5080a6a37da7a28c6d46af`).
 - Extracted295 requirement-bearing PRD lines into private scratch for line-by-line audit. This is an inventory, not completed acceptance.
 - Implementing environment-bound network registry validation and separate mainnet/testnet RPC/address selection. Type checking passed for the initial foundation. Execution remains blocked until isolation/signing/recovery are complete.
 - No configured hosted runtime credentials or outbound identities are available in the current managed environment. The owner deferred all launch details to final testing. Do not ask again during coding; put the required fields in SETUP and continue independent implementation. Keys/passwords must use protected settings.
@@ -56,4 +56,17 @@ Keep going through the list without milestone acceptance pauses; create/merge PR
 
 - Mandatory checks and final build/bundle passed: homepage182.18KiB gzip (limit200), API1.441MiB (limit3), all client chunks0.675MiB (limit2).
 
-v55
+
+## Current v56 batch
+
+- PR54 merged after exact head934686ab388ad2da581f7ebaa16cb1760add4e7a passed push39012602186 and pull_request39012617199. It delivered the v55 foundations below; overall completion remains open.
+- New encrypted-key format authenticates chain, environment, network and public address. Eight network/environment packaging checks passed, with tamper/wrong-secret/legacy relabelling rejection. Active mainnet signing remains denied; no funds or transactions were used.
+- Key readers inspect/read the same private file descriptor and reject symlinks. Callback buffers are cleared. Existing encrypted testnet files remain compatible; original files are never rewritten.
+- Native gifts now browse enabled currencies, with paired selectors, tiles, card navigation and explicit rotation pause. Rotation is denied during focus, reduced motion, recent interaction, checkout and active-cycle display. Currency label key parity is checked by CI.
+- Corrected verified activity dates remaining in the previous zone after a display-zone change.
+
+
+- Browser-r6 passed actual production390px EN/FR currency selection, idle rotation, focus, reduced motion, existing-invoice and active-cycle guards, and tile/card keyboard return. Only bot-challenge requests occurred; no financial call, signing or broadcast. Data was generated/intercepted.
+- Actual offline sealing tool passed five testnet bindings: v2 round-trip, private modes, retained input and existing-output refusal. This does not enable mainnet signing.
+
+v56

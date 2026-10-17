@@ -1,6 +1,6 @@
 # How Gifters World works
 
-For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v55.md).
+For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v56.md).
 
 ## Main parts
 
@@ -40,7 +40,7 @@ Supabase hosts PostgreSQL; the app does not depend on Supabase Auth, Storage, Re
 - Every new public table needs explicit grant/revoke classification in the same migration. Never fix permission errors by granting all tables to `anon`, `authenticated` or `service_role`.
 - The owner connection stays outside Vercel. Binding checks use two fresh owner-held transaction locks observed through the runtime connection; no bootstrap table or permanent proof is created. Copied database IDs cannot satisfy the fresh check.
 - Hosted connections verify TLS certificates and hostnames. The app uses a small transaction-pooler connection; owner administration uses direct/session connections.
-- [The reviewed schema contract](../packages/db/schema-contract_v55.json) pins declaration/migration hashes and inventories 22 SQL-only constraint triggers and two deferred-FK timing differences. The current SQL000–005 total is 96 tables/897 columns/301 checks/119 standalone indexes; the original initial installer stays unchanged.
+- [The reviewed schema contract](../packages/db/schema-contract_v55.json) pins declaration/migration hashes and inventories SQL-only triggers and deferred-FK timing differences. The current SQL000–005 total is 96 tables/897 columns/301 checks/119 standalone indexes; the original initial installer stays unchanged.
 
 ## Settings and API responses
 
@@ -129,7 +129,7 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Relevant named manual checks cover rollback/replay, concurrent admission, missing-wallet liabilities, rejected withdrawals, account isolation, cache expiry/outage, signing recovery and exact restore. Use isolated data and preserve failed evidence. Never reset a shared source to repeat a check.
 - Hosted Google, Upstash, RPC, alerts, mobile performance and release readiness require observations on the selected services. Health/compilation alone do not satisfy them.
 - Keep **five core docs** plus the two explicitly requested bug trackers. Use clear lists/tables and short explanations; update current facts instead of appending repeated history. Only add a document when explicitly requested or essential. Prior versions remain in Git.
-- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v55.md) records the exact continuation boundary.
+- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v56.md) records the exact continuation boundary.
 
 - Phase Two recovery uses signed inventory contract4: timestamps retain PostgreSQL microseconds in paging/row checksums, and permission-group attributes/membership are checked. Contract3 archives require release `6c323dc43c45efa1957308e467ce06e7cc0b36c0`. Contract2 archives require their matching release (the preceding release is `25a5073d30974bcf8b02814bc81181e3a147d15c`). Keep original archives, keys and release references.
 - In the transparent profile, platform positions and priority exceptions are labelled or disabled. Joining numbers stay fixed; the displayed receiving position reflects actual order. Potential receipts depend on later confirmed gifts and are never guaranteed. Account publication is optional and revocable; test/simulation records do not become real-payment stories.
@@ -139,3 +139,6 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Consent checks the full birth date against server time; it retains only the verified time and accepted minimum age. This is an age declaration, not identity verification.
 - Members save English/French and an IANA time zone in account settings. Africa/Lagos is the default. Admin displays use admin_timezone; plan launch inputs explicitly use UTC. Display changes never change financial timestamps.
 - Native plan activation can freeze a USD-derived amount or an exact token amount. Both retain the trusted rate reference; resuming an existing version preserves its amount.
+
+- Encrypted signer key format2 binds its chain, environment, network and public address. Legacy format1 remains testnet-only; packaging a key does not activate mainnet. Private key files are read from a checked descriptor and symlinks are rejected.
+- Gift currency selectors show enabled assets only. Idle preview pauses for focus, interaction, reduced motion, active cycles and financial review. A manual choice stops rotation; tile/card navigation restores keyboard focus.

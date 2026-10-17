@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import ts from 'typescript';
-const text=fs.readFileSync(new URL('../lib/i18n.ts',import.meta.url),'utf8');
+function checkPack(file,exportName){
+const text=fs.readFileSync(new URL(file,import.meta.url),'utf8');
 const source=ts.createSourceFile('i18n.ts',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS);
 if(source.parseDiagnostics.length)throw new Error('Invalid translation source');
 function unwrap(node){while(node && (ts.isAsExpression(node) || ts.isParenthesizedExpression(node) || ts.isSatisfiesExpression(node)))node=node.expression;return node}
@@ -8,7 +9,7 @@ function name(node){if(ts.isIdentifier(node) || ts.isStringLiteral(node))return 
 let packs;
 for(const statement of source.statements){
  if(!ts.isVariableStatement(statement))continue;
- for(const declaration of statement.declarationList.declarations)if(ts.isIdentifier(declaration.name) && declaration.name.text==='copy')packs=unwrap(declaration.initializer);
+ for(const declaration of statement.declarationList.declarations)if(ts.isIdentifier(declaration.name) && declaration.name.text===exportName)packs=unwrap(declaration.initializer);
 }
 if(!packs || !ts.isObjectLiteralExpression(packs))throw new Error('Could not locate language packs');
 const locales=new Map();
@@ -26,4 +27,7 @@ for(const pack of packs.properties){
 const en=locales.get('en'),fr=locales.get('fr');if(!en || !fr)throw new Error('Could not locate both language packs');
 const missingFr=[...en].filter(key=>!fr.has(key)),missingEn=[...fr].filter(key=>!en.has(key));
 if(missingFr.length || missingEn.length)throw new Error(`i18n mismatch. Missing fr=${missingFr.join(',')} missing en=${missingEn.join(',')}`);
-console.log(`i18n key parity ok (${en.size} keys).`);
+console.log(`i18n ${exportName} key parity ok (${en.size} keys).`);
+}
+checkPack('../lib/i18n.ts','copy');
+checkPack('../lib/currency-copy.ts','currencyCopy');
