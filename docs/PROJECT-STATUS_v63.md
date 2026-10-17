@@ -1,4 +1,4 @@
-# Project status v62
+# Project status v63
 
 **Phase One/Two is incomplete. Mainnet sending is disabled.** The owner requires the full real-money product, all missing features and actual verification. Continue without milestone approval pauses; defer owner setup details to final testing.
 
@@ -13,7 +13,7 @@
 | C005 | Asset and RPC provenance | Verify all §30 assets/networks, two independent RPCs, token decimals/contracts/mints; JAGA needs owner input. |
 | C006 | Pricing modes | Exact fixed-token activation, saved USD/rate reference, replay and unchanged-price resume pass locally. Full asset/lifecycle acceptance remains open. |
 | C007 | Production UI and wallet support | Wallet domain/network/session proof binding and change audits verified. Complete mainnet catalog/history, EN/FR and real wallet acceptance. |
-| C008 | Mainnet backup and recovery | Recovery currently accepts simulation/testnet only; verify exact production restore, chain reconciliation and no resend. |
+| C008 | Mainnet backup and recovery | Mainnet encrypted backup/restore/exact verification pass locally, including original v55 archive compatibility. Complete browser operation, chain reconciliation, no-resend and hosted acceptance. |
 | C009 | Hosted identity/access | Actual OAuth/MFA, restrictive roles, rate limits, CAPTCHA and account/financial recovery need hosted evidence. |
 | C010 | Complete product acceptance | One-paste final-state installer verified and merged. Check every feature/flag, queues, cooldowns, referrals/points, admin/moderation, exports/deletion, accessibility/PWA/offline and errors against §§1–29. |
 | C011 | Deployment and operations | Secure hosted setup, external alerts, signer/scheduler heartbeats and incident/closure controls need actual operation evidence. |
@@ -27,11 +27,12 @@
 
 ## Current batch
 
-- Branch `feat/public-preview-app`, following merged PR60 (`4061eec22d7c927588ecc94ef918bd38af2254fb`).
-- Explicit `PUBLIC_PREVIEW_MODE=read_only` is allowed only in a Preview deployment. It requires a restricted login, rejects private credentials and keeps signing disabled.
-- Public configuration, catalogue and published help/search use bounded read-only transactions. Private/authentication/job routes and public writes are rejected before handlers; private pages are unavailable.
-- Actual mainnet-scope API checks and production Chromium390px EN/FR checks pass against the restricted local database, without intercepted responses. Financial hashes remain unchanged. Hosted preflight accepts the restricted login and rejects owner login/mode mismatch.
-- Workflow skips owner initialization for this mode and verifies its public login/configuration instead. SETUP gives researched browser steps on the same provider resources. Hosted acceptance is still open; mainnet payments remain disabled.
+- Branch `feat/mainnet-recovery-boundary`, based on PR61 merge `cfac359822890544c963426a9b70bc54893f8c8c`.
+- Recovery uses a separate maintenance boundary with disabled signing/scheduling, fresh owner/runtime binding proofs and read-only runtime checks. Web mainnet execution remains disabled.
+- Encrypted mainnet backup/restore/independent verification pass for all83 retained tables. Fresh testnet backup/restore and the original v55 signed simulation archive also pass without rewriting packets or keys.
+- Inventory now checks initialized environments as well as assets, rejecting retired/mismatched modes before backup. Wrong packet environment and wrong database binding are denied before target DDL.
+- Recovery waits for its own closing proof sessions before the unchanged empty/inactive-target guard. The first failed compatibility target is preserved. Cleanup zeroes the archive key before attempting all releases.
+- Browser-based owner recovery workflow, hosted restore, chain reconciliation/no-resend and the remaining payment/product work stay open.
 
 ## Recent verified deliveries
 
@@ -54,6 +55,13 @@
 
 ## Read-only preview app evidence (v62)
 
-`/workspace/work/public-preview-app-v62`: `api-r2` proves actual mainnet public reads,39 private/auth/job route denials, write/signing denial and unchanged retained hashes. `browser-r1` and final `browser-r2` prove actual production Chromium390px EN/FR catalogue/help/search, banner, public-only navigation, unavailable private pages/API and noindex; no response interception. `credential-scope-r1` rejects21 private credential names; `hosted-preflight-r1` accepts the restricted login and rejects owner login/mode mismatch. r1 API harness failure used the unsupported mainnet recovery inventory; preserved, then r2 hashes the unchanged simulation fixture outside request execution. Mainnet recovery itself remains unfinished. PR60 passed push39024849840 / PR39024875695 before merging.
+`/workspace/work/public-preview-app-v62`: `api-r2` proves actual mainnet public reads,39 private/auth/job route denials, write/signing denial and unchanged retained hashes. `browser-r1` and final `browser-r2` prove actual production Chromium390px EN/FR catalogue/help/search, banner, public-only navigation, unavailable private pages/API and noindex; no response interception. `credential-scope-r1` rejects21 private credential names; `hosted-preflight-r1` accepts the restricted login and rejects owner login/mode mismatch. r1 API harness failure used the unsupported mainnet recovery inventory; preserved, then r2 hashes the unchanged simulation fixture outside request execution. The archive gap from that release is addressed by v63; chain reconciliation remains unfinished. PR60 passed push39024849840 / PR39024875695 before merging.
 
-v62
+
+## Mainnet archive evidence (v63)
+
+`/workspace/work/mainnet-recovery-v63`: `readonly-boundary-r1` verifies binding, read-only scope, write/downgrade denial and unchanged hashes; `archive-r2` backs up/restores/verifies83 retained tables. `testnet-and-final-mainnet-r1` verifies fresh testnet backup/restore plus the original mainnet packet on another fresh target. `legacy-and-guards-r2` restores/verifies the original v55 packet and rejects retired scope, signed environment mismatch and wrong-database binding. Its failed r1 target/logs remain preserved; proof-backend shutdown is now awaited without terminating other clients or weakening target guards. `worker-regression-r1` verifies ordinary worker/context behavior after extracting the unchanged role checks. No RPC, signer, broadcast or real funds.
+
+Original mainnet packet/key: `mainnet-isolated-r2.gwbackup` / `mainnet-isolated-r2.key` (raw32-byte key; its harness encodes it only inside the protected process); original v55 packet/key remain at their handover paths. Browser recovery workflow and mainnet chain reconciliation/no-resend remain open. PR61 merged after push39025742213 and PR39025758110 passed for a7e16c713f9fa3b35f0cfe02dfafd22c6b2e6049. Continue the full product after the next checked merge.
+
+v63

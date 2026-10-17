@@ -1,6 +1,6 @@
 # How Gifters World works
 
-For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v62.md).
+For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v63.md).
 
 ## Main parts
 
@@ -116,11 +116,11 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Public pages carry locale/canonical metadata; private routes are excluded from indexing. English/French text and accessibility checks remain required.
 - Member JSON/CSV exports fix a creation cutoff. Later records are excluded, but mutable values are captured during bounded parts: **this is not one global point-in-time snapshot**. Export metadata discloses the capture interval; spreadsheet-leading values are escaped.
 - Full application archives encrypt native PostgreSQL dumps with AES-256-GCM and authenticate their inventory separately. Dump and row inventory share one consistent read snapshot.
-- Archives retain financial/work history, protected counters, provider identities, encrypted factors and replay evidence. Session/refresh/login-flow/rate/binding-challenge rows are excluded; their schema/security still enter fingerprints.
-- Restore verifies signatures, checksums, compatible versions, approved extensions and exact rows/schema/security. It requires a fresh empty inactive simulation target, disabled signing and absent scheduler keys; it never merges into an occupied database or automatically resumes jobs.
+- Archives retain financial/work history, protected counters, provider identities, encrypted factors and permanent replay evidence. Session/refresh/login-flow/rate/binding-challenge and short-lived worker nonce rows are excluded; their schema/security still enter fingerprints. Before publishing a restored staging site, issue fresh scheduler/worker request-authentication keys and remove previous-key values, then reconcile the chain. Preserve the custody and MFA encryption keys needed for existing records.
+- Restore verifies signatures, checksums, compatible versions, approved extensions and exact rows/schema/security. It supports simulation, testnet and mainnet archives and requires a fresh empty inactive staging target, disabled signing and absent scheduler keys; it never merges into an occupied database or automatically resumes jobs.
 - Closed extension dependencies allow `pgcrypto` 1.3 and optional `pg_trgm` 1.6 in their approved schemas. Unknown names, versions, duplicates or incompatible installed extensions are rejected.
 - Vercel full-site archive transfer is operator-only; its UI does not offer a complete upload/download/restore path. Optional persistent-host staging is separate, bounded and encrypted. Failed/quarantined evidence is retained for review.
-- Signed schema contract v2 also binds column permissions and partition bounds/indexes. Packets without that contract require their matching historical code: the release immediately before this change is `922661dbfa88832069f459f42838c8352eff4f59`. Never relabel an old packet.
+- Current recovery contract4 binds timestamp precision, closed permission groups, column permissions and partition bounds/indexes. Older contracts require their matching historical release; never relabel or re-sign a packet. Recovery maintenance cannot enable the web runtime, signing or scheduling.
 - Keep MFA and archive keys separately. Old 99-migration archives require release `e6f7888034afae01d0c7803965f1c17889783171`; the fresh installer does not convert their signed histories.
 
 ## Verification and documentation
@@ -129,7 +129,7 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Relevant named manual checks cover rollback/replay, concurrent admission, missing-wallet liabilities, rejected withdrawals, account isolation, cache expiry/outage, signing recovery and exact restore. Use isolated data and preserve failed evidence. Never reset a shared source to repeat a check.
 - Hosted Google, Upstash, RPC, alerts, mobile performance and release readiness require observations on the selected services. Health/compilation alone do not satisfy them.
 - Keep **five core docs** plus the two explicitly requested bug trackers. Use clear lists/tables and short explanations; update current facts instead of appending repeated history. Only add a document when explicitly requested or essential. Prior versions remain in Git.
-- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v62.md) records the exact continuation boundary.
+- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v63.md) records the exact continuation boundary.
 
 - Phase Two recovery uses signed inventory contract4: timestamps retain PostgreSQL microseconds in paging/row checksums, and permission-group attributes/membership are checked. Contract3 archives require release `6c323dc43c45efa1957308e467ce06e7cc0b36c0`. Contract2 archives require their matching release (the preceding release is `25a5073d30974bcf8b02814bc81181e3a147d15c`). Keep original archives, keys and release references.
 - In the transparent profile, platform positions and priority exceptions are labelled or disabled. Joining numbers stay fixed; the displayed receiving position reflects actual order. Potential receipts depend on later confirmed gifts and are never guaranteed. Account publication is optional and revocable; test/simulation records do not become real-payment stories.
