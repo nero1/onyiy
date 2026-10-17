@@ -1,4 +1,4 @@
-# Project status v72
+# Project status v73
 
 **Phase One/Two is incomplete.** Mainnet execution is now implemented behind protected configuration, policy, registry and signed-alert checks. Local procedures pass; no real chain transaction, owner-hosted acceptance or observation period is claimed. Continue without milestone approval pauses. Owner launch details remain deferred to final testing.
 
@@ -9,7 +9,7 @@
 | C001 | Mainnet runtime | Four networks/eight protocols prepare, sign and submit exact bytes to isolated endpoints; configuration/authentication/backend/UI select mainnet. Verify the full lifecycle matrix and live setup. |
 | C002 | Shared database/preview | Promotion fences and public-only Preview pass local SQL/API/390px EN/FR checks. Finish owner-hosted acceptance. |
 | C003 | Custody/signer | Four-key encrypted bundle, private installation/map and browser-operated isolated worker implemented. Actual worker→separate web settlement passes locally. Verify owner custody/host operation. |
-| C004 | Payment/recovery matrix | Mainnet funding, wallet proof, exact/underpayment, failed-refund rights and worker settlement pass. Finish all enabled assets, business/withdrawal/sweep, reorg, replacement/expiry/restart cases. |
+| C004 | Payment/recovery matrix | Native ETH/BNB and generated18-decimal USDT/JAGA BNB funding/incoming/refund/member-withdrawal procedures pass, including exact unused-fee return and replay. Finish SOL/SPL/TRC20, all business/sweeps, reorg/replacement/expiry/restart and hosted/live acceptance. JAGA provenance remains unverified for actual launch. |
 | C005 | Asset/RPC provenance | Owner must verify actual token contracts/mints/decimals and two independent providers per network. Generated contracts are not evidence. Keep JAGA/unverified assets disabled. |
 | C006 | Pricing | Exact fixed-token activation/replay/resume pass locally; complete full asset/lifecycle acceptance. |
 | C007 | UI/wallets | Mainnet EVM/SOL/TRON connections and canonical wallet sends pass isolated logic procedures; accurate environment labels/history wired. Finish actual browser/device/wallet and EN/FR acceptance. |
@@ -26,7 +26,7 @@
 
 ## Current delivery
 
-- Branch `feat/managed-recovery-and-client-compatibility`, based on PR69 merge `5405258bf111f924af4ec90099d9e4e2651d33c3`. Exact PR69 head2ca64f6 passed push39068469201 / PR39068485562 before merge.
+- Branch `feat/native-lifecycle-verification`, based on PR71 merge `b143dcc938845931c436093b50cd86dc7ba71a88`. Exact PR71 head187895f passed push39071509866 / PR39071530871 before merge.
 - Mainnet execution, four-key custody/workflow, wallet/environment integration, saved language and native scheduling are implemented behind their protected gates. Owner-hosted/live acceptance remains open.
 - New `.github/workflows/financial-recovery.yml` provides protected browser-operated backup, empty-target restore and independent exact verification. Only owner/runtime/CA/archive-key credentials enter recovery; signer/web/scheduler credentials are rejected. PostgreSQL17 is installed from its verified signed repository before credentials attach.
 - Short-term artifacts expire after one day. For longer retention, owners can keep the encrypted ZIP in a dedicated GitHub recovery release. Restore requires a verified successful run or an owner-selected original commit from trusted main history; the archive cannot choose executable code. No automatic schema upgrade, deployment or worker restart.
@@ -96,4 +96,14 @@ Follow-up UI acceptance: identify the background request/cancellation path that 
 - `archive-r1` creates a real encrypted archive/current signed inventory through the schedule-triggered controller with no payment credentials. `selection-r2` accepts trusted scheduled/manual backups and denies foreign events/branches/failed runs using real Git ancestry plus explicit metadata. The r1 selector attempt hit sandbox child-process EPERM; preserve its log. Script typecheck r1 lacked scratch typeRoots; fresh r2 passes. Required checks, production build and bundle budgets pass. Original archives/keys and source financial rows remain untouched.
 - Continue external alert receiver setup, the full all-asset lifecycle/product audit, hosted/device acceptance and real observation periods. Automatic backup implementation is separate from operational acceptance.
 
-v72
+## Native lifecycle and wallet prompts (v73)
+
+- PR71 merged as `b143dcc938845931c436093b50cd86dc7ba71a88`; exact head187895f passed push39071509866 / PR39071530871. Current branch: `feat/native-lifecycle-verification`.
+- Reload protection missed wallet connection and ownership-signature prompts outside payment sends, including logged-out recovery. All native wallet entry points now share a memory-only interaction guard; success/rejection releases its own token without clearing concurrent prompts or an outer payment guard. No signature/transaction storage or automatic resend.
+- `native-lifecycle-v73/eth-native-r4`, `bnb-native-r2`, `usdt-bnb18-r2` and `jaga-bnb18-r1` pass actual restricted-role funding, wallet proof, exact/underpaid incoming, original-sender refund despite ban, failed-refund gas/principal preservation and renewed worker→separate web settlement. Receiver allocations also fund a member withdrawal: quote replay/body conflict, wrong-generation denial, hold/cancel replay, encrypted worker signing and authenticated settlement, exact unused-fee return and replay without duplicate gas.
+- These are generated, correctly scaled native/18-decimal token procedures with isolated endpoints. They do not verify real contracts, public funds/providers or hosted identity. Failed originals remain: ETH r1/r2 omitted the transport loader and correctly failed outbound policy; USDT18 r1 retained a6-decimal fixture’s insufficient mock token liquidity and paused. Fresh corrected targets pass; no failed database was reset.
+- `wallet-flight-r1` covers actual module connection/ownership success/rejection, overlap, outer payment guard and failed-send cleanup. `wallets-r1` repeats all8 protocol/signing cases and7 member canonical-wallet sends, including configuration/intent denials. An accidental original-harness rerun stopped at exclusive-file creation before changing any original key; all evidence is retained.
+- Actual production390px EN/FR `browser-wallet-r4` passes: pending connection disables reload, rejection releases it, and explicit reload succeeds without API response interception. Provider/future-peer messages are fixtures. Earlier browser r1 selected a disabled matching button; r2/r3 lacked an active injected provider. Preserve those logs/targets. Required checks, build and bundle budgets pass; final documentation checks run before publication.
+- Remaining C004 work includes funded SOL/SPL/TRC20 lifecycle cases, business/sweeps, reorg/replacement/expiry/restart, chain reconciliation after restore and hosted/live-provider acceptance. Keep unverified assets disabled. Continue all C001–C017 and the full product audit without milestone pauses.
+
+v73
