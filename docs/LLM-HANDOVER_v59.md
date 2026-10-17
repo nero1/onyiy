@@ -1,14 +1,14 @@
-# LLM handover v58
+# LLM handover v59
 
 ## Current owner instruction
 
-Complete the entire Phase One/Two product, including verified real-money mainnet and every missing feature. Do not stop at transparency implementation or a partial checklist. Continue code work without acceptance pauses; require actual evidence and owner-provisioned details for external activation. Read [PRD](PRD.md) §§29–33 and the complete [gap list](PROJECT-STATUS_v58.md) first.
+Complete the entire Phase One/Two product, including verified real-money mainnet and every missing feature. Do not stop at transparency implementation or a partial checklist. Continue code work without acceptance pauses; require actual evidence and owner-provisioned details for external activation. Read [PRD](PRD.md) §§29–33 and the complete [gap list](PROJECT-STATUS_v59.md) first.
 
 ## Active work
 
-- Repository `nero1/onyiy`, branch `feat/mainnet-observation` based on PR56 merge536a340ef6c2faf66d5c5740a532228a395747a3.
+- Repository `nero1/onyiy`, branch `feat/financial-worker-binding` based on PR57 merge4be23e3290ac4503240f692aa2e622d1011a6578.
 - Private scratch `/workspace/work/production-v55` contains295 extracted requirement-bearing PRD lines and source research. Review every section; do not treat extraction or source reading as verified acceptance.
-- Uncommitted first foundation: `FinancialEnvironment`, mainnet/testnet closed network bindings, environment-specific RPC/address suffixes and fingerprints. Registry parsing can stage mainnet records, but active adapters/runtime still deny mainnet until the complete financial release. Initial typecheck passed.
+- Merged foundation (PR54–57): `FinancialEnvironment`, mainnet/testnet closed network bindings, environment-specific RPC/address suffixes and fingerprints. Registry parsing can stage mainnet records, but active adapters/runtime still deny mainnet until the complete financial release. Initial typecheck passed.
 - C001–C017 in status/report/plan track the entire product; C006/C015/C016 now have locally verified implementations. Production recovery accepts no mainnet, many SQL/service/signer paths are testnet-specific, both readiness gates are false, and shared preview isolation is unfinished.
 - The owner explicitly deferred ALL launch details to final testing: make code configurable, document every protected setting in SETUP, and continue without asking again. No hosted credentials are configured. Never ask for recovery phrases/private keys in chat.
 - PRD requires14-day beta stability and14-day initial-cap observation; never invent elapsed monitoring. Record owner/external readiness separately from code, but do not use that distinction to call the overall product complete.
@@ -19,13 +19,13 @@ Use substantial related batches; exact-final-head push and pull_request CI must 
 
 ## Prior verified work and tooling
 
-PR51 completed Round One; PR52 later named rounds; PR53 Phase Two transparency and eight review fixes. Details remain in Git and trackers. PR53 head1fea99aeee7f68cbbf5c262ca8523204bd766322 passed push38989539011/PR38989542415. SQL000–004 must stay immutable after installation. Schema contractv54:96 tables/892 columns/298 checks/119 standalone indexes. Recovery inventory contract3 preserves timestamp microseconds; older archives require matching historical code, never re-signing.
+PR51 completed Round One; PR52 later named rounds; PR53 Phase Two transparency and eight review fixes. Details remain in Git and trackers. PR53 head1fea99aeee7f68cbbf5c262ca8523204bd766322 passed push38989539011/PR38989542415. SQL000–004 must stay immutable after installation. Current schema contractv55:96 tables/897 columns/301 checks/119 standalone indexes. Recovery inventory contract4 preserves timestamp microseconds; older archives require matching historical code, never re-signing.
 
 Owned PostgreSQL cluster: `/workspace/work/shared-hosting-v50/pgdata`, TLS port55450; matching socket/certificate under that directory. Node22: `/workspace/work/tooling/node-v22.23.3-linux-x64/bin`; PostgreSQL tools: `/workspace/work/tooling/pg-tls/bin`. Stop/restart only the exact owned cluster with its port/socket/TLS arguments. Original failed `gw_v27_native_refund_isolated` must remain untouched.
 
 ## Latest implementation/evidence
 
-- SQL005 is an unreleased draft built by `/workspace/work/production-v55/build-migration.py`. Current immutable fixture is `gw_v55_simulation_r5`; r1–r4 and all failed targets remain preserved. Existing SQL000–004 are unchanged. Never overwrite an installed receipt with modified bytes.
+- SQL005 was merged in PR54; its applied bytes are immutable built by `/workspace/work/production-v55/build-migration.py`. Current immutable fixture is `gw_v55_simulation_r5`; r1–r4 and all failed targets remain preserved. Existing SQL000–004 are unchanged. Never overwrite an installed receipt with modified bytes.
 - Generated/model comparison passes:96 tables/897 columns/301 checks/119 standalone indexes, including normalized foreign keys/defaults. `schema-contract_v55.json` pins current source/migration hashes.
 - SQL adds environment checks, target-aware helpers, active-mode RLS/write fences, safe promotion locks and least-privilege `gw_preview`. Actual retired-mode isolation and preview denial probes pass; preview application wiring is unfinished.
 - Fixed-token pricing binds exact asset amount and source rate, stores actual USD reference and immutable mode, and supports unchanged-price resume. `fixed-price-r2-r5.mts` passed rollback-only service checks; no network/signing/funds.
@@ -75,9 +75,16 @@ Owned PostgreSQL cluster: `/workspace/work/shared-hosting-v50/pgdata`, TLS port5
 - Solana observation constructors/balances now use closed environment-network bindings, not devnet literals. All adapters recheck execution gates at build/broadcast. TRON dual-provider outages now report RPC_UNAVAILABLE, preserving retry instead of false WRONG_NETWORK.
 - Scratch `/workspace/work/mainnet-v58`: observation-r1 passes four native network/genesis capability cases; observation-r2 adds native balances and dual-outage classification and passed. execution-regression-r1 failed because testnet signing scope cannot use loopback transport; r2 separates simulation-only local transport from offline testnet signing and passes actual ETH/BNB fee/sign/exact-byte fixture broadcast/gate rechecks. Original generated key files remain preserved. SOL/TRON copied common-finality procedures pass without changing their assertions or original files.
 - live-read-r1 omitted OUTBOUND_ALLOWED_HOSTS and cannot prove provider failure. Corrected r2 also received no usable live evidence; preserve both. Official Ethereum/BNB/TRON/Tether docs returned403; do not guess contracts/provenance. Earlier official Solana mainnet genesis observation remains in v55 scratch. No successful live transfer is claimed.
-- Full required checks/build/bundle for v58 passed (homepage182.19KiB, API1.442MiB, clients0.678MiB); final PR/exact-head dual CI/merge remain pending. Continue actual mainnet execution/config/worker/API/wallet/recovery paths, readonly preview wiring, remaining product audit/localization/scheduled UI and browser recovery. Final fresh SQL must again be consolidated to one final-state installer while preserving installed historical releases/archives. Do not stop at this merge or claim product completion.
+- Full required checks/build/bundle for v58 passed (homepage182.19KiB, API1.442MiB, clients0.678MiB); PR57 merged after exact-head push39014812196 and PR39014871979 passed. Continue actual mainnet execution/config/worker/API/wallet/recovery paths, readonly preview wiring, remaining product audit/localization/scheduled UI and browser recovery. Final fresh SQL must again be consolidated to one final-state installer while preserving installed historical releases/archives. Do not stop at this merge or claim product completion.
 
 
 - Current observation-r2 passes native balances and dual-provider outage classification on all four mainnets using generated local RPC fixtures. Required checks/build/bundle pass; live provider acceptance remains pending.
 
-v58
+
+## Wallet scope and worker binding (v59)
+
+- Fixed a reproduced TRON wallet-proof bug: a Nile challenge could silently create a Shasta link after registry changes. Proofs now recheck the exact original domain, environment, network, account and session; changed destinations receive an atomic audit record.
+- Shared the existing v1 worker-signature format across receiver, signer and scheduler. Environment, purpose, route and exact body bytes are authenticated; signer inputs must match the captured worker scope. Mainnet execution remains disabled.
+- Named isolated procedures in `/workspace/work/financial-v59`: `wallet-before-fix-r1` reproduces the old bug; fresh `wallet-scope-r2` proves rejection, successful fresh linking, two exact audit/archive identities and unchanged financial hashes; `worker-binding-r2` proves compatibility, byte binding, replay/clock/scope rejection and unchanged financial hashes. Failed r1 harness fixtures are preserved. No RPC transfer or real funds.
+
+v59

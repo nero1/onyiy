@@ -1,4 +1,4 @@
-# Project status v58
+# Project status v59
 
 ## Actual completion objective
 
@@ -28,7 +28,7 @@ The owner requires the full Phase One/Two product, including verified real-money
 
 ## Current work
 
-- Branch `feat/mainnet-observation`, based on merged PR56 (`536a340ef6c2faf66d5c5740a532228a395747a3`).
+- Branch `feat/financial-worker-binding`, based on merged PR57 (`4be23e3290ac4503240f692aa2e622d1011a6578`).
 - Extracted295 requirement-bearing PRD lines into private scratch for line-by-line audit. This is an inventory, not completed acceptance.
 - Implementing environment-bound network registry validation and separate mainnet/testnet RPC/address selection. Type checking passed for the initial foundation. Execution remains blocked until isolation/signing/recovery are complete.
 - No configured hosted runtime credentials or outbound identities are available in the current managed environment. The owner deferred all launch details to final testing. Do not ask again during coding; put the required fields in SETUP and continue independent implementation. Keys/passwords must use protected settings.
@@ -40,7 +40,7 @@ Keep going through the list without milestone acceptance pauses; create/merge PR
 
 ## Current isolated verification
 
-- SQL005 is an unreleased draft; fresh r1–r5 fixtures preserve every applied receipt. Never apply changed draft bytes over an existing receipt. Existing000–004 stay unchanged.
+- SQL005 was merged in PR54; its applied bytes are immutable; fresh r1–r5 fixtures preserve every applied receipt. Never apply changed draft bytes over an existing receipt. Existing000–004 stay unchanged.
 - Eight native environment/network registry contracts passed; mainnet execution still explicitly denied.
 - Fresh SQL000–005 install and actual owner seeder passed. Current simulation snapshots are read-only after acquiring the promotion fence. Promotion tests proved retired simulation cannot read users and retired testnet cannot write after mainnet initialization.
 - Restricted preview SQL role can read public configuration/catalogue only; private users/ledger/signing tables and signer routines are closed. Application preview wiring is still pending.
@@ -94,4 +94,11 @@ Keep going through the list without milestone acceptance pauses; create/merge PR
 
 - Current observation-r2 passes native balances and dual-provider outage classification on all four mainnets using generated local RPC fixtures. Required checks/build/bundle pass; live provider acceptance remains pending.
 
-v58
+
+## Wallet scope and worker binding (v59)
+
+- Fixed a reproduced TRON wallet-proof bug: a Nile challenge could silently create a Shasta link after registry changes. Proofs now recheck the exact original domain, environment, network, account and session; changed destinations receive an atomic audit record.
+- Shared the existing v1 worker-signature format across receiver, signer and scheduler. Environment, purpose, route and exact body bytes are authenticated; signer inputs must match the captured worker scope. Mainnet execution remains disabled.
+- Named isolated procedures in `/workspace/work/financial-v59`: `wallet-before-fix-r1` reproduces the old bug; fresh `wallet-scope-r2` proves rejection, successful fresh linking, two exact audit/archive identities and unchanged financial hashes; `worker-binding-r2` proves compatibility, byte binding, replay/clock/scope rejection and unchanged financial hashes. Failed r1 harness fixtures are preserved. No RPC transfer or real funds.
+
+v59

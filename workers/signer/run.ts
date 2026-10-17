@@ -3,6 +3,7 @@ import {withRpcCancellation} from '../../packages/chains/src/rpc';
 import {performance} from 'node:perf_hooks';
 import { prepareEvmReplacement } from "./evm-replacement";
 import crypto from "node:crypto";
+import {financialWorkerSignature} from "../../packages/config/src/worker-signature.mjs";
 import { SignerStore, decryptSigned } from "./store";
 import { signPrepared } from "./sign";
 import { assertIsolated,withSigningKey } from "./keys";
@@ -26,6 +27,7 @@ async function report(
   eventIndex: number,
   action: "settle" | "expiry" = "settle",
 ) {
+  const environment=assertIsolated();
   const origin = new URL(process.env.FINANCIAL_API_ORIGIN ?? "");
   if (
     origin.protocol !== "https:" &&
@@ -49,27 +51,13 @@ async function report(
     }),
     digest = crypto.createHash("sha256").update(body).digest("hex");
   try {
-    const signature = crypto
-        .createHmac("sha256", key)
-        .update(
-          [
-            "v1",
-            "testnet",
-            "financial",
-            "POST",
-            url.pathname,
-            timestamp,
-            nonce,
-            digest,
-          ].join("\n"),
-        )
-        .digest("base64url"),
+    const signature=financialWorkerSignature({environment,purpose:'financial',method:'POST',path:'/api/v1/internal/financial',timestamp,nonce,bodyHash:digest},key),
       response = await fetch(url, {
         method: "POST",
         redirect: "error",
         headers: {
           "Content-Type": "application/json",
-          "x-worker-environment": "testnet",
+          "x-worker-environment": environment,
           "x-worker-timestamp": timestamp,
           "x-worker-nonce": nonce,
           "x-worker-signature": signature,
@@ -96,7 +84,7 @@ export async function runSignerOnce(){
  finally{clearTimeout(timer);}
 }
 async function runSignerScoped() {
-  assertIsolated();
+  const environment=assertIsolated();
   const store = new SignerStore();
   let processed = 0,
     paused = 0;
@@ -119,7 +107,7 @@ async function runSignerScoped() {
           implementationComplete = false,
           active =
             implementationComplete &&
-            process.env.FINANCIAL_ACTIVATION === "testnet-reviewed" &&
+            process.env.FINANCIAL_ACTIVATION === `${environment}-reviewed` &&
             process.env.FINANCIAL_CONFIG_APPROVAL === config.hash &&
             process.env.ALERT_ACCEPTANCE_FINGERPRINT === config.hash &&
             (await store.activation(config.hash));
