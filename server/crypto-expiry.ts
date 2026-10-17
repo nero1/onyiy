@@ -7,10 +7,10 @@ import {
   type DbExecutor,
 } from "@gifters/db";
 import type { AssetRegistry } from "@gifters/chains";
-import { adapter, assertFinancialEnvironment } from "./financial-config";
+import { adapter, financialEnvironmentIn } from "./financial-config";
 import { lockUser } from "./core";
 export async function verifySignedExpiry(tx: DbExecutor, attemptId: string) {
-  assertFinancialEnvironment();
+  await financialEnvironmentIn(tx);
   const [attempt] = await tx
     .select()
     .from(signedAttemptStatus)

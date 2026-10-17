@@ -21,7 +21,7 @@ export async function GET() {
       database: config.dbProvider,
       cache: config.cacheProvider,
       signer: process.env.SIGNER_PROVIDER ?? 'disabled',
-      mainnet: false,
+      mainnet: config.appEnv==='mainnet'&&process.env.MAINNET_ENABLED==='true',
       framework: 'nextjs',
       operations:await withContext({access:'service'},publicOperationsHealth),
     }, { headers: { 'Cache-Control': 'no-store' } });

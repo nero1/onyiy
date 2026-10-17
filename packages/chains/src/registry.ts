@@ -1,4 +1,5 @@
 import {assertNetworkBinding} from './network';
+import {nativePaymentEnvironment} from '@gifters/config';
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { z } from "zod";
@@ -141,9 +142,7 @@ export function assetReadiness(key: AssetKey) {
 export function assertActive(asset: AssetRegistry) {
   validateRegistry([asset]);
   if (!asset.enabled || !asset.verified) throw new Error("REGISTRY_UNVERIFIED");
-  // Mainnet records may be validated/staged before the full execution release.
-  if(asset.environment!=="testnet")throw new Error("MAINNET_NOT_IMPLEMENTED");
-  if (process.env.MAINNET_ENABLED === "true") throw new Error("MAINNET_DENIED");
+  if(asset.environment!==nativePaymentEnvironment())throw new Error('FINANCIAL_ENVIRONMENT_DENIED');
 }
 /** Non-sending adapters validate staged network/asset metadata. Their RPC
  * capability separately limits observation or unsigned preparation. */

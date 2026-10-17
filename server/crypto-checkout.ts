@@ -13,7 +13,7 @@ import {
   adapter,
   financialConfiguration,
   assertExternalActivation,
-  assertFinancialEnvironment,
+  financialEnvironmentIn,
   assertRegistryBinding,
 } from "./financial-config";
 import { lockUser } from "./core";
@@ -24,7 +24,7 @@ async function validatedNativeInvoice(
   generation: string,
   invoiceId: string,
 ) {
-  assertFinancialEnvironment();
+  await financialEnvironmentIn(tx);
   const user = await lockUser(tx, userId),
     policy = await readManifest(tx);
   if (
@@ -122,6 +122,8 @@ export async function prepareNativeInvoice(tx:DbExecutor,userId:string,generatio
   return {
     presentation:presentationFromManifest(policy),plan:planFinancialPresentation(version,asset),queue_disclosure:(await tx.execute<{value:PublicQueueDisclosure|null}>(sql`select public.gw_public_queue_disclosure(${version.id}::uuid) as value`))[0].value,
     profile_revision:policy.profile_revision,
+    environment:registry.environment,
+    energy_fee_native:registry.chain==="tron"?(fee.gasLimit*fee.unitPrice).toString():undefined,
     invoice_id: invoice.id,
     asset_key: registry.key,
     asset: asset.symbol,

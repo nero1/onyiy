@@ -5,6 +5,8 @@ import {
 } from "../packages/chains/src/runtime";
 import { acceptedAlert } from "./financial-alerts";
 import {assertFinancialEnvironment} from './financial-environment';
+import {assertFinancialActivationPolicy,financialConfigurationApproved,nativePaymentExecutionSupported as financialImplementationComplete} from '@gifters/config';
+export {nativePaymentExecutionSupported as financialImplementationComplete} from '@gifters/config';
 export {assertFinancialEnvironment,financialEnvironmentIn} from './financial-environment';
 import { z } from "zod";
 import {
@@ -48,7 +50,6 @@ export async function financialConfiguration(
     financialPolicySnapshot(await readManifest(tx)),
   );
 }
-export const financialImplementationComplete = false;
 export async function assertExternalActivation(
   tx: DbExecutor,
   configurationHash: string,
@@ -59,17 +60,16 @@ export async function assertExternalActivation(
     process.env.VERCEL !== "1"
   )
     return;
+  const environment=assertFinancialEnvironment();
   if (
     !financialImplementationComplete ||
     !/^[a-f0-9]{64}$/.test(configurationHash) ||
-    process.env.FINANCIAL_CONFIG_APPROVAL !== configurationHash ||
-    process.env.ALERT_ACCEPTANCE_FINGERPRINT !== configurationHash ||
-    process.env.FINANCIAL_ACTIVATION !== "testnet-reviewed" ||
-    !process.env.ALERT_WEBHOOK_URL ||
-    process.env.ALERT_ACCEPTANCE_FINGERPRINT !==
-      process.env.FINANCIAL_CONFIG_APPROVAL
+    !financialConfigurationApproved(configurationHash) ||
+    process.env.FINANCIAL_ACTIVATION !== `${environment}-reviewed` ||
+    !process.env.ALERT_WEBHOOK_URL
   )
     throw new Error("FINANCIAL_SAFETY_PAUSE");
+  assertFinancialActivationPolicy(await readManifest(tx),environment);
   if (!(await acceptedAlert(tx, configurationHash)))
     throw new Error("FINANCIAL_SAFETY_PAUSE");
   z.string()

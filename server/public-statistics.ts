@@ -1,3 +1,4 @@
+import {selectedPaymentEnvironment} from '@gifters/config';
 import {transparentStatisticsSnapshot} from './activity';
 import { eq, sql } from "drizzle-orm";
 import {
@@ -12,7 +13,7 @@ import {
   type DbExecutor,
 } from "@gifters/db";
 const environment = () =>
-  process.env.APP_ENV === "testnet" ? "testnet" : "simulation";
+  selectedPaymentEnvironment();
 const projection = (row: typeof publicStatistics.$inferSelect) => ({
   environment: row.environment,profile_revision:row.profileRevision,verified_only:row.verifiedOnly,
   consented_members: row.members.toString(),

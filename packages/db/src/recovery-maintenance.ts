@@ -16,7 +16,7 @@ export function recoveryEnvironment(env:NodeJS.ProcessEnv=process.env){
  const environment=env.APP_ENV??'';
  if(!['simulation','testnet','mainnet'].includes(environment)||env.MAINNET_ENABLED!=='false'||env.SIGNER_PROVIDER!=='disabled'||env.VERCEL==='1'||env.PUBLIC_PREVIEW_MODE==='read_only'||env.RECOVERY_CONFIRM!==`isolated-${environment}`)throw new Error('RECOVERY_ENVIRONMENT_INVALID');
  if(env.SCHEDULER_HMAC_KEY||env.SCHEDULER_HMAC_PREVIOUS_KEY)throw new Error('RECOVERY_SCHEDULER_MUST_BE_OFF');
- for(const name of ['SIGNER_DECRYPTION_SECRET','SIGNER_KEY_FILE','SIGNED_PAYLOAD_ENCRYPTION_KEY','FINANCIAL_WORKER_AUTH_KEY'])if(env[name])throw new Error('RECOVERY_SIGNER_MUST_BE_OFF');
+ for(const name of ['SIGNER_DECRYPTION_SECRET','SIGNER_KEY_FILE','SIGNER_KEY_FILES_JSON','SIGNER_KEY_PACKAGE_JSON','SIGNED_PAYLOAD_ENCRYPTION_KEY','FINANCIAL_WORKER_AUTH_KEY'])if(env[name])throw new Error('RECOVERY_SIGNER_MUST_BE_OFF');
  return environment as 'simulation'|'testnet'|'mainnet';
 }
 export function recoveryMaintenance(){

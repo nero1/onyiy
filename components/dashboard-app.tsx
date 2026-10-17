@@ -272,7 +272,7 @@ export default function DashboardApp() {
         <div><div className="brand">🎁 {t.brand}</div><div className="tagline">{manifest.presentation?.transparent?manifest.presentation.content[locale].mechanics:t.tagline}</div></div>
         <div className="top-actions">
           {manifest.feature_notifications&&<NotificationInbox key={username+':'+sessionGeneration} user={username} locale={locale} initial={dash.notifications} badge={!!dash.notification_badge?.has_new} onChange={()=>void refresh()}/>}
-          <span className="env">{manifest.payment_environment==='testnet'?'Testnet':t.simulation}</span>
+          <span className="env">{manifest.payment_environment==='mainnet'?'Mainnet':manifest.payment_environment==='testnet'?'Testnet':t.simulation}</span>
           {authProvider==='simulation'&&<select aria-label={t.chooseUser} value={username} disabled={busy} onChange={event=>void switchAccount(event.target.value)}>
             {users.map((user) => <option key={user.id} value={user.username}>{user.username} · {user.role} · {user.status}</option>)}
           </select>}

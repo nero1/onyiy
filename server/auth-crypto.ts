@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const hash=(value:string)=>crypto.createHash('sha256').update(value).digest('hex');
 export const randomToken=()=>crypto.randomBytes(32).toString('base64url');
 export function environmentKey(name:string){const value=process.env[name]??'';if(!/^[A-Za-z0-9_-]{43}$/.test(value)||Buffer.from(value,'base64url').toString('base64url')!==value)throw new Error('PROVIDER_UNAVAILABLE');return Buffer.from(value,'base64url');}
-const claimsSchema=z.object({sub:z.string().uuid(),sid:z.string().uuid(),sg:z.string().uuid(),sv:z.number().int().positive(),jti:z.string().uuid(),iat:z.number().int(),exp:z.number().int(),aud:z.string(),iss:z.enum(['gw:simulation','gw:testnet']),type:z.enum(['access','pre_auth'])}).strict();
+const claimsSchema=z.object({sub:z.string().uuid(),sid:z.string().uuid(),sg:z.string().uuid(),sv:z.number().int().positive(),jti:z.string().uuid(),iat:z.number().int(),exp:z.number().int(),aud:z.string(),iss:z.enum(['gw:simulation','gw:testnet','gw:mainnet']),type:z.enum(['access','pre_auth'])}).strict();
 export type AccessClaims=z.infer<typeof claimsSchema>;
 export function signAccess(claims:AccessClaims){const header=Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url');const body=Buffer.from(JSON.stringify(claimsSchema.parse(claims))).toString('base64url');const key=environmentKey('AUTH_ACCESS_KEY');try{return header+'.'+body+'.'+crypto.createHmac('sha256',key).update(header+'.'+body).digest('base64url')}finally{key.fill(0)}}
 export function verifyAccess(token:string,audience:string){

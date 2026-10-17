@@ -32,7 +32,7 @@ async function verifyInstalledSchema() {
 // Migration credentials exist only in this GitHub process, never Vercel output.
 async function main(){
 const selected=validateRuntimeEnv();
-if(!process.env.DATABASE_MIGRATION_URL||selected.appEnv==='mainnet'||selected.providers.SIGNER_PROVIDER!=='disabled'||(process.env.MAINNET_ENABLED??'false')!=='false')throw new Error('HOSTED_INITIALIZATION_CONFIGURATION_INVALID');
+if(!process.env.DATABASE_MIGRATION_URL||selected.providers.SIGNER_PROVIDER!=='disabled'||selected.appEnv!=='mainnet'&&(process.env.MAINNET_ENABLED??'false')!=='false')throw new Error('HOSTED_INITIALIZATION_CONFIGURATION_INVALID');
 await verifyInstalledSchema();
 for(const command of ['db:check:binding','db:seed','db:check:runtime']){
  await new Promise<void>((resolve,reject)=>{

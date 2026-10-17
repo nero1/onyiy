@@ -57,7 +57,7 @@ type Catalog = {
     version_id?: string;profile_revision?:number;queue_disclosure?:PublicQueueDisclosure|null;plan?:PlanFinancialPresentation;
   }[];
 };
-export default function NativePortal() {
+export default function NativePortal({environment='testnet'}:{environment?:'testnet'|'mainnet'}) {
  const timeZone=useDisplayTimeZone();
   const {locale,setLocale}=useAppearance();
   const [session, setSession] = useState<SessionResult | null>(null),
@@ -122,14 +122,15 @@ export default function NativePortal() {
     const active = ++epoch.current;
     void Promise.all([
       api<PublicManifestDto>("/manifest", ""),
-      api<Catalog>("/crypto/catalog", ""),
+      api<Catalog>("/crypto/catalog", "").catch(()=>null),
       loadSession(),
     ])
       .then(([m, c, s]) => {
         if (mounted.current && epoch.current === active) {
           setManifest(old=>latestPublicManifest(old,m));
-          setCatalog(c);
+          setCatalog(c??{mode:s.environment??m.payment_environment??"unavailable",profile_revision:0,execution_enabled:false,assets:[],plans:[]});
           receive(s);
+          if(!c)setNotice(t.error);
         }
       })
       .catch(() => {
@@ -417,9 +418,9 @@ export default function NativePortal() {
           {locale.toUpperCase()}
         </button>
       </nav>
-      <h1>{fr ? "Portefeuille de test" : "Testnet wallet"}</h1>
+      <h1>{environment==="mainnet"?(fr?"Portefeuille":"Wallet"):(fr ? "Portefeuille de test" : "Testnet wallet")}</h1>
       <p>
-        {fr
+        {environment==="mainnet"?(fr?"Les paiements utilisent de vraies monnaies. Vérifiez la monnaie, le réseau, le destinataire et les frais.":"Payments use real money. Check the currency, network, recipient and fees."):fr
           ? "Les monnaies et les soldes ci-dessous sont identifiés par réseau de test."
           : "Currencies and balances below identify their test network."}
       </p>
@@ -432,7 +433,7 @@ export default function NativePortal() {
         </p>
       )}
       <AuthPanel
-        environment={session?.environment}
+        environment={session?.environment??environment}
         scope={session?.generation}
         locale={locale}
         user={user}
@@ -487,7 +488,7 @@ export default function NativePortal() {
                 <ProfileDisclosure presentation={manifest?.presentation} locale={locale} queue={plan.queue_disclosure} plan={plan.plan}/>
                 <button
                   disabled={
-                    busy || catalog?.profile_revision!==manifest?.profile_revision || !botReady || !catalog?.execution_enabled || !navigator.onLine
+                    busy || catalog?.profile_revision!==manifest?.profile_revision || !botReady || !catalog?.assets.find(asset=>asset.id===plan.asset_id)?.execution_enabled || !navigator.onLine
                   }
                   onClick={() => void quoteGift(plan)}
                 >
@@ -698,7 +699,7 @@ export default function NativePortal() {
                   <button
                     disabled={
                       busy ||
-                      !catalog.execution_enabled ||
+                      !currency.execution_enabled ||
                       !wallet ||
                       !currency.enabled ||
                       !gross ||
@@ -712,7 +713,7 @@ export default function NativePortal() {
                 </section>
               );
             })}
-          {user&&session?.generation&&manifest&&(manifest.feature_gifts||manifest.feature_wallets)&&<MemberRecords key={user.username+session.generation} owner={user.username} generation={session.generation} environment="testnet" locale={locale} collections={[...(manifest.feature_gifts?['cycles','invoices'] as const:[]),...(manifest.feature_wallets?['withdrawals'] as const:[])]} history={!!manifest.entitlements_member?.history} disabled={busy} revision={data} onInvoice={row=>setExistingInvoice(row.id)} onCancelInvoice={row=>void financial(async()=>{await mutation('/gifts/crypto/cancel',user.username,{invoice_id:row.id});await load()},true)} onWithdrawal={row=>void recoverWithdrawal(row,false)}/>}
+          {user&&session?.generation&&manifest&&(manifest.feature_gifts||manifest.feature_wallets)&&<MemberRecords key={user.username+session.generation} owner={user.username} generation={session.generation} environment={catalog?.mode==='mainnet'?'mainnet':'testnet'} locale={locale} collections={[...(manifest.feature_gifts?['cycles','invoices'] as const:[]),...(manifest.feature_wallets?['withdrawals'] as const:[])]} history={!!manifest.entitlements_member?.history} disabled={busy} revision={data} onInvoice={row=>setExistingInvoice(row.id)} onCancelInvoice={row=>void financial(async()=>{await mutation('/gifts/crypto/cancel',user.username,{invoice_id:row.id});await load()},true)} onWithdrawal={row=>void recoverWithdrawal(row,false)}/>}
           {data?.cycles?.map((row) => (
             <article className="card" key={row.id}>
               <h2>

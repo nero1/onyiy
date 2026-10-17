@@ -1216,7 +1216,7 @@ CREATE FUNCTION public.gw_public_queue_disclosure(version uuid) RETURNS jsonb
 DECLARE partition uuid; total bigint; slots bigint; revision bigint; priority_enabled boolean;
 BEGIN
  IF NOT EXISTS(SELECT 1 FROM public.x_manifest WHERE key='deployment_profile' AND value='"transparent"'::jsonb) OR NOT EXISTS(SELECT 1 FROM public.x_manifest WHERE key='feature_transparency' AND value='true'::jsonb) THEN RETURN NULL; END IF;
- SELECT q.id,q.revision INTO partition,revision FROM public.queue_partitions q JOIN public.plan_versions v ON v.id=q.plan_version_id JOIN public.assets a ON a.id=v.asset_id WHERE v.id=version AND a.environment=current_setting('gw.environment',true);
+ SELECT q.id,q.revision INTO partition,revision FROM public.queue_partitions q JOIN public.plan_versions v ON v.id=q.plan_version_id JOIN public.assets a ON a.id=v.asset_id WHERE v.id=$1 AND a.environment=current_setting('gw.environment',true);
  IF NOT FOUND THEN RETURN NULL; END IF;
  SELECT count(*),coalesce(sum(required_count-credited_count),0) INTO total,slots FROM public.queue_entries WHERE partition_id=partition AND kind='bootstrap' AND status='waiting';
  SELECT value='true'::jsonb INTO priority_enabled FROM public.x_manifest WHERE key='feature_priority';
@@ -6327,6 +6327,8 @@ INSERT INTO public.schema_migrations(name,sha256) VALUES('002_ephemeral_retentio
 INSERT INTO public.schema_migrations(name,sha256) VALUES('003_monthly_financial_archives.sql','77aef990452ba92a1c15c1723bcc02bb'||'608e7da04d2b72cb4297858f4f98ce34');
 INSERT INTO public.schema_migrations(name,sha256) VALUES('004_transparent_profiles.sql','77ae7eb1f76135cedec8681523e3013e'||'a0db35e07073691381152f1eabd02a3a');
 INSERT INTO public.schema_migrations(name,sha256) VALUES('005_production_environments.sql','617806668c00dd6a0202dd96a22b0164'||'3967943e62868b6475a3413251e315a0');
+INSERT INTO public.schema_migrations(name,sha256) VALUES('006_public_queue_disclosure.sql','1ee3e604b865d1e8c7ecc90cd60edc5d'||'c401cb92b4e9a212dba1bf536d94b3f1');
 
--- Final-state installer SHA256 (base64): zBFlClecIIfNi+GTa3w1OfVDnDIwKzUYiVQ0oyTYXAY=
+
+-- Final-state installer SHA256 (base64): tx8VdqQQwujv0D6ssbgNZ/B887uS89mZ9ucjxAYyQBI=
 COMMIT;

@@ -1,3 +1,4 @@
+import {selectedPaymentEnvironment} from '@gifters/config';
 import {previewManifest,previewCatalog,previewHelp,previewHelpRedirect,previewHelpSearch} from './preview-reads';
 import {activitySnapshot} from './activity';
 import {presentationFromManifest,planFinancialPresentation,type PublicQueueDisclosure} from './presentation';
@@ -40,7 +41,7 @@ async function manifestLoader():Promise<Loaded> {
   await tx.execute(sql`set local statement_timeout='5000ms'`);return readManifest(tx);
  });}catch{fallback=true;}
  // Projection happens before either L1 or a shared promise contains a result.
- return captured({...(fallback?unavailablePublicManifest():{...publicManifest(manifest),presentation:presentationFromManifest(manifest),configuration_available:true}),payment_environment:process.env.APP_ENV==='testnet'?'testnet':'simulation'},manifest,fallback?5:manifest.cache_policy.manifest_public_seconds,fallback);
+ return captured({...(fallback?unavailablePublicManifest():{...publicManifest(manifest),presentation:presentationFromManifest(manifest),configuration_available:true}),payment_environment:selectedPaymentEnvironment()},manifest,fallback?5:manifest.cache_policy.manifest_public_seconds,fallback);
 }
 async function catalogLoader():Promise<Loaded> {
  if(isReadOnlyPreview()){const value=await previewCatalog();return captured(value.data.plans,value.policy,value.policy.cache_policy.catalog_seconds);}

@@ -61,5 +61,5 @@ try {
     }
     }
   });
-console.log(environment==='simulation'?'Ensured shared metadata, GIV and simulation accounts; existing state preserved.':'Ensured testnet namespace and shared metadata; no fixture accounts, GIV or native registry provisioned.');
+console.log(environment==='simulation'?'Ensured shared metadata, GIV and simulation accounts; existing state preserved.':`Ensured ${environment} namespace and shared metadata; no fixture accounts, GIV or native registry provisioned.`);
 } finally { await client.end({timeout:3}); }

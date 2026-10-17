@@ -1,8 +1,8 @@
-# Bug report — Rounds One/Two/Three v64
+# Bug report — Rounds One/Two/Three v67
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v66.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v67.md).
 
-Updated: **17 October 2026 at 01:06:45 UTC**.
+Updated: **17 October2026 (Africa/Lagos)**.
 
 **Resumed by the owner on 16 October 2026.** Round One: **74 of 74 findings implemented, locally verified and merged**. Round Two found and locally verified fixes for R2-004–006; local release checks passed; merged in PR52. Round Three also fixed R3-001; Phase Two implementation and eight local review fixes are in [PR53](https://github.com/nero1/onyiy/pull/53); GitHub records final CI/merge state. These counts are not a completion percentage or hosted acceptance.
 
@@ -93,7 +93,7 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 - “Defect” means a source/contract failure; “requirement gap” means missing requested behavior; “hardening” means a conditional defensive improvement; “maintenance” means structural/dependency risk.
 - Initial audit ratings (current → projected after fixes): money/recovery 5 → 8; security/privacy 6.5 → 8.5; performance 5 → 8; maintainability 6 → 8; product/accessibility/SEO 6 → 8, out of 10. These were qualitative judgments, not measured guarantees or updated release ratings.
 - Original audit: 70 findings; four more were found during remediation. Three analysis passes were one audit round. CRON frequency and test-only issues were excluded.
-- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v66.md).
+- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v67.md).
 
 ## Original evidence by finding
 
@@ -559,7 +559,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v66.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v67.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -579,7 +579,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v66.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v67.md).
 
 
 
@@ -652,7 +652,7 @@ Owner update: all launch details are deferred to final testing. Document the fie
 ## One-paste fresh installation (v60)
 
 - `packages/db/fresh-install.sql` creates the final schema directly. The six historical migration files remain immutable for installed databases and recovery compatibility; new owners paste only the fresh installer. SETUP now says so.
-- Fresh unseeded reference and single-file target match all4222 schema/security metadata entries, including column grants. Named `final-installer-v60` procedures prove atomic installation, exact receipts, rerun/nonempty rejection without data loss and complete rollback after a late failure. The unchanged migration runner skips all six receipts; actual seeding and restricted-login verification pass. A second target with broad unknown-role defaults matches all4088 application/security entries; provider extension ACLs are deliberately preserved. The first comparator failure counted those extension grants and is preserved. Required checks pin the installer checksum and exact historical lineage. Current verified schema contract is `schema-contract_v60.json`; model counts are unchanged.
+- Fresh unseeded reference and single-file target match all4222 schema/security metadata entries, including column grants. Named `final-installer-v60` procedures prove atomic installation, exact receipts, rerun/nonempty rejection without data loss and complete rollback after a late failure. The unchanged migration runner skips all six receipts; actual seeding and restricted-login verification pass. A second target with broad unknown-role defaults matches all4088 application/security entries; provider extension ACLs are deliberately preserved. The first migration-state comparator failure counted those extension grants and is preserved. Required checks pin the installer checksum and exact historical lineage. Current verified schema contract is `schema-contract_v60.json`; model counts are unchanged.
 - PR58 merged at a736083d6425bc22f9e1e973700b796ccea0e1e6 after exact-head push39023906817 and PR39023923825 passed. This installer batch does not complete mainnet execution, preview wiring or overall product acceptance. Continue C001–C017 without milestone pauses.
 
 ## Read-only preview foundation (v61)
@@ -689,3 +689,30 @@ Reproduced withdrawal balance reads and recovery scans silently replacing the se
 `native-write-v66/scope-and-prices-r5` passes39 restricted-login boundary rejections with unchanged retained hashes, one42-unit fee bill with replay/conflict checks, valid signed-price replay/cross-environment rejection and testnet alert namespace/deduplication. Failed r1 import and r2 argument/order fixtures remain preserved. No schema changes. PR64 merged after push39044213842 / PR39044236038 passed for83896035ab64f43693dfe1c738ef025c0037cca4. Continue actual mainnet runtime/signing and full product acceptance without milestone pauses.
 
 Simulation alert regression: `native-write-v66/simulation-alerts-r1.mts` passes actual restricted-login simulation payload/budget selection, signed local HTTP delivery and acknowledgement, no duplicate dispatch, and a forged acknowledgement retained as failed. Financial hashes remain unchanged. Generated local webhook/key only.
+
+## Mainnet implementation and review fixes (v67)
+
+| Finding | Fix and local evidence |
+|---|---|
+| Mainnet runtime/authentication/core/UI were testnet-only | Closed mainnet mode, issuer, native credit/checkout/history/wallet paths and accurate labels implemented;32 configuration/policy/approval guards pass. |
+| One approval hash could not activate several networks | Reviewed approval/fingerprint lists support distinct network hashes; legacy singular settings remain compatible and cannot be mixed. Actual signed alert receipts remain required. |
+| Worker had only one key file | Four-key map, authenticated encrypted bundle, private pre-write-validated installation and opt-in protected GitHub worker added; package/scope/tamper/nonempty-target procedures pass. |
+| Client transaction validation omitted setup/attached-token checks | Canonical Solana reconstruction, approved setup cost, exact EVM gas and TRON attached-asset/permission/signature/expiry/energy checks pass wallet procedures. |
+| An unavailable catalogue blocked identity restoration | Sign-in/session state can load while the currency catalogue safely remains unavailable. |
+| Capability was confused with financial readiness | Catalogue publishes per-currency readiness; protected policy/hash/recent-alert gates still control new sends. Mainnet presentation rejects simulation/demo settings. |
+
+`mainnet-runtime-v67/mainnet-wallets-r2` passes eight protocol cases and seven member-currency wallet sends (TRX operating-only), using generated unfunded addresses and isolated transport. `financial-mainnet-r7` passes actual restricted-role funding, wallet proof, exact/underpayment, failed refund rights and an actual worker→separate web settlement exactly once. Web has no signer/owner credentials. `configuration-guards-r1` and `key-package-r1` pass. Preserve failed r1/r2 profile-actor fixtures and r4 child-transport-map fixture; no reset or real public broadcast occurred.
+
+Mainnet support is implemented, not externally accepted. Full C001–C017, remaining lifecycle/device/product work, hosted provider/custody/recovery checks and real observation periods remain. PR65 merged after exact-head push39044887939 / PR39044911887 passed. SQL006 fixes the discovered public-queue parameter ambiguity; the one-file final-state installer and pinned schema contract are refreshed. Historical SQL000–005 bytes remain unchanged. Continue after each checked merge.
+
+Admin setup fix: the alert-probe response was previously discarded. Native payment administration now shows its asset, alert ID and selectable configuration hash, with acknowledgement guidance. This makes the documented multi-network approval setup actionable.
+
+SQL/browser review: SQL006 resolves the ambiguous public queue `version` parameter. `mainnet-runtime-v67/queue-migration-r2` reproduces42702, verifies the corrected read-only mainnet result and retired-asset null result, preserves all95 non-receipt root-table hashes and function privileges, and proves late-failure rollback. `compare-schema-r1` matches4222 schema/security entries between seven-migration reference and the direct final-state installer. The first migration-state comparator failure was a result-array prototype mismatch; original targets/logs remain.
+
+`browser-mainnet-r4` passes the actual local production build in Chromium390px EN/FR, genuine signed-session/MFA procedures and the selectable alert configuration hash (HTTP200), without response interception. Earlier browser targets remain: r1 exposed SQL42702; r2/r3 targeted another nested Reason field in the procedure. Source queues, financial records and original archives were not reset.
+
+Contract4 packets created before SQL006 require their matching pre-006 release (PR65 `0ea4cf5e62a0ef7e7f83c26c1a512d6935775ac3` for the current six-file lineage), then a separately reviewed forward upgrade. Keep original packets/keys; never re-sign or rewrite them.
+
+Follow-up UI acceptance: identify the background request/cancellation path that logged a bounded database deadline around MFA/reload. The selected alert-probe request returned200 and its hash displayed correctly; do not treat this as completed whole-app reliability acceptance.
+
+v67

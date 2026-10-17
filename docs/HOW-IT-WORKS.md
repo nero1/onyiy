@@ -1,6 +1,6 @@
 # How Gifters World works
 
-For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v66.md).
+For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v67.md).
 
 ## Main parts
 
@@ -28,7 +28,7 @@ Supabase hosts PostgreSQL; the app does not depend on Supabase Auth, Storage, Re
 - Promotion registers the existing testnet namespace. Simulation transactions hold a shared transaction fence; initialization takes its exclusive counterpart. A locked configuration row also rejects a stale repeatable snapshot after promotion, without changing its settings/version. Simulation access, reseeding and reset then fail closed; records are retained.
 - Old releases without this guard must lose their old runtime credentials before promotion. Setup includes rotation and terminating only the old runtime sessions. Do not give older code the new password.
 - Inline `ASSET_REGISTRY_JSON` accepts the same bounded verified testnet registry as the operator file. Exactly one source is allowed; equivalent content has the same fingerprint.
-- Mainnet payments are **not implemented**. Explicit read-only previews can read public mainnet configuration/catalogue/help using only `gw_preview`; private/auth/job/payment routes are closed. Local browser checks pass; hosted acceptance remains open. Reusing provider accounts is the deployment preference, not permission to expose real financial mutations through preview.
+- Configured mainnet payments use the same restricted financial namespaces and separate signer. Explicit read-only previews read public mainnet configuration/catalogue/help using only `gw_preview`; private/auth/job/payment routes are closed. Local browser checks pass; hosted acceptance remains open. Reusing provider accounts is the deployment preference, not permission to expose real financial mutations through preview.
 
 Native admin plan creation saves disabled metadata without requiring a GIV asset. Currency prices are created separately by gated activation. Native catalogue, portfolio, records and receipts validate the transaction’s payment environment without changing it.
 
@@ -42,7 +42,7 @@ Native admin plan creation saves disabled metadata without requiring a GIV asset
 - Every new public table needs explicit grant/revoke classification in the same migration. Never fix permission errors by granting all tables to `anon`, `authenticated` or `service_role`.
 - The owner connection stays outside Vercel. Binding checks use two fresh owner-held transaction locks observed through the runtime connection; no bootstrap table or permanent proof is created. Copied database IDs cannot satisfy the fresh check.
 - Hosted connections verify TLS certificates and hostnames. The app uses a small transaction-pooler connection; owner administration uses direct/session connections.
-- [The reviewed schema contract](../packages/db/schema-contract_v60.json) pins declaration/migration hashes and inventories SQL-only triggers and deferred-FK timing differences. The current SQL000–005 total is 96 tables/897 columns/301 checks/119 standalone indexes; the original initial installer stays unchanged.
+- [The reviewed schema contract](../packages/db/schema-contract_v67.json) pins declaration/migration hashes and inventories SQL-only triggers and deferred-FK timing differences. The current SQL000–006 total is 96 tables/897 columns/301 checks/119 standalone indexes; the original initial installer stays unchanged.
 
 ## Settings and API responses
 
@@ -131,7 +131,7 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Relevant named manual checks cover rollback/replay, concurrent admission, missing-wallet liabilities, rejected withdrawals, account isolation, cache expiry/outage, signing recovery and exact restore. Use isolated data and preserve failed evidence. Never reset a shared source to repeat a check.
 - Hosted Google, Upstash, RPC, alerts, mobile performance and release readiness require observations on the selected services. Health/compilation alone do not satisfy them.
 - Keep **five core docs** plus the two explicitly requested bug trackers. Use clear lists/tables and short explanations; update current facts instead of appending repeated history. Only add a document when explicitly requested or essential. Prior versions remain in Git.
-- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v66.md) records the exact continuation boundary.
+- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v67.md) records the exact continuation boundary.
 
 - Phase Two recovery uses signed inventory contract4: timestamps retain PostgreSQL microseconds in paging/row checksums, and permission-group attributes/membership are checked. Contract3 archives require release `6c323dc43c45efa1957308e467ce06e7cc0b36c0`. Contract2 archives require their matching release (the preceding release is `25a5073d30974bcf8b02814bc81181e3a147d15c`). Keep original archives, keys and release references.
 - In the transparent profile, platform positions and priority exceptions are labelled or disabled. Joining numbers stay fixed; the displayed receiving position reflects actual order. Potential receipts depend on later confirmed gifts and are never guaranteed. Account publication is optional and revocable; test/simulation records do not become real-payment stories.
@@ -145,7 +145,15 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Encrypted signer key format2 binds its chain, environment, network and public address. Legacy format1 remains testnet-only; packaging a key does not activate mainnet. Private key files are read from a checked descriptor and symlinks are rejected.
 - Gift currency selectors show enabled assets only. Idle preview pauses for focus, interaction, reduced motion, active cycles and financial review. A manual choice stops rotation; tile/card navigation restores keyboard focus.
 
-- Isolated signer transactions hold the same profile→payment-mode locks as promotion. After promotion, retired workers fail before further application reads/writes. Current signer execution remains testnet-only.
+- Isolated signer transactions hold the same profile→payment-mode locks as promotion. After promotion, retired workers fail before further application reads/writes. Signer execution selects testnet or mainnet and refuses a key/network/environment mismatch.
 - A manual trusted-main GitHub workflow can generate a new encrypted custody package with no database/RPC access. It creates unfunded keys and does not install them, replace a treasury or activate sending.
 
 - Explicit chain-observation adapters can check mainnet network/asset evidence. They expose no transfer construction/broadcast or raw RPC, and their transport allows only reviewed read methods. This capability does not enable mainnet payments; active financial adapters remain gated.
+
+## Mainnet and the isolated signer
+
+- `APP_ENV` chooses simulation, testnet or mainnet; Vercel Preview/Production chooses the hosting stage. Keep the same database and provider accounts. A mainnet promotion retires earlier financial modes without converting or deleting their records.
+- Mainnet supports Ethereum, BNB, Solana and TRON protocols. Enabled tokens need reviewed contracts/mints; TRX pays operating costs rather than member gifts. No verified token deployment is supplied by a generated fixture.
+- New payments need transparent settings, an approved readiness record, matching network configuration hashes and a recent signed alert acknowledgement. Missing or changed approval pauses the affected currency. Actual balances, signed attempts and refund rights remain.
+- The web app has no private signer material. A separate GitHub protected environment installs a validated encrypted four-key package into a private runner directory, then runs the bounded worker. Database roles and environment-bound envelopes prevent testnet/mainnet substitution.
+- Local protocol, wallet, package and database/worker procedures pass. Live provider/custody/hosted recovery tests and the required observation periods still need actual evidence. Follow [SETUP](SETUP.md) for browser-only configuration.

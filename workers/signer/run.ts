@@ -1,5 +1,6 @@
 import {withExecutionScope} from '../../packages/db/src/execution-budget';
 import {withRpcCancellation} from '../../packages/chains/src/rpc';
+import {financialConfigurationApproved,nativePaymentExecutionSupported} from '../../packages/config/src/index';
 import {performance} from 'node:perf_hooks';
 import { prepareEvmReplacement } from "./evm-replacement";
 import crypto from "node:crypto";
@@ -89,10 +90,10 @@ async function runSignerScoped() {
   let processed = 0,
     paused = 0;
   try {
-    const heartbeats=new Set<string>();
-    for(const asset of readRegistry().filter(v=>v.enabled&&v.verified)){
+    const heartbeats=new Set<string>(),keyScopes=new Set<string>();
+    for(const asset of readRegistry().filter(v=>v.environment===environment&&v.enabled&&v.verified)){
       if(shouldStop())break;
-      try{const config=await store.configuration(asset);if(heartbeats.has(config.treasuryFingerprint)||!config.addresses.RECEIVING)continue;const chain=await runtimeAdapter(asset);await withSigningKey(asset.chain,asset.network,async(_key,address)=>{if(await chain.normalizeAddress(address)!==config.addresses.RECEIVING)throw new Error("SIGNER_ADDRESS_MISMATCH")});await Promise.all([chain.currentBlockHeight(),chain.getNativeBalance(config.addresses.RECEIVING,true)]);await store.heartbeat(asset);heartbeats.add(config.treasuryFingerprint);}catch{paused++;}
+      try{const config=await store.configuration(asset);if(heartbeats.has(config.treasuryFingerprint)||!config.addresses.RECEIVING)continue;const chain=await runtimeAdapter(asset);await withSigningKey(asset.chain,asset.network,async(_key,address)=>{if(await chain.normalizeAddress(address)!==config.addresses.RECEIVING)throw new Error("SIGNER_ADDRESS_MISMATCH")});keyScopes.add(`${asset.chain}:${asset.network}`);await Promise.all([chain.currentBlockHeight(),chain.getNativeBalance(config.addresses.RECEIVING,true)]);await store.heartbeat(asset);heartbeats.add(config.treasuryFingerprint);}catch{paused++;}
     }
     if(shouldStop())return {processed,paused,stopping:true};
     let rows:Awaited<ReturnType<SignerStore['pending']>>;
@@ -104,12 +105,11 @@ async function runSignerScoped() {
           chain = await runtimeAdapter(asset),
           attempts = await store.attempts(row.id);
         const config = await store.configuration(asset),
-          implementationComplete = false,
+          implementationComplete = nativePaymentExecutionSupported,
           active =
-            implementationComplete &&
+            implementationComplete && keyScopes.has(`${asset.chain}:${asset.network}`) &&
             process.env.FINANCIAL_ACTIVATION === `${environment}-reviewed` &&
-            process.env.FINANCIAL_CONFIG_APPROVAL === config.hash &&
-            process.env.ALERT_ACCEPTANCE_FINGERPRINT === config.hash &&
+            financialConfigurationApproved(config.hash) &&
             (await store.activation(config.hash));
         if (attempts.length) {
           const observations = [];

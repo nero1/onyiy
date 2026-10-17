@@ -1,5 +1,5 @@
 import {presentationFromManifest,type QueueDisclosure} from './presentation';
-import {publicManifest} from '@gifters/config';
+import {publicManifest,nativePaymentEnvironment} from '@gifters/config';
 import {activeRequestId} from '@gifters/db';
 import {notificationBadge} from './notifications';
 import crypto from 'node:crypto';
@@ -276,7 +276,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
   const locked=await lockGiftParticipants(database,user.id,manifest);user=locked.user;const participants=locked.participants;
   if (user.status !== 'active') throw new Error(user.status === 'pending_consent' ? 'CONSENT_REQUIRED' : 'ACCOUNT_RESTRICTED');
   if (user.consentVersion !== manifest.terms_content.version&&!historicalConsent) throw new Error('CONSENT_REQUIRED');
-  const asset=verifiedAsset??await simulationAsset(database,manifest);if(verifiedAsset&&(verifiedAsset.environment!=='testnet'||!verifiedAsset.enabled))throw new Error('PLAN_UNAVAILABLE');
+  const asset=verifiedAsset??await simulationAsset(database,manifest);if(verifiedAsset&&(verifiedAsset.environment!==nativePaymentEnvironment()||!verifiedAsset.enabled))throw new Error('PLAN_UNAVAILABLE');
   const opKey = `gift:${user.id}:${requestKey}`;
   const requestHash = crypto.createHash('sha256').update(expectedVersionId?JSON.stringify({planId,invoiceVersion:expectedVersionId}):planId).digest('hex');
   const prior = (await database.select().from(operationKeys).where(eq(sql<string>`lower(${operationKeys.businessKey})`,opKey)).limit(1))[0];
