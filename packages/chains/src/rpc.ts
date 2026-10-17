@@ -22,6 +22,7 @@ const lanes = new Map<string, Lane>();
 const flights = new Map<string, Promise<unknown>>();
 const failures = new Map<string, { count: number; until: number }>();
 const observationMethods=new Set(['eth_chainId','eth_blockNumber','eth_getBlockByNumber','eth_getBalance','eth_getCode','eth_call','eth_getLogs','eth_getTransactionByHash','eth_getTransactionReceipt','eth_getTransactionCount','eth_estimateGas','eth_gasPrice','getGenesisHash','getSlot','getBlock','getBlocks','getBlockHeight','getBalance','getAccountInfo','getTokenAccountBalance','getTransaction','getSignatureStatuses','getFeeForMessage','getLatestBlockhash','getMinimumBalanceForRentExemption']);
+const preparationPaths=new Set(['wallet/createtransaction','wallet/triggersmartcontract']);
 const observationPaths=new Set(['wallet/getaccount','wallet/getblockbynum','wallet/getchainparameters','wallet/getnowblock','wallet/gettransactionbyid','wallet/gettransactioninfobyid','wallet/triggerconstantcontract','wallet/estimateenergy','walletsolidity/getaccount','walletsolidity/getblockbynum','walletsolidity/getnowblock','walletsolidity/gettransactioninfobyid','walletsolidity/triggerconstantcontract']);
 function laneFor(endpoint: string) {
   let lane = lanes.get(endpoint);
@@ -36,9 +37,16 @@ function laneFor(endpoint: string) {
 export class DualRpc {
   private counter = 0;
   readonly #observationOnly:boolean;
+  readonly #preparationOnly:boolean;
   get observationOnly(){return this.#observationOnly}
+  get preparationOnly(){return this.#preparationOnly}
+  get nonSendingOnly(){return this.#observationOnly||this.#preparationOnly}
+  assertPreparation(){if(this.#observationOnly)throw new Error('OBSERVATION_ONLY');return this.#preparationOnly;}
+  assertBroadcast(){if(this.#observationOnly)throw new Error('OBSERVATION_ONLY');if(this.#preparationOnly)throw new Error('PREPARATION_ONLY');}
   constructor(readonly options: RpcOptions) {
     this.#observationOnly=options.observationOnly===true;
+    this.#preparationOnly=options.preparationOnly===true;
+    if(options.preparationOnly!==undefined&&typeof options.preparationOnly!=='boolean'||this.#observationOnly&&this.#preparationOnly)throw new Error('RPC_CONFIGURATION_INVALID');
     if(options.observationOnly!==undefined&&typeof options.observationOnly!=='boolean')throw new Error('RPC_CONFIGURATION_INVALID');
     if (
       !Number.isInteger(options.requestsPerSecond) ||
@@ -116,11 +124,12 @@ export class DualRpc {
     jsonRpc = false,
   ): Promise<any> {
     let observationBody:string|undefined;
-    if(this.#observationOnly){
+    if(this.#observationOnly||this.#preparationOnly){
+      const denied=this.#preparationOnly?'PREPARATION_ONLY':'OBSERVATION_ONLY';
       let wire:unknown;
-      try{observationBody=JSON.stringify(body);if(!observationBody||Buffer.byteLength(observationBody)>2*1024*1024)throw new Error();wire=JSON.parse(observationBody)}catch{throw new Error('OBSERVATION_ONLY')}
+      try{observationBody=JSON.stringify(body);if(!observationBody||Buffer.byteLength(observationBody)>2*1024*1024)throw new Error();wire=JSON.parse(observationBody)}catch{throw new Error(denied)}
       const method=wire&&typeof wire==='object'&&!Array.isArray(wire)?(wire as {method?:unknown}).method:undefined;
-      if(!((path===''||path==='jsonrpc')&&jsonRpc&&typeof method==='string'&&observationMethods.has(method))&&!(!jsonRpc&&observationPaths.has(path)))throw new Error('OBSERVATION_ONLY');
+      if(!((path===''||path==='jsonrpc')&&jsonRpc&&typeof method==='string'&&observationMethods.has(method))&&!(!jsonRpc&&(observationPaths.has(path)||this.#preparationOnly&&preparationPaths.has(path))))throw new Error(denied);
     }
     const cancellation=cancellations.getStore();if(cancellation?.aborted)throw new Error('RPC_BUDGET_EXCEEDED');
     const budget=budgets.getStore();

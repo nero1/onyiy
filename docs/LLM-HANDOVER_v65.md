@@ -1,12 +1,12 @@
-# LLM handover v64
+# LLM handover v65
 
 ## Owner direction
 
-Complete **all Phase One/Two**, including real-money mainnet and every unfinished feature. Keep working through [the full gap list](PROJECT-STATUS_v64.md) without milestone pauses. Read [PRD](PRD.md) §§29–33. Owner launch details are deferred to final testing; document them in SETUP and continue independent coding. **The product is incomplete; mainnet sending remains disabled.**
+Complete **all Phase One/Two**, including real-money mainnet and every unfinished feature. Keep working through [the full gap list](PROJECT-STATUS_v65.md) without milestone pauses. Read [PRD](PRD.md) §§29–33. Owner launch details are deferred to final testing; document them in SETUP and continue independent coding. **The product is incomplete; mainnet sending remains disabled.**
 
 ## Current work
 
-- Repository `nero1/onyiy`; branch `feat/native-read-scope`, based on PR62 merge `a02f9a542d76ba32e03fd977bff17d0672fd1431`.
+- Repository `nero1/onyiy`; branch `feat/unsigned-mainnet-preparation`, based on PR63 merge `bb9898edbe62571f704e405051e9a82aafd1210e`.
 - Native plan metadata creation/editing no longer requires a GIV simulation asset. Native saves remain disabled with no asset price version until gated per-currency activation. Simulation still creates its inactive GIV version.
 - Native catalogue/portfolio/member-record/receipt reads validate the transaction environment and never rewrite it. Wrong scopes are rejected; receipt/registry filters use captured scope. Portfolio user output includes saved timezone.
 - Named `/workspace/work/native-read-v64/plan-and-scope-r3.mts` reproduces both old bugs and passes real restricted-login plan/replay/stale/role/scope checks with unchanged financial hashes; `simulation-regression-r1.mts` preserves exact GIV pricing/audit identity. Failed r1 used an invalid generated finality mode and is preserved.
@@ -16,7 +16,7 @@ Complete **all Phase One/Two**, including real-money mainnet and every unfinishe
 ## Financial boundaries and pending implementation
 
 - `runtimeProviders` accepts mainnet only in explicit public read-only preview; `nativePaymentEnvironment` still denies mainnet execution. `financialImplementationComplete` and signer `implementationComplete` remain false. Do not flip flags to claim completion.
-- `assertIsolated`, signer EVM ID allowlist, Solana transfer preparation, many financial APIs/UI paths and chain recovery still need mainnet implementation. Mainnet encrypted archive/restore now pass locally through the separate maintenance boundary. Read-only observation is separate from payment support.
+- `assertIsolated`, signer EVM ID allowlist, many financial APIs/UI paths and chain recovery still need mainnet implementation. Mainnet encrypted archive/restore now pass locally through the separate maintenance boundary. Read-only observation is separate from payment support.
 - Automatic approval previously rejected a broad mainnet replacement before isolation/signing/recovery evidence. Do not replay or split that rejected edit to evade review. Continue targeted changes with proved prerequisites and unchanged execution gates.
 - Registry has closed network bindings; explicit observer facades cannot build/broadcast. DualRpc authenticates exact serialized read requests. Live public-provider probes failed; no live acceptance or invented token contracts. JAGA provenance remains owner-deferred.
 - Key envelopes v2 bind chain/environment/network/address; v1 remains testnet-only. Private files use same-descriptor reads, no symlinks and mode0600. The manual custody package workflow generates new unfunded keys offline; final host installation/import/operation still needs completion.
@@ -47,4 +47,12 @@ Both exact-head CI events must pass before merge; no direct main pushes. Keep fi
 
 PR62 merged after push39026765895 / PR39026798890 passed. Recovery has a separate maintenance boundary and read-only runtime checks; ordinary web mainnet execution is still denied. Mainnet backup/restore/independent verification preserves83 retained tables. Testnet and the unchanged original v55 signed archive pass, including retired-mode/wrong-packet/wrong-database denials. Original source, failed first compatibility target and all packets/keys remain under `/workspace/work/mainnet-recovery-v63`. Mainnet packet/key `mainnet-isolated-r2.gwbackup` / `mainnet-isolated-r2.key` (raw32 bytes; harness encodes privately). Browser recovery workflow and chain reconciliation/no-resend remain open.
 
-v64
+v65
+
+## Unsigned preparation and signer checks (v65)
+
+- Mainnet preparation now estimates fees and builds unsigned transfers through a frozen capability with no broadcast method. Private RPC guards block sending even if caller options or public getters change. Ordinary mainnet execution remains disabled.
+- Signer validation rejects changed EVM gas fields, extra Solana instructions/account metadata, unapproved associated-account costs, and altered TRON permissions, attached assets, signatures, expiry or energy caps. TRON checks its network reference before opening a key file.
+- Local protocol fixtures cover eight asset/network combinations; generated token addresses are not live provenance evidence. Actual encrypted testnet-key signing reproduces historical EVM/Solana bugs and verifies corrected signatures. No real funds or external broadcast.
+- Evidence: `unsigned-mainnet-v65/preparation-r5.mts`, `signer-validation-r2.mts`, `tron-reference-before-key-r1.mts`, `evm-execution-regression-r1.mts` and `observation-regression-r1.mts`. Failed first signer harness/import fixture is preserved. No DDL or installer changes.
+- Continue directly with actual mainnet runtime/signer integration and C001–C017 after checked merge; this prerequisite does not complete payment support.

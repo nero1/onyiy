@@ -143,5 +143,8 @@ export type RpcOptions = {
   requestsPerSecond: number;
   fixture?: boolean;
   observationOnly?: boolean;
+  preparationOnly?: boolean;
 };
 export type ChainObservationAdapter=Omit<ChainAdapter,'buildTransfer'|'broadcastSigned'|'estimateFee'>;
+
+export type ChainPreparationAdapter=Omit<ChainAdapter,'broadcastSigned'>;

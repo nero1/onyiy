@@ -45,7 +45,7 @@ export class TronAdapter implements ChainAdapter {
     readonly asset: AssetRegistry,
     options: RpcOptions,
   ) {
-    assertAdapterAsset(asset,options.observationOnly);
+    assertAdapterAsset(asset,options.observationOnly||options.preparationOnly);
     if (asset.chain !== "tron" || !tronChainId(asset.network))
       throw new Error("WRONG_NETWORK");
     this.rpc = new DualRpc(options);
@@ -213,7 +213,7 @@ export class TronAdapter implements ChainAdapter {
       throw new Error("TOKEN_REGISTRY_MISMATCH");
   }
   private async finalizedBalancePair(asset:AssetRegistry,address:string,height:bigint){
-    assertAdapterAsset(asset,this.rpc.observationOnly);if(asset.key!==this.asset.key||height<0n)throw new Error("INVALID_INPUT");const account=normalized(address);
+    assertAdapterAsset(asset,this.rpc.nonSendingOnly);if(asset.key!==this.asset.key||height<0n)throw new Error("INVALID_INPUT");const account=normalized(address);
     const values=await Promise.all(([0,1] as const).map(async side=>{const identity=await this.rpc.post(side,"jsonrpc",{jsonrpc:"2.0",id:1,method:"eth_chainId",params:[]},true);if(BigInt(identity)!==tronChainId(asset.network))throw new Error("WRONG_NETWORK");const before=await this.rpc.post(side,"walletsolidity/getnowblock",{}),tip=integer(before.block_header.raw_data.number);if(tip<height||!/^[0-9a-f]{64}$/i.test(before.blockID))throw new Error("FINALITY_UNAVAILABLE");let amount:bigint;
     if(asset.kind==="native"){const result=await this.rpc.post(side,"walletsolidity/getaccount",{address:addressHex(account),visible:false});amount=integer(result.balance??0)}else{const result=await this.rpc.post(side,"walletsolidity/triggerconstantcontract",{owner_address:addressHex(account),contract_address:addressHex(asset.contract!),function_selector:"balanceOf(address)",parameter:addressHex(account).slice(-40).padStart(64,"0"),visible:false});if(!result.result?.result||!Array.isArray(result.constant_result)||result.constant_result.length!==1||! /^[0-9a-f]{64}$/i.test(result.constant_result[0]))throw new Error("RPC_EVIDENCE_INVALID");amount=BigInt("0x"+result.constant_result[0])}
     const after=await this.rpc.post(side,"walletsolidity/getnowblock",{});if(after.blockID!==before.blockID||integer(after.block_header.raw_data.number)!==tip)throw new Error("FINALITY_UNAVAILABLE");return {tip,hash:String(before.blockID).toLowerCase(),amount}}));return values;
@@ -238,7 +238,7 @@ export class TronAdapter implements ChainAdapter {
     return values[0].amount;
   }
   async getBalance(asset: AssetRegistry, address: string, fresh = false) {
-    assertAdapterAsset(asset,this.rpc.observationOnly);
+    assertAdapterAsset(asset,this.rpc.nonSendingOnly);
     if (asset.chain !== "tron" || asset.network !== this.asset.network)
       throw new Error("WRONG_NETWORK");
     if (asset.kind === "native") return this.getNativeBalance(address, fresh);
@@ -384,8 +384,7 @@ export class TronAdapter implements ChainAdapter {
     if (values[0] !== values[1]) throw new Error("SIGNED_INTENT_INVALID");
   }
   async buildTransfer(intent: TransferIntent): Promise<PreparedTransfer> {
-    if(this.rpc.observationOnly)throw new Error("OBSERVATION_ONLY");
-    assertActive(this.asset);
+    if(this.rpc.assertPreparation())assertAdapterAsset(this.asset,true);else assertActive(this.asset);
     if (normalized(intent.sender) === normalized(intent.destination)) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
     await this.network();
     if (
@@ -408,7 +407,7 @@ export class TronAdapter implements ChainAdapter {
         }),
         contract = tx.raw_data?.contract?.[0];
       if (
-        !tx.raw_data_hex ||
+        tx.signature?.length || !tx.raw_data_hex ||
         !utils.transaction.txCheck(tx) ||
         tx.raw_data.contract.length !== 1 ||
         contract.type !== "TransferContract" ||
@@ -439,19 +438,20 @@ export class TronAdapter implements ChainAdapter {
         ),
       };
     }
+    if(intent.fee.gasLimit<0n||intent.fee.unitPrice<0n||intent.fee.gasLimit*intent.fee.unitPrice>intent.fee.nativeFee)throw new Error('INVALID_INPUT');
     const response = await this.rpc.post(0, "wallet/triggersmartcontract", {
       owner_address: addressHex(intent.sender),
       contract_address: addressHex(intent.asset.contract!),
       function_selector: "transfer(address,uint256)",
       parameter: this.parameter(intent),
-      fee_limit: jsonInteger(intent.fee.nativeFee),
+      fee_limit: jsonInteger(intent.fee.gasLimit*intent.fee.unitPrice),
       call_value: 0,
       visible: false,
     });
     const tx = response.transaction;
     if (
       !response.result?.result ||
-      !tx?.raw_data_hex ||
+      tx?.signature?.length || !tx?.raw_data_hex ||
       !utils.transaction.txCheck(tx) ||
       tx.txID !==
         crypto
@@ -471,8 +471,12 @@ export class TronAdapter implements ChainAdapter {
         addressHex(intent.asset.contract!) ||
       contract.parameter.value.data.toLowerCase() !==
         "a9059cbb" + this.parameter(intent).toLowerCase() ||
+      integer(contract.Permission_id??0)!==0n ||
       integer(contract.parameter.value.call_value ?? 0) !== 0n ||
-      integer(tx.raw_data.fee_limit) > intent.fee.nativeFee
+      integer(contract.parameter.value.call_token_value??0)!==0n ||
+      integer(contract.parameter.value.token_id??0)!==0n ||
+      integer(tx.raw_data.fee_limit??0)!==intent.fee.gasLimit*intent.fee.unitPrice ||
+      intent.fee.gasLimit*intent.fee.unitPrice>intent.fee.nativeFee
     )
       throw new Error("SIGNED_INTENT_INVALID");
     await this.assertReference(tx);
@@ -488,7 +492,7 @@ export class TronAdapter implements ChainAdapter {
     };
   }
   async broadcastSigned(signed: SignedTransfer) {
-    if(this.rpc.observationOnly)throw new Error("OBSERVATION_ONLY");
+    this.rpc.assertBroadcast();
     assertActive(this.asset);
     let tx: any;
     try {
