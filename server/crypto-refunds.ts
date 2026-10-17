@@ -23,7 +23,7 @@ import {
   adapter,
   financialConfiguration,
   platformAddress,
-  assertFinancialEnvironment,
+  financialEnvironmentIn,
   assertExternalActivation,
 } from "./financial-config";
 import type { AssetRegistry } from "@gifters/chains";
@@ -35,7 +35,7 @@ export async function reserveOriginalRefund(
   actorId: string,
   input: z.infer<typeof refundInput>,
 ) {
-  assertFinancialEnvironment();
+  const environment=await financialEnvironmentIn(tx);
   const [event] = await tx
     .select()
     .from(cryptoEvents)
@@ -163,7 +163,7 @@ export async function reserveOriginalRefund(
         previousObligationId:input.previous_obligation_id,
         businessKey: key,
         requestHash: digest,
-        environment: "testnet",
+        environment,
         chain: registry.chain,
         treasuryFingerprint: config.treasuryFingerprint,
         treasurySender: sender,

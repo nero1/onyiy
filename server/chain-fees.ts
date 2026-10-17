@@ -1,3 +1,4 @@
+import {financialEnvironmentIn} from './financial-config';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { AssetRegistry } from '@gifters/chains';
 import { chainFeeClaims, ledgerJournals, ledgerPostings, ledgerAccounts, recoveryOutflowResolutions, type DbExecutor } from '@gifters/db';
@@ -12,9 +13,11 @@ export async function bookChainFees(tx: DbExecutor, input: {
 }) {
  const {registry,hash,nativeAssetId,networkFee,setup}=input;
  if(networkFee<0n||setup<0n)throw new Error('INVALID_PROOF');
- const scope=`testnet:${registry.chain}:${registry.network}:${hash}`;
+ const environment=await financialEnvironmentIn(tx);
+ if(registry.environment!==environment)throw new Error("FINANCIAL_ENVIRONMENT_DENIED");
+ const scope=`${environment}:${registry.chain}:${registry.network}:${hash}`;
  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${'chain-fees:'+scope},0))`);
- const [existing]=await tx.select().from(chainFeeClaims).where(and(eq(chainFeeClaims.environment,'testnet'),eq(chainFeeClaims.chain,registry.chain),eq(chainFeeClaims.network,registry.network),eq(chainFeeClaims.txHash,hash))).limit(1);
+ const [existing]=await tx.select().from(chainFeeClaims).where(and(eq(chainFeeClaims.environment,environment),eq(chainFeeClaims.chain,registry.chain),eq(chainFeeClaims.network,registry.network),eq(chainFeeClaims.txHash,hash))).limit(1);
  if(existing){
   if(existing.nativeAssetId!==nativeAssetId||BigInt(existing.networkFeeBaseUnits)!==networkFee||BigInt(existing.accountSetupBaseUnits)!==setup)throw new Error('CHAIN_FEE_EVIDENCE_CONFLICT');
   return {...existing,created:false};
@@ -24,7 +27,7 @@ export async function bookChainFees(tx: DbExecutor, input: {
  // old bills are corrected with immutable compensating journals, never edits.
  const historical=await tx.select().from(recoveryOutflowResolutions).where(and(eq(recoveryOutflowResolutions.nativeAssetId,nativeAssetId),eq(recoveryOutflowResolutions.txHash,hash))).limit(101);
  if(historical.length>100)throw new Error('CHAIN_FEE_HISTORY_REVIEW_REQUIRED');
- const metadata={...input.metadata,environment:'testnet',chain:registry.chain,network:registry.network,tx_hash:hash};
+ const metadata={...input.metadata,environment:environment,chain:registry.chain,network:registry.network,tx_hash:hash};
  async function component(amount:bigint,purpose:string,label:'network'|'setup',legacyKey:string){
   const ids=new Set(historical.map(row=>label==='network'?row.gasJournalId:row.setupJournalId).filter((id):id is string=>!!id));
   const keys=await tx.select({id:ledgerJournals.id}).from(ledgerJournals).where(eq(ledgerJournals.businessKey,legacyKey)).limit(1);for(const row of keys)ids.add(row.id);
@@ -44,7 +47,7 @@ export async function bookChainFees(tx: DbExecutor, input: {
   }
   return journalId;
  }
- const gasJournalId=await component(networkFee,'network_fee_expense','network',`gas:testnet:${registry.chain}:${hash}`),setupJournalId=await component(setup,'recipient_account_setup_expense','setup',`account-setup:${registry.chain}:${hash}`);
- const [row]=await tx.insert(chainFeeClaims).values({environment:'testnet',chain:registry.chain,network:registry.network,txHash:hash,nativeAssetId,networkFeeBaseUnits:networkFee.toString(),accountSetupBaseUnits:setup.toString(),gasJournalId,setupJournalId}).returning();
+ const gasJournalId=await component(networkFee,'network_fee_expense','network',`gas:${environment}:${registry.chain}:${hash}`),setupJournalId=await component(setup,'recipient_account_setup_expense','setup',`account-setup:${registry.chain}:${hash}`);
+ const [row]=await tx.insert(chainFeeClaims).values({environment:environment,chain:registry.chain,network:registry.network,txHash:hash,nativeAssetId,networkFeeBaseUnits:networkFee.toString(),accountSetupBaseUnits:setup.toString(),gasJournalId,setupJournalId}).returning();
  return {...row,created:true};
 }

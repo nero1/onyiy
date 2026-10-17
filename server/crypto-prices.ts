@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { assets, priceQuotes, type DbExecutor } from "@gifters/db";
 import { priceUnits } from "@gifters/domain";
-import { registryAsset, assertFinancialEnvironment } from "./financial-config";
+import { registryAsset, financialEnvironmentIn } from "./financial-config";
 const decimal = z
   .string()
   .max(100)
@@ -12,7 +12,7 @@ const decimal = z
 export const signedPrice = z
   .object({
     version: z.literal(1),
-    environment: z.literal("testnet"),
+    environment: z.enum(["testnet","mainnet"]),
     asset_key: z.string().max(30),
     network: z.string().max(100),
     asset_usd: decimal,
@@ -43,7 +43,7 @@ export async function ingestSignedPrice(
   tx: DbExecutor,
   input: z.infer<typeof signedPriceInput>,
 ) {
-  assertFinancialEnvironment();
+  const environment=await financialEnvironmentIn(tx);
   if (
     runtimeProviders().PRICE_PROVIDER !== "manual_signed" &&
     !(
@@ -52,8 +52,9 @@ export async function ingestSignedPrice(
     )
   )
     throw new Error("PROVIDER_UNAVAILABLE");
-  const document = signedPrice.parse(input.document),
-    encoded = JSON.stringify(document),
+  const document = signedPrice.parse(input.document);
+  if(document.environment!==environment)throw new Error("FINANCIAL_ENVIRONMENT_DENIED");
+  const encoded = JSON.stringify(document),
     publicKey = process.env.PRICE_FEED_PUBLIC_KEY ?? "";
   let valid = false;
   try {
@@ -98,7 +99,7 @@ export async function ingestSignedPrice(
     .from(assets)
     .where(
       and(
-        eq(assets.environment, "testnet"),
+        eq(assets.environment, environment),
         eq(assets.symbol, registry.key.toUpperCase()),
         eq(assets.chainId, registry.network),
       ),

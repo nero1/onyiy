@@ -1,3 +1,4 @@
+import {financialEnvironmentIn,operationalEnvironmentIn} from './financial-environment';
 import {boundedText} from './request-body';
 import { pinnedPost } from '../packages/config/src/outbound-http';
 import crypto from "node:crypto";
@@ -25,6 +26,7 @@ const detailsSchema = z
   })
   .strict();
 export async function enqueueAlertDelivery(tx: DbExecutor, alert: typeof operationalAlerts.$inferSelect, ordinal: number) {
+  await operationalEnvironmentIn(tx,alert.environment as "simulation"|"testnet"|"mainnet");
   const businessKey=`alert:${alert.id}:${ordinal}`;
   const payloadText=JSON.stringify({version:1,environment:alert.environment,delivery_key:businessKey,severity:alert.severity,category:alert.category,details:detailsSchema.parse(alert.safeDetails)});
   await tx.insert(alertDeliveries).values({alertId:alert.id,businessKey,occurrence:alert.occurrence,payloadText,payloadHash:crypto.createHash('sha256').update(payloadText).digest('hex')}).onConflictDoNothing();
@@ -35,8 +37,9 @@ export async function openFinancialAlert(
   category: string,
   severity: "critical" | "warning",
   details: z.infer<typeof detailsSchema>,
-  environment: 'simulation'|'testnet'='testnet',
+  requestedEnvironment?: 'simulation'|'testnet'|'mainnet',
 ) {
+  const environment=await operationalEnvironmentIn(tx,requestedEnvironment);
   if (
     !/^[a-z0-9:_-]{1,180}$/.test(conditionKey) ||
     ![
@@ -96,6 +99,7 @@ export async function openFinancialAlert(
   return alert;
 }
 export async function acceptedAlert(tx: DbExecutor, configurationHash: string) {
+  const environment=await financialEnvironmentIn(tx);
   const [row] = await tx
     .select({ id: alertDeliveries.id })
     .from(alertDeliveries)
@@ -105,7 +109,7 @@ export async function acceptedAlert(tx: DbExecutor, configurationHash: string) {
     )
     .where(
       and(
-        eq(operationalAlerts.environment, "testnet"),
+        eq(operationalAlerts.environment, environment),
         eq(operationalAlerts.category, "activation_probe"),
         eq(alertDeliveries.status, "delivered"),
         sql`${alertDeliveries.payloadText}::jsonb->'details'->>'configuration_hash'=${configurationHash}`,
@@ -118,10 +122,11 @@ export async function acceptedAlert(tx: DbExecutor, configurationHash: string) {
 /** Receiver must dedupe the permanent delivery key and echo a signed acknowledgement. */
 export async function deliverFinancialAlert() {
   const claim = await withContext({ access: "service" }, async (tx) => {
+    const environment=await operationalEnvironmentIn(tx);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('financial-alert-http-budget',0))`);
     const policy=(await readManifest(tx)).alert_policy;
     const [day]=await tx.execute<{day:string}>(sql`select (clock_timestamp() at time zone 'UTC')::date::text as day`);
-    const prefix=`alert-http:testnet:${day.day}:`;
+    const prefix=`alert-http:${environment}:${day.day}:`;
     const [spent]=await tx.select({n:sql<string>`count(*)::text`}).from(operationKeys).where(sql`${operationKeys.businessKey}>=${prefix} and ${operationKeys.businessKey}<${prefix+'~'}`);
     if(BigInt(spent.n)>=BigInt(policy.daily_limit))return null;
 
@@ -226,6 +231,7 @@ export async function deliverFinancialAlert() {
     /* Persist failure without endpoint, credentials, body or response details. */
   }
   const committed = await withContext({ access: "service" }, async (tx) => {
+    await operationalEnvironmentIn(tx,claim.alert.environment as "simulation"|"testnet"|"mainnet");
     const [row] = await tx
       .update(alertDeliveries)
       .set({

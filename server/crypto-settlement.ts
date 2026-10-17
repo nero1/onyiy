@@ -17,7 +17,7 @@ import {
   registryAsset,
   adapter,
   platformAddress,
-  assertFinancialEnvironment,
+  financialEnvironmentIn,
 } from "./financial-config";
 import { account, postJournal, lockUser } from "./core";
 /** Workload identity supplies a known attempt ID; chain evidence supplies all amounts. */
@@ -27,7 +27,7 @@ export async function settleCryptoAttempt(
   eventIndex: number,
   verifiedEvidence?: TransferEvidence,
 ) {
-  assertFinancialEnvironment();
+  const environment=await financialEnvironmentIn(tx);
   const [attempt] = await tx
     .select()
     .from(signedAttemptStatus)
@@ -94,7 +94,7 @@ export async function settleCryptoAttempt(
     .from(assets)
     .where(
       and(
-        eq(assets.environment, "testnet"),
+        eq(assets.environment, environment),
         eq(assets.chainId, registry.network),
         eq(
           assets.symbol,

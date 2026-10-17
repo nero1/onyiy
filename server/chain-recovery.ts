@@ -30,7 +30,7 @@ import {
   platformAddress,
   financialConfiguration,
   assertRegistryBinding,
-  assertFinancialEnvironment,
+  financialEnvironmentIn,
 } from "./financial-config";
 import { account, postJournal, lockUser } from "./core";
 import { settleCryptoAttempt } from "./crypto-settlement";
@@ -69,7 +69,7 @@ export async function registerCheckpoint(
   input: z.infer<typeof checkpointInput>,
   requestKey: string,
 ) {
-  assertFinancialEnvironment();
+  const environment=await financialEnvironmentIn(tx);
   await staff(tx, actorId);
   const key = `checkpoint:${actorId}:${requestKey}`,
     hash = digest(input),
@@ -103,7 +103,7 @@ export async function registerCheckpoint(
       .from(assets)
       .where(
         and(
-          eq(assets.environment, "testnet"),
+          eq(assets.environment, environment),
           eq(assets.symbol, registry.key.toUpperCase()),
           eq(assets.chainId, registry.network),
         ),
@@ -144,11 +144,11 @@ export async function registerCheckpoint(
 }
 
 export async function listTreasuries(tx: DbExecutor, actorId: string, assetKey: string, after?: string) {
+  const environment=await financialEnvironmentIn(tx);
   await staff(tx, actorId);
-  assertFinancialEnvironment();
   const registry = registryAsset(assetKey);
   const [asset] = await tx.select().from(assets).where(and(
-    eq(assets.environment, "testnet"), eq(assets.symbol, registry.key.toUpperCase()),
+    eq(assets.environment, environment), eq(assets.symbol, registry.key.toUpperCase()),
     eq(assets.chainId, registry.network),
   )).limit(1);
   if (!asset) throw new Error("PLAN_UNAVAILABLE");
@@ -168,7 +168,7 @@ export async function startRecoveryScan(
   through: string,
   requestKey: string,
 ) {
-  assertFinancialEnvironment();
+  await financialEnvironmentIn(tx);
   await staff(tx, actorId);
   const [checkpoint] = await tx
     .select()
@@ -232,8 +232,9 @@ async function bookUnmatched(
   checkpoint: typeof chainCheckpoints.$inferSelect,
   candidate: ScannedTransfer,
 ) {
+  const environment=await financialEnvironmentIn(tx);
   const registry = checkpoint.registrySnapshot as AssetRegistry,
-    key = `chain-event:testnet:${registry.chain}:${registry.network}:${candidate.hash}:${candidate.index}:${checkpoint.assetId}`,
+    key = `chain-event:${environment}:${registry.chain}:${registry.network}:${candidate.hash}:${candidate.index}:${checkpoint.assetId}`,
     [claimed] = await tx
       .insert(operationKeys)
       .values({
@@ -272,13 +273,13 @@ async function bookUnmatched(
         { accountId: cash.id, direction: "debit", amount: candidate.amount },
         { accountId: owed.id, direction: "credit", amount: candidate.amount },
       ],
-      { unallocated_id: id, environment: "testnet" },
+      { unallocated_id: id, environment },
     );
   if (!journal) throw new Error("FINANCIAL_SAFETY_PAUSE");
   await tx.insert(unallocatedInflows).values({
     id,
     assetId: checkpoint.assetId,
-    environment: "testnet",
+    environment,
     chain: registry.chain,
     network: registry.network,
     txHash: candidate.hash,
@@ -350,8 +351,8 @@ function evidence(value:z.infer<typeof storedEvidenceSchema>):TransferEvidence{r
 // historical balances: 26 requests. Keep the existing 18-second total budget.
 export function recoverScanPage(tx:DbExecutor,id:string){return withRpcBudget(()=>recoverPagedStep(tx,id),18000,32)}
 async function recoverPagedStep(tx:DbExecutor,id:string){
-  await tx.execute(sql`select set_config('gw.environment','testnet',true)`);
-  assertFinancialEnvironment();
+
+  await financialEnvironmentIn(tx);
   const [lookup]=await tx.select().from(chainRecoveryRuns).where(eq(chainRecoveryRuns.id,id)).limit(1);
   if(!lookup)throw new Error('NOT_FOUND');
   if(lookup.bindingFingerprint!==await binding(tx))throw new Error('RECOVERY_TARGET_MISMATCH');
@@ -519,7 +520,7 @@ export async function resolveRecoveryOutflow(
   actorId: string,
   input: z.infer<typeof outflowResolutionInput>,
 ) {
-  assertFinancialEnvironment();
+  const environment=await financialEnvironmentIn(tx);
   await staff(tx, actorId);
   const [outflow] = await tx
     .select()
@@ -590,7 +591,7 @@ export async function resolveRecoveryOutflow(
     .from(assets)
     .where(
       and(
-        eq(assets.environment, "testnet"),
+        eq(assets.environment, environment),
         eq(assets.chainId, registry.network),
         eq(
           assets.symbol,

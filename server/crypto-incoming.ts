@@ -23,7 +23,7 @@ import {
   adapter,
   platformAddress,
   financialConfiguration,
-  assertFinancialEnvironment,
+  financialEnvironmentIn,
   assertExternalActivation,
   assertRegistryBinding,
 } from "./financial-config";
@@ -52,7 +52,7 @@ export async function quoteCryptoInvoice(
   input: z.infer<typeof cryptoInvoiceInput>,
   key: string,
 ) {
-  assertFinancialEnvironment();
+  const environment=await financialEnvironmentIn(tx);
   const registry = registryAsset(input.asset_key);
   await assertExternalActivation(
     tx,
@@ -118,7 +118,7 @@ export async function quoteCryptoInvoice(
     .where(
       and(
         eq(assets.symbol, registry.key.toUpperCase()),
-        eq(assets.environment, "testnet"),
+        eq(assets.environment, environment),
         eq(assets.chainId, registry.network),
         eq(assets.enabled, true),
       ),
@@ -201,7 +201,7 @@ export async function quoteCryptoInvoice(
     .where(
       and(
         eq(walletLinks.userId, userId),
-        eq(walletLinks.environment, "testnet"),
+        eq(walletLinks.environment, environment),
         eq(walletLinks.chainId, registry.network),
       ),
     )
@@ -241,7 +241,7 @@ export async function quoteCryptoInvoice(
         sessionGeneration: generation,
         walletId: wallet.id,
         walletRevision: wallet.revision,
-        environment: "testnet",
+        environment,
         chain: registry.chain,
         registryHash: config.registryHash,
         registrySnapshot: registry,
@@ -261,7 +261,7 @@ export async function verifyCryptoDeposit(
   userId: string,
   input: z.infer<typeof cryptoSubmission>,
 ) {
-  assertFinancialEnvironment();
+  const environment=await financialEnvironmentIn(tx);
   const [lookup] = await tx
     .select()
     .from(cryptoInvoices)
@@ -301,7 +301,7 @@ export async function verifyCryptoDeposit(
     .from(cryptoEvents)
     .where(
       and(
-        eq(cryptoEvents.environment, "testnet"),
+        eq(cryptoEvents.environment, environment),
         eq(cryptoEvents.chain, registry.chain),
         eq(cryptoEvents.txHash, input.tx_hash),
         input.event_index >= 0
@@ -341,7 +341,7 @@ export async function verifyCryptoDeposit(
     proof.height === undefined
   )
     throw new Error("INVALID_PROOF");
-  const claimKey = `chain-event:testnet:${registry.chain}:${registry.network}:${input.tx_hash}:${input.event_index}:${asset.id}`,
+  const claimKey = `chain-event:${environment}:${registry.chain}:${registry.network}:${input.tx_hash}:${input.event_index}:${asset.id}`,
     claimHash = crypto
       .createHash("sha256")
       .update(JSON.stringify({ purpose: "invoice", invoice_id: invoice.id }))
@@ -386,7 +386,7 @@ export async function verifyCryptoDeposit(
     id: eventId,
     invoiceId: invoice.id,
     assetId: asset.id,
-    environment: "testnet",
+    environment,
     chain: registry.chain,
     txHash: input.tx_hash,
     eventIndex: input.event_index,
@@ -416,12 +416,12 @@ export async function verifyCryptoDeposit(
   await postJournal(
     tx,
     "CHAIN_IN",
-    `in:testnet:${registry.chain}:${input.tx_hash}:${input.event_index}:${asset.id}`,
+    `in:${environment}:${registry.chain}:${input.tx_hash}:${input.event_index}:${asset.id}`,
     [
       { accountId: cash.id, direction: "debit", amount: proof.amount },
       { accountId: source.id, direction: "credit", amount: proof.amount },
     ],
-    { invoice_id: invoice.id, event_id: eventId, environment: "testnet" },
+    { invoice_id: invoice.id, event_id: eventId, environment },
   );
   if (eligible) {
     await tx.execute(sql.raw("SAVEPOINT crypto_admission"));
@@ -510,7 +510,7 @@ export async function submitCryptoDeposit(
   userId: string,
   input: z.infer<typeof cryptoSubmission>,
 ) {
-  assertFinancialEnvironment();
+  await financialEnvironmentIn(tx);
   await lockUser(tx, userId);
   const [invoice] = await tx
     .select()
@@ -569,7 +569,7 @@ export async function submitCryptoDeposit(
 }
 /** Cancelling an unsubmitted quote grants no authority over late chain funds. */
 export async function cancelNativeInvoice(tx:DbExecutor,userId:string,id:string){
- assertFinancialEnvironment();await lockUser(tx,userId);
+ await financialEnvironmentIn(tx);await lockUser(tx,userId);
  const [invoice]=await tx.select().from(cryptoInvoices).where(and(eq(cryptoInvoices.id,id),eq(cryptoInvoices.userId,userId))).for("update");
  if(!invoice)throw new Error("NOT_FOUND");
  if(["cancelled","expired"].includes(invoice.status))return {id,status:invoice.status};

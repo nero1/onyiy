@@ -4,7 +4,8 @@ import {
   financialPolicySnapshot,
 } from "../packages/chains/src/runtime";
 import { acceptedAlert } from "./financial-alerts";
-import {nativePaymentEnvironment} from '@gifters/config';
+import {assertFinancialEnvironment} from './financial-environment';
+export {assertFinancialEnvironment,financialEnvironmentIn} from './financial-environment';
 import { z } from "zod";
 import {
   chainEnvironmentSuffix,
@@ -46,15 +47,6 @@ export async function financialConfiguration(
     asset,
     financialPolicySnapshot(await readManifest(tx)),
   );
-}
-export function assertFinancialEnvironment() {
-  return nativePaymentEnvironment();
-}
-export async function financialEnvironmentIn(tx:DbExecutor){
- const environment=assertFinancialEnvironment();
- const [scope]=await tx.execute<{environment:string}>(sql`select current_setting('gw.environment',true) as environment`);
- if(scope?.environment!==environment)throw new Error('FINANCIAL_ENVIRONMENT_DENIED');
- return environment;
 }
 export const financialImplementationComplete = false;
 export async function assertExternalActivation(

@@ -29,7 +29,7 @@ import {
   platformAddress,
   financialConfiguration,
   assertRegistryBinding,
-  assertFinancialEnvironment,
+  financialEnvironmentIn,
   assertExternalActivation,
 } from "./financial-config";
 import { account, postJournal, lockUser } from "./core";
@@ -44,7 +44,7 @@ export const sweepInput = z
   .strict();
 const liabilityPurposes = beneficiaryLiabilityPurposes;
 async function staff(tx: DbExecutor, id: string) {
-  assertFinancialEnvironment();
+  await financialEnvironmentIn(tx);
   const actor = await lockUser(tx, id),
     policy = await readManifest(tx);
   if (
@@ -82,6 +82,7 @@ async function authority(
   policy: any,
   config: any,
 ) {
+  const environment=await financialEnvironmentIn(tx);
   const chain = await adapter(registry),
     sender = await platformAddress(registry, "RECEIVING"),
     nativeSymbol = (
@@ -92,7 +93,7 @@ async function authority(
       .from(assets)
       .where(
         and(
-          eq(assets.environment, "testnet"),
+          eq(assets.environment, environment),
           eq(assets.chainId, registry.network),
           eq(assets.symbol, nativeSymbol),
         ),
@@ -156,6 +157,7 @@ export async function quoteTreasurySweep(
   input: z.infer<typeof sweepInput>,
   requestKey: string,
 ) {
+  const environment=await financialEnvironmentIn(tx);
   const policy = await staff(tx, actorId);
   if (!policy.feature_wallets) throw new Error("FEATURE_DISABLED");
   const registry = registryAsset(input.asset_key),
@@ -183,7 +185,7 @@ export async function quoteTreasurySweep(
     .from(assets)
     .where(
       and(
-        eq(assets.environment, "testnet"),
+        eq(assets.environment, environment),
         eq(assets.symbol, registry.key.toUpperCase()),
         eq(assets.chainId, registry.network),
       ),
@@ -242,7 +244,7 @@ export async function quoteTreasurySweep(
       kind: "sweep",
       businessKey: key,
       requestHash: digest,
-      environment: "testnet",
+      environment,
       chain: registry.chain,
       treasuryFingerprint: config.treasuryFingerprint,
       treasurySender: sender,
@@ -305,6 +307,7 @@ export async function confirmTreasurySweep(
   id: string,
   reason: string,
 ) {
+  await financialEnvironmentIn(tx);
   const policy = await staff(tx, actorId);
   if (!policy.feature_wallets) throw new Error("FEATURE_DISABLED");
   await tx.execute(
@@ -423,6 +426,7 @@ export async function recoverTreasurySweep(
   id: string,
   reason: string,
 ) {
+  await financialEnvironmentIn(tx);
   await staff(tx, actorId);
   const [row] = await tx
     .select()

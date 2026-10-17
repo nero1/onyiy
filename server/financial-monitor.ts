@@ -15,21 +15,22 @@ import {
   adapter,
   financialConfiguration,
   platformAddress,
-  assertFinancialEnvironment,
+  assertFinancialEnvironment,financialEnvironmentIn,
 } from "./financial-config";
 import { openFinancialAlert } from "./financial-alerts";
 import { priceUnits } from "@gifters/domain";
 import { monitoringTreasury, treasuryFingerprint } from "../packages/db/src/treasury-inventory";
 export async function monitorFinancials(assetKey?:string) {
-  assertFinancialEnvironment();
-  const registry = readRegistry().filter((v) => v.enabled && v.verified && (!assetKey||v.key===assetKey)).slice(0,8),
+  const environment=assertFinancialEnvironment();
+  const registry = readRegistry().filter((v) => v.environment===environment && v.enabled && v.verified && (!assetKey||v.key===assetKey)).slice(0,8),
     observations: unknown[] = [];
   for (const item of registry) {
     try {
       const chain = await adapter(item),
         sender = await platformAddress(item, "RECEIVING");
       const historical = await withContext({access:'service'},async tx=>{
-        const [asset]=await tx.select({id:assets.id}).from(assets).where(and(eq(assets.environment,'testnet'),eq(assets.symbol,item.key.toUpperCase()),eq(assets.chainId,item.network))).limit(1);
+        await financialEnvironmentIn(tx);
+        const [asset]=await tx.select({id:assets.id}).from(assets).where(and(eq(assets.environment,environment),eq(assets.symbol,item.key.toUpperCase()),eq(assets.chainId,item.network))).limit(1);
         return asset ? monitoringTreasury(tx,asset.id,sender) : {address:null,historical_count:'0'};
       });
       const [historicalBalance, physical, nativePhysical, height] = await Promise.all([
@@ -38,6 +39,7 @@ export async function monitorFinancials(assetKey?:string) {
           chain.getNativeBalance(sender, true),chain.currentBlockHeight(),
         ]);
       const result = await withContext({ access: "service" }, async (tx) => {
+        await financialEnvironmentIn(tx);
         const config = await financialConfiguration(tx, item),
           policy = await readManifest(tx);
         const [asset] = await tx
@@ -45,7 +47,7 @@ export async function monitorFinancials(assetKey?:string) {
           .from(assets)
           .where(
             and(
-              eq(assets.environment, "testnet"),
+              eq(assets.environment, environment),
               eq(assets.symbol, item.key.toUpperCase()),
               eq(assets.chainId, item.network),
             ),
@@ -158,15 +160,16 @@ export async function monitorFinancials(assetKey?:string) {
       });
       observations.push(result);
     } catch {
-      await withContext({ access: "service" }, (tx) =>
-        openFinancialAlert(
+      await withContext({ access: "service" }, async (tx) => {
+        await financialEnvironmentIn(tx);
+        return openFinancialAlert(
           tx,
           `rpc:${item.chain}:${item.network}`,
           "rpc_unavailable",
           "warning",
           { asset_key: item.key, reason: "RPC_OBSERVATION_FAILED" },
-        ),
-      );
+        );
+      });
       observations.push({ asset_key: item.key, state: "unavailable" });
     }
   }

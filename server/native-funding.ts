@@ -16,7 +16,7 @@ import {
   adapter,
   platformAddress,
   assertRegistryBinding,
-  assertFinancialEnvironment,
+  financialEnvironmentIn,
 } from "./financial-config";
 import { lockUser, account, postJournal } from "./core";
 export const nativeFundingInput = z
@@ -35,7 +35,7 @@ export async function nativeFundingStatement(
   input: Omit<z.infer<typeof nativeFundingInput>, "signature" | "reason">,
   requestKey: string,
 ) {
-  assertFinancialEnvironment();
+  const environment=await financialEnvironmentIn(tx);
   const actor = await lockUser(tx, actorId);
   if (actor.role !== "admin" || actor.status !== "active")
     throw new Error("FORBIDDEN");
@@ -47,7 +47,7 @@ export async function nativeFundingStatement(
     hash = canonicalTransactionHash(registry.chain, input.tx_hash),
     message = [
       "Gifters World operating reserve funding",
-      "Environment: testnet",
+      `Environment: ${environment}`,
       "Network: " + registry.network,
       "Asset: " + registry.key,
       "Source: " + sender,
@@ -66,6 +66,7 @@ export async function bookNativeFunding(
   input: z.infer<typeof nativeFundingInput>,
   requestKey: string,
 ) {
+  const environment=await financialEnvironmentIn(tx);
   const statement = await nativeFundingStatement(
       tx,
       actorId,
@@ -80,7 +81,7 @@ export async function bookNativeFunding(
     .from(assets)
     .where(
       and(
-        eq(assets.environment, "testnet"),
+        eq(assets.environment, environment),
         eq(assets.symbol, registry.key.toUpperCase()),
         eq(assets.chainId, registry.network),
       ),
@@ -137,7 +138,7 @@ export async function bookNativeFunding(
     .from(cryptoEvents)
     .where(
       and(
-        eq(cryptoEvents.environment, "testnet"),
+        eq(cryptoEvents.environment, environment),
         eq(cryptoEvents.chain, registry.chain),
         eq(cryptoEvents.txHash, hash),
         eq(cryptoEvents.eventIndex, input.event_index),
@@ -146,7 +147,7 @@ export async function bookNativeFunding(
     )
     .limit(1);
   if (invoiceEvent) throw new Error("TRANSFER_ALREADY_ALLOCATED");
-  const key = `chain-event:testnet:${registry.chain}:${registry.network}:${hash}:${input.event_index}:${asset.id}`,
+  const key = `chain-event:${environment}:${registry.chain}:${registry.network}:${hash}:${input.event_index}:${asset.id}`,
     digest = crypto
       .createHash("sha256")
       .update(
@@ -200,7 +201,7 @@ export async function bookNativeFunding(
     .values({
       assetId: asset.id,
       actorUserId: actorId,
-      environment: "testnet",
+      environment,
       chain: registry.chain,
       network: registry.network,
       txHash: hash,

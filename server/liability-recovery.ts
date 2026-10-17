@@ -1,3 +1,4 @@
+import {financialEnvironmentIn} from './financial-config';
 import crypto from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -47,6 +48,7 @@ export async function quoteLiabilityRecovery(
   input: z.infer<typeof recoveryQuote>,
   requestKey: string,
 ) {
+  const environment=await financialEnvironmentIn(tx);
   const obligation = await quoteCryptoWithdrawal(
     tx,
     input.user_id,
@@ -77,7 +79,7 @@ export async function quoteLiabilityRecovery(
       `Recovery: ${id}`,
       `Financial account: ${input.user_id}`,
       `Asset: ${asset.symbol}`,
-      `Network: testnet/${obligation.chain}/${asset.chainId}`,
+      `Network: ${environment}/${obligation.chain}/${asset.chainId}`,
       `Original linked destination: ${obligation.destination}`,
       `Gross base units: ${obligation.grossBaseUnits}`,
       `Approved charge base units: ${obligation.chargeBaseUnits}`,
@@ -118,6 +120,7 @@ export async function confirmLiabilityRecovery(
   actorId: string,
   input: z.infer<typeof recoveryProof>,
 ) {
+  const environment=await financialEnvironmentIn(tx);
   const [lookup] = await tx
     .select()
     .from(liabilityRecoveries)
@@ -178,7 +181,7 @@ export async function confirmLiabilityRecovery(
     .where(
       and(
         eq(walletLinks.userId, recovery.userId),
-        eq(walletLinks.environment, "testnet"),
+        eq(walletLinks.environment, environment),
         eq(walletLinks.chainId, registry.network),
       ),
     )
@@ -272,6 +275,7 @@ export async function cancelLiabilityRecovery(
   id: string,
   reason: string,
 ) {
+  await financialEnvironmentIn(tx);
   const [recovery] = await tx
     .select()
     .from(liabilityRecoveries)
@@ -353,6 +357,7 @@ export async function issueRecoveryView(
   actorId: string,
   id: string,
 ) {
+  await financialEnvironmentIn(tx);
   const actor = await lockUser(tx, actorId);
   if (
     actor.role !== "admin" ||
@@ -393,6 +398,7 @@ export async function recoveryStatementView(
   id: string,
   token: string,
 ) {
+  const environment=await financialEnvironmentIn(tx);
   if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error("NOT_FOUND");
   const [cap] = await tx
     .select()
@@ -445,7 +451,7 @@ export async function recoveryStatementView(
       contract: registry.contract,
       mint: registry.mint,
       enabled: true,
-      environment: "testnet",
+      environment,
     },
   };
 }
