@@ -1,12 +1,12 @@
-# LLM handover v69
+# LLM handover v70
 
 ## Owner direction
 
-Complete all Phase One/Two, including the real-money product, bugs and every unfinished requirement. Keep moving in substantial batches through [status](PROJECT-STATUS_v69.md), without milestone pauses. Owner launch details are deferred to final testing; put protected settings in SETUP and continue independent coding. **The product is incomplete; actual hosted/live acceptance and observation periods remain open.**
+Complete all Phase One/Two, including the real-money product, bugs and every unfinished requirement. Keep moving in substantial batches through [status](PROJECT-STATUS_v70.md), without milestone pauses. Owner launch details are deferred to final testing; put protected settings in SETUP and continue independent coding. **The product is incomplete; actual hosted/live acceptance and observation periods remain open.**
 
 ## Current branch and capability
 
-- `nero1/onyiy`, branch `feat/browser-financial-recovery`, based on merged PR67 `e364f0be9a6d606654ccbc1ecd6751f830086d36`. Exact PR67 headb7efda7 passed push39051551031 / PR39051574070 before merge.
+- `nero1/onyiy`, branch `feat/cycle-history-and-preview`, based on merged PR68 `a2fedf70cc0da54f07bd8bd459ea66a698daf03e`. Exact PR68 head7c47cda passed push39067342954 / PR39067372764 before merge.
 - Mainnet config/runtime, authentication issuer, native core credit, checkout/history/labels/wallets and signer now support the closed four-network registry. `nativePaymentExecutionSupported=true` is a capability, not launch acceptance. Defaults remain off. Mainnet requires explicit enablement, transparent non-demo policy, no simulation authority, reviewed readiness, matching configuration approvals and a recent signed alert acknowledgement.
 - Multiple network hashes use `FINANCIAL_CONFIG_APPROVALS_JSON` and `ALERT_ACCEPTANCE_FINGERPRINTS_JSON`; legacy singular values remain compatible but cannot be mixed with lists. Policy/readiness/profile changes participate in hashes. Per-currency catalogue readiness controls checkout.
 - `SIGNER_KEY_FILES_JSON` selects four environment-bound encrypted files; legacy single-file support remains. `prepare-key-package` emits a single encrypted bundle; installer validates every record before writing a new private directory. `.github/workflows/isolated-signer.yml` is opt-in, main-only, separately protected, bounded and browser-operated. No website/preview credentials or signer material may be mixed.
@@ -66,4 +66,14 @@ Core scheduler tries at most seven launches/10 seconds, each in its own transact
 
 Finish required checks/exact-head CI/merge for this batch, then continue C004/C010/C011: the full multi-asset payment/recovery matrix, all295 product requirements, real external alert receiver/browser setup and backup cadence. Keep moving after each merge. Owner details/hosted verification and real observation periods remain deferred, not fabricated.
 
-v69
+## Current cycle/history batch
+
+`server/member-records.ts` selects `public_serving` for transparent queue positions, keeps legacy `display`, includes unresolved native review rows in Current, and adds a cycles-only `view=completed` guarded by history entitlement. It supplies recorded completion and finite cooldown deadlines derived from completion/current policy. `MemberRecords` has correct view headings, Completed selection, saved-zone timestamps and an EN/FR `CycleCooldown`; common payment status labels replace raw member enums. No financial writes/DDL.
+
+`ownNativePortfolio` returns `has_active_cycles` through a bounded user/environment-scoped existence check including unresolved native review. Native idle preview requires the explicit flag `===false`, so recent30-row windows/older servers cannot accidentally allow rotation. The existing paginated Current view still exposes older active records.
+
+`/workspace/work/cycle-history-v70`: `records-and-preview-r4` compares actual baseline source against fixed restricted-service reads: legacy1 versus true serving2 under disclosed priority,35 explicitly synthetic completed history rows hiding the retained active cycle, exact completion/cooldown/filter validation and member isolation. Ledger counts/totals unchanged. r1 failed CJS re-export before creating a database; r2 used read access even though real APIs use service+actor/reportSnapshot and was denied on x_manifest. Preserve those logs/targets; fresh r3/r4 pass. `browser-cycles-r1` actual Chromium390px EN/FR verifies correct position, Completed/live cooldown, no overflow and no rotation for12.5sec with two currencies; final r2 also checks localized raw states. Synthetic history is not funded-payment evidence.
+
+Continue without a milestone pause. Two further code gaps identified: (1) no API/client build compatibility/reload-before-mutation protocol; preserve additive wire compatibility when implementing it; (2) recovery’s blanket other-session check may reject normal idle provider sessions on Supabase. Verify provider-role/background-session behavior and fix narrowly without terminating sessions or allowing active application clients. Existing empty-target/signature/version/database identity gates must remain. Automatic backup cadence and external signed-alert receiver setup remain operational work. Do not claim full295-requirement or all-asset lifecycle acceptance.
+
+v70

@@ -2,7 +2,7 @@ import {presentationFromManifest,planFinancialPresentation,type QueueDisclosure,
 import {planConfigSchema} from '../packages/config/src/policies';
 import {publicManifest} from '@gifters/config';
 import {notificationPage,notificationBadge} from './notifications';
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import {
   cryptoReorgReviews,cryptoReorgResolutions,
   assets,
@@ -258,8 +258,17 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
     .orderBy(desc(cycles.createdAt))
     .limit(30);
 
+  // A bounded existence query keeps idle-preview safety independent of the
+  // recent-history window. A reviewed asset also blocks automatic rotation.
+  const [openCycle]=await tx.select({id:cycles.id}).from(cycles)
+    .innerJoin(planVersions,eq(planVersions.id,cycles.planVersionId))
+    .innerJoin(assets,eq(assets.id,planVersions.assetId))
+    .where(and(eq(cycles.userId,userId),eq(assets.environment,environment),or(
+      inArray(cycles.status,['active','exception']),
+      sql`exists(select 1 from ${cryptoReorgReviews} r left join ${cryptoReorgResolutions} s on s.review_id=r.id where r.asset_id=${assets.id} and s.review_id is null)`,
+    ))).limit(1);
   const [user]=await tx.select({id:users.id,username:users.username,status:users.status,role:users.role,locale:users.locale,time_zone:users.timeZone}).from(users).where(eq(users.id,userId)).limit(1);
   const notices=policy.feature_notifications?await notificationPage(tx,userId):null;
   const badge=policy.feature_notifications?await notificationBadge(tx,userId):{has_new:false};
-  return { user,manifest:{...publicManifest(policy),presentation:presentationFromManifest(policy),configuration_available:true},notifications:notices?.items??[],notification_badge:badge,balances, summary, wallets:policy.entitlements_member.wallet_link?wallets:[], invoices:policy.entitlements_member.history?invoices:[], withdrawals:policy.entitlements_member.history?withdrawals:[], cycles: active };
+  return { user,manifest:{...publicManifest(policy),presentation:presentationFromManifest(policy),configuration_available:true},notifications:notices?.items??[],notification_badge:badge,balances, summary, wallets:policy.entitlements_member.wallet_link?wallets:[], invoices:policy.entitlements_member.history?invoices:[], withdrawals:policy.entitlements_member.history?withdrawals:[], cycles: active,has_active_cycles:!!openCycle };
 }

@@ -1,4 +1,4 @@
-# Project status v69
+# Project status v70
 
 **Phase One/Two is incomplete.** Mainnet execution is now implemented behind protected configuration, policy, registry and signed-alert checks. Local procedures pass; no real chain transaction, owner-hosted acceptance or observation period is claimed. Continue without milestone approval pauses. Owner launch details remain deferred to final testing.
 
@@ -26,14 +26,24 @@
 
 ## Current delivery
 
-- Branch `feat/browser-financial-recovery`, based on PR67 merge `e364f0be9a6d606654ccbc1ecd6751f830086d36`. Exact PR67 headb7efda7 passed push39051551031 / PR39051574070 before merge.
+- Branch `feat/cycle-history-and-preview`, based on PR68 merge `a2fedf70cc0da54f07bd8bd459ea66a698daf03e`. Exact PR68 head7c47cda passed push39067342954 / PR39067372764 before merge.
 - Mainnet execution, four-key custody/workflow, wallet/environment integration, saved language and native scheduling are implemented behind their protected gates. Owner-hosted/live acceptance remains open.
 - New `.github/workflows/financial-recovery.yml` provides protected browser-operated backup, empty-target restore and independent exact verification. Only owner/runtime/CA/archive-key credentials enter recovery; signer/web/scheduler credentials are rejected. PostgreSQL17 is installed from its verified signed repository before credentials attach.
 - Short-term artifacts expire after one day. For longer retention, owners can keep the encrypted ZIP in a dedicated GitHub recovery release. Restore requires a verified successful run or an owner-selected original commit from trusted main history; the archive cannot choose executable code. No automatic schema upgrade, deployment or worker restart.
 - Financial hashes now include the actual database identity, shared across web/signer connections. Restored acknowledgements/approvals cannot enable the new target. Existing pre-change hashes are retained; upgrade/restore needs new reviewed hashes and acknowledgements, with old attempts reconciled rather than rewritten.
 - No DDL, migration receipt or retained-history rewrite. Five core guides and two versioned trackers remain.
 
-## Current local evidence
+## Cycle history and preview fixes
+
+- Paginated cycle records used legacy joining/display order even in the transparent profile. They now use the actual public serving position; legacy mode retains its original rule.
+- Completed cycles lacked completion/cooldown fields and a dedicated view. Add a history-entitled Completed filter, recorded completion time, saved-zone formatting and live EN/FR cooldown; retain original payment currency/network.
+- Thirty recent completed cycles could hide an older active cycle and wrongly restart automatic currency rotation. A bounded, user/environment-scoped existence query now controls preview safety independently of that window. Missing compatibility fields fail closed.
+- Unresolved native chain reviews remain visible in current cycle records. Member-facing cycle/payout status labels are localized rather than raw enum codes. No financial writes or DDL.
+- Remaining audit findings include incompatible-client/PWA reload handling and provider-session compatibility for managed recovery. Automatic backup cadence, full lifecycle matrix and hosted acceptance remain open.
+
+`/workspace/work/cycle-history-v70/records-and-preview-r4` reproduces old position1 versus correct transparent position2, constructs35 declared synthetic historical rows around a retained real fixture cycle, verifies the active flag outside the30-row window, exact completion/cooldown, Completed filter, member isolation and unchanged ledger counts/totals. r1 failed at CJS re-export import before fixture creation; r2 used the wrong read role instead of the actual API’s restricted service role. Corrected fresh r3/r4 targets pass; preserve all originals. `browser-cycles-r1` passes actual production Chromium390px EN/FR, position2, Completed view/live cooldown and12.5-second rotation suppression with two currencies. `browser-cycles-r2` repeats on the final source and verifies localized states; required checks, production build and bundle limits pass. These are read/display fixtures, not financial lifecycle acceptance.
+
+## Earlier recovery evidence
 
 `/workspace/work/browser-recovery-v69`:
 
@@ -66,4 +76,4 @@ Contract4 packets created before SQL006 require their matching pre-006 release (
 
 Follow-up UI acceptance: identify the background request/cancellation path that logged a bounded database deadline around MFA/reload. The selected alert-probe request returned200 and its hash displayed correctly; do not treat this as completed whole-app reliability acceptance.
 
-v69
+v70
