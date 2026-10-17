@@ -1,5 +1,5 @@
 import {boundedText} from './request-body';
-import {activateDuePlans} from './plans';import {invalidatePublicReads} from './public-reads';
+import {activateDuePlans,NativeLaunchDeferred,deferNativeLaunch} from './plans';import {invalidatePublicReads} from './public-reads';
 import {expireExportChunks} from './own-data';
 import {expireSuspensions} from './account-expiry';
 import crypto from 'node:crypto';
@@ -64,7 +64,12 @@ export async function schedulerTick(request:Request) {
     return reclaimed[0]?{id:prior.id,token,generation:reclaimed[0].generation}:null;
   });
   if (!run) return {status:'already_claimed'};
-  const launched=await withContext({access:'service'},activateDuePlans);if(launched)invalidatePublicReads();
+  let launched=0;const launchStarted=Date.now();
+  for(let i=0;i<7&&Date.now()-launchStarted<10000&&!request.signal.aborted;i++){
+    try{const count=await withContext({access:'service'},activateDuePlans);launched+=count;if(!count)break}
+    catch(error){if(!(error instanceof NativeLaunchDeferred))throw error;await withContext({access:'service'},tx=>deferNativeLaunch(tx,error));}
+  }
+  if(launched)invalidatePublicReads();
   await withContext({access:'service'},async tx=>{await expireSuspensions(tx);if(!operationalRetentionHeld())await expireExportChunks(tx);await enqueueDailyReconciliation(tx);await enqueueDailyMaintenance(tx);});
   const result=await runNonSigningJobs(run,request.signal);
   await monitorOperations();

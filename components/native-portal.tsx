@@ -5,6 +5,7 @@ import {formatDisplayDate} from '@/lib/display-time';
 import {useDisplayTimeZone} from './appearance-provider';
 import ProfileDisclosure from './profile-disclosure';
 import {latestPublicManifest} from '@/lib/profile-state';
+import ScheduledLaunch from './scheduled-launch';
 import type {ProfilePresentation,PublicQueueDisclosure,PlanFinancialPresentation} from '@/server/presentation';
 import type {PublicManifestDto,NativePortfolioDto,NativeWithdrawalQuote,NativeWithdrawalReview,NativeWithdrawalRow} from '@/lib/financial-contracts';
 import type {MemberRecord} from '@/lib/member-records';
@@ -51,7 +52,7 @@ type Catalog = {
     asset: string;
     network: string;
     decimals: number;
-    amount_base_units: string;
+    amount_base_units: string|null;launch_at?:string;usd_reference?:string;
     receipts_required: number;
     status: string;
     version_id?: string;profile_revision?:number;queue_disclosure?:PublicQueueDisclosure|null;plan?:PlanFinancialPresentation;
@@ -82,7 +83,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
     t = copy[locale];
   const enabledCurrencies=(catalog?.assets??[]).filter(asset=>asset.enabled);
   const currencyPreview=useCurrencyPreview(enabledCurrencies.map(asset=>asset.id),!!manifest?.feature_gifts&&!!data&&!busy&&!payment&&!withdrawal&&!existingInvoice&&!existingHash&&!data.cycles.some(cycle=>cycle.status!=='completed'||cycle.under_review),manifest?.ui_rotation_policy.currency_seconds??10);
-  const giftPlans=manifest?.feature_gifts&&catalog?.profile_revision===manifest?.profile_revision?(catalog?.plans??[]).filter(plan=>plan.status==='active'&&plan.asset_id===currencyPreview.value):[];
+  const giftPlans=manifest?.feature_gifts&&catalog?.profile_revision===manifest?.profile_revision?(catalog?.plans??[]).filter(plan=>['active','scheduled'].includes(plan.status)&&plan.asset_id===currencyPreview.value):[];
   const currencyText=currencyCopy[locale];
   const currencySelector=(position:string)=>enabledCurrencies.length?<section aria-label={currencyText.currency}><label htmlFor={'gift-currency-'+position}>{currencyText.currency}</label><select id={'gift-currency-'+position} value={currencyPreview.value} onChange={event=>currencyPreview.select(event.target.value)}>{enabledCurrencies.map(asset=><option value={asset.id} key={asset.id}>{asset.symbol} · {asset.network}</option>)}</select>{enabledCurrencies.length>1&&<><button aria-pressed={currencyPreview.paused||currencyPreview.reduced} disabled={currencyPreview.reduced} onClick={currencyPreview.toggle}>{currencyPreview.paused||currencyPreview.reduced?currencyText.resume:currencyText.pause}</button><small>{currencyText.idle}</small></>}</section>:null;
   useNavigationIdentity(session?.requires_mfa?null:user);
@@ -409,11 +410,11 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
   return (
     <main className="app account-portal">
       <nav aria-label={t.navigation}>
-        <a href="/">{t.brand}</a>
-        {manifest?.feature_gifts && <a href="/gifts">{t.gifts}</a>}
-        {manifest?.feature_wallets && (!user || ["active","deactivated"].includes(user.status)) && <a href="/wallet/crypto">{t.wallet}</a>}
-        {user && <a href="/settings/account">{t.accountSecurity}</a>}
-        {manifest?.feature_help && <a href="/help">{t.help}</a>}
+        <a href={'/?locale='+locale}>{t.brand}</a>
+        {manifest?.feature_gifts && <a href={'/gifts?locale='+locale}>{t.gifts}</a>}
+        {manifest?.feature_wallets && (!user || ["active","deactivated"].includes(user.status)) && <a href={'/wallet/crypto?locale='+locale}>{t.wallet}</a>}
+        {user && <a href={'/settings/account?locale='+locale}>{t.accountSecurity}</a>}
+        {manifest?.feature_help && <a href={'/help?locale='+locale}>{t.help}</a>}
         <button onClick={() => setLocale(fr ? "en" : "fr")}>
           {locale.toUpperCase()}
         </button>
@@ -452,6 +453,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
             <>
               <AdminPanel
                 key={session?.generation + ":settings"}
+                environment={environment}
                 user={user.username}
                 locale={locale}
                 plans={catalog?.plans ?? []}
@@ -471,7 +473,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
           {manifest?.feature_gifts && user.status === "active" && session?.generation && <BotCheck owner={user.username} generation={session.generation} surface="suspicious_checkout" locale={locale} reset={botReset} onReady={(ready,value)=>{setBotReady(ready);setBotProof(value)}}/>}
           {catalog?.profile_revision!==manifest?.profile_revision&&<p role="status">{fr?'Actualisation des informations des dons…':'Updating gift information…'}</p>}
           {manifest?.feature_gifts&&currencySelector('top')}
-          {manifest?.feature_gifts&&<nav className="gift-tiles" aria-label={fr?'Dons':'Gifts'}>{giftPlans.map(plan=><button id={'gift-tile-'+(plan.version_id??plan.id)} className="gift-tile" key={plan.version_id??plan.id} onClick={()=>{const card=document.getElementById('gift-card-'+(plan.version_id??plan.id));card?.scrollIntoView({block:'start'});card?.focus({preventScroll:true})}}><span aria-hidden="true">🎁</span><strong>{plan.name}</strong><strong>{formatBaseUnits(BigInt(plan.amount_base_units),plan.decimals)} {plan.asset}</strong>{plan.plan&&<small>{manifest.presentation?.transparent?currencyText.potential:currencyText.expected}: ${plan.plan.estimated_reference_usd}</small>}</button>)}</nav>}
+          {manifest?.feature_gifts&&<nav className="gift-tiles" aria-label={fr?'Dons':'Gifts'}>{giftPlans.map(plan=><button id={'gift-tile-'+(plan.version_id??plan.id)} className="gift-tile" key={plan.version_id??plan.id} onClick={()=>{const card=document.getElementById('gift-card-'+(plan.version_id??plan.id));card?.scrollIntoView({block:'start'});card?.focus({preventScroll:true})}}><span aria-hidden="true">🎁</span><strong>{plan.name}</strong><strong>{plan.amount_base_units===null?(fr?'Montant fixé au lancement':'Amount set at launch'):formatBaseUnits(BigInt(plan.amount_base_units??0),plan.decimals)} {plan.asset}</strong>{plan.plan&&<small>{manifest.presentation?.transparent?currencyText.potential:currencyText.expected}: ${plan.plan.estimated_reference_usd}</small>}</button>)}</nav>}
           {manifest?.feature_gifts&&enabledCurrencies.length>0&&!giftPlans.length&&<p>{currencyText.empty}</p>}
           {giftPlans.map((plan) => (
               <article id={'gift-card-'+(plan.version_id??plan.id)} tabIndex={-1} className="card" key={plan.version_id ?? plan.id}>
@@ -479,16 +481,17 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
                   {plan.name} · {plan.asset} · {plan.network}
                 </h2>
                 <p>
-                  {formatBaseUnits(
-                    BigInt(plan.amount_base_units),
+                  {plan.amount_base_units===null?(fr?'Montant fixé au lancement':'Amount set at launch'):formatBaseUnits(
+                    BigInt(plan.amount_base_units??0),
                     plan.decimals,
                   )}{" "}
                   {plan.asset}
                 </p>
+                {plan.launch_at&&<ScheduledLaunch at={plan.launch_at} locale={locale}/>}
                 <ProfileDisclosure presentation={manifest?.presentation} locale={locale} queue={plan.queue_disclosure} plan={plan.plan}/>
                 <button
                   disabled={
-                    busy || catalog?.profile_revision!==manifest?.profile_revision || !botReady || !catalog?.assets.find(asset=>asset.id===plan.asset_id)?.execution_enabled || !navigator.onLine
+                    busy || plan.status!=='active' || catalog?.profile_revision!==manifest?.profile_revision || !botReady || !catalog?.assets.find(asset=>asset.id===plan.asset_id)?.execution_enabled || !navigator.onLine
                   }
                   onClick={() => void quoteGift(plan)}
                 >

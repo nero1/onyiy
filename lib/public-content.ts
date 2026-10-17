@@ -16,7 +16,8 @@ export type PublicGift = {
   slug?: string;
   symbol?: string;
   asset?: string;
-  amount_base_units: string;
+  amount_base_units: string|null;
+  launch_at?:string;
   amount_giv?: string;
   decimals?: number;
   receipts_required: number;

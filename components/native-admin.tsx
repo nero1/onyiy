@@ -26,7 +26,7 @@ export default function NativeAdmin({
     [link, setLink] = useState("");
   const [previousId, setPreviousId] = useState("");
   const [pricingMode,setPricingMode]=useState<'usd_at_activation'|'fixed_token'>('usd_at_activation');
-  const [fixedAmount,setFixedAmount]=useState('');
+  const [fixedAmount,setFixedAmount]=useState(''),[launchAt,setLaunchAt]=useState('');
   const [obligations, setObligations] = useState<any[]>([]),
     [obligationCursor, setObligationCursor] = useState<string | null>(null);
   const [sweepGross, setSweepGross] = useState(""),
@@ -187,6 +187,12 @@ export default function NativeAdmin({
             ? "Activer le plan pour cette monnaie"
             : "Activate plan for this currency"}
         </button>
+        <label>{fr?'Lancement programmé (UTC)':'Scheduled launch (UTC)'}<input type="datetime-local" value={launchAt} onChange={event=>setLaunchAt(event.target.value)}/></label>
+        <p>{fr?'Enregistrez d’abord un plan désactivé. Ajoutez chaque monnaie avec la même date. Le prix et les autorisations seront vérifiés au lancement.':'Save a disabled plan first. Add each currency with the same date. Price and approvals will be checked at launch.'}</p>
+        <button disabled={!plan||!launchAt||currency==='trx'||pricingMode==='fixed_token'&&!fixedAmount.trim()} onClick={()=>void run(async()=>{
+          const result=await mutation<{revision:number}>('/admin/crypto/plans/schedule',owner,{plan_id:plan,revision:Number(revision),
+          asset_key:currency,launch_at:new Date(launchAt+'Z').toISOString(),pricing_mode:pricingMode,...(pricingMode==='fixed_token'?{amount_base_units:decimalToBaseUnits(fixedAmount.trim(),assets.find(asset=>asset.key===currency)?.decimals??-1).toString()}:{}),reason});setRevision(String(result.revision));setPlans(await api<any[]>('/admin/plans',owner));
+        })}>{fr?'Programmer cette monnaie':'Schedule this currency'}</button>
         <button disabled={!plan} onClick={()=>void run(()=>mutation('/admin/crypto/plans',owner,{asset_key:currency,plan_id:plan,resume_only:true,reason}))}>{fr?'Reprendre le prix existant sans le modifier':'Resume the existing price unchanged'}</button>
       </fieldset>
       <fieldset disabled={busy || !enabled || reason.trim().length < 5}>

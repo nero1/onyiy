@@ -1,3 +1,4 @@
+import ScheduledLaunch from '@/components/scheduled-launch';
 import ProfileDisclosure from '@/components/profile-disclosure';
 import type {ProfilePresentation} from './presentation';
 import type { Metadata } from 'next';
@@ -25,6 +26,7 @@ export const publicPolicy = cache(async () => {
 export const publishedArticles = cache(async (locale: Locale) => (await getPublicHelp(locale, await publicRequest('/help'))).data as PublicArticle[]);
 export function publicLocale(value: string | string[] | undefined): Locale { return value === 'fr' ? 'fr' : 'en'; }
 export function localizedPath(path: string, locale: Locale) { return path + (locale === 'fr' ? '?locale=fr' : ''); }
+function navigationPath(path:string,locale:Locale){return path+'?locale='+locale;}
 export function canonicalOrigin(policy: PublicPolicy) { return new URL(policy.product_content.domain).origin; }
 
 export async function publicMetadata(path: string, locale: Locale, title?: string, description?: string): Promise<Metadata> {
@@ -61,15 +63,16 @@ export async function PublicCatalog({ locale }: { locale: Locale }) {
     <script type="application/ld+json" nonce={nonce} dangerouslySetInnerHTML={{__html:structured}}/>
     <h1 id="public-gifts-title">{locale === 'fr' ? 'Catalogue des dons' : 'Gift catalog'}</h1>
     <p>{policy.product_content.tagline[locale]}</p><ProfileDisclosure presentation={policy.presentation} locale={locale}/>
-    <p>{process.env.APP_ENV==='mainnet' ? (locale==='fr'?'Catalogue mainnet — aperçu en lecture seule, paiements indisponibles.':'Mainnet catalogue — read-only preview, payments unavailable.') : native ? (locale === 'fr' ? 'Réseaux de test — aucune valeur monétaire réelle.' : 'Test networks — no real monetary value.') : (locale === 'fr' ? 'Simulation GIV — aucune valeur monétaire réelle.' : 'GIV simulation — no real monetary value.')}</p>
+    <p>{process.env.APP_ENV==='mainnet' ? (locale==='fr'?'Mainnet — paiements en argent réel, selon la disponibilité de chaque monnaie.':'Mainnet — real-money payments, subject to each currency’s readiness.') : native ? (locale === 'fr' ? 'Réseaux de test — aucune valeur monétaire réelle.' : 'Test networks — no real monetary value.') : (locale === 'fr' ? 'Simulation GIV — aucune valeur monétaire réelle.' : 'GIV simulation — no real monetary value.')}</p>
     <div className="gift-tiles">{gifts.map((gift, index) => <article className="card" key={gift.id + ':' + index}>
       <h2>{gift.name}</h2><ProfileDisclosure presentation={policy.presentation} locale={locale} queue={gift.queue_disclosure} plan={gift.plan}/>
-      <p>{gift.amount_giv ?? formatBaseUnits(BigInt(gift.amount_base_units), gift.decimals ?? 18)} {gift.symbol ?? gift.asset ?? 'GIV'}</p>
+      <p>{gift.amount_base_units===null?(locale==='fr'?'Montant fixé au lancement':'Amount set at launch'):gift.amount_giv ?? formatBaseUnits(BigInt(gift.amount_base_units), gift.decimals ?? 18)} {gift.symbol ?? gift.asset ?? 'GIV'}</p>
+      {gift.launch_at&&<ScheduledLaunch at={gift.launch_at} locale={locale}/>}
       <p>{locale === 'fr' ? 'Réceptions requises' : 'Required receipts'}: {gift.receipts_required}</p>
       <p>{locale === 'fr' ? 'État' : 'Status'}: {({active:locale==='fr'?'Actif':'Active',disabled:locale==='fr'?'Désactivé':'Disabled',scheduled:locale==='fr'?'Prévu':'Scheduled',paused:locale==='fr'?'Suspendu':'Paused',retired:locale==='fr'?'Archivé':'Retired'} as Record<string,string>)[gift.status]??gift.status}</p>
     </article>)}</div>
     {!gifts.length && <p>{locale === 'fr' ? 'Aucun don disponible.' : 'No gifts available.'}</p>}
-    {policy.feature_help && <a href={localizedPath('/how-it-works', locale)}>{locale === 'fr' ? 'Comment ça marche' : 'How it works'}</a>}
+    {policy.feature_help && <a href={navigationPath('/how-it-works', locale)}>{locale === 'fr' ? 'Comment ça marche' : 'How it works'}</a>}
   </section>;
 }
 
@@ -80,7 +83,7 @@ export async function PublishedPage({ locale, slug }: { locale: Locale; slug: st
   const article = slug==='terms'?{title:locale==='fr'?'Conditions publiées':'Published terms',version:policy.terms_content.version,body:policy.terms_content.body[locale]}:(await publishedArticles(locale)).find(row => row.slug === slug);
   if (!article) notFound();
   return <main className="public-page" lang={locale}>
-    <nav aria-label={locale === 'fr' ? 'Navigation' : 'Navigation'}><a href={localizedPath('/', locale)}>{locale === 'fr' ? 'Accueil' : 'Home'}</a><a href={localizedPath('/help', locale)}>{locale === 'fr' ? 'Aide' : 'Help'}</a></nav>
+    <nav aria-label={locale === 'fr' ? 'Navigation' : 'Navigation'}><a href={navigationPath('/', locale)}>{locale === 'fr' ? 'Accueil' : 'Home'}</a><a href={navigationPath('/help', locale)}>{locale === 'fr' ? 'Aide' : 'Help'}</a></nav>
     <article><h1>{article.title}</h1><p>{locale === 'fr' ? 'Version publiée' : 'Published version'}: {article.version}</p><p className="text-body">{article.body}</p></article>
   </main>;
 }
