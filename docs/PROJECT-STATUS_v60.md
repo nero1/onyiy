@@ -1,4 +1,4 @@
-# Project status v59
+# Project status v60
 
 ## Actual completion objective
 
@@ -28,7 +28,7 @@ The owner requires the full Phase One/Two product, including verified real-money
 
 ## Current work
 
-- Branch `feat/financial-worker-binding`, based on merged PR57 (`4be23e3290ac4503240f692aa2e622d1011a6578`).
+- Branch `feat/final-state-installer`, based on merged PR58 (`a736083d6425bc22f9e1e973700b796ccea0e1e6`).
 - Extracted295 requirement-bearing PRD lines into private scratch for line-by-line audit. This is an inventory, not completed acceptance.
 - Implementing environment-bound network registry validation and separate mainnet/testnet RPC/address selection. Type checking passed for the initial foundation. Execution remains blocked until isolation/signing/recovery are complete.
 - No configured hosted runtime credentials or outbound identities are available in the current managed environment. The owner deferred all launch details to final testing. Do not ask again during coding; put the required fields in SETUP and continue independent implementation. Keys/passwords must use protected settings.
@@ -101,4 +101,11 @@ Keep going through the list without milestone acceptance pauses; create/merge PR
 - Shared the existing v1 worker-signature format across receiver, signer and scheduler. Environment, purpose, route and exact body bytes are authenticated; signer inputs must match the captured worker scope. Mainnet execution remains disabled.
 - Named isolated procedures in `/workspace/work/financial-v59`: `wallet-before-fix-r1` reproduces the old bug; fresh `wallet-scope-r2` proves rejection, successful fresh linking, two exact audit/archive identities and unchanged financial hashes; `worker-binding-r2` proves compatibility, byte binding, replay/clock/scope rejection and unchanged financial hashes. Failed r1 harness fixtures are preserved. No RPC transfer or real funds.
 
-v59
+
+## One-paste fresh installation (v60)
+
+- `packages/db/fresh-install.sql` creates the final schema directly. The six historical migration files remain immutable for installed databases and recovery compatibility; new owners paste only the fresh installer. SETUP now says so.
+- Fresh unseeded reference and single-file target match all4222 schema/security metadata entries, including column grants. Named `final-installer-v60` procedures prove atomic installation, exact receipts, rerun/nonempty rejection without data loss and complete rollback after a late failure. The unchanged migration runner skips all six receipts; actual seeding and restricted-login verification pass. A second target with broad unknown-role defaults matches all4088 application/security entries; provider extension ACLs are deliberately preserved. The first comparator failure counted those extension grants and is preserved. Required checks pin the installer checksum and exact historical lineage. Current verified schema contract is `schema-contract_v60.json`; model counts are unchanged.
+- PR58 merged at a736083d6425bc22f9e1e973700b796ccea0e1e6 after exact-head push39023906817 and PR39023923825 passed. This installer batch does not complete mainnet execution, preview wiring or overall product acceptance. Continue C001–C017 without milestone pauses.
+
+v60

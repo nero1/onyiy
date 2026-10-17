@@ -44,23 +44,20 @@ If your existing project already has this app installed, reuse it and confirm it
 
 If already installed, run the receipt query below first and skip installation when it matches. Otherwise:
 
-1. In GitHub, open [000_initial_schema.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/000_initial_schema.sql).
-2. Click **Raw**. Select and copy the **entire file**, including its first and last lines.
-3. Return to the correct Supabase project. Click **SQL Editor → New query**.
-4. Use the owner role, normally **postgres**. Paste the SQL without changing it.
-5. Click **Run**. If warned about database changes, confirm only after checking this is your new simulation project.
-6. Wait for success. Open a new query, paste the following, and click **Run**:
+1. In GitHub, open [fresh-install.sql](https://github.com/nero1/onyiy/blob/main/packages/db/fresh-install.sql).
+2. Click **Raw**. Copy the **entire file**, including its first and last lines.
+3. In your Supabase project, click **SQL Editor → New query**.
+4. Use the owner role, normally **postgres**. Paste the SQL unchanged.
+5. Click **Run**. Check the selected project before confirming a database-change warning.
+6. After success, open a new query and run:
 
 ```sql
-select name from public.schema_migrations;
+select name from public.schema_migrations order by name;
 ```
 
-7. Confirm the result contains `000_initial_schema.sql`.
-8. Open [001_historical_treasury_fence.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/001_historical_treasury_fence.sql), click **Raw**, copy the entire file, then paste it into **SQL Editor → New query** and click **Run** once.
-9. Repeat the same whole-file copy/paste for [002_ephemeral_retention.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/002_ephemeral_retention.sql), then [003_monthly_financial_archives.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/003_monthly_financial_archives.sql), then [004_transparent_profiles.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/004_transparent_profiles.sql). Then repeat for [005_production_environments.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/005_production_environments.sql). Run them separately, in that order. If a filename is already in the receipt query, skip that file.
-10. Run the receipt query again. Confirm all four filenames appear before deploying the matching app release.
+7. Confirm six receipts appear, from `000_initial_schema.sql` through `005_production_environments.sql`. These identify the installed schema version; **do not run those six files separately**.
 
-Run the installation file once. It creates the final tables, views, functions, security rules and indexes together. It does **not** create all plans and demo accounts; the existing deployment workflow adds those in step 8. The old 99-file chain remains consolidated in `000`; `001`–`005` add later recovery, retention, profile and environment safeguards. Keep the installed `000` unchanged. Deployment checks receipts and never runs migrations for you.
+This one file creates the final tables, views, functions, indexes and security rules directly. It does not replay the old upgrades. Step 8 adds the remaining default settings/plans/accounts. Existing databases keep their original receipts and use reviewed upgrades; never run this fresh installer over existing tables. Deployment checks the schema and does not apply SQL automatically.
 
 If installation fails, keep the error and check the troubleshooting table below. Do not split the file, remove checks, or rerun it over existing application tables. [SQL Editor reference](https://supabase.com/docs/guides/database/functions).
 
@@ -178,7 +175,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v59.md](PROJECT-STATUS_v59.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v60.md](PROJECT-STATUS_v60.md).
 
 ## 10. Preview using the same projects and database
 

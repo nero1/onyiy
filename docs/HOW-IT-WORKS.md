@@ -1,6 +1,6 @@
 # How Gifters World works
 
-For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v59.md).
+For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v60.md).
 
 ## Main parts
 
@@ -32,15 +32,15 @@ Supabase hosts PostgreSQL; the app does not depend on Supabase Auth, Storage, Re
 
 ## Database and access
 
-- The fresh installer is [000_initial_schema.sql](../packages/db/src/migrations/000_initial_schema.sql). It creates final objects directly: **92 tables, 848 columns, 274 CHECK constraints and 105 standalone indexes**, plus views, functions, triggers, row security and grants.
-- The initial file installs atomically and records its checksum. The later `001_historical_treasury_fence.sql` adds the permanent historical-address inventory/capture and recovery fence, and records its own checksum; paste it once after `000`. It rejects a nonempty application schema. Keep it unchanged after installation; use forward migrations for later changes.
+- The fresh installer is [fresh-install.sql](../packages/db/fresh-install.sql): **96 tables, 897 columns, 301 CHECK constraints and 119 standalone indexes**, plus views, functions, triggers, partitions, row security and exact grants. Paste it once into an empty application schema.
+- Installation is atomic. It creates final definitions directly and records the unchanged release receipts. Existing migration files remain for initialized databases and matching archive recovery; new installations do not replay them. Later schema changes need reviewed upgrades and a refreshed, verified fresh installer.
 - Application queries use Drizzle. PostgreSQL-specific locking, security, counters, schema work and recovery use reviewed SQL.
 - `gw_runtime` is a restricted login. Within each transaction it uses `gw_read` for allowed reads or `gw_service` for authorized writes. Actor, environment, role and search path reset when the transaction ends.
 - Row-level security restricts user-owned records. Staff privileges are checked against the current database, not a token's old role. Browser/Data API roles receive no application-table access.
 - Every new public table needs explicit grant/revoke classification in the same migration. Never fix permission errors by granting all tables to `anon`, `authenticated` or `service_role`.
 - The owner connection stays outside Vercel. Binding checks use two fresh owner-held transaction locks observed through the runtime connection; no bootstrap table or permanent proof is created. Copied database IDs cannot satisfy the fresh check.
 - Hosted connections verify TLS certificates and hostnames. The app uses a small transaction-pooler connection; owner administration uses direct/session connections.
-- [The reviewed schema contract](../packages/db/schema-contract_v55.json) pins declaration/migration hashes and inventories SQL-only triggers and deferred-FK timing differences. The current SQL000–005 total is 96 tables/897 columns/301 checks/119 standalone indexes; the original initial installer stays unchanged.
+- [The reviewed schema contract](../packages/db/schema-contract_v60.json) pins declaration/migration hashes and inventories SQL-only triggers and deferred-FK timing differences. The current SQL000–005 total is 96 tables/897 columns/301 checks/119 standalone indexes; the original initial installer stays unchanged.
 
 ## Settings and API responses
 
@@ -129,7 +129,7 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Relevant named manual checks cover rollback/replay, concurrent admission, missing-wallet liabilities, rejected withdrawals, account isolation, cache expiry/outage, signing recovery and exact restore. Use isolated data and preserve failed evidence. Never reset a shared source to repeat a check.
 - Hosted Google, Upstash, RPC, alerts, mobile performance and release readiness require observations on the selected services. Health/compilation alone do not satisfy them.
 - Keep **five core docs** plus the two explicitly requested bug trackers. Use clear lists/tables and short explanations; update current facts instead of appending repeated history. Only add a document when explicitly requested or essential. Prior versions remain in Git.
-- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v59.md) records the exact continuation boundary.
+- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v60.md) records the exact continuation boundary.
 
 - Phase Two recovery uses signed inventory contract4: timestamps retain PostgreSQL microseconds in paging/row checksums, and permission-group attributes/membership are checked. Contract3 archives require release `6c323dc43c45efa1957308e467ce06e7cc0b36c0`. Contract2 archives require their matching release (the preceding release is `25a5073d30974bcf8b02814bc81181e3a147d15c`). Keep original archives, keys and release references.
 - In the transparent profile, platform positions and priority exceptions are labelled or disabled. Joining numbers stay fixed; the displayed receiving position reflects actual order. Potential receipts depend on later confirmed gifts and are never guaranteed. Account publication is optional and revocable; test/simulation records do not become real-payment stories.
