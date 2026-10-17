@@ -1,3 +1,4 @@
+import {isReadOnlyPreview} from '@gifters/config';
 import ApplicationPortal from '@/components/application-portal';
 import {PublicCatalog,publicLocale,publicMetadata,type LocaleQuery} from '@/server/public-pages';
 
@@ -7,5 +8,5 @@ export async function generateMetadata({searchParams}:{searchParams:LocaleQuery}
 
 export default async function HomePage({searchParams}:{searchParams:LocaleQuery}) {
   const locale=publicLocale((await searchParams).locale);
-  return <><PublicCatalog locale={locale}/><ApplicationPortal native={process.env.APP_ENV === "testnet"}/></>;
+  return <><PublicCatalog locale={locale}/>{!isReadOnlyPreview()&&<ApplicationPortal native={process.env.APP_ENV === "testnet"}/>}</>;
 }

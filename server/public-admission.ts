@@ -1,5 +1,5 @@
 import { performance } from 'node:perf_hooks';
-import { loadManifest } from '@gifters/config';
+import {isReadOnlyPreview, loadManifest } from '@gifters/config';
 import { canonicalRateRoute,enforceRate,rateClientIp } from './rate-limits';
 import { hash } from './auth-crypto';
 
@@ -23,5 +23,5 @@ export async function admitPublicMiss(request:Request){
  bucket.used++;
  // A failed limiter admits no fresh database load. Existing cached DTOs never
  // call the limiter and remain available through the ordinary freshness bound.
- await enforceRate(request,'reads','public',true);
+ if(!isReadOnlyPreview())await enforceRate(request,'reads','public',true);
 }

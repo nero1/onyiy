@@ -55,9 +55,12 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
+          SELECTED_PUBLIC_PREVIEW_MODE: ${{ vars.PUBLIC_PREVIEW_MODE || 'off' }}
+          DATABASE_MIGRATION_URL: ${{ vars.PUBLIC_PREVIEW_MODE != 'read_only' && secrets.DATABASE_MIGRATION_URL || '' }}
         run: |
-          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID DATABASE_URL DATABASE_MIGRATION_URL; do
+          required="VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID DATABASE_URL"
+          if [ "$SELECTED_PUBLIC_PREVIEW_MODE" != read_only ]; then required="$required DATABASE_MIGRATION_URL"; fi
+          for name in $required; do
             if [ -z "${!name}" ]; then echo "::error::Missing deployment binding: $name"; exit 1; fi
           done
       - name: Retrieve hosted configuration
@@ -74,8 +77,15 @@ jobs:
         env:
           VERCEL_ENV: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && 'production' || 'preview' }}
           EXPECTED_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          EXPECTED_PUBLIC_PREVIEW_MODE: ${{ vars.PUBLIC_PREVIEW_MODE || 'off' }}
         run: node --env-file=".vercel/.env.$VERCEL_ENV.local" --import tsx scripts/validate-deployment.ts --hosted
+      - name: Verify read-only preview without owner credentials
+        if: vars.PUBLIC_PREVIEW_MODE == 'read_only'
+        env:
+          VERCEL_ENV: preview
+        run: node --env-file=".vercel/.env.preview.local" --import tsx scripts/verify-public-preview.ts
       - name: Verify manual schema and initialize the hosted environment without signing
+        if: vars.PUBLIC_PREVIEW_MODE != 'read_only'
         env:
           # Owner tooling runs on GitHub, even if pulled settings contain VERCEL=1.
           # Keep the real Vercel runtime marker/owner-credential rejection intact.

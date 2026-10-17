@@ -2,7 +2,7 @@ import {ownPreferences,preferencesInput} from './preferences';
 import {assertMinimumAge} from '@gifters/domain';
 import {profilePreviewInput,profileStageInput,profileCommitInput,readinessInput,publicationInput,releaseProfile,stageProfile,commitProfile,recordReadiness,publicationConsent,assertProfileRevision} from './transparency';
 import {retentionInput,retentionStatus,manualArchiveStep} from './retention';
-import {runtimeProviders} from '@gifters/config';
+import {isReadOnlyPreview,runtimeProviders} from '@gifters/config';
 import {staffReorgs,staffAlerts,staffAlertsInput,staffUsers,staffCases,staffJobs,staffRecovery,staffUsersInput,staffCasesInput,staffJobsInput,staffRecoveryInput} from './staff-reads';
 import {ownMemberRecords,memberRecordInput} from './member-records';
 import {applicationError} from './errors';
@@ -486,6 +486,7 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
 
 async function routeApiRequest(method:string,path:string[],request:Request){
  try{
+  if(isReadOnlyPreview()&&(method!=='GET'||!['/manifest','/plans','/crypto/catalog','/help'].includes('/'+path.join('/'))))throw new Error('FEATURE_DISABLED');
   const route='/'+path.join('/');
   if(route.startsWith('/auth/'))return await handleAuthRequest(method,route,request);
   if(route==='/sim/users'&&(runtimeProviders().AUTH_PROVIDER)!=='simulation')throw new Error('FEATURE_DISABLED');

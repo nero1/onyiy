@@ -1,6 +1,6 @@
 # How Gifters World works
 
-For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v61.md).
+For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v62.md).
 
 ## Main parts
 
@@ -28,7 +28,7 @@ Supabase hosts PostgreSQL; the app does not depend on Supabase Auth, Storage, Re
 - Promotion registers the existing testnet namespace. Simulation transactions hold a shared transaction fence; initialization takes its exclusive counterpart. A locked configuration row also rejects a stale repeatable snapshot after promotion, without changing its settings/version. Simulation access, reseeding and reset then fail closed; records are retained.
 - Old releases without this guard must lose their old runtime credentials before promotion. Setup includes rotation and terminating only the old runtime sessions. Do not give older code the new password.
 - Inline `ASSET_REGISTRY_JSON` accepts the same bounded verified testnet registry as the operator file. Exactly one source is allowed; equivalent content has the same fingerprint.
-- Mainnet and safe mainnet-preview access are **not implemented**. Reusing provider accounts is the deployment preference, not permission to expose real financial mutations through preview.
+- Mainnet payments are **not implemented**. Explicit read-only previews can read public mainnet configuration/catalogue/help using only `gw_preview`; private/auth/job/payment routes are closed. Local browser checks pass; hosted acceptance remains open. Reusing provider accounts is the deployment preference, not permission to expose real financial mutations through preview.
 
 ## Database and access
 
@@ -129,7 +129,7 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Relevant named manual checks cover rollback/replay, concurrent admission, missing-wallet liabilities, rejected withdrawals, account isolation, cache expiry/outage, signing recovery and exact restore. Use isolated data and preserve failed evidence. Never reset a shared source to repeat a check.
 - Hosted Google, Upstash, RPC, alerts, mobile performance and release readiness require observations on the selected services. Health/compilation alone do not satisfy them.
 - Keep **five core docs** plus the two explicitly requested bug trackers. Use clear lists/tables and short explanations; update current facts instead of appending repeated history. Only add a document when explicitly requested or essential. Prior versions remain in Git.
-- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v61.md) records the exact continuation boundary.
+- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v62.md) records the exact continuation boundary.
 
 - Phase Two recovery uses signed inventory contract4: timestamps retain PostgreSQL microseconds in paging/row checksums, and permission-group attributes/membership are checked. Contract3 archives require release `6c323dc43c45efa1957308e467ce06e7cc0b36c0`. Contract2 archives require their matching release (the preceding release is `25a5073d30974bcf8b02814bc81181e3a147d15c`). Keep original archives, keys and release references.
 - In the transparent profile, platform positions and priority exceptions are labelled or disabled. Joining numbers stay fixed; the displayed receiving position reflects actual order. Potential receipts depend on later confirmed gifts and are never guaranteed. Account publication is optional and revocable; test/simulation records do not become real-payment stories.

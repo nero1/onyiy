@@ -18,7 +18,7 @@ Use **one Supabase project/database, one Upstash database and one Vercel project
 | Vercel **Production** | The main site/domain | Selected by the workflow; does not mean mainnet payments |
 | Real-money **mainnet** | Actual assets and custody | Not implemented in this release; do not set `APP_ENV=mainnet` or enable its gates |
 
-**Shared means shared data:** preview edits affect the same users, settings and records as the main site. It is not an isolated copy. Only approve trusted previews. After testnet initialization, simulation access/seed/reset is retired on that database; use testnet in both hosting stages. Existing GIV records are retained, never converted to test tokens.
+**Shared database, restricted preview:** the main site can write; the read-only preview uses a separate login for public configuration/catalogue/help. It cannot sign in or change records. After testnet initialization, simulation writes/seed/reset are retired. Keep the preview payment mode aligned with the main site. Existing GIV records are retained, never converted to test tokens.
 
 No extra provider accounts are required for these stages. [Supabase free-project limits](https://supabase.com/docs/guides/platform/billing-faq) · [Vercel hosting stages](https://vercel.com/docs/deployments/environments).
 
@@ -110,7 +110,7 @@ select
 ```
 
 8. Save each result privately as `AUTH_ACCESS_KEY` and `MFA_ENCRYPTION_KEY`. Back up the MFA key: replacing it can make existing two-factor settings unreadable. Do not use a public key-generator website.
-9. In Vercel, open **Settings → Environment Variables → Add Environment Variable**. Add every row below to **Production**. You will reuse the same values for Preview in step 10. Enter values without extra quotes.
+9. In Vercel, open **Settings → Environment Variables → Add Environment Variable**. Add every row below to **Production**. Step10 adds a separate restricted Preview login and public settings. Enter values without extra quotes.
 
 | Name | Value |
 |---|---|
@@ -149,7 +149,7 @@ Do not add `DATABASE_MIGRATION_URL`, signer keys or `SIMULATION_TOOL_AUTH_KEY` t
 | `DATABASE_URL` | Exactly the runtime URL saved in Vercel |
 | `DATABASE_MIGRATION_URL` | Supabase owner session-pooler URL |
 
-7. Create another environment named `preview` and protect it too. Leave its secrets empty until you prepare a separate preview project below.
+7. Create another environment named `preview` and protect it too. Leave its secrets empty until you prepare the restricted preview login in step10.
 
 The repository already disables Vercel's automatic Git deployments. Keep GitHub Actions as the deployment path. [Vercel tokens](https://vercel.com/docs/accounts/access-tokens) · [GitHub environments and plan limits](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments).
 
@@ -175,21 +175,49 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v61.md](PROJECT-STATUS_v61.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v62.md](PROJECT-STATUS_v62.md).
 
-## 10. Preview using the same projects and database
+## 10. Read-only preview using the same database
 
-1. Open your existing Vercel project → **Settings → Environment Variables**. Edit each shared setting from step 6 and select **Preview** as well as **Production**. Keep the same database URL, Upstash values and app keys. Do not create another project.
-2. Keep `APP_ENV` identical in both scopes: first `simulation`, later `testnet`. One row can apply to both scopes. Preview is chosen by the hosting workflow, not this variable.
-3. In GitHub → **Settings → Environments → preview**, add the five secrets from step 7 using the **same values** as `production`. Protect it with reviewer approval where supported. These are duplicate settings, not new service accounts.
-4. In GitHub → **Code**, open the branch selector → **View all branches → New branch**. Name it `preview` and create it from the current `main`. If it already exists, ensure it contains this release before using the shared database.
-5. Add `WEB_ORIGIN` separately for **Preview**, using the exact HTTPS branch alias from Vercel. To discover the alias the first time, deploy with the existing production origin temporarily, open Vercel **Deployments → the preview deployment → Domains**, copy its branch URL, then immediately update Preview `WEB_ORIGIN` and redeploy. Do not sign in on that first deployment.
-6. In GitHub → **Actions → ci-vercel → Run workflow**, choose `preview`. Approve only **preview** when prompted. Wait for checks and deployment to pass.
-7. Open the branch alias, then `/api/health`. Confirm `deployment: preview` and the expected payment `environment`. The main domain should still report `deployment: production` with the same payment mode.
-8. If using Google, add the exact preview callback from step 11. If using Turnstile, add the preview hostname to its existing widget. Use a stable preview branch for login testing; every extra branch origin needs its own matching settings.
-9. Review trusted changes on the preview URL. Merge the approved PR in GitHub to publish through `main`. A deployment queue prevents simultaneous hosted initialization, but it does **not** isolate preview data.
+Use the same Supabase project, database name and Vercel project. A separate **database login** limits preview to public content; it does not create another database or paid instance. Sign-in, private records, jobs and payments are unavailable on this preview.
 
-Do not approve older/untrusted preview code against this shared database. Feature work needing destructive schema changes or independent data must wait or use a genuinely isolated workspace; do not create extra free accounts just to bypass a provider's limits. [Preview variables](https://vercel.com/docs/environment-variables) · [Generated branch URLs](https://vercel.com/docs/deployments/generated-urls) · [Official branch association reference](https://vercel.com/docs/cli/deploy#associate-a-cli-deployment-with-a-git-branch).
+1. In your password manager, generate a separate password of at least32 letters/numbers. Save it as **Gifters preview password**.
+2. Open Supabase **SQL Editor → New query**. Replace the password placeholder privately, then run:
+
+```sql
+create role gw_preview_runtime login noinherit nosuperuser nocreatedb
+  nocreaterole noreplication nobypassrls password 'REPLACE_WITH_PREVIEW_PASSWORD';
+grant gw_preview to gw_preview_runtime;
+grant connect on database postgres to gw_preview_runtime;
+```
+
+3. Delete the saved password-bearing query. In **Connect → Transaction pooler**, copy the URI. Keep the same project, host, port and database name. Change its username to `gw_preview_runtime.PROJECT_REF` and use the **preview** password. Save this as **Preview DATABASE_URL**.
+4. In Vercel **Settings → Environment Variables**, edit account, Redis, signing, scheduler, export and owner credentials so they apply to **Production only**. In particular, Preview must have no `AUTH_ACCESS_KEY`, `MFA_ENCRYPTION_KEY`, `GOOGLE_CLIENT_SECRET`, `DATABASE_MIGRATION_URL`, signer keys, worker keys, `UPSTASH_REDIS_REST_TOKEN`, `REDIS_URL` or `SUPABASE_SERVICE_ROLE_KEY`. Keep their Production values.
+5. Add these values for **Preview only**:
+
+| Name | Value |
+|---|---|
+| `PUBLIC_PREVIEW_MODE` | `read_only` |
+| `APP_ENV` | Same as the main site's payment mode: `simulation`, `testnet` or, after production setup, `mainnet` |
+| `DATABASE_URL` | Preview URI from step3 |
+| `DB_PROVIDER` | `supabase` |
+| `MAINNET_ENABLED` | `false` |
+| `SIGNER_PROVIDER` | `disabled` |
+| `WEB_ORIGIN` | Exact HTTPS preview branch alias |
+
+6. Leave `PUBLIC_PREVIEW_MODE` unset or `off` in **Production**. Preview uses bounded memory caching; it needs no extra Upstash database or authentication/RPC credentials.
+7. Open GitHub **Settings → Environments → preview**. Add `VERCEL_TOKEN`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` with the existing project's values. Add `DATABASE_URL` with the **preview** URI. Remove any preview `DATABASE_MIGRATION_URL` secret.
+8. In that environment's **Environment variables**, click **Add variable**. Name it `PUBLIC_PREVIEW_MODE` and enter `read_only`. Protect the environment with reviewer approval where supported.
+9. In GitHub's branch selector, create/update `preview` from the current `main`. Open **Actions → ci-vercel → Run workflow**, select `preview` and approve only that environment when prompted. Its verification uses the restricted login; it does not seed or use an owner connection.
+10. If you do not know the branch alias yet, use the main HTTPS origin temporarily for `WEB_ORIGIN`. After deployment, open Vercel **Deployments → your preview → Domains**, copy the branch alias, update Preview `WEB_ORIGIN` and redeploy.
+11. Open the preview URL. Confirm the read-only banner, English/French catalogue and help. Open `/api/health`: expect `deployment: preview`, the selected `environment`, `read_only: true` and `signer: disabled`.
+12. Check `/wallet`, `/admin` and `/api/v1/auth/session` are unavailable. The main site should still work normally. Merge reviewed changes through the checked PR workflow.
+
+**Previously shared the full runtime login with Preview?** In Vercel **Deployments**, delete those old preview deployments. In Supabase SQL Editor, rotate the `gw_runtime` password privately (`alter role gw_runtime password 'NEW_RUNTIME_PASSWORD';`), update its URL in Vercel Production and GitHub’s `production` environment, then redeploy `main`. Keep the new preview login/password separate; changing variable scopes alone does not revoke old deployments.
+
+This preview reads the same published configuration/catalogue as the main database and cannot edit it. Use the main testnet site for sign-in and payment testing. Mainnet payment activation remains subject to the production checklist. Do not deploy untrusted code with shared credentials.
+
+[Official Vercel variables guide](https://vercel.com/docs/environment-variables/managing-environment-variables) · [GitHub environment variables](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-variables).
 
 ## 11. Optional domain and Google login
 
@@ -205,7 +233,7 @@ Do not approve older/untrusted preview code against this shared database. Featur
 2. Open **Google Auth platform → Get started** if prompted. Complete **Branding**, choose your **Audience**, and add your email as a test user while the app is in testing.
 3. Open **Clients → Create client → Web application**. Enter a name.
 4. Add `https://YOUR-DOMAIN/api/v1/auth/google/callback` under **Authorized redirect URIs**. Click **Create**.
-5. Save its client ID and secret privately. Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in Vercel for Production and Preview. Leave the provider selectors unset.
+5. Save its client ID and secret privately. Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in Vercel for **Production only**. Leave the provider selectors unset.
 6. Continue with step 12 before signing in with Google. After promotion, `APP_ENV=testnet` selects Google automatically. A Google-created account is not automatically an admin. Do not introduce real Google identities while any shared deployment still offers demo login.
 
 [Google client setup](https://developers.google.com/workspace/guides/create-credentials) · [Callback requirements](https://developers.google.com/identity/protocols/oauth2/web-server). This does not enable testnet payments or real sending.
@@ -217,8 +245,8 @@ This prepares a testnet website and its credentials. **Outgoing transfers and no
 ### A. Prepare identity and retire old demo deployments
 
 1. Finish the simulation checks. Keep a verified backup through the supervised recovery process before promotion; there is no full browser-only app restore button.
-2. Complete Google setup in step 11. In **Google Auth platform → Clients → your web client**, register both main-site and preview callback URLs. Add test users under **Audience** while the client is in testing.
-3. In Vercel → **Settings → Environment Variables**, add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to **Production and Preview**. The same Google client can list both callbacks.
+2. Complete Google setup in step 11. In **Google Auth platform → Clients → your web client**, register the main-site callback URL. The read-only preview has no sign-in. Add test users under **Audience** while the client is in testing.
+3. In Vercel → **Settings → Environment Variables**, add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to **Production only**.
 4. In GitHub → **Settings → Secrets and variables → Actions → Variables**, set `ENABLE_VERCEL_DEPLOYMENTS`, `ENABLE_SCHEDULER` and `ENABLE_FINANCIAL_SCHEDULER` to `false` while preparing the change. Leave signing off. In **Actions**, cancel any queued/running deployment or scheduler runs from older code before rotating credentials.
 5. Ensure `main` and the trusted `preview` branch contain this release's shared-database safeguard. Remove obsolete preview deployments in Vercel **Deployments → deployment menu → Delete** where available. Never approve a rollback to old demo code after promotion.
 6. Retire the old runtime credentials before testnet identities are created. Generate a new 32-character letters/numbers runtime password. In Supabase **SQL Editor → New query**, privately replace the placeholder and run:
@@ -235,7 +263,7 @@ from pg_stat_activity
 where usename = 'gw_runtime' and pid <> pg_backend_pid();
 ```
 
-8. Update the password in `DATABASE_URL` in Vercel **Production and Preview**, and in both GitHub environments. Keep the same host, project reference and database name. Do not give old deployments the new password. Owner credentials and the database itself stay unchanged.
+8. Update the runtime password in Vercel **Production** and GitHub’s `production` environment. The restricted preview keeps its separate login/password from step10. Keep the same host, project reference and database name. Do not give old deployments the new password. Owner credentials and the database itself stay unchanged.
 9. Delete old provider-selector rows listed in step 6. Change the shared `APP_ENV` row to **testnet** for Production and Preview. Keep `MAINNET_ENABLED=false`.
 
 After hosted initialization commits the testnet namespace, current simulation runtimes refuse access, even if someone changes their variable back. Rotation above also retires pre-safeguard code. This is a **one-way promotion**, not simultaneous isolated simulation/testnet databases.
@@ -244,8 +272,8 @@ After hosted initialization commits the testnet namespace, current simulation ru
 
 1. Go to [Cloudflare dashboard](https://dash.cloudflare.com). Use an existing account or sign up once if you do not have one.
 2. Open **Turnstile → Add widget**. Name it `Gifters World`.
-3. Add the main and preview **hostnames**, without `https://` or paths. Choose **Managed**, then **Create**.
-4. Copy its site key and secret. In Vercel, add `CAPTCHA_SITE_KEY` and `CAPTCHA_SECRET_KEY` to Production and Preview. Do not prefix either with `NEXT_PUBLIC_`; the app serves the site key through its safe response.
+3. Add the main-site **hostname**, without `https://` or a path. Choose **Managed**, then **Create**.
+4. Copy its site key and secret. In Vercel, add `CAPTCHA_SITE_KEY` and `CAPTCHA_SECRET_KEY` to **Production only**. Do not prefix either with `NEXT_PUBLIC_`; the app serves the site key through its safe response.
 5. Keep the widget's allowed hostnames aligned when a domain changes. [Current widget steps](https://developers.cloudflare.com/turnstile/get-started/widget-management/dashboard/).
 
 ### C. Deploy and verify the testnet website
@@ -325,7 +353,7 @@ Start with **Solana devnet** to avoid needing a test token contract. Solana's se
 1. Open your wallet's network settings and choose **Solana Devnet**. Create a dedicated test treasury wallet; retain its recovery phrase privately, outside GitHub/Vercel. Never use a mainnet treasury seed for this step.
 2. Request free devnet SOL using a web faucet linked from [Solana's faucet guide](https://solana.com/developers/cookbook/development/airdrops-and-faucets). Check the balance on [Solana Explorer](https://explorer.solana.com/?cluster=devnet).
 3. Open your existing RPC provider's dashboard and select/create a **Solana Devnet** endpoint if its plan supports it. Copy its HTTPS endpoint privately. Supply a second independent approved devnet endpoint; two copies of one URL are not independent providers. If the free plan cannot supply the required evidence, keep the asset disabled; do not create throwaway accounts.
-4. In Vercel Production/Preview, add `RPC_PRIMARY_SOL_TESTNET` and `RPC_SECONDARY_SOL_TESTNET` with those URLs. Add `OUTBOUND_ALLOWED_HOSTS` with the reviewed RPC hostnames as a comma-separated list, without schemes, paths or credentials. Add the reviewed alert receiver hostname later if used.
+4. In Vercel **Production**, add `RPC_PRIMARY_SOL_TESTNET` and `RPC_SECONDARY_SOL_TESTNET` with those URLs. Add `OUTBOUND_ALLOWED_HOSTS` with the reviewed RPC hostnames as a comma-separated list, without schemes, paths or credentials. Add the reviewed alert receiver hostname later if used.
 5. Add these server-only address settings using the intended public devnet receiving/beneficiary addresses, never private keys:
 
 | Name | Address to enter |
@@ -336,7 +364,7 @@ Start with **Solana devnet** to avoid needing a test token contract. Solana's se
 | `PLATFORM_BOOTSTRAP_ADDRESS_SOL_TESTNET` | Reviewed platform/bootstrap destination |
 | `PLATFORM_SWEEP_ADDRESS_SOL_TESTNET` | Reviewed company sweep destination |
 
-6. Add `ASSET_REGISTRY_JSON` to Vercel Production/Preview. Paste the JSON below, replacing the date with the time you actually checked the official network details. Leave `ASSET_REGISTRY_FILE` unset. This contains no credentials or treasury addresses:
+6. Add `ASSET_REGISTRY_JSON` to Vercel **Production**. Paste the JSON below, replacing the date with the time you actually checked the official network details. Leave `ASSET_REGISTRY_FILE` unset. This contains no credentials or treasury addresses:
 
 ```json
 [{"key":"sol","chain":"sol","environment":"testnet","network":"devnet","kind":"native","decimals":9,"enabled":true,"verified":true,"source":"https://solana.com/docs/references/clusters","verifiedAt":"REPLACE_WITH_VERIFICATION_TIME_UTC","explorer":"https://explorer.solana.com","finality":{"mode":"finalized"},"dust":"0"}]
@@ -352,7 +380,7 @@ Other supported test-network registry values: Ethereum Sepolia `11155111`, BNB t
 
 ## 13. Prepare real-money production on the same accounts
 
-**Mainnet launch is not available in this release.** `APP_ENV=mainnet`, `APP_ENV=production` and `MAINNET_ENABLED=true` are rejected. Vercel's Production label only means “main website.” The steps below prepare existing resources; they are not a working mainnet activation procedure.
+**Mainnet payments are not available in this release.** `APP_ENV=mainnet` is accepted only for the restricted read-only preview; production payment execution still rejects it. `APP_ENV=production` and `MAINNET_ENABLED=true` remain rejected. Vercel's Production label only means “main website.” The steps below prepare existing resources; they are not a working mainnet activation procedure.
 
 1. Keep the existing Supabase, Upstash, Google and Vercel accounts. Do not create a second set just because the site will use real money.
 2. In the existing Vercel project, open **Settings → Domains** and attach the real domain using step 11. Update Production `WEB_ORIGIN`, Google's production callback and Turnstile hostname.
@@ -360,7 +388,7 @@ Other supported test-network registry values: Ethereum Sepolia `11155111`, BNB t
 4. Keep the current main domain on simulation or testnet with signing disabled while implementation finishes. Do not tell users to send real assets to it.
 5. Have the maintainer complete: supported mainnet registry/adapters, isolated custody/signing, funding/fees, external alert evidence and verified backup/restore. These are existing release requirements, not checkboxes that environment variables can replace.
 6. Before reusing this database for real funds, require a reviewed implementation that isolates mainnet financial records and disables demo/preview financial writes. Retain all GIV/testnet history in its original environment; never convert its balances, queues or receipts to real money.
-7. Keep previews on reviewed code with a restricted non-sending access path before they can see a real-money database. Current shared previews are suitable for simulation/testnet development, **not an implemented mainnet isolation contract**. A safe future design can still use the same provider accounts/project.
+7. Use step10’s restricted read-only preview. Local mainnet-scope API/browser checks pass; owner-hosted acceptance remains required. It cannot run sign-in, financial jobs or payments and uses the same database/project.
 8. After that release is implemented and verified, the maintainer must update this section with exact supported mainnet settings and rollout steps. Until then, keep deployments and financial activation at their supported simulation/testnet settings. There is no honest “flip one variable and go live” step today.
 
 [Vercel Hobby terms](https://vercel.com/docs/plans/hobby). The resource-reuse preference is recorded in PRD: prefer existing accounts/projects and one payment-mode selector; introduce extra infrastructure only for a demonstrated requirement.

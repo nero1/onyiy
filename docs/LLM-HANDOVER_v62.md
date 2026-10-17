@@ -1,19 +1,19 @@
-# LLM handover v61
+# LLM handover v62
 
 ## Owner direction
 
-Complete **all Phase One/Two**, including real-money mainnet and every unfinished feature. Keep working through [the full gap list](PROJECT-STATUS_v61.md) without milestone pauses. Read [PRD](PRD.md) §§29–33. Owner launch details are deferred to final testing; document them in SETUP and continue independent coding. **The product is incomplete; mainnet sending remains disabled.**
+Complete **all Phase One/Two**, including real-money mainnet and every unfinished feature. Keep working through [the full gap list](PROJECT-STATUS_v62.md) without milestone pauses. Read [PRD](PRD.md) §§29–33. Owner launch details are deferred to final testing; document them in SETUP and continue independent coding. **The product is incomplete; mainnet sending remains disabled.**
 
 ## Current work
 
-- Repository `nero1/onyiy`; branch `feat/public-preview-boundary`, based on PR59 merge `7e15ff1155720e43516e733927dd88411f5603a0`.
+- Repository `nero1/onyiy`; branch `feat/public-preview-app`, following PR60 merge `4061eec22d7c927588ecc94ef918bd38af2254fb`.
 - New `publicPreviewTransaction` requires a separate login holding only `gw_preview`, uses bounded read-only repeatable snapshots and rejects unsafe role/ownership/table/column/function drift before callbacks. `publicPreviewManifest` parses only public settings; no private defaults.
 - Named `/workspace/work/public-preview-v61/boundary-r4.mts` and `r5` pass actual restricted-login projection parity, simulation/mainnet scopes, user/write/escalation denial and privilege drift. r1 failed on wrapped-error text; all fixtures/logs are preserved. Budget/admission integration passes r3 onward.
-- **Next:** wire the preview application, closed public-route allowlist, configuration/deployment and explicit read-only UI; verify private/auth/job routes cannot run. Then continue mainnet execution/recovery/provider and product acceptance work. This primitive alone is not a completed preview app.
+- **Preview app is now wired locally:** `PUBLIC_PREVIEW_MODE=read_only`, only Preview hosting, separate `gw_preview` login, no private credentials. Public catalogue/configuration/help/search work; authentication/private/jobs/writes are closed before handlers. Homepage/gifts omit auth/payment portals, navigation is public-only, private pages are denied, noindex is set. Protected workflow skips owner initialization and verifies the restricted login. Continue actual mainnet execution/recovery/provider and product work; hosted acceptance is still open.
 
 ## Financial boundaries and pending implementation
 
-- `runtimeProviders` and `nativePaymentEnvironment` still deny mainnet execution. `financialImplementationComplete` and signer `implementationComplete` remain false. Do not flip flags to claim completion.
+- `runtimeProviders` accepts mainnet only in explicit public read-only preview; `nativePaymentEnvironment` still denies mainnet execution. `financialImplementationComplete` and signer `implementationComplete` remain false. Do not flip flags to claim completion.
 - `assertIsolated`, signer EVM ID allowlist, Solana transfer preparation, many financial APIs/UI paths and recovery still need mainnet implementation. Read-only observation is separate from payment support.
 - Automatic approval previously rejected a broad mainnet replacement before isolation/signing/recovery evidence. Do not replay or split that rejected edit to evade review. Continue targeted changes with proved prerequisites and unchanged execution gates.
 - Registry has closed network bindings; explicit observer facades cannot build/broadcast. DualRpc authenticates exact serialized read requests. Live public-provider probes failed; no live acceptance or invented token contracts. JAGA provenance remains owner-deferred.
@@ -40,4 +40,9 @@ Complete **all Phase One/Two**, including real-money mainnet and every unfinishe
 
 Both exact-head CI events must pass before merge; no direct main pushes. Keep five core docs plus two trackers, versioned together; concise beginner browser-only SETUP/manual SQL. Prefer the same provider accounts/resources. Preserve sources, failed fixtures and signed evidence. No broad automated suite yet. User times default to Africa/Lagos. Required14-day observation periods cannot be simulated into acceptance.
 
-v61
+
+## Read-only preview app evidence (v62)
+
+`/workspace/work/public-preview-app-v62`: `api-r2` proves actual mainnet public reads,39 private/auth/job route denials, write/signing denial and unchanged retained hashes. `browser-r1` and final `browser-r2` prove actual production Chromium390px EN/FR catalogue/help/search, banner, public-only navigation, unavailable private pages/API and noindex; no response interception. `credential-scope-r1` rejects21 private credential names; `hosted-preflight-r1` accepts the restricted login and rejects owner login/mode mismatch. r1 API harness failure used the unsupported mainnet recovery inventory; preserved, then r2 hashes the unchanged simulation fixture outside request execution. Mainnet recovery itself remains unfinished. PR60 passed push39024849840 / PR39024875695 before merging.
+
+v62

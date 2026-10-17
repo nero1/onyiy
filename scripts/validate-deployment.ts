@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { validateRuntimeEnv } from '@gifters/config';
+import {isReadOnlyPreview, validateRuntimeEnv } from '@gifters/config';
 import { databaseConnectionOptions } from '@gifters/db';
 import {readRegistry} from '@gifters/chains';
 
@@ -25,16 +25,17 @@ paths('app');
 if (process.argv.includes('--hosted')) {
   // Validate presence/selectors only; never print URLs, tokens or secret values.
   const env = { ...process.env, NODE_ENV: 'production' };
-  const config = validateRuntimeEnv(env);
+  const config = validateRuntimeEnv(env),preview=isReadOnlyPreview(env);
+  if(env.EXPECTED_PUBLIC_PREVIEW_MODE&&(env.PUBLIC_PREVIEW_MODE??'off')!==env.EXPECTED_PUBLIC_PREVIEW_MODE)throw new Error('Vercel and GitHub preview modes differ');
   if (env.EXPECTED_DATABASE_URL && config.databaseUrl !== env.EXPECTED_DATABASE_URL) throw new Error('Vercel and GitHub runtime database bindings differ');
   if (env.DATABASE_MIGRATION_URL) throw new Error('Migration credentials must not be present in the Vercel runtime settings');
-  for(const name of ['AUTH_ACCESS_KEY','MFA_ENCRYPTION_KEY'])if(!env[name]||Buffer.from(env[name]!,'base64url').length!==32||Buffer.from(env[name]!,'base64url').toString('base64url')!==env[name])throw new Error('Hosted identity keys must be separately provisioned');
+  if(!preview)for(const name of ['AUTH_ACCESS_KEY','MFA_ENCRYPTION_KEY'])if(!env[name]||Buffer.from(env[name]!,'base64url').length!==32||Buffer.from(env[name]!,'base64url').toString('base64url')!==env[name])throw new Error('Hosted identity keys must be separately provisioned');
   if(env.AUTH_ACCESS_PREVIOUS_KEY&&!env.AUTH_ACCESS_KEY)throw new Error('Authentication rotation requires a current key');
   let web:URL;try{web=new URL(env.WEB_ORIGIN??'')}catch{throw new Error('Hosted WEB_ORIGIN must be configured')}
   if(web.protocol!=='https:'||web.origin!==env.WEB_ORIGIN||web.username||web.password)throw new Error('Hosted WEB_ORIGIN must be an exact HTTPS origin');
   if(config.providers.AUTH_PROVIDER==='google'&&(!env.GOOGLE_CLIENT_ID||!env.GOOGLE_CLIENT_SECRET))throw new Error('Google identity requires owner-provisioned credentials');
   if(config.providers.CAPTCHA_PROVIDER==='turnstile'&&(!env.CAPTCHA_SITE_KEY||!env.CAPTCHA_SECRET_KEY))throw new Error('Turnstile requires owner-provisioned site and secret keys');
-  readRegistry(env);
+  if(!preview)readRegistry(env);
   if(env.SIMULATION_TOOL_AUTH_KEY)throw new Error('Operator fixture keys must stay outside hosted runtime');
   databaseConnectionOptions(config.databaseUrl,env);
   let database: URL;
