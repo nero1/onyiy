@@ -92,8 +92,25 @@ export function parseManifest(input: unknown): Manifest & Record<string, unknown
   return { ...result.data, ...dynamicValues };
 }
 
+/** Parse only the independently readable public configuration. Private/staff
+ * settings are rejected rather than supplied from deployment-file defaults. */
+export function parsePublicManifest(input:unknown):PublicManifest & Record<string,unknown>{
+ if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('CONFIGURATION_INVALID');
+ const shape=Object.fromEntries(Object.entries(manifestSchema.shape).filter(([key])=>manifestDefinition(key)?.scope==='public'));
+ const values:Record<string,unknown>={},dynamic:Record<string,unknown>={};
+ for(const [key,value] of Object.entries(input)){
+  const parsed=validateManifestValue(key,value,'public');
+  (Object.hasOwn(shape,key)?values:dynamic)[key]=parsed;
+ }
+ const result=z.object(shape).strict().safeParse(values);
+ if(!result.success)throw new Error('CONFIGURATION_INVALID');
+ const parsed={...result.data,...dynamic} as PublicManifest & Record<string,unknown>;
+ validateTransparentConfiguration(parsed);
+ return publicManifest(parsed);
+}
+
 // Never serialize a complete manifest or trust a row's stored public marker.
-export function publicManifest(input: Manifest & Record<string, unknown>):PublicManifest & Record<string,unknown> {
+export function publicManifest(input: PublicManifest & Record<string, unknown>):PublicManifest & Record<string,unknown> {
   const publicValues: Record<string, unknown> = {};
   for (const [key,value] of Object.entries(input)) {
     if (manifestDefinition(key)?.scope === 'public') publicValues[key] = validateManifestValue(key,value,'public');

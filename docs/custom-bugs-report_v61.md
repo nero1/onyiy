@@ -1,6 +1,6 @@
-# Bug report — Rounds One/Two/Three v60
+# Bug report — Rounds One/Two/Three v61
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v60.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v61.md).
 
 Updated: **17 October 2026 at 01:06:45 UTC**.
 
@@ -93,7 +93,7 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 - “Defect” means a source/contract failure; “requirement gap” means missing requested behavior; “hardening” means a conditional defensive improvement; “maintenance” means structural/dependency risk.
 - Initial audit ratings (current → projected after fixes): money/recovery 5 → 8; security/privacy 6.5 → 8.5; performance 5 → 8; maintainability 6 → 8; product/accessibility/SEO 6 → 8, out of 10. These were qualitative judgments, not measured guarantees or updated release ratings.
 - Original audit: 70 findings; four more were found during remediation. Three analysis passes were one audit round. CRON frequency and test-only issues were excluded.
-- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v60.md).
+- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v61.md).
 
 ## Original evidence by finding
 
@@ -559,7 +559,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v60.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v61.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -579,7 +579,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v60.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v61.md).
 
 
 
@@ -654,3 +654,10 @@ Owner update: all launch details are deferred to final testing. Document the fie
 - `packages/db/fresh-install.sql` creates the final schema directly. The six historical migration files remain immutable for installed databases and recovery compatibility; new owners paste only the fresh installer. SETUP now says so.
 - Fresh unseeded reference and single-file target match all4222 schema/security metadata entries, including column grants. Named `final-installer-v60` procedures prove atomic installation, exact receipts, rerun/nonempty rejection without data loss and complete rollback after a late failure. The unchanged migration runner skips all six receipts; actual seeding and restricted-login verification pass. A second target with broad unknown-role defaults matches all4088 application/security entries; provider extension ACLs are deliberately preserved. The first comparator failure counted those extension grants and is preserved. Required checks pin the installer checksum and exact historical lineage. Current verified schema contract is `schema-contract_v60.json`; model counts are unchanged.
 - PR58 merged at a736083d6425bc22f9e1e973700b796ccea0e1e6 after exact-head push39023906817 and PR39023923825 passed. This installer batch does not complete mainnet execution, preview wiring or overall product acceptance. Continue C001–C017 without milestone pauses.
+
+## Read-only preview foundation (v61)
+
+- Added a bounded, read-only repeatable-snapshot transaction for a separate login holding only `gw_preview`. It rejects owner/service memberships, unsafe roles, ownership, private table/column grants and application-function execution before calling domain code.
+- Public configuration is parsed independently. Private/staff values are rejected; no private deployment-file defaults enter preview results. Fresh restricted-login procedures `public-preview-v61/boundary-r4` and `r5` verify public projection parity, simulation/mainnet public scopes, user/write/escalation denial and grant-drift rejection. The r1 harness failure checked wrapped error text instead of PostgreSQL code; its database/log remain preserved.
+- PR59 merged at7e15ff1155720e43516e733927dd88411f5603a0 after push39024411492 and PR39024431447 passed for c33abc41f9700f97607b11b441938e525333a327. The one-paste installer is now merged.
+- **Preview application routing, deployment settings and browser acceptance remain unfinished.** Mainnet sending remains disabled. Continue the full C001–C017 list without pausing after this foundation.
