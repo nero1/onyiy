@@ -1,3 +1,4 @@
+import {scopedDatabaseBinding} from '../packages/db/src/binding-fingerprint';
 import {
   runtimeAdapter,
   configurationSnapshot,
@@ -47,7 +48,7 @@ export async function financialConfiguration(
   );
   return configurationSnapshot(
     asset,
-    financialPolicySnapshot(await readManifest(tx)),
+    financialPolicySnapshot(await readManifest(tx),await scopedDatabaseBinding(tx)),
   );
 }
 export async function assertExternalActivation(

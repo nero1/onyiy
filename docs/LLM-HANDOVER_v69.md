@@ -1,12 +1,12 @@
-# LLM handover v68
+# LLM handover v69
 
 ## Owner direction
 
-Complete all Phase One/Two, including the real-money product, bugs and every unfinished requirement. Keep moving in substantial batches through [status](PROJECT-STATUS_v68.md), without milestone pauses. Owner launch details are deferred to final testing; put protected settings in SETUP and continue independent coding. **The product is incomplete; actual hosted/live acceptance and observation periods remain open.**
+Complete all Phase One/Two, including the real-money product, bugs and every unfinished requirement. Keep moving in substantial batches through [status](PROJECT-STATUS_v69.md), without milestone pauses. Owner launch details are deferred to final testing; put protected settings in SETUP and continue independent coding. **The product is incomplete; actual hosted/live acceptance and observation periods remain open.**
 
 ## Current branch and capability
 
-- `nero1/onyiy`, branch `feat/native-launch-and-preferences`, based on merged PR66 `1acbe3b18fdf125186fec1541a74baecab92110c`. Exact PR66 head3fb8539 passed push39049426195 / PR39049451596 before merge.
+- `nero1/onyiy`, branch `feat/browser-financial-recovery`, based on merged PR67 `e364f0be9a6d606654ccbc1ecd6751f830086d36`. Exact PR67 headb7efda7 passed push39051551031 / PR39051574070 before merge.
 - Mainnet config/runtime, authentication issuer, native core credit, checkout/history/labels/wallets and signer now support the closed four-network registry. `nativePaymentExecutionSupported=true` is a capability, not launch acceptance. Defaults remain off. Mainnet requires explicit enablement, transparent non-demo policy, no simulation authority, reviewed readiness, matching configuration approvals and a recent signed alert acknowledgement.
 - Multiple network hashes use `FINANCIAL_CONFIG_APPROVALS_JSON` and `ALERT_ACCEPTANCE_FINGERPRINTS_JSON`; legacy singular values remain compatible but cannot be mixed with lists. Policy/readiness/profile changes participate in hashes. Per-currency catalogue readiness controls checkout.
 - `SIGNER_KEY_FILES_JSON` selects four environment-bound encrypted files; legacy single-file support remains. `prepare-key-package` emits a single encrypted bundle; installer validates every record before writing a new private directory. `.github/workflows/isolated-signer.yml` is opt-in, main-only, separately protected, bounded and browser-operated. No website/preview credentials or signer material may be mixed.
@@ -23,7 +23,7 @@ Complete all Phase One/Two, including the real-money product, bugs and every unf
 
 ## Next work
 
-Finish this batch’s exact-head CI/merge, then continue C001–C017: browser backup/restore with chain reconciliation/no-resend, complete financial lifecycle coverage, full product audit and device/i18n/accessibility acceptance. Saved-language restoration and currency-specific native scheduling are now implemented; do not repeat the old claim that native launches still call GIV. Do not stop after a merge or call isolated fixtures live acceptance.
+Finish this batch’s exact-head CI/merge, then continue C001–C017: complete chain reconciliation/no-resend and hosted recovery acceptance, financial lifecycle coverage, full product audit and device/i18n/accessibility acceptance. Saved-language restoration and currency-specific native scheduling are now implemented; do not repeat the old claim that native launches still call GIV. Do not stop after a merge or call isolated fixtures live acceptance.
 
 ## Schema and recovery
 
@@ -56,4 +56,14 @@ Core scheduler tries at most seven launches/10 seconds, each in its own transact
 
 `native-schedules-r7` verifies restricted-role mainnet pricing, replay/concurrency, cancellation, stale-price rollback/backoff/retry, warning resolution, changed treasury approval and suspended-admin fences. `simulation-schedule-r2` passes unchanged GIV scheduling. r1 duplicate network approval hashes were rejected; r2 exposed public hex-digest rejection; r3 procedure attempted an immutable price update and was denied. Corrected procedures wait for actual signed-price expiry in new databases. Simulation r1 used a double-encoded fixture timestamp; r2 passes a typed timestamp. Browser scheduling r1 found genuine catalogue overflow. Preserve every failed target/log. Language browser r2 asserted before the router settled; r3 used a selector absent from the MFA auth view. Fresh r4 waits for the real URL and actual navigation control. Build r1/r2 and bundle r1 lacked required child-process/local-port permissions; permission-scoped reruns pass. No owner credentials or public chain sends used.
 
-v68
+## Current recovery batch
+
+`financialPolicySnapshot` now requires `scopedDatabaseBinding(tx)` in both web and signer paths. The existing actual database nonce/name/OID hash changes on restore and stays identical across role/pooler connections. No DDL or record re-signing. All previous approvals change on upgrade: re-review hashes/alerts; retain old obligation snapshots and reconcile/requote through existing recovery paths. Existing signed attempts still get observed; do not claim all recovery lifecycles accepted.
+
+`.github/workflows/financial-recovery.yml` is manual, main-only, read-only GitHub permissions, separately protected `recovery-backup-{mode}` / `recovery-restore-{mode}`. Dependencies/verified PostgreSQL17 client attach before private settings. Owner supplies four recovery secrets only. Current artifacts can restore via successful run metadata; permanent encrypted ZIP releases additionally require the owner’s explicit original commit. Verify main ancestry and workflow presence before checking out that exact trusted release and attaching credentials. Never let unsigned packet metadata select code. Fresh-target runtime groups/login are prepared manually without application tables; CLI still rejects occupied/active targets, validates signature/AEAD/version and verifies exact content. No deployment, scheduler, signer, key rotation or automatic financial resumption.
+
+`/workspace/work/browser-recovery-v69`: `archive-seven-migrations-r1` passes actual current-lineage backup/restore/verify; its final console copied an obsolete “disabled catalogue” phrase from an older harness, but actual source is generated mainnet financial r7. Use the inventory/CLI results, not that inherited wording. `bound-financial-r1` passes actual worker→separate web settlement with bound hashes. `workflow-and-binding-r2` passes actual controller roundtrip, permanent-release input, occupied target and early malformed selection/secret denials; a copied signed acknowledgement is retained while the new target hash rejects source approval. All source/target databases, generated encrypted keys, original archives and failure logs remain. Generated GitHub metadata is explicitly local; hosted Actions and PGDG installation are not claimed. ZIP procedures preserve exact bytes and deny traversal/symlinks/extras. Initial local gpg invocation lacked an explicit private scratch directory; corrected run verifies fingerprint B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8. Do not read key files or print environment secrets.
+
+Finish required checks/exact-head CI/merge for this batch, then continue C004/C010/C011: the full multi-asset payment/recovery matrix, all295 product requirements, real external alert receiver/browser setup and backup cadence. Keep moving after each merge. Owner details/hosted verification and real observation periods remain deferred, not fabricated.
+
+v69

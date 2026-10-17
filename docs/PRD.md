@@ -1220,7 +1220,7 @@ uj*****p3 just received $9.5 referral commission
 - Collect owner credentials securely and record actual external alerts, chain transactions, restore reconciliation, capacity and the observation periods in §30. Do not manufacture approval, elapsed time or provider evidence.
 - Both exact-final-head push and pull-request CI must pass before each merge. No direct main pushes. Keep five core docs and two versioned trackers. Existing no-automated-test-suite instructions remain binding; named isolated manual verification continues.
 
-The current gap list and acceptance evidence belong in [status](PROJECT-STATUS_v68.md) and the [report](custom-bugs-report_v68.md)/[plan](custom-bugs-fix-plan_v68.md). Continue until all requirements have actual verification; report any owner-dependent blocker precisely.
+The current gap list and acceptance evidence belong in [status](PROJECT-STATUS_v69.md) and the [report](custom-bugs-report_v69.md)/[plan](custom-bugs-fix-plan_v69.md). Continue until all requirements have actual verification; report any owner-dependent blocker precisely.
 
 ### Fresh installation and historical compatibility
 
@@ -1243,7 +1243,7 @@ The owner explicitly approved P1-065 on **14 October 2026 at 02:25:24 PM WAT**, 
 - Closed signed-archive dependencies accept pgcrypto-only older packets or an additional pg_trgm declaration; unknown names, duplicates, versions and schemas fail.
 - Signatures/checksums, empty-target verification and exact post-restore inventories remain mandatory. Search approval does not activate financial gates.
 
-Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v68.md](PROJECT-STATUS_v68.md). Current bug evidence/tasks: [report](custom-bugs-report_v68.md) and [plan](custom-bugs-fix-plan_v68.md).
+Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v69.md](PROJECT-STATUS_v69.md). Current bug evidence/tasks: [report](custom-bugs-report_v69.md) and [plan](custom-bugs-fix-plan_v69.md).
 
 ### Retention implementation clarification (v52)
 
@@ -1252,7 +1252,7 @@ Use the same database for online monthly archives of ledger postings, scan pages
 
 ### Phase Two presentation baseline — PR53
 
-P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v68.md).
+P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v69.md).
 
 P2.4 external assessment remains **not_reviewed** until actual owner/provider evidence is recorded. Mainnet runtime, encrypted signing and local financial procedures are implemented in v67. Remaining evidence includes live registry/provider/custody operation, funding/refund/closure review, countries and terms, budget, hosted capacity/alerts/restore and observation periods. Local implementation does not approve public launch.
 
@@ -1267,3 +1267,5 @@ Read-only shared preview contract: `PUBLIC_PREVIEW_MODE=read_only` is a Preview-
 - Continue the full gap list, browser recovery operations, remaining product fixes and final external checks. This delivery does not declare Phase One/Two100% complete.
 
 Native launch scheduling stores per-currency USD/fixed-price intents for one UTC deadline. Activation must recheck database time, active administrator, current reviewed configuration, signed alert acceptance and fresh signed prices; failed activation must leave all financial state unchanged. Bounded retries must not starve other currencies. Show upcoming gifts without an invented payable amount, and keep checkout closed until activation. Account language restores on authenticated entry unless an explicit language choice takes precedence.
+
+Financial activation approvals must bind the actual database identity shared by web and signer connections. Restored copies must obtain fresh reviewed hashes/acknowledgements without rewriting retained financial snapshots. Browser recovery must use protected credentials, authenticated encrypted archives, trusted matching-release code, an empty target and exact verification; it must never automatically deploy or resume financial work. Retention must remain usable after temporary workflow artifacts expire.

@@ -1,0 +1,170 @@
+name: encrypted-financial-recovery
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Backup source, restore empty target, or verify restored target
+        required: true
+        default: backup
+        type: choice
+        options: [backup, restore, verify]
+      payment_environment:
+        description: Match the archive and protected recovery environment
+        required: true
+        default: testnet
+        type: choice
+        options: [simulation, testnet, mainnet]
+      archive_run_id:
+        description: Successful backup run number from its URL; blank for backup
+        required: false
+        type: string
+      archive_release:
+        description: Permanent recovery release tag instead of archive_run_id
+        required: false
+        type: string
+      archive_commit:
+        description: Full original backup commit SHA; required for permanent releases
+        required: false
+        type: string
+      target_database:
+        description: Exact empty target database name for restore, usually postgres
+        required: false
+        type: string
+permissions:
+  contents: read
+  actions: read
+jobs:
+  recovery:
+    if: github.repository == 'nero1/onyiy' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment: recovery-${{ inputs.action == 'backup' && 'backup' || 'restore' }}-${{ inputs.payment_environment }}
+    concurrency:
+      group: financial-recovery-${{ inputs.payment_environment }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install PostgreSQL17 client before attaching recovery credentials
+        run: |
+          if [ ! -x /usr/lib/postgresql/17/bin/pg_dump ]; then
+            curl --fail --silent --show-error --location https://www.postgresql.org/media/keys/ACCC4CF8.asc --output "$RUNNER_TEMP/postgresql-pgdg.asc"
+            mkdir -m 700 "$RUNNER_TEMP/gw-pgdg-keyring"
+            fingerprint=$(gpg --batch --homedir "$RUNNER_TEMP/gw-pgdg-keyring" --show-keys --with-colons "$RUNNER_TEMP/postgresql-pgdg.asc" | awk -F: '$1=="fpr" {print $10; exit}')
+            test "$fingerprint" = B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8
+            sudo install -m 644 "$RUNNER_TEMP/postgresql-pgdg.asc" /usr/share/keyrings/postgresql-pgdg.asc
+            printf '%s\n' 'deb [signed-by=/usr/share/keyrings/postgresql-pgdg.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main' | sudo tee /etc/apt/sources.list.d/gifters-postgresql.list > /dev/null
+            sudo apt-get update -qq
+            sudo apt-get install --yes --no-install-recommends postgresql-client-17
+          fi
+          /usr/lib/postgresql/17/bin/pg_dump --version
+          /usr/lib/postgresql/17/bin/pg_restore --version
+          printf '%s\n' /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
+      - name: Validate restore selection without database credentials
+        id: release
+        if: inputs.action != 'backup'
+        env:
+          ARCHIVE_RUN_ID: ${{ inputs.archive_run_id }}
+          ARCHIVE_RELEASE: ${{ inputs.archive_release }}
+          ARCHIVE_COMMIT: ${{ inputs.archive_commit }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'JS'
+          import {execFileSync} from 'node:child_process';
+          import {appendFileSync} from 'node:fs';
+          const id=process.env.ARCHIVE_RUN_ID,tag=process.env.ARCHIVE_RELEASE;
+          let commit;
+          if(tag){
+            if(id||!/^recovery-[a-z0-9][a-z0-9._-]{0,79}$/.test(tag))throw Error('RECOVERY_ARCHIVE_SOURCE_INVALID');
+            const release=JSON.parse(execFileSync('gh',['api','repos/nero1/onyiy/releases/tags/'+tag],{encoding:'utf8'}));
+            if(release.draft||release.tag_name!==tag||release.assets.length!==1)throw Error('RECOVERY_ARCHIVE_SOURCE_INVALID');
+            const asset=release.assets[0];
+            if(!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,150}\.zip$/.test(asset.name)||asset.size<=0||asset.size>2*1024**3)throw Error('RECOVERY_ARCHIVE_SOURCE_INVALID');
+            commit=process.env.ARCHIVE_COMMIT;
+            appendFileSync(process.env.GITHUB_OUTPUT,'source=release\nasset='+asset.name+'\n');
+          }else{
+            if(process.env.ARCHIVE_COMMIT||!/^[1-9][0-9]{0,19}$/.test(id??''))throw Error('RECOVERY_ARCHIVE_SOURCE_INVALID');
+            const run=JSON.parse(execFileSync('gh',['api','repos/nero1/onyiy/actions/runs/'+id],{encoding:'utf8'}));
+            if(run.path!=='.github/workflows/financial-recovery.yml'||run.event!=='workflow_dispatch'||run.head_branch!=='main'||run.conclusion!=='success')throw Error('RECOVERY_MATCHING_RELEASE_REQUIRED');
+            commit=run.head_sha;appendFileSync(process.env.GITHUB_OUTPUT,'source=workflow\n');
+          }
+          if(!/^[a-f0-9]{40}$/.test(commit??''))throw Error('RECOVERY_MATCHING_RELEASE_REQUIRED');
+          execFileSync('git',['merge-base','--is-ancestor',commit,'HEAD']);
+          execFileSync('git',['cat-file','-e',commit+':.github/workflows/financial-recovery.yml']);
+          appendFileSync(process.env.GITHUB_OUTPUT,'commit='+commit+'\n');
+          JS
+      - name: Use the verified backup release before attaching credentials
+        if: inputs.action != 'backup'
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ steps.release.outputs.commit }}
+          persist-credentials: false
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        if: steps.release.outputs.source == 'workflow'
+        with:
+          name: financial-backup-${{ inputs.payment_environment }}-${{ inputs.archive_run_id }}
+          path: ${{ runner.temp }}/financial-recovery-input
+          run-id: ${{ inputs.archive_run_id }}
+          github-token: ${{ github.token }}
+      - name: Download permanent encrypted release without database credentials
+        if: steps.release.outputs.source == 'release'
+        env:
+          ARCHIVE_RELEASE: ${{ inputs.archive_release }}
+          ARCHIVE_ASSET: ${{ steps.release.outputs.asset }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'JS'
+          import {execFileSync} from 'node:child_process';
+          import {mkdirSync} from 'node:fs';
+          const tag=process.env.ARCHIVE_RELEASE,asset=process.env.ARCHIVE_ASSET;
+          if(!/^recovery-[a-z0-9][a-z0-9._-]{0,79}$/.test(tag??'')||!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,150}\.zip$/.test(asset??''))throw Error('RECOVERY_ARCHIVE_SOURCE_INVALID');
+          const directory=process.env.RUNNER_TEMP+'/financial-recovery-download';mkdirSync(directory,{mode:0o700});
+          execFileSync('gh',['release','download',tag,'--repo','nero1/onyiy','--pattern',asset,'--dir',directory],{stdio:'ignore'});
+          JS
+          python3 - <<'PYTHON'
+          import os, pathlib, stat, zipfile
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])
+          source=root/'financial-recovery-download'/os.environ['ARCHIVE_ASSET']
+          target=root/'financial-recovery-input'
+          target.mkdir(mode=0o700)
+          limits={'financial.gwbackup':2*1024**3,'financial.gwbackup.json':262144,'release.json':4096}
+          with zipfile.ZipFile(source) as packet:
+              entries=packet.infolist()
+              if sorted(entry.filename for entry in entries)!=sorted(limits): raise ValueError('RECOVERY_ARCHIVE_SOURCE_INVALID')
+              for entry in entries:
+                  if not 0<entry.file_size<=limits[entry.filename] or stat.S_ISLNK(entry.external_attr>>16): raise ValueError('RECOVERY_ARCHIVE_SOURCE_INVALID')
+                  with packet.open(entry) as incoming, os.fdopen(os.open(target/entry.filename,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'wb') as output:
+                      remaining=limits[entry.filename]
+                      while chunk:=incoming.read(1024*1024):
+                          remaining-=len(chunk)
+                          if remaining<0: raise ValueError('RECOVERY_ARCHIVE_SOURCE_INVALID')
+                          output.write(chunk)
+          PYTHON
+      - name: Run isolated encrypted recovery without payment credentials
+        id: archive
+        env:
+          RECOVERY_ACTION: ${{ inputs.action }}
+          RECOVERY_PAYMENT_ENVIRONMENT: ${{ inputs.payment_environment }}
+          RECOVERY_ARCHIVE_RUN_ID: ${{ inputs.archive_run_id }}
+          RECOVERY_ARCHIVE_RELEASE: ${{ inputs.archive_release }}
+          RECOVERY_ARCHIVE_COMMIT: ${{ steps.release.outputs.commit }}
+          RECOVERY_TARGET_DATABASE: ${{ inputs.target_database }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
+          DATABASE_TLS_CA_PEM: ${{ secrets.DATABASE_TLS_CA_PEM }}
+          EXPORT_ENCRYPTION_KEY: ${{ secrets.EXPORT_ENCRYPTION_KEY }}
+        run: node scripts/financial-recovery.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: inputs.action == 'backup'
+        with:
+          name: financial-backup-${{ inputs.payment_environment }}-${{ github.run_id }}
+          path: ${{ steps.archive.outputs.archive_directory }}/
+          if-no-files-found: error
+          retention-days: 1

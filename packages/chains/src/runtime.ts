@@ -84,8 +84,9 @@ export async function configurationSnapshot(
   };
 }
 
-export function financialPolicySnapshot(policy: Record<string, unknown>) {
-  return Object.fromEntries(
+export function financialPolicySnapshot(policy: Record<string, unknown>,databaseBinding:string) {
+  if(!/^[a-f0-9]{64}$/.test(databaseBinding))throw new Error('DATABASE_BINDING_UNAVAILABLE');
+  return {database_binding:databaseBinding,...Object.fromEntries(
     [
       "payout_limits",
       "withdrawal_fee_policy",
@@ -98,5 +99,5 @@ export function financialPolicySnapshot(policy: Record<string, unknown>) {
       "feature_gifts",
       "mainnet_enabled","deployment_profile","feature_transparency","feature_simulation","activity_presentation","financial_readiness_record",
     ].map((key) => [key, policy[key]]),
-  );
+  )};
 }

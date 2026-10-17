@@ -175,7 +175,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v68.md](PROJECT-STATUS_v68.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v69.md](PROJECT-STATUS_v69.md).
 
 ## 10. Read-only preview using the same database
 
@@ -422,7 +422,7 @@ Code supports Ethereum `1`, BNB `56`, Solana `mainnet-beta` and TRON `mainnet`. 
 17. Redeploy Production, then run the isolated signer workflow once. Check its run result and the site's signer heartbeat. A changed policy, registry, address or alert binding needs new hashes/probes; never reuse an unrelated approval.
 18. With the owner present, fund only the approved treasury/reserve amounts, activate the intended per-currency plans and perform the final tests with small limits. Confirm actual wallet approval, chain receipts, balances, fees, refunds, alerts and restore reconciliation. Complete the required observation periods before public launch.
 
-Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v68.md).
+Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v69.md).
 
 ## If something fails
 
@@ -447,7 +447,7 @@ Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), 
 - **Costs:** review current plans before creating resources. Vercel Hobby is for personal, non-commercial use; commercial hosting needs a suitable plan. Free quotas do not prove large-user capacity. Domain, gas and backup costs are separate.
 - **Mode changes:** Preview/Production can share one supported payment mode and database. Testnet promotion retires simulation access; real-money promotion still requires the implementation described above.
 - **Background work:** deployment does not activate all workers. Non-signing scheduler workflows need separate URL/key settings. Do not enable workers or signing just to remove a warning.
-- **Backups:** keep the MFA key separately. Vercel has no complete web-only application archive/restore flow; full encrypted recovery requires supervised operator tooling. Supabase backups do not replace the app's signed archive checks. Never restore onto an occupied project.
+- **Backups:** use the protected GitHub recovery steps below. Keep archive, MFA and custody keys separately. Supabase backups do not replace signed app verification. Never restore onto an occupied project.
 - **Later schema changes:** preserve the installed baseline. Add a reviewed forward migration for later changes. Old 99-file archives require their matching historical release, not this fresh installer.
 
 **Documentation rule:** keep five core guides plus the two owner-requested bug trackers. Fold notes into them unless a new file is explicitly requested or essential. Use beginner language, exact clicks/values, web UIs and manual SQL installation. Keep old versions in Git history.
@@ -542,3 +542,64 @@ Use the existing database's connection details with that login, following the co
 8. To stop new signing during setup, set `ENABLE_SIGNER_WORKER=false`. Keep the non-signing financial scheduler configured to observe known attempts and process reports. Never delete signed attempts, reservations or keys to clear an error.
 
 Official UI: [environments and secrets](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments), [run a workflow](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow), [public-runner billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
+
+
+## Back up and recover through GitHub
+
+Use the same GitHub/Supabase accounts. Recovery never starts payments or deploys a site. A restore needs an **empty, unpublished target**; use an available project slot on your existing account. Do not erase the active project to make room. Leave the target SQL Editor closed while restoration runs.
+
+### Prepare protected recovery settings
+
+1. In GitHub → **Settings → Environments → New environment**, create `recovery-backup-mainnet` and `recovery-restore-mainnet`. For another payment mode, replace `mainnet` with `testnet` or `simulation`.
+2. Restrict deployment branches to **main** and require an owner review where your account supports it. Give access only to trusted administrators.
+3. Generate a separate archive key in Supabase **SQL Editor → New query**:
+
+```sql
+select translate(rtrim(encode(gen_random_bytes(32), 'base64'), '='), '+/', '-_')
+  as archive_encryption_key;
+```
+
+4. Save the result in your password manager. In each recovery environment, add these **environment secrets**:
+
+| Secret | Backup environment | Restore environment |
+|---|---|---|
+| `DATABASE_URL` | Source runtime URL | Empty target runtime URL |
+| `DATABASE_MIGRATION_URL` | Source owner/session-pooler URL | Empty target owner/session-pooler URL |
+| `DATABASE_TLS_CA_PEM` | Source CA, if required | Target CA, if required |
+| `EXPORT_ENCRYPTION_KEY` | Saved archive key | The exact key used by that backup |
+
+Do not add web, Google, MFA, signer or scheduler secrets here. Keep old archive keys when rotating them. Preserve original MFA/custody/payload keys separately for eventual application recovery.
+
+### Make and retain a backup
+
+1. Open GitHub → **Actions → encrypted-financial-recovery → Run workflow**.
+2. Choose **main**, action **backup** and the payment mode. Leave archive/target fields blank. Click **Run workflow** and approve the protected environment if prompted.
+3. Open the successful run. Under **Artifacts**, download its `financial-backup-…` ZIP. Save the original ZIP and the **Archive release commit** printed in the recovery step. The ZIP contains encrypted data, its signed inventory and `release.json`; never add keys.
+4. The Actions copy expires after **one day**. Keep the ZIP in your protected storage. For browser recovery after expiry, open the repository → **Releases → Draft a new release**. Create a tag such as `recovery-mainnet-20261017a`, keep **Target: main**, attach only that original ZIP, mark it as a pre-release and publish. Keep the original backup commit recorded separately; the release tag is only a storage label.
+5. Run backups at the configured backup interval and retain the required history. This manual workflow does not provide automatic backup scheduling or prove the required recovery time.
+
+### Prepare an empty target and restore
+
+1. In the empty target project, generate a new runtime password. In **SQL Editor → New query**, run this once, replacing the password privately. **Do not paste the application installer into this target.**
+
+```sql
+create role gw_read nologin noinherit nosuperuser nocreatedb
+  nocreaterole nobypassrls noreplication;
+create role gw_service nologin noinherit nosuperuser nocreatedb
+  nocreaterole nobypassrls noreplication;
+create role gw_runtime login noinherit nosuperuser nocreatedb
+  nocreaterole nobypassrls noreplication password 'REPLACE_WITH_NEW_RUNTIME_PASSWORD';
+grant gw_read, gw_service to gw_runtime;
+grant connect on database postgres to gw_runtime;
+```
+
+2. Delete the password-bearing saved query. Copy this target’s runtime and owner/session-pooler URLs as in section4. Put them in the **restore** environment only, with the original archive key and the target CA. Keep the target unpublished and signing/schedulers off.
+3. Open **Actions → encrypted-financial-recovery → Run workflow**. Choose **main**, action **restore** and the archive’s payment mode. Enter the exact target database name, usually `postgres`.
+4. Choose **one** archive source: enter the successful backup’s numeric run ID from its URL, **or** enter the permanent recovery release tag and its original40-character backup commit. Leave the other source blank. The workflow checks trusted main history and runs the matching backup release. It never upgrades an old archive automatically.
+5. Run and review the result. Signature/checksum/version, empty-target, role and exact-content checks must all pass. On failure, keep the log/archive/key/target intact; do not delete records or weaken checks to retry.
+6. Run again with action **verify**, the same archive selection and target settings. This independently checks the restored data without restoring again.
+7. Before publication, reconcile every retained financial attempt against the real chains, preserve sender/refund rights, set fresh auth/scheduler/worker request keys and retain the original MFA/custody/payload keys. Obtain new per-network configuration hashes and signed alert acknowledgements. A restored database has a new identity, so source approvals cannot enable it. Reconcile old attempts; never overwrite their hashes or resend to clear a warning.
+
+**Upgrading from an earlier release:** financial hashes now include database identity. Refresh reviewed hashes/alert acknowledgements even on the original database. Keep existing obligation/signed-attempt snapshots intact and use the recovery/requote controls for unresolved old configuration. Historical archives predating this browser workflow still require their matching supervised recovery release.
+
+References: [download workflow artifacts](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts) · [create releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository) · [PostgreSQL Ubuntu packages](https://www.postgresql.org/download/linux/ubuntu/).
