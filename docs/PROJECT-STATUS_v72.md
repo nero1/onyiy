@@ -1,4 +1,4 @@
-# Project status v71
+# Project status v72
 
 **Phase One/Two is incomplete.** Mainnet execution is now implemented behind protected configuration, policy, registry and signed-alert checks. Local procedures pass; no real chain transaction, owner-hosted acceptance or observation period is claimed. Continue without milestone approval pauses. Owner launch details remain deferred to final testing.
 
@@ -16,7 +16,7 @@
 | C008 | Backup/recovery | Mainnet encrypted backup/restore/exact verification pass locally, preserving original v55 archive compatibility. Protected browser backup/restore/verify is implemented, with matching-release selection and database-bound approvals. Finish full chain reconciliation/no-resend and hosted acceptance. |
 | C009 | Hosted identity/access | Verify actual Google/MFA, roles, rate limits, CAPTCHA and account/financial recovery. |
 | C010 | Complete product | Audit every requirement/flag in §§1–29, queues/cooldowns/referrals/points/admin/export/delete/PWA/a11y and build/reload behavior. One-paste final-state installer is merged. |
-| C011 | Operations | Signer workflow added; browser recovery is implemented; finish actual external alerts/schedulers, backup cadence and incident/closure acceptance. |
+| C011 | Operations | Signer workflow added; browser recovery is implemented; automatic encrypted cadence is implemented; finish actual external alerts/schedulers, hosted backup operation and incident/closure acceptance. |
 | C012 | Capacity/cost | Measure mobile/latency/quota targets and compliant hosting. Public standard GitHub runners are currently free; this does not prove production capacity. |
 | C013 | Observation periods | Actual14-day beta plus14-day initial-cap mainnet observation required; no elapsed evidence recorded. |
 | C014 | Owner launch review | Countries/terms, funding/refund/closure, custody and budget remain owner-deferred. Record real review/evidence at setup. |
@@ -86,4 +86,14 @@ Follow-up UI acceptance: identify the background request/cancellation path that 
 - Final production build, required checks and actual390px Chromium EN/FR pass (`browser-compatibility-r2`): native PWA registration, real manifest metadata, stale worker tuple ignored, explicit future-peer banner, pre-POST mutation lock, unchanged saved locale and manual reload. The earlier r1 browser run also passes; fresh r2 verifies the final legacy0/server1 range.
 - Still open: hosted provider metadata/restore, all-asset reconciliation, full product audit, automatic backup cadence/external alerts, device/provider acceptance and real observation periods. No schema, receipt or financial-history rewrite.
 
-v71
+## Automatic encrypted backups (v72)
+
+- PR70 merged as `f9cef683c35c59dca5d565648aa7476f3420d39d`; exact head4df5402 passed push39070856823 / PR39070866948. New branch: `feat/scheduled-encrypted-backups`.
+- Recovery workflow has an opt-in hourly wake-up using the existing protected backup environment. It reads the authoritative policy through the restricted runtime and verifies owner/runtime namespace identity before deciding whether a backup is due. No signing, restoration, deployment or application-table writes.
+- Successful checkpoints are bound to the actual database identity. Missing/deleted/expired archives, failed/untrusted runs, short retention or a changed database cannot suppress a backup. A new checkpoint requires the upload’s actual retention to satisfy policy. Unsupported retention above90days or inconsistent interval/RPO/retention fails rather than silently weakening policy.
+- Start up to one hour early to allow the hourly wake-up. GitHub can delay or disable schedules: owner monitoring, real restore drills and measured RPO/RTO remain required. Artifact quota/paid storage must be reviewed; a public repository’s retained encrypted backups are downloadable by readers, so keys stay separately protected.
+- `scheduled-backup-v72/policy-and-history-r2`: actual restricted database policy/binding plus11 explicit GitHub metadata fixtures. `retention-r1`: actual checkpoint writer accepts adequate retention and rejects5 missing/short/expired/invalid/API cases. YAML and embedded shell syntax pass. These fixtures do not prove hosted scheduling/upload.
+- `archive-r1` creates a real encrypted archive/current signed inventory through the schedule-triggered controller with no payment credentials. `selection-r2` accepts trusted scheduled/manual backups and denies foreign events/branches/failed runs using real Git ancestry plus explicit metadata. The r1 selector attempt hit sandbox child-process EPERM; preserve its log. Script typecheck r1 lacked scratch typeRoots; fresh r2 passes. Required checks, production build and bundle budgets pass. Original archives/keys and source financial rows remain untouched.
+- Continue external alert receiver setup, the full all-asset lifecycle/product audit, hosted/device acceptance and real observation periods. Automatic backup implementation is separate from operational acceptance.
+
+v72
