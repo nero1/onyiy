@@ -1,4 +1,4 @@
-# Project status v70
+# Project status v71
 
 **Phase One/Two is incomplete.** Mainnet execution is now implemented behind protected configuration, policy, registry and signed-alert checks. Local procedures pass; no real chain transaction, owner-hosted acceptance or observation period is claimed. Continue without milestone approval pauses. Owner launch details remain deferred to final testing.
 
@@ -26,7 +26,7 @@
 
 ## Current delivery
 
-- Branch `feat/cycle-history-and-preview`, based on PR68 merge `a2fedf70cc0da54f07bd8bd459ea66a698daf03e`. Exact PR68 head7c47cda passed push39067342954 / PR39067372764 before merge.
+- Branch `feat/managed-recovery-and-client-compatibility`, based on PR69 merge `5405258bf111f924af4ec90099d9e4e2651d33c3`. Exact PR69 head2ca64f6 passed push39068469201 / PR39068485562 before merge.
 - Mainnet execution, four-key custody/workflow, wallet/environment integration, saved language and native scheduling are implemented behind their protected gates. Owner-hosted/live acceptance remains open.
 - New `.github/workflows/financial-recovery.yml` provides protected browser-operated backup, empty-target restore and independent exact verification. Only owner/runtime/CA/archive-key credentials enter recovery; signer/web/scheduler credentials are rejected. PostgreSQL17 is installed from its verified signed repository before credentials attach.
 - Short-term artifacts expire after one day. For longer retention, owners can keep the encrypted ZIP in a dedicated GitHub recovery release. Restore requires a verified successful run or an owner-selected original commit from trusted main history; the archive cannot choose executable code. No automatic schema upgrade, deployment or worker restart.
@@ -39,7 +39,7 @@
 - Completed cycles lacked completion/cooldown fields and a dedicated view. Add a history-entitled Completed filter, recorded completion time, saved-zone formatting and live EN/FR cooldown; retain original payment currency/network.
 - Thirty recent completed cycles could hide an older active cycle and wrongly restart automatic currency rotation. A bounded, user/environment-scoped existence query now controls preview safety independently of that window. Missing compatibility fields fail closed.
 - Unresolved native chain reviews remain visible in current cycle records. Member-facing cycle/payout status labels are localized rather than raw enum codes. No financial writes or DDL.
-- Remaining audit findings include incompatible-client/PWA reload handling and provider-session compatibility for managed recovery. Automatic backup cadence, full lifecycle matrix and hosted acceptance remain open.
+- These findings are addressed locally in v71 below; hosted acceptance remains open. Automatic backup cadence, full lifecycle matrix and hosted acceptance remain open.
 
 `/workspace/work/cycle-history-v70/records-and-preview-r4` reproduces old position1 versus correct transparent position2, constructs35 declared synthetic historical rows around a retained real fixture cycle, verifies the active flag outside the30-row window, exact completion/cooldown, Completed filter, member isolation and unchanged ledger counts/totals. r1 failed at CJS re-export import before fixture creation; r2 used the wrong read role instead of the actual API’s restricted service role. Corrected fresh r3/r4 targets pass; preserve all originals. `browser-cycles-r1` passes actual production Chromium390px EN/FR, position2, Completed view/live cooldown and12.5-second rotation suppression with two currencies. `browser-cycles-r2` repeats on the final source and verifies localized states; required checks, production build and bundle limits pass. These are read/display fixtures, not financial lifecycle acceptance.
 
@@ -76,4 +76,14 @@ Contract4 packets created before SQL006 require their matching pre-006 release (
 
 Follow-up UI acceptance: identify the background request/cancellation path that logged a bounded database deadline around MFA/reload. The selected alert-probe request returned200 and its hash displayed correctly; do not treat this as completed whole-app reliability acceptance.
 
-v70
+## Managed recovery and client compatibility (v71)
+
+- Recovery now permits only known Supabase client roles that are idle, outside a transaction and accompanied by both provider schemas. Active/open-transaction/unknown sessions or hidden metadata still block; no session is terminated. Foreign tables also make a target occupied.
+- API responses declare wire compatibility; clients send their supported range. Incompatible writes fail before processing, and the browser blocks subsequent mutations before sending. Legacy clients remain supported; additive deployments do not force reloads. Worker authentication and logout retain their existing paths.
+- Native and simulation routes share PWA controls. The worker observes public manifest headers only; private reads and all writes bypass it. EN/FR reload notices wait for wallet interaction and offer to copy an existing returned hash. No automatic resend or stored pending request body.
+- Local evidence: `managed-recovery-v71/provider-sessions-r1` passes idle-provider restore/exact verification and active/transaction/unknown/missing-marker denials; `foreign-target-r2` rejects a handlerless foreign table without modifying it. Preserve the old-guard baseline and failed unavailable-extension r1 fixtures. `financial-regression-r1` passes actual encrypted worker→separate web settlement through authenticated callbacks using generated isolated endpoints.
+- `client-compatibility-v71/protocol-and-api-r2`, `client-lock-r2` and `worker-protocol-r2` pass API range validation, pre-fetch mutation lock, logout/401 handling, memory-only owner/invoice receipt scoping and public-only worker observation. Future peer messages are explicit fixtures, not hosted upgrade acceptance.
+- Final production build, required checks and actual390px Chromium EN/FR pass (`browser-compatibility-r2`): native PWA registration, real manifest metadata, stale worker tuple ignored, explicit future-peer banner, pre-POST mutation lock, unchanged saved locale and manual reload. The earlier r1 browser run also passes; fresh r2 verifies the final legacy0/server1 range.
+- Still open: hosted provider metadata/restore, all-asset reconciliation, full product audit, automatic backup cadence/external alerts, device/provider acceptance and real observation periods. No schema, receipt or financial-history rewrite.
+
+v71

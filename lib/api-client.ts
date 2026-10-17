@@ -1,8 +1,10 @@
+import {APP_WIRE_VERSION} from '@gifters/domain';
+import {clientVersionHeaders,observeServerVersion,clientUpdateRequired,requireClientUpdate} from './client-update';
 import { clearActiveUserScope,activeSessionGeneration } from './storage';
 import {withRefreshLock} from './refresh-lock';
 const BASE='/api/v1';
 export class ApiError extends Error{constructor(public code:string,message?:string,public metadata:{retryable?:boolean;messageKey?:string;requestId?:string}={}){super(message??code);}}
-function responseError(body:any,fallback='INTERNAL_ERROR'){const code=/^[A-Z_]{1,100}$/.test(body?.error?.code??'')?body.error.code:fallback;return new ApiError(code,undefined,{retryable:body?.error?.retryable===true,messageKey:typeof body?.error?.message_key==='string'?body.error.message_key:undefined,requestId:/^[0-9a-f-]{36}$/i.test(body?.meta?.request_id??'')?body.meta.request_id:undefined});}
+function responseError(body:any,fallback='INTERNAL_ERROR'){if(body?.error?.code==='CLIENT_UPDATE_REQUIRED')requireClientUpdate();const code=/^[A-Z_]{1,100}$/.test(body?.error?.code??'')?body.error.code:fallback;return new ApiError(code,undefined,{retryable:body?.error?.retryable===true,messageKey:typeof body?.error?.message_key==='string'?body.error.message_key:undefined,requestId:/^[0-9a-f-]{36}$/i.test(body?.meta?.request_id??'')?body.meta.request_id:undefined});}
 let refreshing:Promise<{user:{username:string}|null;generation?:string}>|undefined;
 let clientScope:{owner:string;generation:string}|null=null;
 let scopeRevision=0;
@@ -10,7 +12,20 @@ export function setClientSession(owner:string,generation:string){if(clientScope?
 export function clientSessionMatches(owner:string,generation?:string){return clientScope?clientScope.owner===owner&&clientScope.generation===(generation??''):!owner&&!generation;}
 function currentGeneration(owner:string){return clientScope?.owner===owner?clientScope.generation:activeSessionGeneration(owner);}
 function csrf(){try{const values=document.cookie.split(';').map(v=>v.trim()).filter(v=>v.startsWith('gw_csrf='));return values.length===1?decodeURIComponent(values[0].slice(8)):''}catch{return ''}}
-async function request(path:string,username:string,init:RequestInit){const headers=new Headers(init.headers);if(!headers.has('Content-Type'))headers.set('Content-Type','application/json');if(username){headers.set('X-Client-Account',username);const generation=currentGeneration(username);if(generation&&!headers.has('X-Client-Session'))headers.set('X-Client-Session',generation);}if((init.method??'GET').toUpperCase()!=='GET')headers.set('X-CSRF-Token',csrf());return fetch(BASE+path,{...init,headers,credentials:'same-origin',cache:'no-store'});}
+async function request(path:string,username:string,init:RequestInit){
+ const mutating=!['GET','HEAD','OPTIONS'].includes((init.method??'GET').toUpperCase());
+ if(mutating&&path!=='/auth/logout'&&clientUpdateRequired())throw new ApiError('CLIENT_UPDATE_REQUIRED');
+ const headers=new Headers(init.headers);clientVersionHeaders(headers);
+ if(!headers.has('Content-Type'))headers.set('Content-Type','application/json');
+ if(username){headers.set('X-Client-Account',username);const generation=currentGeneration(username);if(generation&&!headers.has('X-Client-Session'))headers.set('X-Client-Session',generation);}
+ if(mutating)headers.set('X-CSRF-Token',csrf());
+ // Separate current public responses from older unversioned CDN entries.
+ const target=new URL(BASE+path,'https://gw.invalid');
+ if((init.method??'GET').toUpperCase()==='GET'&&['/manifest','/plans','/crypto/catalog','/activity','/statistics','/transparency','/help'].includes(path.split('?')[0]))target.searchParams.set('_gw_wire',String(APP_WIRE_VERSION));
+ const response=await fetch(target.pathname+target.search,{...init,headers,credentials:'same-origin',cache:'no-store'});
+ if(!observeServerVersion(response.headers)&&response.status!==401&&path!=='/auth/logout'){await response.body?.cancel();throw new ApiError('CLIENT_UPDATE_REQUIRED');}
+ return response;
+}
 async function coordinatedRefresh(){
  if(!refreshing){refreshing=withRefreshLock(async()=>{
   const signal=AbortSignal.timeout(8000),present=await request('/auth/session','',{signal});

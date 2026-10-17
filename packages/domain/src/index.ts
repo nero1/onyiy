@@ -95,3 +95,5 @@ export * from './fees';
 export {beneficiaryLiabilityPurposes,businessSettlementRoles,businessAddressRole} from './liabilities';
 
 export {assertMinimumAge} from './eligibility';
+
+export {APP_WIRE_VERSION,APP_MINIMUM_CLIENT_VERSION,APP_MINIMUM_SERVER_VERSION,appCompatibility,wireVersion,compatiblePeers,requestPeerCompatible,responsePeerCompatible} from './client-compatibility';

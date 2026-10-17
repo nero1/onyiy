@@ -1,3 +1,4 @@
+import {ensureRecoveryTargetEmpty} from './recovery-target';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import { sql } from 'drizzle-orm';
@@ -23,16 +24,6 @@ function signature(value:unknown,key:Buffer) {
   return crypto.createHmac('sha256',signing).update(canonical(value)).digest('hex');
 }
 
-async function ensureEmpty(owner:ReturnType<typeof recoveryMaintenance>['owner']) {
-  // This is PostgreSQL restore infrastructure, not application table access.
-  const tables=await owner<{name:string}[]>`select c.relname as name from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','p','v','m','S') limit 1`;
-  const functions=await owner`select p.oid from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and not exists(select 1 from pg_depend d where d.objid=p.oid and d.classid='pg_proc'::regclass and d.deptype='e') limit 1`;
-  if(tables.length||functions.length) throw new Error('RECOVERY_TARGET_NOT_EMPTY');
-  // Require a dedicated staging target without other clients. A native restore
-  // has no --clean path and commits as one transaction; it never merges data.
-  const clients=await owner`select pid from pg_stat_activity where datname=current_database() and pid<>pg_backend_pid() limit 1`;
-  if(clients.length) throw new Error('RECOVERY_TARGET_ACTIVE');
-}
 
 async function validatePacket(file:string,key:Buffer) {
   const stats=await fs.stat(file+'.json');
@@ -85,10 +76,10 @@ async function main() {
     const expected=await validatePacket(file,key);
     input=await authenticatedCopy(file,key,expected.archive_sha256);
     if(mode==='restore') {
-      await ensureEmpty(owner);
+      await ensureRecoveryTargetEmpty(owner);
       await maintenance.verifyBinding();
       await maintenance.closeRuntime(); // Staging must not see our proof client.
-      await ensureEmpty(owner);
+      await ensureRecoveryTargetEmpty(owner);
       // Schema-scoped native dumps exclude provider auth/storage/vault data.
       // Provision only authenticated, closed dependencies after empty-target checks.
       await provisionRecoveryRoles(owner);
