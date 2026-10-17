@@ -1,3 +1,4 @@
+import {solanaGenesis,tronChainId} from './network';
 import {getAddress,Interface,id} from 'ethers';
 import {TronWeb} from 'tronweb';
 import {base58} from '@scure/base';
@@ -35,7 +36,7 @@ export async function scanTransferPage(asset:AssetRegistry,rpc:DualRpc,address:s
       if(!block||quantity(block.number)!==height||!/^0x[0-9a-f]{64}$/i.test(block.hash)||!Array.isArray(block.transactions))throw new Error('RPC_EVIDENCE_INVALID');
       hash=block.hash.toLowerCase();transactions=block.transactions;
     }else if(asset.chain==='sol'){
-      if(await rpc.request(side,'getGenesisHash',[])!=='EtWTRABZaYq6iMfeYKouRu166VU2xqa1')throw new Error('WRONG_NETWORK');
+      if(await rpc.request(side,'getGenesisHash',[])!==solanaGenesis(asset.environment))throw new Error('WRONG_NETWORK');
       const rangeEnd=height+4n<through?height+4n:through;
       if(integer(await rpc.request(side,'getSlot',[{commitment:'finalized'}]))<rangeEnd)throw new Error('FINALITY_UNAVAILABLE');
       const slots=await rpc.request(side,'getBlocks',[number(height),number(rangeEnd),{commitment:'finalized'}]);
@@ -48,7 +49,7 @@ export async function scanTransferPage(asset:AssetRegistry,rpc:DualRpc,address:s
       hash=block.blockhash;transactions=block.signatures;
     }else{
       const identity=await rpc.post(side,'jsonrpc',{jsonrpc:'2.0',id:1,method:'eth_chainId',params:[]},true);
-      if(BigInt(identity)!==({nile:3448148188n,shasta:2494104990n} as Record<string,bigint>)[asset.network])throw new Error('WRONG_NETWORK');
+      if(BigInt(identity)!==tronChainId(asset.network))throw new Error('WRONG_NETWORK');
       const tip=await rpc.post(side,'walletsolidity/getnowblock',{});
       if(integer(tip?.block_header?.raw_data?.number)<height)throw new Error('FINALITY_UNAVAILABLE');
       block=await rpc.post(side,'walletsolidity/getblockbynum',{num:number(height)});

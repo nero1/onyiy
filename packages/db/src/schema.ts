@@ -37,14 +37,17 @@ export const users = pgTable('users', {
   activityOptIn:boolean('activity_opt_in').notNull().default(false),
   activityRevision:integer('activity_revision').notNull().default(1),
   ageConfirmedAt: timestamp('age_confirmed_at',{withTimezone:true}),
+  ageDobVerifiedAt: timestamp('age_dob_verified_at',{withTimezone:true}),
   ageMinimumAccepted: integer('age_minimum_accepted'),
   locale: text('locale').notNull().default('en'),
+  timeZone:text('time_zone').notNull().default('Africa/Lagos'),
+  preferencesRevision:integer('preferences_revision').notNull().default(1),
   consentVersion: text('consent_version'),
   consentedAt: timestamp('consented_at', { withTimezone: true }),
   referrerUserId: uuid('referrer_user_id').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
   createdAt: createdAt(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [...contractChecks("users"),check('users_activity_revision_check',sql`${t.activityRevision}>0`),check('users_publication_classification_check',sql`${t.publicationClassification} in ('unreviewed','test','real')`),index('users_publication_review_idx').on(t.publicationClassification,t.id),index('users_public_activity_idx').on(t.createdAt,t.id).where(sql`${t.publicationClassification}='real' and ${t.activityOptIn} and ${t.role}='member' and ${t.status}='active'`),...contractIndexes("users")]).enableRLS();
+}, (t) => [...contractChecks("users"),check('users_preferences_revision_check',sql`${t.preferencesRevision}>0`),check('users_dob_verification_check',sql`${t.ageDobVerifiedAt} is null or (${t.ageConfirmedAt} is not null and ${t.ageMinimumAccepted} is not null)`),check('users_activity_revision_check',sql`${t.activityRevision}>0`),check('users_publication_classification_check',sql`${t.publicationClassification} in ('unreviewed','test','real')`),index('users_publication_review_idx').on(t.publicationClassification,t.id),index('users_public_activity_idx').on(t.createdAt,t.id).where(sql`${t.publicationClassification}='real' and ${t.activityOptIn} and ${t.role}='member' and ${t.status}='active'`),...contractIndexes("users")]).enableRLS();
 
 export const userIdentities=pgTable('user_identities',{id:uuid('id').primaryKey().defaultRandom(),userId:uuid('user_id').notNull().references(()=>users.id,{onDelete:'restrict'}),provider:text('provider').notNull(),subject:text('subject').notNull(),createdAt:createdAt().default(sql.raw("clock_timestamp()"))},t=>[...contractChecks("user_identities"),...contractIndexes("user_identities"),unique().on(t.provider,t.subject)]).enableRLS();
 export const authSessions=pgTable('auth_sessions',{
@@ -90,6 +93,8 @@ export const plans = pgTable('plans', {
 
 export const planVersions = pgTable('plan_versions', {
   id: uuid('id').primaryKey().defaultRandom(),
+  pricingMode: text('pricing_mode').notNull().default('usd_at_activation'),
+  activationPriceId: uuid('activation_price_id').references(():AnyPgColumn=>priceQuotes.id,{onDelete:'restrict'}),
   planId: uuid('plan_id').notNull().references(() => plans.id, { onDelete: 'restrict' }),
   assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'restrict' }),
   version: integer('version').notNull(),
@@ -103,7 +108,7 @@ export const planVersions = pgTable('plan_versions', {
   receiptsRequired: integer('receipts_required').notNull(),
   active: boolean('active').notNull().default(false),
   createdAt: createdAt(),
-}, (t) => [...contractChecks("plan_versions"),...contractIndexes("plan_versions"),unique('plan_versions_plan_asset_version_unique').on(t.planId, t.assetId, t.version)]).enableRLS();
+}, (t) => [...contractChecks("plan_versions"),...contractIndexes("plan_versions"),check('plan_versions_pricing_mode_check',sql`${t.pricingMode} in ('usd_at_activation','fixed_token')`),unique('plan_versions_plan_asset_version_unique').on(t.planId, t.assetId, t.version)]).enableRLS();
 
 export const queuePartitions = pgTable('queue_partitions', {
   id: uuid('id').primaryKey().defaultRandom(),

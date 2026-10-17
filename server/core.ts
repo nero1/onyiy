@@ -689,9 +689,9 @@ export async function dashboard(database: DbExecutor, user: UserRow, manifest: M
     .where(and(eq(withdrawals.userId, user.id), eq(withdrawals.assetId, asset.id), eq(withdrawals.status, 'settled')));
 
   return {
-    user: { id: user.id, username: user.username, role: user.role, status: user.status, locale: user.locale,consent_version:user.consentVersion,age_confirmed:!!user.ageConfirmedAt },
+    user: { id: user.id, username: user.username, role: user.role, status: user.status, locale: user.locale,time_zone:user.timeZone,consent_version:user.consentVersion,age_confirmed:!!user.ageDobVerifiedAt,age_minimum_accepted:user.ageMinimumAccepted },
     manifest:{...publicManifest(manifest),presentation:presentationFromManifest(manifest),configuration_available:true},
-    consent:{required:user.consentVersion!==manifest.terms_content.version||!user.ageConfirmedAt||user.ageMinimumAccepted===null||user.ageMinimumAccepted<manifest.eligibility_min_age,terms_content:manifest.terms_content,minimum_age:manifest.eligibility_min_age},
+    consent:{required:user.consentVersion!==manifest.terms_content.version||!user.ageConfirmedAt||!user.ageDobVerifiedAt||user.ageMinimumAccepted===null||user.ageMinimumAccepted<manifest.eligibility_min_age,terms_content:manifest.terms_content,minimum_age:manifest.eligibility_min_age},
     asset: { symbol: 'GIV', decimals: 2 },
     balances: { available: available.toString(), held: held.toString(), incoming:balances.find(row=>row.purpose==='incoming_payable')?.balance??'0',refundable:balances.find(row=>row.purpose==='refund_payable')?.balance??'0', withdrawn: withdrawnRows[0]?.total ?? '0' },
     points: pointRows[0]?.total ?? 0,

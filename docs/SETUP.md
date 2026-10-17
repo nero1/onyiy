@@ -57,10 +57,10 @@ select name from public.schema_migrations;
 
 7. Confirm the result contains `000_initial_schema.sql`.
 8. Open [001_historical_treasury_fence.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/001_historical_treasury_fence.sql), click **Raw**, copy the entire file, then paste it into **SQL Editor → New query** and click **Run** once.
-9. Repeat the same whole-file copy/paste for [002_ephemeral_retention.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/002_ephemeral_retention.sql), then [003_monthly_financial_archives.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/003_monthly_financial_archives.sql), then [004_transparent_profiles.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/004_transparent_profiles.sql). Run them separately, in that order. If a filename is already in the receipt query, skip that file.
+9. Repeat the same whole-file copy/paste for [002_ephemeral_retention.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/002_ephemeral_retention.sql), then [003_monthly_financial_archives.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/003_monthly_financial_archives.sql), then [004_transparent_profiles.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/004_transparent_profiles.sql). Then repeat for [005_production_environments.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/005_production_environments.sql). Run them separately, in that order. If a filename is already in the receipt query, skip that file.
 10. Run the receipt query again. Confirm all four filenames appear before deploying the matching app release.
 
-Run the installation file once. It creates the final tables, views, functions, security rules and indexes together. It does **not** create all plans and demo accounts; the existing deployment workflow adds those in step 8. The old 99-file chain remains consolidated in `000`; `001`–`004` add later recovery, retention and profile safeguards. Keep the installed `000` unchanged. Deployment checks receipts and never runs migrations for you.
+Run the installation file once. It creates the final tables, views, functions, security rules and indexes together. It does **not** create all plans and demo accounts; the existing deployment workflow adds those in step 8. The old 99-file chain remains consolidated in `000`; `001`–`005` add later recovery, retention, profile and environment safeguards. Keep the installed `000` unchanged. Deployment checks receipts and never runs migrations for you.
 
 If installation fails, keep the error and check the troubleshooting table below. Do not split the file, remove checks, or rerun it over existing application tables. [SQL Editor reference](https://supabase.com/docs/guides/database/functions).
 
@@ -178,7 +178,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v54.md](PROJECT-STATUS_v54.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v55.md](PROJECT-STATUS_v55.md).
 
 ## 10. Preview using the same projects and database
 
@@ -410,3 +410,23 @@ Other supported test-network registry values: Ethereum Sepolia `11155111`, BNB t
 9. Keep the readiness record **Not reviewed** until supporting evidence exists. A profile change never approves real-money operation.
 
 Archives created before SQL004 need the matching earlier release to restore. Keep original archives, keys and release references; do not alter checksums or signed inventories.
+
+## Final testing: details to prepare
+
+Provide these during final setup; coding can continue before they are available. Never send private keys, passwords or recovery phrases in chat.
+
+1. Choose launch countries and obtain the required business/legal review. Approve user terms, funding sources, refunds, closure handling and loss disclosures.
+2. Set an operating/gas budget and choose the existing hosting/custody accounts to use. Confirm the hosting plan permits the intended commercial use.
+3. For each enabled asset, record its exact network, verified contract/mint, decimals, provenance and two independent RPC providers. Supply JAGA's reviewed BNB contract if JAGA is included. Leave unverified assets disabled.
+4. Prepare dedicated treasury/gas and settlement addresses, per-transaction/daily limits, fee reserves and an HTTPS alert receiver. Keep custody/decryption material only in the separate signer host's protected settings.
+5. Put database, OAuth, CAPTCHA, archive and worker credentials in the protected provider settings identified above. Preview must receive restricted access before the shared database holds real funds.
+6. During final testing, verify actual OAuth/MFA, wallet approvals, every enabled asset's payments/refunds/recovery, received alerts and a fresh empty-target restore. Save the actual evidence; local fixtures cannot substitute for it.
+7. Complete the PRD's14-day beta and14-day initial-cap observation periods. Mainnet implementation remains in progress; this checklist does not activate it.
+
+## Account checks after deployment
+
+1. Sign in and open **Account**. Save English/French and your time zone; dates should use that zone. The default is Africa/Lagos.
+2. When consent requests a birth date, enter the full date. The server checks the required age and retains the verification time, not the birth date.
+3. In native plan administration, choose USD-derived pricing or enter the exact token amount. Use **Resume the existing price unchanged** to preserve a paused plan's existing amount.
+
+New backups use recovery inventory contract4. Keep original archives, keys and release references. Contract3 archives require release `6c323dc43c45efa1957308e467ce06e7cc0b36c0`; do not edit or re-sign them.

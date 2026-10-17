@@ -1,4 +1,6 @@
 'use client';
+import {formatDisplayDate} from '@/lib/display-time';
+import {useDisplayTimeZone} from './appearance-provider';
 import ProfileDisclosure from './profile-disclosure';
 import {latestPublicManifest} from '@/lib/profile-state';
 import type {ProfilePresentation,PublicQueueDisclosure,PlanFinancialPresentation} from '@/server/presentation';
@@ -47,6 +49,7 @@ function remember(key:string,value:string){try{localStorage.setItem(key,value)}c
 function cacheMs(manifest:PublicManifestDto|null|undefined,key:keyof PublicManifestDto['cache_policy']){const seconds=manifest?.cache_policy?.[key];return Number.isSafeInteger(seconds) && typeof seconds==='number' && seconds>0?seconds*1000:0}
 
 export default function DashboardApp() {
+ const timeZone=useDisplayTimeZone();
   const catalogGeneration=useRef(0);
   const tabId=useRef(crypto.randomUUID());
   const [users, setUsers] = useState<User[]>([]);
@@ -336,12 +339,12 @@ export default function DashboardApp() {
 
         {giftQuote && giftQuote.owner===username && <section className="card" aria-label={t.reviewGift}>
           <h2>{t.reviewGift}</h2><ProfileDisclosure presentation={manifest.presentation} locale={locale} queue={giftQuote.queue_disclosure} plan={giftQuote.plan} mode="checkout"/><p>{t.gross}: {formatBaseUnits(giftQuote.expected_base_units)} GIV</p>
-          <p>{t.expires}: {new Date(giftQuote.expires_at).toLocaleString(locale)}</p>
+          <p>{t.expires}: {formatDisplayDate(giftQuote.expires_at,locale,timeZone)}</p>
           <button disabled={busy || !online || giftQuote.status!=='quoted' || giftQuote.profile_revision!==manifest.profile_revision || new Date(giftQuote.expires_at).getTime()<=Date.now()} onClick={()=>act(async()=>{const quote=giftQuote;const result=await mutation(`/gifts/invoices/${quote.id}/transaction`,username,{profile_revision:manifest?.profile_revision});if(quote.owner===currentUser.current)setGiftQuote(null);return result})}>{t.confirmGift}</button>
           <button disabled={busy || !online} onClick={()=>act(async()=>{const quote=giftQuote;const result=await mutation(`/gifts/invoices/${quote.id}/cancel`,username,{});if(quote.owner===currentUser.current)setGiftQuote(null);return result})}>{t.cancel}</button>
         </section>}
 
-        {manifest.feature_notifications&&<section><h2>{t.notifications}</h2><div className="stack">{dash.notifications.map((item) => <article className="card note" key={item.id}><strong>{notificationTitle(item.title_key,locale)}</strong><p>{notificationBody(item.title_key,item.body,locale)}</p><small>{new Date(item.created_at).toLocaleString(locale)}</small></article>)}</div></section>}
+        {manifest.feature_notifications&&<section><h2>{t.notifications}</h2><div className="stack">{dash.notifications.map((item) => <article className="card note" key={item.id}><strong>{notificationTitle(item.title_key,locale)}</strong><p>{notificationBody(item.title_key,item.body,locale)}</p><small>{formatDisplayDate(item.created_at,locale,timeZone)}</small></article>)}</div></section>}
 
         {dash.user.role==='admin'&&<AdminPanel key={username+':'+sessionGeneration} user={username} locale={locale} plans={plans} enabled={manifest.feature_admin} priorityEnabled={manifest.feature_priority} helpEnabled={manifest.feature_help}/>}
         {dash.user.role === 'admin' && <section><h2>{t.admin}</h2><div className="card admin-grid">

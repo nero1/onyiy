@@ -1,4 +1,6 @@
-# Bug report — Rounds One/Two/Three v54
+# Bug report — Rounds One/Two/Three v55
+
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v55.md).
 
 Updated: **17 October 2026 at 01:06:45 UTC**.
 
@@ -6,7 +8,7 @@ Updated: **17 October 2026 at 01:06:45 UTC**.
 
 Historical numbered migration paths below identify the original fixes in Git history. Fresh installations use `000_initial_schema.sql` then the forward files `001`–`004` in filename order; do not run removed historical files.
 
-PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the three fresh Round Two findings below; The same batch includes the Round Three recovery fix below; Phase Two implementation/local review is complete in v54.
+PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the three fresh Round Two findings below; The same batch includes the Round Three recovery fix below; Phase Two implementation/local review is complete in v55.
 
 ## Findings at a glance
 
@@ -91,7 +93,7 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 - “Defect” means a source/contract failure; “requirement gap” means missing requested behavior; “hardening” means a conditional defensive improvement; “maintenance” means structural/dependency risk.
 - Initial audit ratings (current → projected after fixes): money/recovery 5 → 8; security/privacy 6.5 → 8.5; performance 5 → 8; maintainability 6 → 8; product/accessibility/SEO 6 → 8, out of 10. These were qualitative judgments, not measured guarantees or updated release ratings.
 - Original audit: 70 findings; four more were found during remediation. Three analysis passes were one audit round. CRON frequency and test-only issues were excluded.
-- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v54.md).
+- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v55.md).
 
 ## Original evidence by finding
 
@@ -557,7 +559,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v54.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v55.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -575,11 +577,11 @@ These are locally verified code fixes, not hosted acceptance. Private named proc
 
 Fresh review covered request/worker admission, public configuration/cache boundaries, authentication cleanup, export/privacy handling, financial call sites and native recovery. The named findings are fixed locally; this is not a claim that every possible bug is absent or that hosted behavior was accepted.
 
-## Phase Two transition finding (working v54)
+## Phase Two transition finding (working v55)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v54.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v55.md).
 
-v54
+v55
 
 
 ### Additional Phase Two review fixes
@@ -595,3 +597,29 @@ v54
 - **P2-B007:** Raw SQL passed to the ORM `exists` helper omitted subquery parentheses in the future real-event path. Use explicit closed `EXISTS(...)` expressions. The rollback-only owner contract now executes every feed query, proves opt-in/withdrawal and anonymous output, and checks historical-price validation without enabling mainnet or sending funds.
 
 - **P2-B008:** Receipt masking depended on a potentially stale/unavailable profile, and changing language during a publication save could leave controls busy. Receipt images always mask identity; publication scope resets controls and prevents an old request from releasing a newer request’s lock.
+
+
+## Full-product completion audit v55
+
+The new owner directive reopens overall product completion, including mainnet. Earlier completion statements concern their named batches only. Current gaps and dependencies:
+
+- **C001 — Mainnet registry/configuration:** Testnet-only validation and provider assumptions; staged registry foundations in progress.
+- **C002 — Shared database and preview isolation:** Mainnet namespace/promotion fence, non-sending preview role, stale-build retirement and production-reset denial need implementation and proof.
+- **C003 — Signer and custody:** Both implementation gates remain false; environment-bound keys, scoped worker access and verified activation remain open.
+- **C004 — Payment/fee/recovery matrix:** Every enabled asset needs inflow, withdrawal, business/refund/operating settlement, reorg, replacement/expiry and restart evidence.
+- **C005 — Asset and RPC provenance:** Verify all §30 assets/networks, two independent RPCs, token decimals/contracts/mints; JAGA needs owner input.
+- **C006 — Pricing modes:** Native fixed-token activation is explicitly rejected despite §9.3; amount/asset binding and safe USD reference remain to implement.
+- **C007 — Production UI and wallet support:** Remove testnet-only catalog/wallet/history assumptions; verify all EN/FR disclosures, receipts and actual mainnet wallet approval.
+- **C008 — Mainnet backup and recovery:** Recovery currently accepts simulation/testnet only; verify exact production restore, chain reconciliation and no resend.
+- **C009 — Hosted identity/access:** Actual OAuth/MFA, restrictive roles, rate limits, CAPTCHA and account/financial recovery need hosted evidence.
+- **C010 — Complete product acceptance:** Check every feature/flag, queues, cooldowns, referrals/points, admin/moderation, exports/deletion, accessibility/PWA/offline and errors against §§1–29.
+- **C011 — Deployment and operations:** Secure hosted setup, external alerts, signer/scheduler heartbeats and incident/closure controls need actual operation evidence.
+- **C012 — Capacity and cost:** Measure mobile/latency/quota targets and select commercially permitted hosting within owner budget.
+- **C013 — Observation periods:** §30 requires14-day beta stability and14-day initial-cap mainnet observation; no elapsed evidence recorded.
+- **C014 — Owner launch decisions:** Launch countries/review, approved financial terms, funding/refund/closure model, custody and budget remain unresolved.
+
+- **C015 — Age eligibility:** Consent currently accepts an adult checkbox; §5 requires full-date-of-birth age calculation using server time.
+- **C016 — Display time zones:** User/default Lagos and admin_timezone settings are not wired into the date formatting surfaces.
+- **C017 — Product navigation/idle preview:** Verify and finish §18 currency browsing/idle rotation, focus-safe behaviour and all scheduled-plan presentation; current native portal has no currency rotation implementation.
+
+Owner update: all launch details are deferred to final testing. Document the fields in SETUP and continue code without waiting for them. C006 fixed-token pricing is implemented and passed an isolated rollback-only activation/replay/immutability procedure; final release/schema verification remains pending.

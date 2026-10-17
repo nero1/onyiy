@@ -1,8 +1,8 @@
 {
   "format": "gw-drizzle-congruence-v1",
-  "verified_columns": 892,
+  "verified_columns": 897,
   "verified_standalone_indexes": 119,
-  "verified_check_constraints": 298,
+  "verified_check_constraints": 301,
   "verified_tables": 96,
   "sql_only_constraint_triggers": [
     {
@@ -153,15 +153,16 @@
     }
   ],
   "source_sha256_base64": {
-    "packages/db/src/schema.ts": "uF26dFLhVm1q5lVa3JDdssO0fwdXL0KCMGrh6WhC0tI=",
-    "packages/db/src/schema-contracts.ts": "vwnUvk8dlKrdKf+0zFPJskiNrC9rsEB18P850LQVmI8="
+    "packages/db/src/schema.ts": "QyJxy2963mV4Yg/stPdMmkz/q+KU7pK6a8QMATofji8=",
+    "packages/db/src/schema-contracts.ts": "46f1C0h8HuSCRTgcljvOEJVmjNSydmdCF8NI6npdlHk="
   },
   "migrations_sha256_base64": {
     "000_initial_schema.sql": "/8uTC5dPlh3nz8T4e7+39ITUe/KzB3fTsBCRtZ6z8yA=",
     "001_historical_treasury_fence.sql": "AnaXqjRLsZmREkce7CFRMuvCWkqpm9h+wk8YUasj2Oo=",
     "002_ephemeral_retention.sql": "X3hHpSCKXHFmlU9hgfSROZYBrk/5Y98PQbdaKsNju24=",
     "003_monthly_financial_archives.sql": "HYWwiP1nTBVxKKPiW04AH6ySCEf5tyjvmaNu4x62d/4=",
-    "004_transparent_profiles.sql": "F81Aac7y8kcVS5yoliVy6coLWJ60BfwvXBaqAi3yChw="
+    "004_transparent_profiles.sql": "F81Aac7y8kcVS5yoliVy6coLWJ60BfwvXBaqAi3yChw=",
+    "005_production_environments.sql": "4gzOpn/VtspbYmWice87LEhy1x877x2yfbpcB/HMtqs="
   },
   "consolidated_baseline": {
     "file": "000_initial_schema.sql",
@@ -202,7 +203,7 @@
     ],
     "global_identity_registry": true,
     "sql_only_partition_bounds_triggers_acl_inventory": true,
-    "recovery_schema_contract_version": 3,
+    "recovery_schema_contract_version": 4,
     "financial_deletion": false
   },
   "transparent_profile_review": {
@@ -212,5 +213,22 @@
     "profile_transition_fence": true,
     "financial_deletion": false,
     "microsecond_row_hashes_and_cursors": true
+  },
+  "production_foundation_review": {
+    "migration": "005_production_environments.sql",
+    "generated_model_columns_constraints_indexes_match": true,
+    "active_environment_read_write_fences": true,
+    "preview_role_closed": true,
+    "pricing_snapshot_immutable": true,
+    "birth_date_not_stored": true,
+    "user_preferences_scoped_versioned": true,
+    "recovery_roles_closed_and_fingerprinted": [
+      "gw_read",
+      "gw_service",
+      "gw_signer",
+      "gw_preview"
+    ],
+    "actual_cross_cluster_restore_verified": true,
+    "mainnet_execution_enabled": false
   }
 }

@@ -127,11 +127,13 @@ export class SignerStore {
         safe: boolean;
         isolated: boolean;
       }>(
-        sql`select not (rolsuper or rolbypassrls or rolinherit or rolcreatedb or rolcreaterole) and not exists(select 1 from pg_roles where rolname='gw_signer' and (rolcanlogin or rolinherit or rolsuper or rolbypassrls or rolcreatedb or rolcreaterole)) and not exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace join pg_roles o on o.oid=c.relowner where n.nspname='public' and o.rolname in (session_user,'gw_signer')) and not exists(select 1 from pg_namespace n join pg_roles o on o.oid=n.nspowner where n.nspname='public' and o.rolname in (session_user,'gw_signer')) and not exists(select 1 from pg_database d join pg_roles o on o.oid=d.datdba where d.datname=current_database() and o.rolname in (session_user,'gw_signer')) as safe,pg_has_role(session_user,'gw_signer','MEMBER') and not pg_has_role(session_user,'gw_service','MEMBER') and not pg_has_role(session_user,'gw_read','MEMBER') as isolated from pg_roles where rolname=session_user`,
+        sql`select not (rolsuper or rolbypassrls or rolinherit or rolcreatedb or rolcreaterole or rolreplication) and not exists(select 1 from pg_roles where rolname='gw_signer' and (rolcanlogin or rolinherit or rolsuper or rolbypassrls or rolcreatedb or rolcreaterole or rolreplication)) and not exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace join pg_roles o on o.oid=c.relowner where n.nspname='public' and o.rolname in (session_user,'gw_signer')) and not exists(select 1 from pg_namespace n join pg_roles o on o.oid=n.nspowner where n.nspname='public' and o.rolname in (session_user,'gw_signer')) and not exists(select 1 from pg_database d join pg_roles o on o.oid=d.datdba where d.datname=current_database() and o.rolname in (session_user,'gw_signer')) as safe,pg_has_role(session_user,'gw_signer','MEMBER') and not pg_has_role(session_user,'gw_service','MEMBER') and not pg_has_role(session_user,'gw_read','MEMBER') as isolated from pg_roles where rolname=session_user`,
       );
       if (!role?.safe || !role.isolated)
         throw new Error("SIGNER_DATABASE_SCOPE_DENIED");
       await tx.execute(sql.raw("set local role gw_signer"));
+      const [memberships]=await tx.execute<{safe:boolean}>(sql`select not exists(select 1 from pg_auth_members m join pg_roles member on member.oid=m.member join pg_roles parent on parent.oid=m.roleid where (member.rolname=session_user and (m.admin_option or coalesce((to_jsonb(m)->>'inherit_option')::boolean,false) or parent.rolname<>'gw_signer')) or member.rolname='gw_signer') as safe`);
+      if(!memberships?.safe)throw new Error('SIGNER_DATABASE_SCOPE_DENIED');
       await tx.execute(sql`select set_config('gw.database_binding',${await databaseBinding(tx)},true)`);
 
       return fn(tx);

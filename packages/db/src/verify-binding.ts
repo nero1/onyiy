@@ -17,7 +17,7 @@ export async function verifyDatabaseBinding(_bootstrap=false,quiet=false) {
     await database.transaction(async transaction=>{
       await transaction.execute(sql`set local statement_timeout='2000ms'`);
       const [ownerSession]=await transaction.execute<{pid:number}>(sql`select pg_advisory_xact_lock(${keys[0].toString()}::bigint),pg_advisory_xact_lock(${keys[1].toString()}::bigint),pg_backend_pid() as pid`);
-      const matched=await withContext({access:'service'},async tx=>{
+      const matched=await withContext({access:'service',bindingProbe:true},async tx=>{
         await tx.execute(sql`set local statement_timeout='2000ms'`);
         const [row]=await tx.execute<{matched:boolean}>(sql`select
           exists(select 1 from pg_locks where locktype='advisory' and database=(select oid from pg_database where datname=current_database()) and pid=${ownerSession.pid} and classid=${parts[0].high}::oid and objid=${parts[0].low}::oid and objsubid=1 and mode='ExclusiveLock' and granted)

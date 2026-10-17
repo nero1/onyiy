@@ -1,9 +1,9 @@
-import {fenceSimulationDatabase} from './deployment-mode';
+import {fenceApplicationEnvironment} from './deployment-mode';
 import {withBoundedTransaction,remainingExecutionTime} from './execution-budget';
 import {performance} from 'node:perf_hooks';
 import {admissionFor} from './work-budget';
 import {databaseConnectionOptions} from './connection-options';
-import {databaseBinding} from './binding-fingerprint';
+import {databaseBinding,databaseScopeFingerprint} from './binding-fingerprint';
 import {activeRequestId} from './request-context';
 import { sql, eq, and } from 'drizzle-orm';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -14,12 +14,13 @@ type SessionScope={userId:string;sessionId:string;accessHash:string;version:numb
 const sessionScopes=new AsyncLocalStorage<SessionScope>();
 export function withSessionScope<T>(scope:SessionScope,fn:()=>T){return sessionScopes.run(scope,fn);}
 
-export type DatabaseContext = { access: 'public' | 'member' | 'staff' | 'service'; actorId?: string; requireAdmin?: boolean; requireModerator?:boolean; snapshot?: boolean; reportSnapshot?: boolean; profileSwitch?:boolean };
+export type DatabaseContext = { access: 'public' | 'member' | 'staff' | 'service'; actorId?: string; requireAdmin?: boolean; requireModerator?:boolean; snapshot?: boolean; reportSnapshot?: boolean; profileSwitch?:boolean; bindingProbe?:boolean };
 
 export async function scopedTransaction<T>(database: Database, context: DatabaseContext, fn: (tx: DbExecutor) => Promise<T>) {
   if (context.actorId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(context.actorId)) throw new Error('INVALID_INPUT');
   if ((['member','staff'].includes(context.access) || context.requireAdmin || context.requireModerator) && !context.actorId) throw new Error('UNAUTHENTICATED');
   if(context.profileSwitch&&(context.access!=='service'||!context.requireAdmin||context.snapshot||context.reportSnapshot))throw new Error('FORBIDDEN');
+  if(context.bindingProbe&&(context.access!=='service'||context.actorId||context.requireAdmin||context.requireModerator||context.profileSwitch||context.reportSnapshot))throw new Error('FORBIDDEN');
   if (context.reportSnapshot && context.access!=='service') throw new Error('FORBIDDEN');
   const config = validateRuntimeEnv();
   return admissionFor(database,databaseConnectionOptions(config.databaseUrl).max).run(performance.now()+Math.min(1500,remainingExecutionTime()),()=>{remainingExecutionTime();return database.transaction(rawTx => withBoundedTransaction(rawTx,async (tx) => {
@@ -28,8 +29,10 @@ export async function scopedTransaction<T>(database: Database, context: Database
     // PostgreSQL metadata and transaction-local security context are deliberate
     // infrastructure exceptions. Domain queries continue to use Drizzle.
     const role = await tx.execute<{safe:boolean}>(sql`
-      select not (r.rolsuper or r.rolbypassrls or r.rolcreatedb or r.rolcreaterole or r.rolinherit)
-        and not exists (select 1 from pg_roles g where g.rolname in ('gw_read','gw_service') and (g.rolcanlogin or g.rolinherit or g.rolsuper or g.rolcreatedb or g.rolcreaterole or g.rolbypassrls))
+      select not (r.rolsuper or r.rolbypassrls or r.rolcreatedb or r.rolcreaterole or r.rolinherit or r.rolreplication)
+        and not exists(select 1 from pg_auth_members m join pg_roles parent on parent.oid=m.roleid where m.member=r.oid and (m.admin_option or coalesce((to_jsonb(m)->>'inherit_option')::boolean,false) or parent.rolname not in ('gw_read','gw_service')))
+        and not exists(select 1 from pg_auth_members m join pg_roles child on child.oid=m.member where child.rolname in ('gw_read','gw_service'))
+        and not exists (select 1 from pg_roles g where g.rolname in ('gw_read','gw_service') and (g.rolcanlogin or g.rolinherit or g.rolsuper or g.rolcreatedb or g.rolcreaterole or g.rolbypassrls or g.rolreplication))
         and not exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace join pg_roles owner on owner.oid=c.relowner where n.nspname='public' and owner.rolname in (session_user,'gw_read','gw_service'))
         and not exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace join pg_roles owner on owner.oid=p.proowner where n.nspname='public' and owner.rolname in (session_user,'gw_read','gw_service'))
         and not exists (select 1 from pg_database d join pg_roles owner on owner.oid=d.datdba where d.datname=current_database() and owner.rolname in (session_user,'gw_read','gw_service'))
@@ -40,16 +43,15 @@ export async function scopedTransaction<T>(database: Database, context: Database
     // Profile switches fence every application transaction before actor/data
     // locks. New intake cannot straddle a presentation/terms/queue transition.
     await tx.execute(context.profileSwitch?sql`select pg_advisory_xact_lock(hashtextextended('gw-release-profile',0))`:sql`select pg_advisory_xact_lock_shared(hashtextextended('gw-release-profile',0))`);
-    if (config.appEnv === 'simulation') {
-      await tx.execute(sql.raw('SET LOCAL ROLE gw_service'));
-      await fenceSimulationDatabase(tx);
-      // PostgreSQL permits row locks only in a read-write transaction. Lock
-      // the promotion fence first, then make the entire application snapshot
-      // read-only before actor checks or the caller's callback can run.
-      if (context.snapshot) await tx.execute(sql.raw('SET TRANSACTION READ ONLY'));
-    }
+    await tx.execute(sql.raw('SET LOCAL ROLE gw_service'));
+    if(!context.bindingProbe)await fenceApplicationEnvironment(tx,config.appEnv);
+    // Binding probes inspect pg_locks before an environment is initialized.
+    // They cannot mutate domain state, including through definer routines.
+    if(context.snapshot||context.bindingProbe)await tx.execute(sql.raw('SET TRANSACTION READ ONLY'));
     await tx.execute(context.access === 'service' ? sql.raw('SET LOCAL ROLE gw_service') : sql.raw('SET LOCAL ROLE gw_read'));
-    const binding = await databaseBinding(tx, process.env.DATABASE_URL);
+    // The actual two-connection lock challenge proves a binding probe. Its
+    // read-only metadata scope must not initialize the restored nonce table.
+    const binding = context.bindingProbe?databaseScopeFingerprint(config.databaseUrl):await databaseBinding(tx, process.env.DATABASE_URL);
     await tx.execute(sql`select set_config('gw.request_id',${activeRequestId()??''},true)`);
     await tx.execute(sql`select set_config('gw.actor_id',${context.actorId ?? ''},true), set_config('gw.access',${context.access},true), set_config('gw.environment',${config.appEnv},true), set_config('gw.database_binding',${binding},true)`);
     await tx.execute(sql`select set_config('gw.profile_transition',${String(!!context.profileSwitch)},true)`);
@@ -58,11 +60,11 @@ export async function scopedTransaction<T>(database: Database, context: Database
       if(!authenticated||context.actorId!==authenticated.userId)return;
       await tx.execute(sql.raw('SET LOCAL ROLE gw_service'));
       await tx.execute(sql`select set_config('gw.access','service',true)`);
-      const [actor]=await tx.select({version:users.sessionVersion,status:users.status,role:users.role,age:users.ageMinimumAccepted,ageAt:users.ageConfirmedAt}).from(users).where(eq(users.id,authenticated.userId)).limit(1);
+      const [actor]=await tx.select({version:users.sessionVersion,status:users.status,role:users.role,age:users.ageMinimumAccepted,ageAt:users.ageConfirmedAt,ageDobAt:users.ageDobVerifiedAt}).from(users).where(eq(users.id,authenticated.userId)).limit(1);
       const query=tx.select({id:authSessions.id,stepUpAt:authSessions.stepUpAt,createdAt:authSessions.createdAt}).from(authSessions).where(and(eq(authSessions.id,authenticated.sessionId),eq(authSessions.userId,authenticated.userId),eq(authSessions.accessHash,authenticated.accessHash),eq(authSessions.sessionVersion,authenticated.version),sql`${authSessions.revokedAt} is null and not ${authSessions.preAuth} and ${authSessions.accessExpiresAt}>clock_timestamp() and ${authSessions.idleExpiresAt}>clock_timestamp() and ${authSessions.absoluteExpiresAt}>clock_timestamp()`)).limit(1);
       const [family]=fence&&!context.snapshot?await query.for('share'):await query;
       if(!actor||!family||actor.version!==authenticated.version||(['banned','deleted'].includes(actor.status)||(actor.status==='suspended'&&!authenticated.allowSuspended)))throw new Error('UNAUTHENTICATED');
-      if(authenticated.requiresAdult){const policy=await readManifest(tx);if(!actor.ageAt||actor.age===null||actor.age<policy.eligibility_min_age)throw new Error('CONSENT_REQUIRED');}
+      if(authenticated.requiresAdult){const policy=await readManifest(tx);if(!actor.ageAt||!actor.ageDobAt||actor.age===null||actor.age<policy.eligibility_min_age)throw new Error('CONSENT_REQUIRED');}
       if(authenticated.requiresWithdrawalProof){const policy=await readManifest(tx);const [factor]=await tx.select({active:authFactors.active}).from(authFactors).where(eq(authFactors.userId,authenticated.userId)).limit(1);const [clock]=await tx.execute<{now:Date}>(sql`select clock_timestamp() as now`);const now=new Date(clock.now).getTime(),budget=policy.staff_reauth_minutes*60000;if(factor?.active||['admin','moderator'].includes(actor.role)){if(!factor?.active||!family.stepUpAt||now-family.stepUpAt.getTime()>=budget)throw new Error('STEP_UP_REQUIRED');}else if(now-family.createdAt.getTime()>=budget)throw new Error('STEP_UP_REQUIRED');}
       if(context.requireAdmin||context.requireModerator){const policy=await readManifest(tx);const [now]=await tx.execute<{now:Date}>(sql`select clock_timestamp() as now`);if(!family.stepUpAt||new Date(now.now).getTime()-family.stepUpAt.getTime()>=policy.staff_reauth_minutes*60000)throw new Error('STEP_UP_REQUIRED');}
       await tx.execute(context.access==='service'?sql.raw('SET LOCAL ROLE gw_service'):sql.raw('SET LOCAL ROLE gw_read'));
@@ -76,7 +78,7 @@ export async function scopedTransaction<T>(database: Database, context: Database
       if (!actor || !(context.requireModerator?['admin','moderator'].includes(actor.role):actor.role==='admin') || actor.status !== 'active') throw new Error('FORBIDDEN');
     }
     const result=await fn(tx);await checkFamily(true);return result;
-  }),context.snapshot ? {isolationLevel:'repeatable read',accessMode:config.appEnv==='simulation'?'read write':'read only'} : context.reportSnapshot ? {isolationLevel:'repeatable read'} : undefined)});
+  }),context.snapshot ? {isolationLevel:'repeatable read',accessMode:'read write'} : context.reportSnapshot ? {isolationLevel:'repeatable read'} : undefined)});
 }
 
 export function withContext<T>(context: DatabaseContext, fn: (tx: DbExecutor) => Promise<T>) {

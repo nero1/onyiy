@@ -1,3 +1,4 @@
+import {chainEnvironmentSuffix} from './network';
 import crypto from "node:crypto";
 import { chainAdapter } from "./index";
 import { readRegistry, registryFingerprint } from "./registry";
@@ -9,11 +10,9 @@ export const addressRoles = [
   "BOOTSTRAP",
   "SWEEP",
 ] as const;
-export const chainSuffix = (chain: AssetRegistry["chain"]) =>
-  (({ eth: "ETH", bnb: "BNB", sol: "SOL", tron: "TRON" }) as const)[chain] +
-  "_TESTNET";
+export const chainSuffix = chainEnvironmentSuffix;
 export function runtimeAdapter(asset: AssetRegistry) {
-  const label = chainSuffix(asset.chain),
+  const label = chainSuffix(asset.chain,asset.environment),
     primary = process.env[`RPC_PRIMARY_${label}`],
     secondary = process.env[`RPC_SECONDARY_${label}`];
   if (!primary || !secondary) throw new Error("RPC_UNAVAILABLE");
@@ -35,7 +34,7 @@ export async function configurationSnapshot(
     addresses: Record<string, string> = {};
   for (const role of addressRoles) {
     const value =
-      process.env[`PLATFORM_${role}_ADDRESS_${chainSuffix(asset.chain)}`];
+      process.env[`PLATFORM_${role}_ADDRESS_${chainSuffix(asset.chain,asset.environment)}`];
     if (value) addresses[role] = await chain.normalizeAddress(value);
   }
   const hard = (key: string, fallback: number) => {
@@ -55,7 +54,7 @@ export async function configurationSnapshot(
     registry = registryFingerprint(readRegistry());
   const values = {
     alertBinding,
-    environment: "testnet",
+    environment: asset.environment,
     chain: asset.chain,
     network: asset.network,
     registry,
@@ -76,7 +75,7 @@ export async function configurationSnapshot(
     treasuryFingerprint: crypto
       .createHash("sha256")
       .update(
-        ["testnet", asset.chain, asset.network, addresses.RECEIVING ?? ""].join(
+        [asset.environment, asset.chain, asset.network, addresses.RECEIVING ?? ""].join(
           "|",
         ),
       )

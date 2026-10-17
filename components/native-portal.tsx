@@ -1,4 +1,6 @@
 "use client";
+import {formatDisplayDate} from '@/lib/display-time';
+import {useDisplayTimeZone} from './appearance-provider';
 import ProfileDisclosure from './profile-disclosure';
 import {latestPublicManifest} from '@/lib/profile-state';
 import type {ProfilePresentation,PublicQueueDisclosure,PlanFinancialPresentation} from '@/server/presentation';
@@ -54,6 +56,7 @@ type Catalog = {
   }[];
 };
 export default function NativePortal() {
+ const timeZone=useDisplayTimeZone();
   const {locale,setLocale}=useAppearance();
   const [session, setSession] = useState<SessionResult | null>(null),
     [catalog, setCatalog] = useState<Catalog | null>(null),
@@ -648,9 +651,7 @@ export default function NativePortal() {
                             {fr
                               ? "Modifications en attente jusqu’au"
                               : "Changes cooling until"}{" "}
-                            {new Date(wallet.cooling_until).toLocaleString(
-                              locale,
-                            )}
+                            {formatDisplayDate(wallet.cooling_until,locale,timeZone)}
                           </p>
                         )}
                     </>

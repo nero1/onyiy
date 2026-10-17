@@ -1,3 +1,4 @@
+import {solanaGenesis} from './network';
 import {scanTransferPage as boundedScanPage} from './scan-page';
 import type {TransferScanCursor} from './types';
 import { canonicalTransactionHash } from "./hash";
@@ -28,7 +29,7 @@ import type {
   PreparedTransfer,
   SignedTransfer,
 } from "./types";
-const genesis = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
+
 const normalized = (address: string) => new PublicKey(address).toBase58();
 function transactionCosts(tx: any, payer: string) {
   const keys=tx.transaction.message.accountKeys.map((key:any)=>key.pubkey);
@@ -75,7 +76,7 @@ export class SolanaAdapter implements ChainAdapter {
   async scanTransfers(address:string,after:bigint,through:bigint):Promise<TransferScan> {
     if(after<0n||through<=after||through-after>5n||through>9007199254740991n)throw new Error("SCAN_RANGE_INVALID");const account=normalized(address);
     const results=await Promise.all(([0,1] as const).map(async side=>{
-      if(await this.rpc.request(side,"getGenesisHash",[])!==genesis)throw new Error("WRONG_NETWORK");if(integer(await this.rpc.request(side,"getSlot",[{commitment:"finalized"}]))<through)throw new Error("FINALITY_UNAVAILABLE");
+      if(await this.rpc.request(side,"getGenesisHash",[])!==solanaGenesis(this.asset.environment))throw new Error("WRONG_NETWORK");if(integer(await this.rpc.request(side,"getSlot",[{commitment:"finalized"}]))<through)throw new Error("FINALITY_UNAVAILABLE");
       const slots=await this.rpc.request(side,"getBlocks",[parseInt((after+1n).toString(),10),parseInt(through.toString(),10),{commitment:"finalized"}]);if(!Array.isArray(slots)||slots.length>5)throw new Error("RPC_EVIDENCE_INVALID");const transfers:ScannedTransfer[]=[],blocks:{height:string;hash:string}[]=[];
       for(const slot of slots){const height=integer(slot);if(height<=after||height>through)throw new Error("RPC_EVIDENCE_INVALID");const block=await this.rpc.request(side,"getBlock",[slot,{commitment:"finalized",encoding:"jsonParsed",transactionDetails:"full",rewards:false,maxSupportedTransactionVersion:0}]);if(!block||base58.decode(block.blockhash).length!==32||!Array.isArray(block.transactions)||block.transactions.length>1000)throw new Error("SCAN_CAPACITY_EXCEEDED");
         blocks.push({height:height.toString(),hash:block.blockhash});for(const record of block.transactions){if(record.meta?.err)continue;const tx=record.transaction,hash=canonicalTransactionHash("sol",tx.signatures?.[0]);const instructions=tx.message.instructions;if(!Array.isArray(instructions)||instructions.length>1000)throw new Error("SCAN_CAPACITY_EXCEEDED");
@@ -132,7 +133,7 @@ export class SolanaAdapter implements ChainAdapter {
     const values = (await this.rpc.pair("getGenesisHash", [])).filter(
       (v) => v !== null,
     );
-    if (!values.length || values.some((v) => v !== genesis))
+    if (!values.length || values.some((v) => v !== solanaGenesis(this.asset.environment)))
       throw new Error("WRONG_NETWORK");
   }
   async currentBlockHeight() {
@@ -153,7 +154,7 @@ export class SolanaAdapter implements ChainAdapter {
       throw new Error("INVALID_INPUT");
     const values = await Promise.all(
       ([0, 1] as const).map(async (side) => {
-        if ((await this.rpc.request(side, "getGenesisHash", [])) !== genesis)
+        if ((await this.rpc.request(side, "getGenesisHash", [])) !== solanaGenesis(this.asset.environment))
           throw new Error("WRONG_NETWORK");
         const slot = integer(
             await this.rpc.request(side, "getSlot", [
@@ -236,7 +237,7 @@ export class SolanaAdapter implements ChainAdapter {
     if(asset.key!==this.asset.key||height<0n||height>9007199254740991n)throw new Error("INVALID_INPUT");
     const account=normalized(address),target=asset.kind==="native"?account:getAssociatedTokenAddressSync(new PublicKey(asset.mint!),new PublicKey(account)).toBase58();
     return Promise.all(([0,1] as const).map(async side=>{
-      if(await this.rpc.request(side,"getGenesisHash",[])!==genesis)throw new Error("WRONG_NETWORK");
+      if(await this.rpc.request(side,"getGenesisHash",[])!==solanaGenesis(this.asset.environment))throw new Error("WRONG_NETWORK");
       const result=await this.rpc.request(side,asset.kind==="native"?"getBalance":"getTokenAccountBalance",[target,{commitment:"finalized",minContextSlot:parseInt(height.toString(),10)}]);
       const slot=integer(result.context?.slot);
       if(slot<height)throw new Error("FINALITY_UNAVAILABLE");
@@ -422,7 +423,7 @@ export class SolanaAdapter implements ChainAdapter {
     const { tx } = await this.unsigned(intent, intent.fee.validity.blockhash);
     return {
       family: "sol",
-      environment: "testnet",
+      environment: intent.asset.environment,
       network: "devnet",
       intent,
       payload: tx
@@ -680,7 +681,7 @@ export class SolanaAdapter implements ChainAdapter {
           ]),
         ]);
         return (
-          identity === genesis &&
+          identity === solanaGenesis(this.asset.environment) &&
           Array.isArray(status?.value) &&
           status.value.length === 1 &&
           status.value[0] === null &&

@@ -6,6 +6,7 @@ import {
 import { acceptedAlert } from "./financial-alerts";
 import { z } from "zod";
 import {
+  chainEnvironmentSuffix,
   readRegistry,
   assertActive,
   type AssetRegistry,
@@ -20,13 +21,6 @@ const addressRoles = [
   "SWEEP",
 ] as const;
 type Role = (typeof addressRoles)[number];
-const suffix = (chain: string) =>
-  (
-    ({ eth: "ETH", bnb: "BNB", sol: "SOL", tron: "TRON" }) as Record<
-      string,
-      string
-    >
-  )[chain] + "_TESTNET";
 export function registryAsset(key: string) {
   const rows = readRegistry(),
     asset = rows.find((v) => v.key === key);
@@ -36,7 +30,7 @@ export function registryAsset(key: string) {
 }
 export const adapter = runtimeAdapter;
 export async function platformAddress(asset: AssetRegistry, role: Role) {
-  const value = process.env[`PLATFORM_${role}_ADDRESS_${suffix(asset.chain)}`];
+  const value = process.env[`PLATFORM_${role}_ADDRESS_${chainEnvironmentSuffix(asset.chain,asset.environment)}`];
   if (!value) throw new Error("DESTINATION_NOT_CONFIGURED");
   return (await adapter(asset)).normalizeAddress(value);
 }

@@ -20,6 +20,7 @@ import {
 import {
   priceUnits,
   ceilDivide,
+  formatBaseUnits,
   splitAmount,
   assertFreshRates,
   type RateSnapshot,
@@ -45,9 +46,12 @@ export const nativePlanActivation = z
   .object({
     asset_key: z.string().max(30),
     plan_id: z.string().uuid(),
+    resume_only: z.boolean().optional(),
+    pricing_mode: z.enum(['usd_at_activation','fixed_token']).optional(),
+    amount_base_units: z.string().regex(/^[1-9][0-9]{0,77}$/).optional(),
     reason: z.string().min(5).max(500),
   })
-  .strict();
+  .strict().superRefine((value,ctx)=>{if((value.pricing_mode==='fixed_token')!==(value.amount_base_units!==undefined)||value.resume_only&&(value.pricing_mode!==undefined||value.amount_base_units!==undefined))ctx.addIssue({code:'custom',message:'Choose an unchanged resume or an asset-bound activation price.'});});
 async function staff(tx: DbExecutor, id: string) {
   const actor = await lockUser(tx, id);
   if (actor.role !== "admin" || actor.status !== "active")
@@ -252,7 +256,9 @@ export async function activateNativePlan(
     )
     .orderBy(desc(planVersions.version))
     .limit(1);
+  if(input.resume_only&&!previous?.active)throw new Error('PLAN_UNAVAILABLE');
   if (previous?.active) {
+    if(input.pricing_mode&&input.pricing_mode!==previous.pricingMode||input.amount_base_units&&input.amount_base_units!==previous.amountBaseUnits)throw new Error('VERSION_CONFLICT');
     if (plan.status !== "active") {
       await tx
         .update(plans)
@@ -275,6 +281,7 @@ export async function activateNativePlan(
       version_id: previous.id,
       asset_id: asset.id,
       amount_base_units: previous.amountBaseUnits,
+      pricing_mode: previous.pricingMode,
       network: registry.network,
       status: "active",
     };
@@ -284,7 +291,8 @@ export async function activateNativePlan(
     return result;
   }
   const planPolicy=policy[`plan_config_${plan.id}`] as {pricing_mode?:string}|undefined;
-  if(planPolicy?.pricing_mode==="fixed_token")throw new Error("PRICING_MODE_UNSUPPORTED");
+  const pricingMode=input.pricing_mode??planPolicy?.pricing_mode??'usd_at_activation';
+  if(pricingMode==='fixed_token'&&!input.amount_base_units)throw new Error('INVALID_INPUT');
   const [price] = await tx
     .select()
     .from(priceQuotes)
@@ -309,12 +317,13 @@ export async function activateNativePlan(
     },
     policy.price_max_age_minutes,
   );
-  const amount = ceilDivide(
+  const amount = pricingMode==='fixed_token'?BigInt(input.amount_base_units!):ceilDivide(
     priceUnits(plan.usdReference) * 10n ** BigInt(asset.decimals),
     priceUnits(price.assetUsd),
   );
+  const usdReference=pricingMode==='fixed_token'?formatBaseUnits(amount*priceUnits(price.assetUsd)*100n/(10n**BigInt(asset.decimals)*10n**18n),2):plan.usdReference;
   if (
-    amount <= 0n ||
+    amount <= 0n ||amount.toString().length>78||priceUnits(usdReference)<=0n||
     splitAmount(amount, policy.payment_split_bps).receiver <= 0n
   )
     throw new Error("PLAN_UNAVAILABLE");
@@ -325,7 +334,9 @@ export async function activateNativePlan(
       assetId: asset.id,
       version: (previous?.version ?? 0) + 1,
       amountBaseUnits: amount.toString(),
-      usdReference: plan.usdReference,
+      usdReference,
+      pricingMode,
+      activationPriceId: price.id,
       receiverBps: policy.payment_split_bps.receiver,
       marketingBps: policy.payment_split_bps.marketing,
       referralBps: policy.payment_split_bps.referral,
@@ -371,6 +382,9 @@ export async function activateNativePlan(
     asset_id: asset.id,
     network: registry.network,
     amount_base_units: version.amountBaseUnits,
+    pricing_mode: version.pricingMode,
+    activation_price_id: price.id,
+    usd_reference: version.usdReference,
     status: "active",
   };
   await tx
