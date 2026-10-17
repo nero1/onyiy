@@ -1,4 +1,5 @@
 "use client";
+import {withWalletInteraction} from './payment-receipts';
 import type {ProfilePresentation,PublicQueueDisclosure,PlanFinancialPresentation} from '@/server/presentation';
 export type NativeCurrency = {
   id: string;
@@ -47,7 +48,8 @@ function hex(bytes: Uint8Array) {
     "0x" + Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")
   );
 }
-export async function connectNativeWallet(asset: NativeCurrency) {
+export async function connectNativeWallet(asset: NativeCurrency) {return withWalletInteraction(()=>connectWallet(asset));}
+async function connectWallet(asset: NativeCurrency) {
   if (!navigator.onLine) throw new Error("OFFLINE");
   const chain = family(asset);
   if (chain === "evm") {
@@ -91,7 +93,8 @@ export async function connectNativeWallet(asset: NativeCurrency) {
   if (!address) throw new Error("WALLET_UNAVAILABLE");
   return address;
 }
-export async function signNativeOwnership(
+export async function signNativeOwnership(asset:NativeCurrency,address:string,message:string){return withWalletInteraction(()=>signOwnership(asset,address,message));}
+async function signOwnership(
   asset: NativeCurrency,
   address: string,
   message: string,
@@ -144,7 +147,8 @@ export type PreparedPayment = {
   expires_at: string;
   valid_until_height?: string;
 };
-export async function sendNativePayment(
+export async function sendNativePayment(currency:NativeCurrency,prepared:PreparedPayment,isCurrent:()=>boolean=()=>true){return withWalletInteraction(()=>sendPayment(currency,prepared,isCurrent));}
+async function sendPayment(
   currency: NativeCurrency,
   prepared: PreparedPayment,
   isCurrent: () => boolean = () => true,
