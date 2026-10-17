@@ -1,13 +1,13 @@
 export * from "./network";
 export * from "./types";
 export * from "./registry";
-import { assertActive } from "./registry";
-import type { AssetRegistry, ChainAdapter, RpcOptions } from "./types";
+import { assertAdapterAsset } from "./registry";
+import type { AssetRegistry, ChainAdapter, ChainObservationAdapter, RpcOptions } from "./types";
 export async function chainAdapter(
   asset: AssetRegistry,
   options: RpcOptions,
 ): Promise<ChainAdapter> {
-  assertActive(asset);
+  assertAdapterAsset(asset,options.observationOnly);
   if (asset.chain === "eth" || asset.chain === "bnb") {
     const { EvmAdapter } = await import("./evm");
     return new EvmAdapter(asset, options);
@@ -18,6 +18,19 @@ export async function chainAdapter(
   }
   const { TronAdapter } = await import("./tron");
   return new TronAdapter(asset, options);
+}
+
+/** No raw RPC client, fee preparation or sending methods escape this facade. */
+export async function chainObservationAdapter(asset:AssetRegistry,options:RpcOptions):Promise<ChainObservationAdapter>{
+ const adapter=await chainAdapter(asset,{...options,observationOnly:true});
+ return Object.freeze({
+  getFinalizedBalanceSnapshot:adapter.getFinalizedBalanceSnapshot?.bind(adapter),
+  scanTransferPage:adapter.scanTransferPage.bind(adapter),getReconciledBalance:adapter.getReconciledBalance.bind(adapter),scanTransfers:adapter.scanTransfers.bind(adapter),
+  validateAddress:adapter.validateAddress.bind(adapter),normalizeAddress:adapter.normalizeAddress.bind(adapter),verifyOwnershipProof:adapter.verifyOwnershipProof.bind(adapter),
+  getNativeBalance:adapter.getNativeBalance.bind(adapter),getBalance:adapter.getBalance.bind(adapter),findTransferIndex:adapter.findTransferIndex.bind(adapter),verifyTransfer:adapter.verifyTransfer.bind(adapter),
+  getTransactionStatus:adapter.getTransactionStatus.bind(adapter),proveExpiry:adapter.proveExpiry?.bind(adapter),assertReference:adapter.assertReference?.bind(adapter),
+  getCanonicalBlock:adapter.getCanonicalBlock.bind(adapter),getFinality:adapter.getFinality.bind(adapter),currentBlockHeight:adapter.currentBlockHeight.bind(adapter),
+ });
 }
 
 export * from "./hash";

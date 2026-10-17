@@ -4,7 +4,7 @@ import { selectEventIndex } from "./event-index";
 import { reconcileEvidence } from "./evidence";
 import { getAddress, Interface, id, verifyMessage, Transaction } from "ethers";
 import { DualRpc, quantity } from "./rpc";
-import { assertActive } from "./registry";
+import { assertActive,assertAdapterAsset } from "./registry";
 import type {
   AssetRegistry,
   ScannedTransfer,
@@ -32,7 +32,7 @@ export class EvmAdapter implements ChainAdapter {
     readonly asset: AssetRegistry,
     options: RpcOptions,
   ) {
-    assertActive(asset);
+    assertAdapterAsset(asset,options.observationOnly);
     if (!["eth", "bnb"].includes(asset.chain))
       throw new Error("REGISTRY_INVALID");
     this.rpc = new DualRpc(options);
@@ -189,12 +189,12 @@ export class EvmAdapter implements ChainAdapter {
       throw new Error("TOKEN_REGISTRY_MISMATCH");
   }
   async getReconciledBalance(asset:AssetRegistry,address:string,height:bigint){
-    assertActive(asset);if(asset.key!==this.asset.key||asset.network!==this.asset.network)throw new Error("WRONG_NETWORK");await this.getCanonicalBlock(height);const account=await this.normalizeAddress(address);
+    assertAdapterAsset(asset,this.rpc.observationOnly);if(asset.key!==this.asset.key||asset.network!==this.asset.network)throw new Error("WRONG_NETWORK");await this.getCanonicalBlock(height);const account=await this.normalizeAddress(address);
     const values=await Promise.all(([0,1] as const).map(side=>asset.kind==="native"?this.rpc.request(side,"eth_getBalance",[account,hex(height)]):this.rpc.request(side,"eth_call",[{to:asset.contract,data:erc20.encodeFunctionData("balanceOf",[account])},hex(height)])));
     const amounts=values.map(quantity);if(amounts[0]!==amounts[1])throw new Error("RPC_BALANCE_CONTRADICTION");return amounts[0];
   }
   async getBalance(asset: AssetRegistry, address: string, fresh = false) {
-    assertActive(asset);
+    assertAdapterAsset(asset,this.rpc.observationOnly);
     if (
       asset.chain !== this.asset.chain ||
       asset.network !== this.asset.network
@@ -267,6 +267,8 @@ export class EvmAdapter implements ChainAdapter {
     };
   }
   async buildTransfer(intent: TransferIntent): Promise<PreparedTransfer> {
+    if(this.rpc.observationOnly)throw new Error("OBSERVATION_ONLY");
+    assertActive(this.asset);
     if (getAddress(intent.sender) === getAddress(intent.destination)) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
     await this.network();
     if (
@@ -297,6 +299,8 @@ export class EvmAdapter implements ChainAdapter {
     };
   }
   async broadcastSigned(signed: SignedTransfer) {
+    if(this.rpc.observationOnly)throw new Error("OBSERVATION_ONLY");
+    assertActive(this.asset);
     const parsed = Transaction.from(signed.bytes);
     if (
       !parsed.signature ||
@@ -503,7 +507,7 @@ export class EvmAdapter implements ChainAdapter {
       expected.asset.mint !== this.asset.mint
     )
       throw new Error("WRONG_NETWORK");
-    assertActive(expected.asset);
+    assertAdapterAsset(expected.asset,this.rpc.observationOnly);
     await this.network();
     const result = reconcileEvidence(
       await Promise.allSettled([

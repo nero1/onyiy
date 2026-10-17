@@ -142,4 +142,6 @@ export type RpcOptions = {
   timeoutMs: number;
   requestsPerSecond: number;
   fixture?: boolean;
+  observationOnly?: boolean;
 };
+export type ChainObservationAdapter=Omit<ChainAdapter,'buildTransfer'|'broadcastSigned'|'estimateFee'>;

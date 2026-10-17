@@ -21,6 +21,8 @@ type Lane = {
 const lanes = new Map<string, Lane>();
 const flights = new Map<string, Promise<unknown>>();
 const failures = new Map<string, { count: number; until: number }>();
+const observationMethods=new Set(['eth_chainId','eth_blockNumber','eth_getBlockByNumber','eth_getBalance','eth_getCode','eth_call','eth_getLogs','eth_getTransactionByHash','eth_getTransactionReceipt','eth_getTransactionCount','eth_estimateGas','eth_gasPrice','getGenesisHash','getSlot','getBlock','getBlocks','getBlockHeight','getBalance','getAccountInfo','getTokenAccountBalance','getTransaction','getSignatureStatuses','getFeeForMessage','getLatestBlockhash','getMinimumBalanceForRentExemption']);
+const observationPaths=new Set(['wallet/getaccount','wallet/getblockbynum','wallet/getchainparameters','wallet/getnowblock','wallet/gettransactionbyid','wallet/gettransactioninfobyid','wallet/triggerconstantcontract','wallet/estimateenergy','walletsolidity/getaccount','walletsolidity/getblockbynum','walletsolidity/getnowblock','walletsolidity/gettransactioninfobyid','walletsolidity/triggerconstantcontract']);
 function laneFor(endpoint: string) {
   let lane = lanes.get(endpoint);
   if (lane) return lane;
@@ -33,7 +35,11 @@ function laneFor(endpoint: string) {
 }
 export class DualRpc {
   private counter = 0;
+  readonly #observationOnly:boolean;
+  get observationOnly(){return this.#observationOnly}
   constructor(readonly options: RpcOptions) {
+    this.#observationOnly=options.observationOnly===true;
+    if(options.observationOnly!==undefined&&typeof options.observationOnly!=='boolean')throw new Error('RPC_CONFIGURATION_INVALID');
     if (
       !Number.isInteger(options.requestsPerSecond) ||
       options.requestsPerSecond < 1 ||
@@ -109,6 +115,13 @@ export class DualRpc {
     body: unknown,
     jsonRpc = false,
   ): Promise<any> {
+    let observationBody:string|undefined;
+    if(this.#observationOnly){
+      let wire:unknown;
+      try{observationBody=JSON.stringify(body);if(!observationBody||Buffer.byteLength(observationBody)>2*1024*1024)throw new Error();wire=JSON.parse(observationBody)}catch{throw new Error('OBSERVATION_ONLY')}
+      const method=wire&&typeof wire==='object'&&!Array.isArray(wire)?(wire as {method?:unknown}).method:undefined;
+      if(!((path===''||path==='jsonrpc')&&jsonRpc&&typeof method==='string'&&observationMethods.has(method))&&!(!jsonRpc&&observationPaths.has(path)))throw new Error('OBSERVATION_ONLY');
+    }
     const cancellation=cancellations.getStore();if(cancellation?.aborted)throw new Error('RPC_BUDGET_EXCEEDED');
     const budget=budgets.getStore();
     if(budget&&(budget.remaining--<=0||budget.deadline<=Date.now()))throw new Error('RPC_BUDGET_EXCEEDED');
@@ -128,7 +141,7 @@ export class DualRpc {
       dispatched = true;
       const response = await pinnedPost(new URL(target), {
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: observationBody??JSON.stringify(body),
         signal: controller.signal, maxBytes: 2*1024*1024, fixture: this.options.fixture,
       });
       if (!response.ok) throw Error();
