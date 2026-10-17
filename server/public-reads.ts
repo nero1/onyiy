@@ -1,3 +1,5 @@
+import {activitySnapshot} from './activity';
+import {presentationFromManifest,planFinancialPresentation,type PublicQueueDisclosure} from './presentation';
 import {searchPublishedHelp,publicSearchPolicy} from './help-search';
 import { admitPublicMiss } from './public-admission';
 import { statisticsSnapshot } from './public-statistics';
@@ -15,7 +17,7 @@ const seed=loadManifest();
 let budget={maxEntries:seed.cache_policy.max_memory_entries,maxBytes:seed.cache_policy.max_memory_mb*1024*1024};
 let memory=new MemoryCache(budget);
 let generation=0;
-type PublicKey='manifest'|'catalog'|'native-catalog'|'statistics'|'help:en'|'help:fr'|'slugs:en'|'slugs:fr'|`search:${'en'|'fr'}:${string}`;
+type PublicKey=`activity:${number}:${number}`|'manifest'|'catalog'|'native-catalog'|'statistics'|'help:en'|'help:fr'|'slugs:en'|'slugs:fr'|`search:${'en'|'fr'}:${string}`;
 const pending=new Map<PublicKey,Promise<Entry>>();
 
 function captured(data:unknown,manifest:Manifest,publicSeconds:number,fallback=false):Loaded {
@@ -28,7 +30,7 @@ function captured(data:unknown,manifest:Manifest,publicSeconds:number,fallback=f
 export function unavailablePublicManifest(){
  const value=publicManifest(seed),unavailable={en:'Service temporarily unavailable. Refresh to try again.',fr:'Service temporairement indisponible. Actualisez pour réessayer.'};
  const features=Object.fromEntries(Object.keys(value).filter(key=>key.startsWith('feature_')).map(key=>[key,false]));
- return {...value,...features,configuration_available:false as const,activity_statements:[],public_stats_policy:{...value.public_stats_policy,enabled:false},product_content:{...value.product_content,tagline:unavailable,short_description:unavailable}};
+ return {...value,...features,configuration_available:false as const,presentation:presentationFromManifest({...seed,...features,feature_activity:false,feature_transparency:false,activity_presentation:'disabled'}),activity_statements:[],public_stats_policy:{...value.public_stats_policy,enabled:false},product_content:{...value.product_content,tagline:unavailable,short_description:unavailable}};
 }
 async function manifestLoader():Promise<Loaded> {
  let manifest=seed;let fallback=false;
@@ -36,25 +38,20 @@ async function manifestLoader():Promise<Loaded> {
   await tx.execute(sql`set local statement_timeout='5000ms'`);return readManifest(tx);
  });}catch{fallback=true;}
  // Projection happens before either L1 or a shared promise contains a result.
- return captured({...(fallback?unavailablePublicManifest():publicManifest(manifest)),payment_environment:process.env.APP_ENV==='testnet'?'testnet':'simulation'},manifest,fallback?5:manifest.cache_policy.manifest_public_seconds,fallback);
+ return captured({...(fallback?unavailablePublicManifest():{...publicManifest(manifest),presentation:presentationFromManifest(manifest),configuration_available:true}),payment_environment:process.env.APP_ENV==='testnet'?'testnet':'simulation'},manifest,fallback?5:manifest.cache_policy.manifest_public_seconds,fallback);
 }
 async function catalogLoader():Promise<Loaded> {
- const manifest=await withContext({access:'service',snapshot:true},async tx=>{
-  await tx.execute(sql`set local statement_timeout='5000ms'`);return readManifest(tx);
- });
- const rows=await withContext({access:'public',snapshot:true},async tx=>{
-  await tx.execute(sql`set local statement_timeout='5000ms'`);
-  return tx.select({id:plans.id,name:plans.name,slug:plans.slug,usd_reference:planVersions.usdReference,
-   receipts_required:planVersions.receiptsRequired,receiver_bps:planVersions.receiverBps,status:plans.status,
+ return withContext({access:'service',snapshot:true},async tx=>{
+  await tx.execute(sql`set local statement_timeout='5000ms'`);const manifest=await readManifest(tx);
+  if(!manifest.feature_gifts)throw new Error('FEATURE_DISABLED');
+  const rows=await tx.select({id:plans.id,name:plans.name,slug:plans.slug,usd_reference:planVersions.usdReference,
+   receipts_required:planVersions.receiptsRequired,receiver_bps:planVersions.receiverBps,marketing_bps:planVersions.marketingBps,referral_bps:planVersions.referralBps,developer_bps:planVersions.developerBps,reserve_bps:planVersions.reserveBps,status:plans.status,
    bootstrap_enabled:plans.bootstrapEnabled,bootstrap_count:plans.bootstrapCount,amount_base_units:planVersions.amountBaseUnits,
-   plan_version_id:planVersions.id,symbol:assets.symbol}).from(plans).innerJoin(planVersions,eq(planVersions.planId,plans.id))
+   plan_version_id:planVersions.id,symbol:assets.symbol,decimals:assets.decimals,network:assets.chainId,environment:assets.environment,queue_disclosure:sql<PublicQueueDisclosure|null>`public.gw_public_queue_disclosure(${planVersions.id})`}).from(plans).innerJoin(planVersions,eq(planVersions.planId,plans.id))
    .innerJoin(assets,eq(assets.id,planVersions.assetId)).where(and(eq(assets.environment,'simulation'),eq(planVersions.version,sql`(select max(latest.version) from public.plan_versions latest where latest.plan_id=${planVersions.planId} and latest.asset_id=${planVersions.assetId})`))).orderBy(asc(plans.usdReference)).limit(1001);
+  if(rows.length>1000)throw new Error('CONFIGURATION_INVALID');
+  return captured(rows.map(row=>({...row,plan:planFinancialPresentation({amountBaseUnits:row.amount_base_units,usdReference:row.usd_reference,receiverBps:row.receiver_bps,marketingBps:row.marketing_bps,referralBps:row.referral_bps,developerBps:row.developer_bps,reserveBps:row.reserve_bps,receiptsRequired:row.receipts_required},{symbol:row.symbol,decimals:row.decimals,chainId:row.network,environment:row.environment}),profile_revision:manifest.profile_revision,amount_giv:formatBaseUnits(BigInt(row.amount_base_units)),expected_giv:formatBaseUnits((BigInt(row.amount_base_units)*BigInt(row.receiver_bps)/10000n)*BigInt(row.receipts_required))})),manifest,manifest.cache_policy.catalog_seconds);
  });
- // Fail closed rather than silently truncating a future larger catalog.
- if(rows.length>1000)throw new Error('CONFIGURATION_INVALID');
- const data=rows.map(row=>({...row,amount_giv:formatBaseUnits(BigInt(row.amount_base_units)),
-  expected_giv:formatBaseUnits((BigInt(row.amount_base_units)*BigInt(row.receiver_bps)/10000n)*BigInt(row.receipts_required))}));
- return captured(data,manifest,manifest.cache_policy.catalog_seconds);
 }
 async function read(key:PublicKey,loader:()=>Promise<Loaded>,request?:Request):Promise<PublicResponse> {
  // Warm public DTOs never bypass environment/provider configuration validation.
@@ -119,3 +116,14 @@ export function getPublicHelpSearch(locale:'en'|'fr',query:string,request:Reques
  const rows=await searchPublishedHelp(locale,query);
  return captured({locale,query,rows},policy,Math.min(60,policy.cache_policy.catalog_seconds));
 },request);}
+
+export async function getPublicActivity(request:Request){
+ // Read the durable consent epoch before selecting a cached public DTO. A
+ // revocation changes the key across instances; no private identities enter L1.
+ const policy=await withContext({access:'service',snapshot:true},readManifest);
+ if(!policy.feature_activity||policy.activity_presentation==='disabled')throw new Error('FEATURE_DISABLED');
+ return read(`activity:${policy.profile_revision}:${policy.activity_epoch}`,async()=>withContext({access:'service',snapshot:true},async tx=>{
+  const fresh=await readManifest(tx);if(fresh.profile_revision!==policy.profile_revision||fresh.activity_epoch!==policy.activity_epoch)throw new Error('VERSION_CONFLICT');
+  return captured(await activitySnapshot(tx,fresh,true),fresh,15);
+ }),request);
+}

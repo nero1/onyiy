@@ -1,3 +1,4 @@
+import {presentationFromManifest,type QueueDisclosure} from './presentation';
 import {publicManifest} from '@gifters/config';
 import {activeRequestId} from '@gifters/db';
 import {notificationBadge} from './notifications';
@@ -268,13 +269,13 @@ export async function activatePlan(database: DbExecutor, planId: string, actorId
   return save();
 }
 
-export async function sendGift(database: DbExecutor, user: UserRow, planId: string, requestKey: string, expectedVersionId?: string,verifiedAsset?:typeof assets.$inferSelect) {
+export async function sendGift(database: DbExecutor, user: UserRow, planId: string, requestKey: string, expectedVersionId?: string,verifiedAsset?:typeof assets.$inferSelect,historicalConsent=false) {
   requestKey=requestKey.toLowerCase();
   const manifest = await readManifest(database);
   if (!manifest.feature_gifts||!manifest.entitlements_member.send_enabled_gifts) throw new Error('FEATURE_DISABLED');
   const locked=await lockGiftParticipants(database,user.id,manifest);user=locked.user;const participants=locked.participants;
   if (user.status !== 'active') throw new Error(user.status === 'pending_consent' ? 'CONSENT_REQUIRED' : 'ACCOUNT_RESTRICTED');
-  if (user.consentVersion !== manifest.terms_content.version) throw new Error('CONSENT_REQUIRED');
+  if (user.consentVersion !== manifest.terms_content.version&&!historicalConsent) throw new Error('CONSENT_REQUIRED');
   const asset=verifiedAsset??await simulationAsset(database,manifest);if(verifiedAsset&&(verifiedAsset.environment!=='testnet'||!verifiedAsset.enabled))throw new Error('PLAN_UNAVAILABLE');
   const opKey = `gift:${user.id}:${requestKey}`;
   const requestHash = crypto.createHash('sha256').update(expectedVersionId?JSON.stringify({planId,invoiceVersion:expectedVersionId}):planId).digest('hex');
@@ -667,7 +668,8 @@ export async function dashboard(database: DbExecutor, user: UserRow, manifest: M
     name: plans.name,
     slug: plans.slug,
     ticket: queueEntries.ticket,
-    display_position: sql<number>`public.gw_queue_rank(${queueEntries.id},'display')`.mapWith((value) => value === null ? null : Number(value)),
+    queue_disclosure:sql<QueueDisclosure|null>`public.gw_queue_disclosure(${queueEntries.id})`,
+    display_position: sql<number>`public.gw_queue_rank(${queueEntries.id},${manifest.deployment_profile==='transparent'?'public_serving':'display'})`.mapWith((value) => value === null ? null : Number(value)),
   }).from(cycles)
     .innerJoin(planVersions, eq(planVersions.id, cycles.planVersionId))
     .innerJoin(plans, eq(plans.id, planVersions.planId))
@@ -676,7 +678,7 @@ export async function dashboard(database: DbExecutor, user: UserRow, manifest: M
     .where(eq(cycles.userId, user.id))
     .orderBy(desc(cycles.createdAt)).limit(30);
 
-  const pendingInvoices=await database.select({id:giftInvoices.id,plan_id:planVersions.planId,expected_base_units:giftInvoices.expectedBaseUnits,expires_at:giftInvoices.quoteExpiresAt,status:giftInvoices.status}).from(giftInvoices).innerJoin(planVersions,eq(planVersions.id,giftInvoices.planVersionId)).where(and(eq(giftInvoices.userId,user.id),inArray(giftInvoices.status,['quoted','submitted']))).orderBy(desc(giftInvoices.createdAt),desc(giftInvoices.id)).limit(manifest.pagination_policy.max_size);
+  const pendingInvoices=await database.select({id:giftInvoices.id,profile_revision:giftInvoices.profileRevision,plan_id:planVersions.planId,expected_base_units:giftInvoices.expectedBaseUnits,expires_at:giftInvoices.quoteExpiresAt,status:giftInvoices.status}).from(giftInvoices).innerJoin(planVersions,eq(planVersions.id,giftInvoices.planVersionId)).where(and(eq(giftInvoices.userId,user.id),inArray(giftInvoices.status,['quoted','submitted']))).orderBy(desc(giftInvoices.createdAt),desc(giftInvoices.id)).limit(manifest.pagination_policy.max_size);
   const [financialReview]=await database.select().from(userFinancialReviews).where(and(eq(userFinancialReviews.userId,user.id),eq(userFinancialReviews.assetId,asset.id))).limit(1);
   const pointRows = await database.select({ total: sql<number>`coalesce(sum(${pointEvents.points}),0)::int` }).from(pointEvents).where(eq(pointEvents.userId, user.id));
   // Retain the original camelCase aliases while adding the documented UI DTO.
@@ -688,7 +690,7 @@ export async function dashboard(database: DbExecutor, user: UserRow, manifest: M
 
   return {
     user: { id: user.id, username: user.username, role: user.role, status: user.status, locale: user.locale,consent_version:user.consentVersion,age_confirmed:!!user.ageConfirmedAt },
-    manifest:publicManifest(manifest),
+    manifest:{...publicManifest(manifest),presentation:presentationFromManifest(manifest),configuration_available:true},
     consent:{required:user.consentVersion!==manifest.terms_content.version||!user.ageConfirmedAt||user.ageMinimumAccepted===null||user.ageMinimumAccepted<manifest.eligibility_min_age,terms_content:manifest.terms_content,minimum_age:manifest.eligibility_min_age},
     asset: { symbol: 'GIV', decimals: 2 },
     balances: { available: available.toString(), held: held.toString(), incoming:balances.find(row=>row.purpose==='incoming_payable')?.balance??'0',refundable:balances.find(row=>row.purpose==='refund_payable')?.balance??'0', withdrawn: withdrawnRows[0]?.total ?? '0' },

@@ -1,6 +1,7 @@
 /** JSON transport types. Imports are type-only: no service/DB code enters a
  * client bundle. Derive DTOs from service results so renamed/missing financial
  * fields fail compilation while existing transaction ownership is preserved. */
+import type {ProfilePresentation} from '@/server/presentation';
 import type {PublicManifest} from '@gifters/config';
 import type {dashboard,quoteWithdrawal} from '@/server/core';
 import type {ownNativePortfolio} from '@/server/crypto-reads';
@@ -9,7 +10,7 @@ import type {quoteCryptoWithdrawal} from '@/server/crypto-payouts';
 export type JsonWire<T> = T extends Date ? string : T extends bigint ? string :
  T extends readonly (infer Item)[] ? JsonWire<Item>[] :
  T extends object ? {[Key in keyof T]:JsonWire<T[Key]>} : T;
-export type PublicManifestDto = PublicManifest & {payment_environment?:'simulation'|'testnet'};
+export type PublicManifestDto = PublicManifest & {payment_environment?:'simulation'|'testnet';presentation?:ProfilePresentation;configuration_available?:boolean};
 type DashboardResult = JsonWire<Awaited<ReturnType<typeof dashboard>>>;
 export type DashboardDto = Omit<DashboardResult,'wallet'> & {wallet:DashboardResult['wallet']|null};
 export type DashboardCycle = DashboardDto['cycles'][number];

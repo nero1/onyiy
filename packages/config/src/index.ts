@@ -1,3 +1,5 @@
+import {transparencyFields,validateTransparentConfiguration} from './transparency';
+export {transparencyDefaults,transparencySettingKeys} from './transparency';
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
@@ -16,6 +18,7 @@ const paymentSplitSchema = z.object({
 
 export const manifestSchema = z.object({
   ...policyFields,
+  ...transparencyFields,
   feature_gifts: z.boolean(), feature_wallets: z.boolean(), feature_referrals: z.boolean(), feature_points: z.boolean(),
   feature_notifications: z.boolean(), feature_shares: z.boolean(), feature_help: z.boolean(), feature_pwa: z.boolean(),
   feature_activity: z.boolean(), feature_bootstrap: z.boolean(), feature_priority: z.boolean(), feature_admin: z.boolean(),
@@ -32,7 +35,7 @@ export const manifestSchema = z.object({
   ui_rotation_policy: z.object({activity_seconds:z.number().positive(),currency_seconds:z.number().positive(),launch_reshow_days:z.number().nonnegative(),launch_dismiss_hours:z.number().nonnegative()}).strict(),
   notification_page_size: z.number().int().positive().max(100),
   pagination_policy: z.object({default_size:z.number().int().positive(),max_size:z.number().int().positive().max(100)}).strict(),
-  deployment_profile: z.literal("test_iteration"),
+  deployment_profile: z.enum(["test_iteration","transparent"]),
   product_content: z.object({
     domain: z.string().url().refine((value) => { try { return new URL(value).protocol === 'https:'; } catch { return false; } }),
     tagline: z.object({en:z.string(),fr:z.string()}).strict(),
@@ -85,6 +88,7 @@ export function parseManifest(input: unknown): Manifest & Record<string, unknown
   }
   const result = manifestSchema.safeParse(staticValues);
   if (!result.success) throw new Error('CONFIGURATION_INVALID');
+  validateTransparentConfiguration(result.data);
   return { ...result.data, ...dynamicValues };
 }
 
@@ -93,6 +97,10 @@ export function publicManifest(input: Manifest & Record<string, unknown>):Public
   const publicValues: Record<string, unknown> = {};
   for (const [key,value] of Object.entries(input)) {
     if (manifestDefinition(key)?.scope === 'public') publicValues[key] = validateManifestValue(key,value,'public');
+  }
+  if(input.deployment_profile==='transparent'){
+    publicValues.product_content={...input.product_content,tagline:{en:input.transparency_content.en.mechanics,fr:input.transparency_content.fr.mechanics},short_description:{en:input.transparency_content.en.mechanics+' '+input.transparency_content.en.risk,fr:input.transparency_content.fr.mechanics+' '+input.transparency_content.fr.risk}};
+    if(input.activity_presentation!=='labelled_demo')publicValues.activity_statements=[];
   }
   return publicValues as PublicManifest & Record<string,unknown>;
 }

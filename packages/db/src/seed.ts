@@ -54,10 +54,10 @@ try {
 
     for(const article of helpSeed)for(const locale of ['en','fr'] as const)await database.insert(helpArticles).values({locale,slug:article.slug,title:article.title[locale],body:article.body[locale],published:true}).onConflictDoNothing();
     if(environment==='simulation'){
-    await database.insert(users).values({ username: 'sim_admin', email: 'admin@example.invalid', role: 'admin', status: 'active', locale: 'en' }).onConflictDoNothing({ target: users.username });
+    await database.insert(users).values({ publicationClassification:'test',username: 'sim_admin', email: 'admin@example.invalid', role: 'admin', status: 'active', locale: 'en' }).onConflictDoNothing({ target: users.username });
     for (let i = 1; i <= 25; i++) {
       const username = `member_${String(i).padStart(2, '0')}`;
-      await database.insert(users).values({ username, email: `${username}@example.invalid`, role: 'member', status: 'pending_consent', locale: 'en' }).onConflictDoNothing({ target: users.username });
+      await database.insert(users).values({ publicationClassification:'test',username, email: `${username}@example.invalid`, role: 'member', status: 'pending_consent', locale: 'en' }).onConflictDoNothing({ target: users.username });
     }
     }
   });

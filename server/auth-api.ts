@@ -28,7 +28,7 @@ export async function handleAuthRequest(method:string,path:string,request:Reques
   if((runtimeProviders().AUTH_PROVIDER)!=='simulation'||process.env.APP_ENV!=='simulation')throw new Error('FEATURE_DISABLED');csrf(request);await enforceRate(request,'auth','simulation');
   const input=z.object({username:z.string().min(1).max(64),locale:z.enum(['en','fr']).optional()}).strict().parse(await body(request));
   const user=await withContext({access:'service'},async tx=>{
-   if(path.endsWith('/signup')){await validateUsername(tx,input.username);const [existing]=await tx.select({id:users.id}).from(users).where(eq(users.username,input.username)).limit(1);if(existing)throw new Error('VERSION_CONFLICT');return (await tx.insert(users).values({username:input.username,email:input.username+'@example.invalid',locale:input.locale??'en'}).returning())[0];}
+   if(path.endsWith('/signup')){await validateUsername(tx,input.username);const [existing]=await tx.select({id:users.id}).from(users).where(eq(users.username,input.username)).limit(1);if(existing)throw new Error('VERSION_CONFLICT');return (await tx.insert(users).values({publicationClassification:'test',username:input.username,email:input.username+'@example.invalid',locale:input.locale??'en'}).returning())[0];}
    return (await tx.select().from(users).where(eq(users.username,input.username)).limit(1))[0];
   });if(!user)throw new Error('UNAUTHENTICATED');
   // Account switches revoke the old family before issuing the selected identity.

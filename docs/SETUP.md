@@ -57,10 +57,10 @@ select name from public.schema_migrations;
 
 7. Confirm the result contains `000_initial_schema.sql`.
 8. Open [001_historical_treasury_fence.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/001_historical_treasury_fence.sql), click **Raw**, copy the entire file, then paste it into **SQL Editor → New query** and click **Run** once.
-9. Repeat the same whole-file copy/paste for [002_ephemeral_retention.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/002_ephemeral_retention.sql), then [003_monthly_financial_archives.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/003_monthly_financial_archives.sql). Run them separately, in that order. If a filename is already in the receipt query, skip that file.
+9. Repeat the same whole-file copy/paste for [002_ephemeral_retention.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/002_ephemeral_retention.sql), then [003_monthly_financial_archives.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/003_monthly_financial_archives.sql), then [004_transparent_profiles.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/004_transparent_profiles.sql). Run them separately, in that order. If a filename is already in the receipt query, skip that file.
 10. Run the receipt query again. Confirm all four filenames appear before deploying the matching app release.
 
-Run the installation file once. It creates the final tables, views, functions, security rules and indexes together. It does **not** create all plans and demo accounts; the existing deployment workflow adds those in step 8. The old 99-file chain remains consolidated in `000`; `001`–`003` are later recovery and retention safeguards. Keep the installed `000` unchanged. Deployment checks receipts and never runs migrations for you.
+Run the installation file once. It creates the final tables, views, functions, security rules and indexes together. It does **not** create all plans and demo accounts; the existing deployment workflow adds those in step 8. The old 99-file chain remains consolidated in `000`; `001`–`004` add later recovery, retention and profile safeguards. Keep the installed `000` unchanged. Deployment checks receipts and never runs migrations for you.
 
 If installation fails, keep the error and check the troubleshooting table below. Do not split the file, remove checks, or rerun it over existing application tables. [SQL Editor reference](https://supabase.com/docs/guides/database/functions).
 
@@ -178,7 +178,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. Round One is merged. Round Two fixes have local evidence; Round Three and Phase Two are pending. See [PROJECT-STATUS_v53.md](PROJECT-STATUS_v53.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v54.md](PROJECT-STATUS_v54.md).
 
 ## 10. Preview using the same projects and database
 
@@ -349,7 +349,7 @@ Use the UTC format `YYYY-MM-DDTHH:MM:SSZ`. `verified=true` records a real networ
 
 7. Redeploy `main` and `preview`. Have the verified administrator open **Admin → Testnet administration**, select **sol**, enter a reason, and use **Stage disabled** when those controls are available. Do not select enable/activate to bypass the readiness pause. RPC/balance access is still required for staging.
 8. Prepare the reviewed signed-price verification key, actual fee/gas limits and HTTPS alert receiver through the owner/maintainer. These are financial activation inputs, not values the guide can invent. There is no current browser-only key-signing/custody setup wizard.
-9. **Stop before payment activation.** The unfinished financial release checks, remaining Round One bugs and Phase Two must be resolved before normal testnet sending can be accepted. Record the workspace as configured, not “payments working.”
+9. **Stop before payment activation.** The unfinished financial release checks and hosted acceptance must be resolved before normal testnet sending can be accepted. Record the workspace as configured, not “payments working.”
 
 Other supported test-network registry values: Ethereum Sepolia `11155111`, BNB testnet `97`, and reviewed TRON `nile`/`shasta`. Token assets additionally need independently verified contract/mint and decimals; do not copy a mainnet token address into a test registry. [Official Solana network details](https://solana.com/docs/references/clusters).
 
@@ -361,7 +361,7 @@ Other supported test-network registry values: Ethereum Sepolia `11155111`, BNB t
 2. In the existing Vercel project, open **Settings → Domains** and attach the real domain using step 11. Update Production `WEB_ORIGIN`, Google's production callback and Turnstile hostname.
 3. Review the existing account's hosting plan. Vercel Hobby is personal/non-commercial; choose a compliant plan on the **same account** before operating this commercial service. Free database/cache quotas are shared by every deployment, not multiplied by changing mode.
 4. Keep the current main domain on simulation or testnet with signing disabled while implementation finishes. Do not tell users to send real assets to it.
-5. Have the maintainer complete: the authorized later bug rounds, Phase Two's transparent presentation, supported mainnet registry/adapters, isolated custody/signing, funding/fees, external alert evidence and verified backup/restore. These are existing release requirements, not checkboxes that environment variables can replace.
+5. Have the maintainer complete: supported mainnet registry/adapters, isolated custody/signing, funding/fees, external alert evidence and verified backup/restore. These are existing release requirements, not checkboxes that environment variables can replace.
 6. Before reusing this database for real funds, require a reviewed implementation that isolates mainnet financial records and disables demo/preview financial writes. Retain all GIV/testnet history in its original environment; never convert its balances, queues or receipts to real money.
 7. Keep previews on reviewed code with a restricted non-sending access path before they can see a real-money database. Current shared previews are suitable for simulation/testnet development, **not an implemented mainnet isolation contract**. A safe future design can still use the same provider accounts/project.
 8. After that release is implemented and verified, the maintainer must update this section with exact supported mainnet settings and rollout steps. Until then, keep deployments and financial activation at their supported simulation/testnet settings. There is no honest “flip one variable and go live” step today.
@@ -395,3 +395,18 @@ Other supported test-network registry values: Ethereum Sepolia `11155111`, BNB t
 - **Later schema changes:** preserve the installed baseline. Add a reviewed forward migration for later changes. Old 99-file archives require their matching historical release, not this fresh installer.
 
 **Documentation rule:** keep five core guides plus the two owner-requested bug trackers. Fold notes into them unless a new file is explicitly requested or essential. Use beginner language, exact clicks/values, web UIs and manual SQL installation. Keep old versions in Git history.
+
+
+## Choose the transparent profile
+
+1. Finish the SQL installation above and deploy the matching release. Keep `APP_ENV=simulation` or `testnet`; this profile does not enable mainnet.
+2. Sign in as an administrator. Complete the current MFA prompt.
+3. Open **Admin → Release profiles**. Choose **Transparent**.
+4. Choose platform positions: **Labelled** shows them clearly; **Disabled** stops new allocations to waiting platform positions. Existing credits remain.
+5. Choose priority: **Disclosed** shows the exception; **Disabled** restores normal admission order for waiting positions. Joining numbers remain unchanged.
+6. Choose activity: **Verified** uses consenting real members only, **Labelled demo** shows marked examples in simulation/testnet, or **Disabled** hides it. Verified activity and real-payment totals are empty in simulation/testnet.
+7. Review the English/French screens, queue impact and any totals. Select **Stage**, then **Commit** before the preview expires. If anything changed, refresh and stage again.
+8. Members accept materially changed terms before another gift. Payments submitted before the switch retain their original rights. Members can enable or withdraw optional publication under account settings.
+9. Keep the readiness record **Not reviewed** until supporting evidence exists. A profile change never approves real-money operation.
+
+Archives created before SQL004 need the matching earlier release to restore. Keep original archives, keys and release references; do not alter checksums or signed inventories.

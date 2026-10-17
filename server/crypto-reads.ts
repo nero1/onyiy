@@ -1,3 +1,4 @@
+import {presentationFromManifest,planFinancialPresentation,type QueueDisclosure,type PublicQueueDisclosure} from './presentation';
 import {publicManifest} from '@gifters/config';
 import {notificationPage,notificationBadge} from './notifications';
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
@@ -79,7 +80,8 @@ export async function nativeCatalog(tx: DbExecutor) {
       usd_reference: planVersions.usdReference,
       receipts_required: planVersions.receiptsRequired,
       status: plans.status,
-      receiver_bps: planVersions.receiverBps,
+      receiver_bps: planVersions.receiverBps,marketing_bps:planVersions.marketingBps,referral_bps:planVersions.referralBps,developer_bps:planVersions.developerBps,reserve_bps:planVersions.reserveBps,
+      queue_disclosure:sql<PublicQueueDisclosure|null>`public.gw_public_queue_disclosure(${planVersions.id})`,
     })
     .from(planVersions)
     .innerJoin(plans, eq(plans.id, planVersions.planId))
@@ -95,10 +97,10 @@ export async function nativeCatalog(tx: DbExecutor) {
     .limit(801);
   if (versions.length > 800) throw new Error("CONFIGURATION_INVALID");
   return {
-    mode,
+    mode,presentation:presentationFromManifest(manifest),profile_revision:manifest.profile_revision,
     execution_enabled: financialImplementationComplete,
     assets: currencies,
-    plans: versions.filter((row) =>
+    plans: versions.map(row=>({...row,profile_revision:manifest.profile_revision,plan:planFinancialPresentation({amountBaseUnits:row.amount_base_units,usdReference:row.usd_reference,receiverBps:row.receiver_bps,marketingBps:row.marketing_bps,referralBps:row.referral_bps,developerBps:row.developer_bps,reserveBps:row.reserve_bps,receiptsRequired:row.receipts_required},{symbol:row.asset,decimals:row.decimals,chainId:row.network,environment:'testnet'})})).filter((row) =>
       currencies.some(
         (currency) => currency.id === row.asset_id && currency.enabled,
       ),
@@ -234,7 +236,8 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
       credited_count: cycles.creditedCount,
       receipts_required: cycles.receiptsRequired,
       ticket: queueEntries.ticket,
-      display_position: sql<string>`public.gw_queue_rank(${queueEntries.id},'display')::text`,
+      queue_disclosure:sql<QueueDisclosure|null>`public.gw_queue_disclosure(${queueEntries.id})`,
+      display_position: sql<string>`public.gw_queue_rank(${queueEntries.id},${policy.deployment_profile==='transparent'?'public_serving':'display'})::text`,
     })
     .from(cycles)
     .innerJoin(planVersions, eq(planVersions.id, cycles.planVersionId))
@@ -250,5 +253,5 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
   const [user]=await tx.select({id:users.id,username:users.username,status:users.status,role:users.role,locale:users.locale}).from(users).where(eq(users.id,userId)).limit(1);
   const notices=policy.feature_notifications?await notificationPage(tx,userId):null;
   const badge=policy.feature_notifications?await notificationBadge(tx,userId):{has_new:false};
-  return { user,manifest:publicManifest(policy),notifications:notices?.items??[],notification_badge:badge,balances, summary, wallets:policy.entitlements_member.wallet_link?wallets:[], invoices:policy.entitlements_member.history?invoices:[], withdrawals:policy.entitlements_member.history?withdrawals:[], cycles: active };
+  return { user,manifest:{...publicManifest(policy),presentation:presentationFromManifest(policy),configuration_available:true},notifications:notices?.items??[],notification_badge:badge,balances, summary, wallets:policy.entitlements_member.wallet_link?wallets:[], invoices:policy.entitlements_member.history?invoices:[], withdrawals:policy.entitlements_member.history?withdrawals:[], cycles: active };
 }

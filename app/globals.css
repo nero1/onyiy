@@ -20,3 +20,5 @@
 @media(max-width:800px){body{padding-bottom:calc(7rem + env(safe-area-inset-bottom))}.primary-navigation{position:fixed;bottom:0;left:0;right:0;z-index:90;display:flex;flex-wrap:nowrap;justify-content:space-evenly;gap:.15rem;overflow-x:auto;overscroll-behavior-x:contain;padding:.35rem .2rem calc(.35rem + env(safe-area-inset-bottom));border-top:1px solid var(--border);border-bottom:0}.primary-navigation a{flex:0 0 auto;min-width:3rem;max-width:6.5rem;min-height:44px;font-size:.78rem;text-align:center;padding:.35rem}.inbox-panel{max-height:calc(100dvh - var(--header-height,6rem) - 8rem - env(safe-area-inset-bottom))}}
 
 .appearance-controls{display:flex;justify-content:flex-end;gap:.5rem;max-width:75rem;margin:.5rem auto;padding:0 1rem}.appearance-controls button{min-height:44px}
+
+.profile-disclosure{font-size:.92rem;line-height:1.5;min-width:0;flex-basis:100%}.profile-disclosure p{margin:.5rem 0}.profile-disclosure small{display:block;opacity:.8}.cycle:has(.profile-disclosure){flex-wrap:wrap}.release-profiles pre{max-height:22rem;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}.release-profiles textarea{max-width:100%;width:100%}

@@ -1,12 +1,12 @@
-# Bug report — Rounds One/Two/Three v53
+# Bug report — Rounds One/Two/Three v54
 
-Updated: **17 October 2026 at 12:58:03 AM WAT**.
+Updated: **17 October 2026 at 01:06:45 UTC**.
 
-**Resumed by the owner on 16 October 2026.** Round One: **74 of 74 findings implemented, locally verified and merged**. Round Two found and locally verified fixes for R2-004–006; local release checks passed; exact-head CI/merge pending. Round Three also fixed R3-001; Phase Two follows the checked merge. These counts are not a completion percentage or hosted acceptance.
+**Resumed by the owner on 16 October 2026.** Round One: **74 of 74 findings implemented, locally verified and merged**. Round Two found and locally verified fixes for R2-004–006; local release checks passed; merged in PR52. Round Three also fixed R3-001; Phase Two implementation and eight local review fixes are in [PR53](https://github.com/nero1/onyiy/pull/53); GitHub records final CI/merge state. These counts are not a completion percentage or hosted acceptance.
 
-Historical numbered migration paths below identify the original fixes in Git history. Fresh installations use `000_initial_schema.sql` then the forward files `001`, `002` and `003` in filename order; do not run removed historical files.
+Historical numbered migration paths below identify the original fixes in Git history. Fresh installations use `000_initial_schema.sql` then the forward files `001`–`004` in filename order; do not run removed historical files.
 
-PR51 completed Round One and incidental R2-001–003. This v53 batch fixes the three fresh Round Two findings below; The same batch includes the Round Three recovery fix below; Phase Two follows its verified merge.
+PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the three fresh Round Two findings below; The same batch includes the Round Three recovery fix below; Phase Two implementation/local review is complete in v54.
 
 ## Findings at a glance
 
@@ -91,7 +91,7 @@ PR51 completed Round One and incidental R2-001–003. This v53 batch fixes the t
 - “Defect” means a source/contract failure; “requirement gap” means missing requested behavior; “hardening” means a conditional defensive improvement; “maintenance” means structural/dependency risk.
 - Initial audit ratings (current → projected after fixes): money/recovery 5 → 8; security/privacy 6.5 → 8.5; performance 5 → 8; maintainability 6 → 8; product/accessibility/SEO 6 → 8, out of 10. These were qualitative judgments, not measured guarantees or updated release ratings.
 - Original audit: 70 findings; four more were found during remediation. Three analysis passes were one audit round. CRON frequency and test-only issues were excluded.
-- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v53.md).
+- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v54.md).
 
 ## Original evidence by finding
 
@@ -557,7 +557,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v53.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v54.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -575,4 +575,23 @@ These are locally verified code fixes, not hosted acceptance. Private named proc
 
 Fresh review covered request/worker admission, public configuration/cache boundaries, authentication cleanup, export/privacy handling, financial call sites and native recovery. The named findings are fixed locally; this is not a claim that every possible bug is absent or that hosted behavior was accepted.
 
-v53
+## Phase Two transition finding (working v54)
+
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v54.md).
+
+v54
+
+
+### Additional Phase Two review fixes
+
+- **P2-B002:** Admin screen preview called an internal rank function without permission. Count the admin-visible waiting priority rows; keep the internal routine private.
+- **P2-B003:** Historical-price validation over-escaped the decimal separator. Use an unambiguous SQL decimal pattern, guard numeric casts, and retain asset-only output when no trustworthy historical rate exists.
+- **P2-B004:** A cached catalogue could show old plan disclosures beside a newer profile. Hide mismatched rows until refreshed; authoritative payment validation still rejects stale quotes.
+- Final review also rejects test/demo profile selection in a future mainnet context and preserves actual paragraph breaks in changed consent text. No mainnet runtime is enabled.
+
+- **P2-B005:** Recovery paging truncated PostgreSQL microseconds through JavaScript dates. Read timestamp fields as exact UTC PostgreSQL strings for both keyset cursors and row fingerprints. Actual encrypted backup, empty-target restore and independent verification passed with83 retained tables. Signed inventory contract3 requires matching historical code for older packets; original signatures stay intact.
+- **P2-B006:** A type import preceded the native-wallet client directive. Move the directive to the first statement; production compilation now passes that boundary.
+
+- **P2-B007:** Raw SQL passed to the ORM `exists` helper omitted subquery parentheses in the future real-event path. Use explicit closed `EXISTS(...)` expressions. The rollback-only owner contract now executes every feed query, proves opt-in/withdrawal and anonymous output, and checks historical-price validation without enabling mainnet or sending funds.
+
+- **P2-B008:** Receipt masking depended on a potentially stale/unavailable profile, and changing language during a publication save could leave controls busy. Receipt images always mask identity; publication scope resets controls and prevents an old request from releasing a newer request’s lock.

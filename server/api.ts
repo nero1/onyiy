@@ -1,3 +1,4 @@
+import {profilePreviewInput,profileStageInput,profileCommitInput,readinessInput,publicationInput,releaseProfile,stageProfile,commitProfile,recordReadiness,publicationConsent,assertProfileRevision} from './transparency';
 import {retentionInput,retentionStatus,manualArchiveStep} from './retention';
 import {runtimeProviders} from '@gifters/config';
 import {staffReorgs,staffAlerts,staffAlertsInput,staffUsers,staffCases,staffJobs,staffRecovery,staffUsersInput,staffCasesInput,staffJobsInput,staffRecoveryInput} from './staff-reads';
@@ -17,7 +18,7 @@ import {quoteLiabilityRecovery,confirmLiabilityRecovery,cancelLiabilityRecovery,
 import {beginBotCheck,verifyBotCheck,botProof} from './bot-check';
 import {verifySignedExpiry} from './crypto-expiry';
 import {enqueueFinancialReminders,controlFinancialAlert,financialAlertList,scheduleDailyBusiness} from './financial-operations';
-import {prepareNativeInvoice} from './crypto-checkout';
+import {prepareNativeInvoice,validateNativeInvoiceReview} from './crypto-checkout';
 import {nativeFundingStatement,bookNativeFunding,nativeFundingInput} from './native-funding';
 import {nativeCatalog,ownNativePortfolio} from './crypto-reads';
 import {provisionNativeAsset,activateNativePlan,nativeProvision,nativePlanActivation} from './crypto-provisioning';
@@ -79,9 +80,9 @@ import { reconcile } from './reconcile';
 import { schedulerTick } from './scheduler';
 import { replayDeadJob } from './jobs';
 import {recordReorg,reconfirmReorg,reorgHistory} from './reorg';
-import {quoteIncoming,submitIncoming,controlIncoming,resolveIncoming,ownInvoices,cancelIncomingQuote} from './incoming';
+import {quoteIncoming,reviewIncoming,submitIncoming,controlIncoming,resolveIncoming,ownInvoices,cancelIncomingQuote} from './incoming';
 
-import { getPublicStatistics,getPublicManifest,getPublicCatalog,getPublicNativeCatalog,getPublicHelp,getPublicHelpSearch,publicHelpSlug,invalidatePublicReads } from './public-reads';
+import { getPublicStatistics,getPublicActivity,getPublicManifest,getPublicCatalog,getPublicNativeCatalog,getPublicHelp,getPublicHelpSearch,publicHelpSlug,invalidatePublicReads } from './public-reads';
 import { authenticate,csrf,requireStepUp,requireWithdrawalAuth,issueSession,validateUsername,databaseNow,clearCookies } from './auth';
 import { handleAuthRequest } from './auth-api';
 import { enforceRate } from './rate-limits';
@@ -106,7 +107,7 @@ function fail(error:unknown){
 }
 
 async function current(request:Request){return (await authenticate(request)).user;}
-async function admin(request:Request){const identity=await authenticate(request);if(identity.user.role!=='admin'||identity.user.status!=='active')throw new Error('FORBIDDEN');await requireStepUp(identity);const policy=await readManifest();if(!policy.feature_admin&&request.method!=='GET')throw new Error('FEATURE_DISABLED');return identity.user;}
+async function admin(request:Request,preview=false){const identity=await authenticate(request);if(identity.user.role!=='admin'||identity.user.status!=='active')throw new Error('FORBIDDEN');await requireStepUp(identity);const policy=await readManifest();if(!policy.feature_admin&&request.method!=='GET'&&!preview)throw new Error('FEATURE_DISABLED');return identity.user;}
 
 async function moderator(request:Request){const identity=await authenticate(request);if(!['admin','moderator'].includes(identity.user.role)||identity.user.status!=='active')throw new Error('FORBIDDEN');await requireStepUp(identity);return identity.user;}
 
@@ -132,6 +133,7 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
   try {
     const route = `/${path.join('/')}`;
 
+    if(method==='GET'&&route==='/activity'){const value=await getPublicActivity(request);return ok(value.data);}
     if(method==='GET'&&route==='/statistics'){const value=await getPublicStatistics(request);return publicOk(value.data,value.ttlSeconds,request);}
     if(method==='GET'&&route==='/crypto/catalog'){const value=await getPublicNativeCatalog(request);return publicOk(value.data,value.ttlSeconds,request);}
     if(method==='GET'&&route==='/me/records'){const actor=await current(request),params=new URL(request.url).searchParams,input=memberRecordInput.parse(Object.fromEntries(params));return ok(await withContext({access:'service',actorId:actor.id,reportSnapshot:true},tx=>ownMemberRecords(tx,actor.id,input)));}
@@ -184,9 +186,10 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
     if(method==='POST'&&route==='/me/bot-check'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=z.object({surface:z.enum(['consent','suspicious_checkout'])}).strict().parse(await json(request));if(identity.user.status==='pending_consent'&&input.surface!=='consent')throw new Error('CONSENT_REQUIRED');return ok(await withContext({access:'service',actorId:identity.user.id},tx=>beginBotCheck(tx,identity.user.id,identity.session!.generation,input.surface)));}
     if(method==='POST'&&route==='/me/wallets/challenge'){const identity=await authenticate(request);await requireWithdrawalAuth(identity);const input=walletChallengeInput.parse(await json(request));if(input.session_generation!==identity.session?.generation)throw new Error('VERSION_CONFLICT');return ok(await withContext({access:'service',actorId:identity.user.id},tx=>challengeWallet(tx,identity.user.id,input)));}
     if(method==='POST'&&route==='/me/wallets/proof'){const identity=await authenticate(request);await requireWithdrawalAuth(identity);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=walletProofInput.parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},tx=>proveWallet(tx,identity.user.id,identity.session!.generation,input)));}
-    if(method==='POST'&&route==='/gifts/crypto/invoices'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=cryptoInvoiceInput.extend({bot_proof:botProof.optional()}).parse(await json(request)),key=idempotencyKey(request);return ok(await withContext({access:'service',actorId:identity.user.id},async tx=>{await verifyBotCheck(tx,identity.user.id,identity.session!.generation,'suspicious_checkout',input.bot_proof,key);return quoteCryptoInvoice(tx,identity.user.id,identity.session!.generation,{asset_key:input.asset_key,plan_id:input.plan_id},key)}));}
+    if(method==='POST'&&route==='/gifts/crypto/invoices'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=cryptoInvoiceInput.extend({profile_revision:z.number().int().positive().optional(),bot_proof:botProof.optional()}).parse(await json(request)),key=idempotencyKey(request);return ok(await withContext({access:'service',actorId:identity.user.id},async tx=>{await assertProfileRevision(tx,input.profile_revision);await verifyBotCheck(tx,identity.user.id,identity.session!.generation,'suspicious_checkout',input.bot_proof,key);return quoteCryptoInvoice(tx,identity.user.id,identity.session!.generation,{asset_key:input.asset_key,plan_id:input.plan_id},key)}));}
     if(method==='POST'&&route==='/gifts/crypto/cancel'){const actor=await current(request);const input=z.object({invoice_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id},tx=>cancelNativeInvoice(tx,actor.id,input.invoice_id)));}
-    if(method==='POST'&&route==='/gifts/crypto/prepare'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=z.object({invoice_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},tx=>prepareNativeInvoice(tx,identity.user.id,identity.session!.generation,input.invoice_id)));}
+    if(method==='POST'&&route==='/gifts/crypto/validate'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=z.object({invoice_id:z.string().uuid(),profile_revision:z.number().int().positive().optional()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},async tx=>{await assertProfileRevision(tx,input.profile_revision);return validateNativeInvoiceReview(tx,identity.user.id,identity.session!.generation,input.invoice_id)}));}
+    if(method==='POST'&&route==='/gifts/crypto/prepare'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=z.object({invoice_id:z.string().uuid(),profile_revision:z.number().int().positive().optional()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},async tx=>{await assertProfileRevision(tx,input.profile_revision);return prepareNativeInvoice(tx,identity.user.id,identity.session!.generation,input.invoice_id)}));}
     if(method==='POST'&&route==='/gifts/crypto/transaction'){const actor=await current(request),input=cryptoSubmission.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id},tx=>submitCryptoDeposit(tx,actor.id,input)));}
     if(method==='POST'&&route==='/me/withdrawals/crypto/requote'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=z.object({obligation_id:z.string().uuid()}).strict().parse(await json(request));return ok(nativeWithdrawalQuote(await withContext({access:'service',actorId:identity.user.id},tx=>requoteCryptoWithdrawal(tx,identity.user.id,identity.session!.generation,input.obligation_id,idempotencyKey(request)))));}
     if(method==='POST'&&route==='/me/withdrawals/crypto/quotes'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=cryptoWithdrawal.parse(await json(request));return ok(nativeWithdrawalQuote(await withContext({access:'service',actorId:identity.user.id},tx=>quoteCryptoWithdrawal(tx,identity.user.id,identity.session!.generation,input,idempotencyKey(request)))));}
@@ -236,15 +239,16 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
       const body=z.object({action:z.enum(['confirm','refund','cancel']),reason:z.string().min(5).max(500)}).strict().parse(await json(request));
       return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>resolveIncoming(tx,actor.id,id,body.action,body.reason,idempotencyKey(request))));
     }
+    if(method==='GET'&&route==='/gifts/invoices/review'){const actor=await current(request),id=resourceId(request,'invoice_id',/^\/api\/v1\/gifts\/invoices\/([^/]+)\/review\/?$/);return ok(await withContext({access:'service',actorId:actor.id},tx=>reviewIncoming(tx,actor.id,id)));}
     if(method==='POST' && route==='/gifts/invoices') {
-      const identity=await authenticate(request),user=identity.user,body=z.object({plan_id:z.string().uuid(),bot_proof:botProof.optional()}).strict().parse(await json(request)),key=idempotencyKey(request);
-      return ok(await withContext({access:'service',actorId:user.id},async tx=>{if(!identity.tool)await verifyBotCheck(tx,user.id,identity.session!.generation,'suspicious_checkout',body.bot_proof,key);return quoteIncoming(tx,user.id,body.plan_id,key)}));
+      const identity=await authenticate(request),user=identity.user,body=z.object({plan_id:z.string().uuid(),profile_revision:z.number().int().positive().optional(),bot_proof:botProof.optional()}).strict().parse(await json(request)),key=idempotencyKey(request);
+      return ok(await withContext({access:'service',actorId:user.id},async tx=>{await assertProfileRevision(tx,body.profile_revision);if(!identity.tool)await verifyBotCheck(tx,user.id,identity.session!.generation,'suspicious_checkout',body.bot_proof,key);return quoteIncoming(tx,user.id,body.plan_id,key)}));
     }
     if(method==='POST' && route==='/gifts/invoices/transaction') {
-      const user=await current(request);z.object({}).strict().parse(await json(request));
+      const user=await current(request),body=z.object({profile_revision:z.number().int().positive().optional()}).strict().parse(await json(request));
       const id=resourceId(request,'invoice_id',/^\/api\/v1\/gifts\/invoices\/([^/]+)\/transaction\/?$/);
       // The server-issued GIV invoice ID is a single-use submission identity.
-      return ok(await withContext({access:'service',actorId:user.id},tx=>submitIncoming(tx,user.id,id)));
+      return ok(await withContext({access:'service',actorId:user.id},tx=>submitIncoming(tx,user.id,id,body.profile_revision)));
     }
     if(method==='POST' && route==='/gifts/invoices/cancel') {
       const user=await current(request);z.object({}).strict().parse(await json(request));
@@ -283,6 +287,14 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
 
     if(method==='GET'&&route==='/admin/retention'){const actor=await admin(request),input=retentionInput.parse(Object.fromEntries(new URL(request.url).searchParams));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>retentionStatus(tx,actor.id,input)));}
     if(method==='POST'&&route==='/admin/retention'){const actor=await admin(request),input=z.object({reason:z.string().trim().min(10).max(500)}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>manualArchiveStep(tx,actor.id,input.reason,idempotencyKey(request))));}
+    if(method==='GET'&&route==='/admin/release-profiles'){const actor=await admin(request);return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true,snapshot:true},tx=>releaseProfile(tx)));}
+    if(method==='POST'&&route==='/admin/release-profiles/preview'){const actor=await admin(request,true),input=profilePreviewInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true,snapshot:true},tx=>releaseProfile(tx,input)));}
+    if(method==='POST'&&route==='/admin/release-profiles/stage'){const actor=await admin(request),input=profileStageInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>stageProfile(tx,actor.id,input,idempotencyKey(request))));}
+    if(method==='POST'&&route==='/admin/release-profiles/commit'){const actor=await admin(request),input=profileCommitInput.parse(await json(request));const result=await withContext({access:'service',actorId:actor.id,requireAdmin:true,profileSwitch:true},tx=>commitProfile(tx,actor.id,input,idempotencyKey(request)));invalidatePublicReads();return ok(result);}
+    if(method==='POST'&&route==='/admin/release-profiles/readiness'){const actor=await admin(request),input=readinessInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true,profileSwitch:true},tx=>recordReadiness(tx,actor.id,input,idempotencyKey(request))));}
+    if(route==='/me/publication'&&method==='GET'){const actor=await current(request);return ok(await withContext({access:'service',actorId:actor.id},tx=>publicationConsent(tx,actor.id)));}
+    if(route==='/me/publication'&&method==='POST'){const actor=await current(request),input=publicationInput.parse(await json(request));const result=await withContext({access:'service',actorId:actor.id},tx=>publicationConsent(tx,actor.id,input,idempotencyKey(request)));invalidatePublicReads();return ok(result);}
+    if(route==='/transparency'&&method==='GET'){const value=await getPublicManifest(request),data=value.data as {feature_transparency?:boolean;presentation?:unknown};if(!data.feature_transparency||!data.presentation)throw new Error('FEATURE_DISABLED');return publicOk(data.presentation,value.ttlSeconds,request);}
     if(method==='GET'&&route==='/admin/operations'){const actor=await admin(request);return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},readStaffOperations));}
     if(method==='POST'&&route==='/admin/operations/quota'){const actor=await admin(request),input=quotaReportInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>reportProviderQuota(tx,actor.id,input)));}
 
@@ -379,8 +391,8 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
 
     if (method === 'POST' && route === '/gifts/simulate') {
       const user = await current(request);
-      const body = z.object({ plan_id: z.string().uuid() }).strict().parse(await json(request));
-      return ok(await withContext({access:'service',actorId:user.id},(tx) => sendGift(tx, user, body.plan_id, idempotencyKey(request))));
+      const body = z.object({ plan_id: z.string().uuid(),profile_revision:z.number().int().positive().optional() }).strict().parse(await json(request));
+      return ok(await withContext({access:'service',actorId:user.id},async tx=>{await assertProfileRevision(tx,body.profile_revision);return sendGift(tx,user,body.plan_id,idempotencyKey(request))}));
     }
 
     if (method === 'POST' && route === '/me/wallets/simulate') {
@@ -469,7 +481,7 @@ async function routeApiRequest(method:string,path:string[],request:Request){
   const route='/'+path.join('/');
   if(route.startsWith('/auth/'))return await handleAuthRequest(method,route,request);
   if(route==='/sim/users'&&(runtimeProviders().AUTH_PROVIDER)!=='simulation')throw new Error('FEATURE_DISABLED');
-  if(['/manifest','/statistics','/plans','/help','/sim/users','/internal/tick','/internal/financial','/crypto/catalog'].includes(route))return await dispatchApiRequest(method,path,request);
+  if(['/manifest','/transparency','/activity','/statistics','/plans','/help','/sim/users','/internal/tick','/internal/financial','/crypto/catalog'].includes(route))return await dispatchApiRequest(method,path,request);
   const identity=await authenticate(request);
   const account=request.headers.get('x-client-account');const generation=request.headers.get('x-client-session');if(!identity.tool&&((account&&account!==identity.user.username)||(generation&&generation!==identity.session!.generation)))throw new Error('VERSION_CONFLICT');
   if(identity.user.status==='pending_consent'&&!['/me/consent','/me/bot-check'].includes(route))throw new Error('CONSENT_REQUIRED');

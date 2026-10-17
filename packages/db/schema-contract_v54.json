@@ -1,9 +1,9 @@
 {
   "format": "gw-drizzle-congruence-v1",
-  "verified_columns": 874,
-  "verified_standalone_indexes": 114,
-  "verified_check_constraints": 288,
-  "verified_tables": 95,
+  "verified_columns": 892,
+  "verified_standalone_indexes": 119,
+  "verified_check_constraints": 298,
+  "verified_tables": 96,
   "sql_only_constraint_triggers": [
     {
       "table_name": "chain_fee_claims",
@@ -153,14 +153,15 @@
     }
   ],
   "source_sha256_base64": {
-    "packages/db/src/schema.ts": "0ZA6YuHxuoy1PLC//kA0EsRfG1OgfRJsEFYgkp0K17Y=",
+    "packages/db/src/schema.ts": "uF26dFLhVm1q5lVa3JDdssO0fwdXL0KCMGrh6WhC0tI=",
     "packages/db/src/schema-contracts.ts": "vwnUvk8dlKrdKf+0zFPJskiNrC9rsEB18P850LQVmI8="
   },
   "migrations_sha256_base64": {
     "000_initial_schema.sql": "/8uTC5dPlh3nz8T4e7+39ITUe/KzB3fTsBCRtZ6z8yA=",
     "001_historical_treasury_fence.sql": "AnaXqjRLsZmREkce7CFRMuvCWkqpm9h+wk8YUasj2Oo=",
     "002_ephemeral_retention.sql": "X3hHpSCKXHFmlU9hgfSROZYBrk/5Y98PQbdaKsNju24=",
-    "003_monthly_financial_archives.sql": "HYWwiP1nTBVxKKPiW04AH6ySCEf5tyjvmaNu4x62d/4="
+    "003_monthly_financial_archives.sql": "HYWwiP1nTBVxKKPiW04AH6ySCEf5tyjvmaNu4x62d/4=",
+    "004_transparent_profiles.sql": "F81Aac7y8kcVS5yoliVy6coLWJ60BfwvXBaqAi3yChw="
   },
   "consolidated_baseline": {
     "file": "000_initial_schema.sql",
@@ -201,7 +202,15 @@
     ],
     "global_identity_registry": true,
     "sql_only_partition_bounds_triggers_acl_inventory": true,
-    "recovery_schema_contract_version": 2,
+    "recovery_schema_contract_version": 3,
     "financial_deletion": false
+  },
+  "transparent_profile_review": {
+    "migration": "004_transparent_profiles.sql",
+    "generated_model_columns_constraints_indexes_match": true,
+    "publication_consent_epoch": true,
+    "profile_transition_fence": true,
+    "financial_deletion": false,
+    "microsecond_row_hashes_and_cursors": true
   }
 }
