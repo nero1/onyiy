@@ -1,4 +1,4 @@
-# Project status v63
+# Project status v64
 
 **Phase One/Two is incomplete. Mainnet sending is disabled.** The owner requires the full real-money product, all missing features and actual verification. Continue without milestone approval pauses; defer owner setup details to final testing.
 
@@ -21,18 +21,17 @@
 | C013 | Observation periods | §30 requires14-day beta stability and14-day initial-cap mainnet observation; no elapsed evidence recorded. |
 | C014 | Owner launch decisions | Launch countries/review, approved financial terms, funding/refund/closure model, custody and budget remain unresolved. |
 | C015 | Age eligibility | Implemented server-date DOB eligibility without retaining DOB; actual cookie/CSRF API checks pass. Hosted browser acceptance remains open. |
-| C016 | Display time zones | Saved user preferences, default Lagos, admin override and explicit UTC launch inputs implemented. DST/API checks pass; browser acceptance remains open. |
-| C017 | Product navigation/idle preview | Enabled-currency browsing/idle rotation and keyboard return implemented. Actual390px EN/FR browser checks pass; scheduled-plan presentation and remaining dashboard layout still need acceptance. |
+| C016 | Display time zones | Saved user preferences, default Lagos, admin override and explicit UTC launch inputs implemented. DST/API checks pass; fix saved-language restoration on login and finish browser acceptance. |
+| C017 | Product navigation/idle preview | Enabled-currency browsing/idle rotation and keyboard return implemented. Actual390px EN/FR browser checks pass; native scheduled launch still uses the GIV-only launcher; scheduled presentation and remaining dashboard layout need completion. |
 
 
 ## Current batch
 
-- Branch `feat/mainnet-recovery-boundary`, based on PR61 merge `cfac359822890544c963426a9b70bc54893f8c8c`.
-- Recovery uses a separate maintenance boundary with disabled signing/scheduling, fresh owner/runtime binding proofs and read-only runtime checks. Web mainnet execution remains disabled.
-- Encrypted mainnet backup/restore/independent verification pass for all83 retained tables. Fresh testnet backup/restore and the original v55 signed simulation archive also pass without rewriting packets or keys.
-- Inventory now checks initialized environments as well as assets, rejecting retired/mismatched modes before backup. Wrong packet environment and wrong database binding are denied before target DDL.
-- Recovery waits for its own closing proof sessions before the unchanged empty/inactive-target guard. The first failed compatibility target is preserved. Cleanup zeroes the archive key before attempting all releases.
-- Browser-based owner recovery workflow, hosted restore, chain reconciliation/no-resend and the remaining payment/product work stay open.
+- Branch `feat/native-read-scope`, based on PR62 merge `a02f9a542d76ba32e03fd977bff17d0672fd1431`.
+- Fixed native plan creation/editing, which previously required a simulation GIV asset hidden by the active native namespace. Native edits now save disabled plan metadata; per-currency prices still require explicit gated activation. Simulation keeps its inactive GIV version behavior.
+- Catalogue, portfolio, member records and receipts check the captured transaction environment instead of silently switching it. Registry/receipt filters use that verified scope; mismatches are rejected. Mainnet payment gates remain closed.
+- Actual restricted-login procedures reproduce both old bugs and verify native creation/edit/replay/stale/role checks, simulation compatibility, namespace denial, timezone output and unchanged financial/work hashes.
+- Remaining discovered work includes saved-language restoration on login and native scheduled launch: its generic launcher still uses simulation activation. Both remain on the list above.
 
 ## Recent verified deliveries
 
@@ -53,15 +52,6 @@
 - §30 requires14-day beta stability and14-day initial-cap observation. Do not fabricate elapsed evidence or claim a completion percentage.
 
 
-## Read-only preview app evidence (v62)
+Current proof: `/workspace/work/native-read-v64/plan-and-scope-r3.mts` and `simulation-regression-r1.mts`. Failed r1 generated-registry fixture is preserved. PR62 passed push39026765895 / PR39026798890 before merging. Mainnet archive evidence remains in the v63 Git history and bug trackers.
 
-`/workspace/work/public-preview-app-v62`: `api-r2` proves actual mainnet public reads,39 private/auth/job route denials, write/signing denial and unchanged retained hashes. `browser-r1` and final `browser-r2` prove actual production Chromium390px EN/FR catalogue/help/search, banner, public-only navigation, unavailable private pages/API and noindex; no response interception. `credential-scope-r1` rejects21 private credential names; `hosted-preflight-r1` accepts the restricted login and rejects owner login/mode mismatch. r1 API harness failure used the unsupported mainnet recovery inventory; preserved, then r2 hashes the unchanged simulation fixture outside request execution. The archive gap from that release is addressed by v63; chain reconciliation remains unfinished. PR60 passed push39024849840 / PR39024875695 before merging.
-
-
-## Mainnet archive evidence (v63)
-
-`/workspace/work/mainnet-recovery-v63`: `readonly-boundary-r1` verifies binding, read-only scope, write/downgrade denial and unchanged hashes; `archive-r2` backs up/restores/verifies83 retained tables. `testnet-and-final-mainnet-r1` verifies fresh testnet backup/restore plus the original mainnet packet on another fresh target. `legacy-and-guards-r2` restores/verifies the original v55 packet and rejects retired scope, signed environment mismatch and wrong-database binding. Its failed r1 target/logs remain preserved; proof-backend shutdown is now awaited without terminating other clients or weakening target guards. `worker-regression-r1` verifies ordinary worker/context behavior after extracting the unchanged role checks. No RPC, signer, broadcast or real funds.
-
-Original mainnet packet/key: `mainnet-isolated-r2.gwbackup` / `mainnet-isolated-r2.key` (raw32-byte key; its harness encodes it only inside the protected process); original v55 packet/key remain at their handover paths. Browser recovery workflow and mainnet chain reconciliation/no-resend remain open. PR61 merged after push39025742213 and PR39025758110 passed for a7e16c713f9fa3b35f0cfe02dfafd22c6b2e6049. Continue the full product after the next checked merge.
-
-v63
+v64
