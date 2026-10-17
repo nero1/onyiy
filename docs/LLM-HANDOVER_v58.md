@@ -1,12 +1,12 @@
-# LLM handover v57
+# LLM handover v58
 
 ## Current owner instruction
 
-Complete the entire Phase One/Two product, including verified real-money mainnet and every missing feature. Do not stop at transparency implementation or a partial checklist. Continue code work without acceptance pauses; require actual evidence and owner-provisioned details for external activation. Read [PRD](PRD.md) §§29–33 and the complete [gap list](PROJECT-STATUS_v57.md) first.
+Complete the entire Phase One/Two product, including verified real-money mainnet and every missing feature. Do not stop at transparency implementation or a partial checklist. Continue code work without acceptance pauses; require actual evidence and owner-provisioned details for external activation. Read [PRD](PRD.md) §§29–33 and the complete [gap list](PROJECT-STATUS_v58.md) first.
 
 ## Active work
 
-- Repository `nero1/onyiy`, branch `feat/signer-environment-fence` based on PR55 merge6b567dd8fa548c40fecc1bc44d1503a1a745a3d0.
+- Repository `nero1/onyiy`, branch `feat/mainnet-observation` based on PR56 merge536a340ef6c2faf66d5c5740a532228a395747a3.
 - Private scratch `/workspace/work/production-v55` contains295 extracted requirement-bearing PRD lines and source research. Review every section; do not treat extraction or source reading as verified acceptance.
 - Uncommitted first foundation: `FinancialEnvironment`, mainnet/testnet closed network bindings, environment-specific RPC/address suffixes and fingerprints. Registry parsing can stage mainnet records, but active adapters/runtime still deny mainnet until the complete financial release. Initial typecheck passed.
 - C001–C017 in status/report/plan track the entire product; C006/C015/C016 now have locally verified implementations. Production recovery accepts no mainnet, many SQL/service/signer paths are testnet-specific, both readiness gates are false, and shared preview isolation is unfinished.
@@ -67,4 +67,17 @@ Owned PostgreSQL cluster: `/workspace/work/shared-hosting-v50/pgdata`, TLS port5
 
 - Clean install with lifecycle scripts disabled and the actual workflow generation command passed; actual GitHub hosted execution awaits protected setup secrets. Required checks/build/bundle passed locally.
 
-v57
+
+## Current v58 continuation
+
+- PR56 merged with exact head4e8213e14bd64ad36b553539902a8db086743eaf, push39014074144/PR39014104420; merge536a340ef6c2faf66d5c5740a532228a395747a3.
+- `chainObservationAdapter` returns a frozen read-only facade. Adapter constructors accept explicit observationOnly; build/broadcast reject it before processing. DualRpc captures an immutable observation capability and checks the serialized exact wire body against closed JSON-RPC/TRON read allowlists. Mutation, unknown methods, path/serialization bypass and options mutation cannot dispatch. Default active mainnet and both financial readiness gates remain denied/false.
+- Solana observation constructors/balances now use closed environment-network bindings, not devnet literals. All adapters recheck execution gates at build/broadcast. TRON dual-provider outages now report RPC_UNAVAILABLE, preserving retry instead of false WRONG_NETWORK.
+- Scratch `/workspace/work/mainnet-v58`: observation-r1 passes four native network/genesis capability cases; observation-r2 adds native balances and dual-outage classification and passed. execution-regression-r1 failed because testnet signing scope cannot use loopback transport; r2 separates simulation-only local transport from offline testnet signing and passes actual ETH/BNB fee/sign/exact-byte fixture broadcast/gate rechecks. Original generated key files remain preserved. SOL/TRON copied common-finality procedures pass without changing their assertions or original files.
+- live-read-r1 omitted OUTBOUND_ALLOWED_HOSTS and cannot prove provider failure. Corrected r2 also received no usable live evidence; preserve both. Official Ethereum/BNB/TRON/Tether docs returned403; do not guess contracts/provenance. Earlier official Solana mainnet genesis observation remains in v55 scratch. No successful live transfer is claimed.
+- Full required checks/build/bundle for v58 passed (homepage182.19KiB, API1.442MiB, clients0.678MiB); final PR/exact-head dual CI/merge remain pending. Continue actual mainnet execution/config/worker/API/wallet/recovery paths, readonly preview wiring, remaining product audit/localization/scheduled UI and browser recovery. Final fresh SQL must again be consolidated to one final-state installer while preserving installed historical releases/archives. Do not stop at this merge or claim product completion.
+
+
+- Current observation-r2 passes native balances and dual-provider outage classification on all four mainnets using generated local RPC fixtures. Required checks/build/bundle pass; live provider acceptance remains pending.
+
+v58

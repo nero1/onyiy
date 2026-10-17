@@ -1,4 +1,4 @@
-# Project status v57
+# Project status v58
 
 ## Actual completion objective
 
@@ -28,7 +28,7 @@ The owner requires the full Phase One/Two product, including verified real-money
 
 ## Current work
 
-- Branch `feat/signer-environment-fence`, based on merged PR55 (`6b567dd8fa548c40fecc1bc44d1503a1a745a3d0`).
+- Branch `feat/mainnet-observation`, based on merged PR56 (`536a340ef6c2faf66d5c5740a532228a395747a3`).
 - Extracted295 requirement-bearing PRD lines into private scratch for line-by-line audit. This is an inventory, not completed acceptance.
 - Implementing environment-bound network registry validation and separate mainnet/testnet RPC/address selection. Type checking passed for the initial foundation. Execution remains blocked until isolation/signing/recovery are complete.
 - No configured hosted runtime credentials or outbound identities are available in the current managed environment. The owner deferred all launch details to final testing. Do not ask again during coding; put the required fields in SETUP and continue independent implementation. Keys/passwords must use protected settings.
@@ -81,4 +81,17 @@ Keep going through the list without milestone acceptance pauses; create/merge PR
 
 - Clean install with lifecycle scripts disabled and the actual workflow generation command passed; actual GitHub hosted execution awaits protected setup secrets. Required checks/build/bundle passed locally.
 
-v57
+
+## Current v58 batch
+
+- PR56 merged after exact head4e8213e14bd64ad36b553539902a8db086743eaf passed push39014074144/PR39014104420.
+- Added explicit observation adapters for Ethereum1, BNB56, Solana mainnet-beta and TRON mainnet. The public facade exposes no raw RPC/fee/build/broadcast methods. A closed transport allowlist also rejects mutation and unknown methods before dispatch. Default active mainnet adapters remain denied.
+- Fixed remaining hardcoded Solana devnet checks in observation reads. Build/broadcast now recheck execution gates, including after adapter construction.
+- Fixed TRON reporting dual-provider failure as wrong network. It now remains a transient RPC outage; actual contradictory network IDs are still rejected.
+- Local generated RPC checks pass for four mainnet identities, wrong-network denial and read-only capability boundaries. Existing ETH/BNB fee/sign/exact-byte local broadcast and SOL/TRON common-cutoff checks pass. No external transfer or real funds were used.
+- Live read probes remain unverified: corrected configured-provider probes received no usable responses. Official Ethereum/BNB/TRON/Tether pages returned403 here; no token provenance is accepted from those failed fetches. Native network fixtures are not live/provider acceptance.
+
+
+- Current observation-r2 passes native balances and dual-provider outage classification on all four mainnets using generated local RPC fixtures. Required checks/build/bundle pass; live provider acceptance remains pending.
+
+v58

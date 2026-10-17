@@ -15,7 +15,7 @@ import {
 } from "@solana/spl-token";
 import { base58 } from "@scure/base";
 import { DualRpc, integer } from "./rpc";
-import { assertActive } from "./registry";
+import { assertActive,assertAdapterAsset } from "./registry";
 import type {
   AssetRegistry,
   ScannedTransfer,
@@ -67,8 +67,8 @@ export class SolanaAdapter implements ChainAdapter {
     readonly asset: AssetRegistry,
     options: RpcOptions,
   ) {
-    assertActive(asset);
-    if (asset.chain !== "sol" || asset.network !== "devnet")
+    assertAdapterAsset(asset,options.observationOnly);
+    if (asset.chain !== "sol")
       throw new Error("WRONG_NETWORK");
     this.rpc = new DualRpc(options);
   }
@@ -233,7 +233,7 @@ export class SolanaAdapter implements ChainAdapter {
       throw new Error("TOKEN_REGISTRY_MISMATCH");
   }
   private async finalizedBalancePair(asset:AssetRegistry,address:string,height:bigint){
-    assertActive(asset);
+    assertAdapterAsset(asset,this.rpc.observationOnly);
     if(asset.key!==this.asset.key||height<0n||height>9007199254740991n)throw new Error("INVALID_INPUT");
     const account=normalized(address),target=asset.kind==="native"?account:getAssociatedTokenAddressSync(new PublicKey(asset.mint!),new PublicKey(account)).toBase58();
     return Promise.all(([0,1] as const).map(async side=>{
@@ -270,8 +270,8 @@ export class SolanaAdapter implements ChainAdapter {
     return values[0].amount;
   }
   async getBalance(asset: AssetRegistry, address: string, fresh = false) {
-    assertActive(asset);
-    if (asset.chain !== "sol" || asset.network !== "devnet")
+    assertAdapterAsset(asset,this.rpc.observationOnly);
+    if (asset.chain !== "sol" || asset.network !== this.asset.network)
       throw new Error("WRONG_NETWORK");
     if (asset.kind === "native") return this.getNativeBalance(address, fresh);
     await this.network();
@@ -412,6 +412,8 @@ export class SolanaAdapter implements ChainAdapter {
     };
   }
   async buildTransfer(intent: TransferIntent): Promise<PreparedTransfer> {
+    if(this.rpc.observationOnly)throw new Error("OBSERVATION_ONLY");
+    assertActive(this.asset);
     if (normalized(intent.sender) === normalized(intent.destination)) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
     await this.network();
     if (
@@ -433,6 +435,8 @@ export class SolanaAdapter implements ChainAdapter {
     };
   }
   async broadcastSigned(signed: SignedTransfer) {
+    if(this.rpc.observationOnly)throw new Error("OBSERVATION_ONLY");
+    assertActive(this.asset);
     const tx = Transaction.from(Buffer.from(signed.bytes, "base64"));
     if (
       !tx.verifySignatures() ||

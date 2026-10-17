@@ -8,7 +8,7 @@ import crypto from "node:crypto";
 import { TronWeb, Trx, utils } from "tronweb";
 import { Interface, id } from "ethers";
 import { DualRpc, integer } from "./rpc";
-import { assertActive } from "./registry";
+import { assertActive,assertAdapterAsset } from "./registry";
 import type {
   AssetRegistry,
   ScannedTransfer,
@@ -45,7 +45,7 @@ export class TronAdapter implements ChainAdapter {
     readonly asset: AssetRegistry,
     options: RpcOptions,
   ) {
-    assertActive(asset);
+    assertAdapterAsset(asset,options.observationOnly);
     if (asset.chain !== "tron" || !tronChainId(asset.network))
       throw new Error("WRONG_NETWORK");
     this.rpc = new DualRpc(options);
@@ -103,10 +103,9 @@ export class TronAdapter implements ChainAdapter {
     const valid = observations
       .filter((v) => v.status === "fulfilled")
       .map((v) => (v as PromiseFulfilledResult<string>).value);
-    if (
-      !valid.length ||
-      valid.some((v) => BigInt(v) !== tronChainId(this.asset.network))
-    )
+    if(!valid.length)throw new Error('RPC_UNAVAILABLE');
+    if(valid.some(value=>typeof value!=='string'||!/^0x[0-9a-f]{1,64}$/i.test(value)))throw new Error('RPC_EVIDENCE_INVALID');
+    if (valid.some((v) => BigInt(v) !== tronChainId(this.asset.network)))
       throw new Error("WRONG_NETWORK");
   }
   private async pair(path: string, body: unknown) {
@@ -214,7 +213,7 @@ export class TronAdapter implements ChainAdapter {
       throw new Error("TOKEN_REGISTRY_MISMATCH");
   }
   private async finalizedBalancePair(asset:AssetRegistry,address:string,height:bigint){
-    assertActive(asset);if(asset.key!==this.asset.key||height<0n)throw new Error("INVALID_INPUT");const account=normalized(address);
+    assertAdapterAsset(asset,this.rpc.observationOnly);if(asset.key!==this.asset.key||height<0n)throw new Error("INVALID_INPUT");const account=normalized(address);
     const values=await Promise.all(([0,1] as const).map(async side=>{const identity=await this.rpc.post(side,"jsonrpc",{jsonrpc:"2.0",id:1,method:"eth_chainId",params:[]},true);if(BigInt(identity)!==tronChainId(asset.network))throw new Error("WRONG_NETWORK");const before=await this.rpc.post(side,"walletsolidity/getnowblock",{}),tip=integer(before.block_header.raw_data.number);if(tip<height||!/^[0-9a-f]{64}$/i.test(before.blockID))throw new Error("FINALITY_UNAVAILABLE");let amount:bigint;
     if(asset.kind==="native"){const result=await this.rpc.post(side,"walletsolidity/getaccount",{address:addressHex(account),visible:false});amount=integer(result.balance??0)}else{const result=await this.rpc.post(side,"walletsolidity/triggerconstantcontract",{owner_address:addressHex(account),contract_address:addressHex(asset.contract!),function_selector:"balanceOf(address)",parameter:addressHex(account).slice(-40).padStart(64,"0"),visible:false});if(!result.result?.result||!Array.isArray(result.constant_result)||result.constant_result.length!==1||! /^[0-9a-f]{64}$/i.test(result.constant_result[0]))throw new Error("RPC_EVIDENCE_INVALID");amount=BigInt("0x"+result.constant_result[0])}
     const after=await this.rpc.post(side,"walletsolidity/getnowblock",{});if(after.blockID!==before.blockID||integer(after.block_header.raw_data.number)!==tip)throw new Error("FINALITY_UNAVAILABLE");return {tip,hash:String(before.blockID).toLowerCase(),amount}}));return values;
@@ -239,7 +238,7 @@ export class TronAdapter implements ChainAdapter {
     return values[0].amount;
   }
   async getBalance(asset: AssetRegistry, address: string, fresh = false) {
-    assertActive(asset);
+    assertAdapterAsset(asset,this.rpc.observationOnly);
     if (asset.chain !== "tron" || asset.network !== this.asset.network)
       throw new Error("WRONG_NETWORK");
     if (asset.kind === "native") return this.getNativeBalance(address, fresh);
@@ -385,6 +384,8 @@ export class TronAdapter implements ChainAdapter {
     if (values[0] !== values[1]) throw new Error("SIGNED_INTENT_INVALID");
   }
   async buildTransfer(intent: TransferIntent): Promise<PreparedTransfer> {
+    if(this.rpc.observationOnly)throw new Error("OBSERVATION_ONLY");
+    assertActive(this.asset);
     if (normalized(intent.sender) === normalized(intent.destination)) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
     await this.network();
     if (
@@ -487,6 +488,8 @@ export class TronAdapter implements ChainAdapter {
     };
   }
   async broadcastSigned(signed: SignedTransfer) {
+    if(this.rpc.observationOnly)throw new Error("OBSERVATION_ONLY");
+    assertActive(this.asset);
     let tx: any;
     try {
       tx = JSON.parse(signed.bytes);
