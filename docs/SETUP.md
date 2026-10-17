@@ -178,7 +178,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v56.md](PROJECT-STATUS_v56.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v57.md](PROJECT-STATUS_v57.md).
 
 ## 10. Preview using the same projects and database
 
@@ -348,7 +348,7 @@ Start with **Solana devnet** to avoid needing a test token contract. Solana's se
 Use the UTC format `YYYY-MM-DDTHH:MM:SSZ`. `verified=true` records a real network review, not permission to send. This registry entry does not itself create or activate the database asset.
 
 7. Redeploy `main` and `preview`. Have the verified administrator open **Admin → Testnet administration**, select **sol**, enter a reason, and use **Stage disabled** when those controls are available. Do not select enable/activate to bypass the readiness pause. RPC/balance access is still required for staging.
-8. Prepare the reviewed signed-price verification key, actual fee/gas limits and HTTPS alert receiver through the owner/maintainer. These are financial activation inputs, not values the guide can invent. There is no current browser-only key-signing/custody setup wizard.
+8. Prepare the reviewed signed-price verification key, actual fee/gas limits and HTTPS alert receiver through the owner/maintainer. These are financial activation inputs, not values the guide can invent. For new encrypted keys, use the browser custody-preparation steps below. Signer-host installation and financial activation remain unfinished.
 9. **Stop before payment activation.** The unfinished financial release checks and hosted acceptance must be resolved before normal testnet sending can be accepted. Record the workspace as configured, not “payments working.”
 
 Other supported test-network registry values: Ethereum Sepolia `11155111`, BNB testnet `97`, and reviewed TRON `nile`/`shasta`. Token assets additionally need independently verified contract/mint and decimals; do not copy a mainnet token address into a test registry. [Official Solana network details](https://solana.com/docs/references/clusters).
@@ -430,3 +430,24 @@ Provide these during final setup; coding can continue before they are available.
 3. In native plan administration, choose USD-derived pricing or enter the exact token amount. Use **Resume the existing price unchanged** to preserve a paused plan's existing amount.
 
 New backups use recovery inventory contract4. Keep original archives, keys and release references. Contract3 archives require release `6c323dc43c45efa1957308e467ce06e7cc0b36c0`; do not edit or re-sign them.
+
+## Prepare new encrypted custody keys in your browser
+
+This creates **new, unfunded wallets** on a GitHub runner. Use it only if you trust the repository administrators with custody. Do not use it to replace an existing funded treasury. Mainnet payment activation remains unfinished.
+
+1. In Supabase **SQL Editor → New query**, run this once for each custody environment you intend to prepare:
+
+```sql
+select translate(rtrim(encode(gen_random_bytes(32), 'base64'), '='), '+/', '-_')
+  as signer_decryption_secret;
+```
+
+2. Save the result in your password manager. Use a different secret for testnet and mainnet. Keep it separate from downloaded encrypted files; never add it to Vercel or paste it in chat.
+3. In GitHub **onyiy → Settings → Environments → New environment**, create `custody-testnet`. Create `custody-mainnet` only when preparing mainnet keys.
+4. Open that environment. Under **Environment secrets**, click **Add secret**. Set **Name** to `SIGNER_DECRYPTION_SECRET`, paste its saved value, and click **Add secret**. No database or worker credentials belong here.
+5. Open **Actions → prepare-encrypted-custody → Run workflow**. Select **Branch: main**, then the matching **payment_environment**. Click **Run workflow**. If the button is missing, confirm the workflow is merged into main and you have repository write access.
+6. Open the completed run. Under **Artifacts**, click `encrypted-custody-ENVIRONMENT-RUN_ID` to download it. Download within **one day**; GitHub then expires the artifact.
+7. Keep private backup copies of the encrypted files and `inventory.json`. The inventory lists public addresses; it contains no recovery phrase or plaintext key. Keep the decryption secret backed up separately.
+8. During final signer-host setup, use the reviewed encrypted files and compare their public addresses with the configured treasury addresses. **Do not fund or install a replacement treasury merely because this workflow passed.** Existing custody import, host installation and actual activation still need their documented release steps.
+
+Official UI references: [run a workflow](https://docs.github.com/en/actions/managing-workflow-runs/manually-running-a-workflow), [download artifacts](https://docs.github.com/en/actions/managing-workflow-runs/downloading-workflow-artifacts), [environment secrets](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions).

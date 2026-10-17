@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import {openKeyEnvelope} from './key-envelope';
-import type { Chain } from "../../packages/chains/src/types";
-export function assertIsolated() {
+import type { Chain,FinancialEnvironment } from "../../packages/chains/src/types";
+export function assertIsolated():FinancialEnvironment {
   if (
     process.env.APP_ENV !== "testnet" ||
     process.env.SIGNER_PROVIDER !== "encrypted_worker" ||
@@ -21,13 +21,14 @@ export function assertIsolated() {
     "SIMULATION_TOOL_AUTH_KEY",
   ])
     if (process.env[name]) throw new Error("SIGNER_SECRET_SCOPE_MIXED");
+  return 'testnet';
 }
 export async function withSigningKey<T>(
   chain: Chain,
   network: string,
   fn: (key: Buffer, address: string) => Promise<T>,
 ) {
-  assertIsolated();
+  const environment=assertIsolated();
   const filename = process.env.SIGNER_KEY_FILE,
     secret = process.env.SIGNER_DECRYPTION_SECRET;
   if (!filename || !secret || secret.length < 32 || secret.length > 1024)
@@ -38,7 +39,7 @@ export async function withSigningKey<T>(
     fd=fs.openSync(filename,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
     const stat=fs.fstatSync(fd);
     if(!stat.isFile()||stat.size>4096||(stat.mode&0o077)!==0)throw new Error();
-    const opened=openKeyEnvelope(JSON.parse(fs.readFileSync(fd,'utf8')),{chain,network,environment:'testnet'},secret);
+    const opened=openKeyEnvelope(JSON.parse(fs.readFileSync(fd,'utf8')),{chain,network,environment},secret);
     plain=opened.bytes;
     return await fn(plain,opened.address);
   } catch (error) {

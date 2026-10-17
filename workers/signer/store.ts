@@ -1,5 +1,6 @@
 import {signerAssetLedgerBalance as assetLedgerBalance} from '../../packages/db/src/ledger-counters';
 import {withBoundedTransaction} from '../../packages/db/src/execution-budget';
+import {fenceWorkerEnvironment} from '../../packages/db/src/deployment-mode';
 import {databaseBinding} from '../../packages/db/src/binding-fingerprint';
 import {beneficiaryLiabilityPurposes,businessAddressRole} from '../../packages/domain/src/liabilities';
 import { Transaction } from "ethers";
@@ -41,6 +42,7 @@ import type {
   AssetRegistry,
   PreparedTransfer,
   SignedTransfer,
+  FinancialEnvironment,
 } from "../../packages/chains/src/types";
 const key = (name: string) => {
   const raw = process.env[name] ?? "";
@@ -103,8 +105,9 @@ export function decryptSigned(cipher: string, scope: string) {
 export class SignerStore {
   private client;
   private database;
+  private readonly environment:FinancialEnvironment;
   constructor() {
-    assertIsolated();
+    this.environment=assertIsolated();
     const url = process.env.SIGNER_DATABASE_URL;
     if (!url) throw new Error("SIGNER_CONFIGURATION_INVALID");
     this.client = postgres(url, {
@@ -119,10 +122,10 @@ export class SignerStore {
     await this.client.end({ timeout: Math.min(3,this.drainMilliseconds/4000) });
   }
   private async context<T>(fn: (tx: DbExecutor) => Promise<T>) {
+    if(assertIsolated()!==this.environment)throw new Error('SIGNER_SCOPE_DENIED');
     return this.database.transaction(rawTx=>withBoundedTransaction(rawTx,async (tx) => {
       await tx.execute(sql`select set_config('statement_timeout',${String(Math.max(1,Math.min(5000,Math.floor(this.drainMilliseconds/2))))},true),set_config('lock_timeout','1500',true)`);
       await tx.execute(sql.raw('set local search_path=pg_catalog,public,pg_temp'));
-      await tx.execute(sql`select set_config('gw.environment','testnet',true)`);
       const [role] = await tx.execute<{
         safe: boolean;
         isolated: boolean;
@@ -134,12 +137,14 @@ export class SignerStore {
       await tx.execute(sql.raw("set local role gw_signer"));
       const [memberships]=await tx.execute<{safe:boolean}>(sql`select not exists(select 1 from pg_auth_members m join pg_roles member on member.oid=m.member join pg_roles parent on parent.oid=m.roleid where (member.rolname=session_user and (m.admin_option or coalesce((to_jsonb(m)->>'inherit_option')::boolean,false) or parent.rolname<>'gw_signer')) or member.rolname='gw_signer') as safe`);
       if(!memberships?.safe)throw new Error('SIGNER_DATABASE_SCOPE_DENIED');
+      await fenceWorkerEnvironment(tx,this.environment);
       await tx.execute(sql`select set_config('gw.database_binding',${await databaseBinding(tx)},true)`);
 
       return fn(tx);
-    }));
+    }),{isolationLevel:'read committed'});
   }
   private async configurationIn(tx: DbExecutor, asset: AssetRegistry) {
+    if(asset.environment!==this.environment)throw new Error('SIGNER_SCOPE_DENIED');
     await tx.execute(
       sql`select pg_advisory_xact_lock_shared(hashtextextended('financial-policy',0))`,
     );
@@ -162,7 +167,7 @@ export class SignerStore {
     return this.context((tx) => this.configurationIn(tx, asset));
   }
   async heartbeat(asset:AssetRegistry) {
-    return this.context(async tx=>{const config=await this.configurationIn(tx,asset);if(!config.addresses.RECEIVING)throw new Error("SIGNER_ADDRESS_MISMATCH");await tx.insert(signerHeartbeats).values({treasuryFingerprint:config.treasuryFingerprint,environment:"testnet",chain:asset.chain,configurationHash:config.hash}).onConflictDoUpdate({target:signerHeartbeats.treasuryFingerprint,set:{configurationHash:config.hash,heartbeatAt:sql`clock_timestamp()`}});return config.treasuryFingerprint;});
+    return this.context(async tx=>{const config=await this.configurationIn(tx,asset);if(!config.addresses.RECEIVING)throw new Error("SIGNER_ADDRESS_MISMATCH");await tx.insert(signerHeartbeats).values({treasuryFingerprint:config.treasuryFingerprint,environment:this.environment,chain:asset.chain,configurationHash:config.hash}).onConflictDoUpdate({target:signerHeartbeats.treasuryFingerprint,set:{configurationHash:config.hash,heartbeatAt:sql`clock_timestamp()`}});return config.treasuryFingerprint;});
   }
   async activation(hash: string) {
     return this.context(async (tx) => {
@@ -272,7 +277,7 @@ export class SignerStore {
         .insert(signerStates)
         .values({
           treasuryFingerprint: row.treasuryFingerprint,
-          environment: "testnet",
+          environment: this.environment,
           chain: row.chain,
         })
         .onConflictDoNothing();
@@ -352,7 +357,7 @@ export class SignerStore {
         .from(assets)
         .where(
           and(
-            eq(assets.environment, "testnet"),
+            eq(assets.environment, this.environment),
             eq(assets.symbol, nativeSymbol),
             eq(assets.chainId, (row.registrySnapshot as AssetRegistry).network),
           ),
@@ -447,7 +452,8 @@ export class SignerStore {
         prepared.family !== obligation.chain ||
         prepared.intent.amount !== BigInt(obligation.netBaseUnits) ||
         prepared.intent.asset.chain !== obligation.chain ||
-        prepared.environment !== "testnet" ||
+        prepared.environment !== this.environment ||
+        prepared.intent.asset.environment !== this.environment ||
         (prepared.intent.fee.networkFee ?? prepared.intent.fee.nativeFee) *
           100n >
           BigInt(
@@ -510,7 +516,7 @@ export class SignerStore {
         expiresAt: signed.expiresAt ?? prepared.expiresAt,
         obligationId: claim.row.id,
         attempt: 1,
-        environment: "testnet",
+        environment: this.environment,
         chain: claim.row.chain,
         txHash: signed.hash,
         nonce: signed.nonce?.toString(),
@@ -682,7 +688,7 @@ export class SignerStore {
         .from(assets)
         .where(
           and(
-            eq(assets.environment, "testnet"),
+            eq(assets.environment, this.environment),
             eq(assets.chainId, (row.registrySnapshot as AssetRegistry).network),
             eq(assets.symbol, row.chain === "eth" ? "ETH" : "BNB"),
           ),
@@ -706,7 +712,7 @@ export class SignerStore {
           signedAtHeight: height.toString(),
           obligationId: row.id,
           attempt: previous.attempt + 1,
-          environment: "testnet",
+          environment: this.environment,
           chain: row.chain,
           txHash: signed.hash,
           nonce: previous.nonce,
