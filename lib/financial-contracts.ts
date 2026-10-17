@@ -10,7 +10,7 @@ import type {quoteCryptoWithdrawal} from '@/server/crypto-payouts';
 export type JsonWire<T> = T extends Date ? string : T extends bigint ? string :
  T extends readonly (infer Item)[] ? JsonWire<Item>[] :
  T extends object ? {[Key in keyof T]:JsonWire<T[Key]>} : T;
-export type PublicManifestDto = PublicManifest & {payment_environment?:'simulation'|'testnet';presentation?:ProfilePresentation;configuration_available?:boolean};
+export type PublicManifestDto = PublicManifest & {payment_environment?:'simulation'|'testnet'|'mainnet';read_only_preview?:boolean;presentation?:ProfilePresentation;configuration_available?:boolean};
 type DashboardResult = JsonWire<Awaited<ReturnType<typeof dashboard>>>;
 export type DashboardDto = Omit<DashboardResult,'wallet'> & {wallet:DashboardResult['wallet']|null};
 export type DashboardCycle = DashboardDto['cycles'][number];

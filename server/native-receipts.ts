@@ -1,3 +1,4 @@
+import {financialEnvironmentIn} from './financial-config';
 import { and, asc, eq, gt, sql } from "drizzle-orm";
 import {
   assets,
@@ -16,6 +17,7 @@ export async function ownNativeReceipts(
   id?: string,
   after?: string,
 ) {
+  const environment=await financialEnvironmentIn(tx);
   const refund = sql<string>`coalesce((select sum(p.amount_base_units) from ${ledgerJournals} j join ${ledgerPostings} p on p.journal_id=j.id join ${ledgerAccounts} a on a.id=p.account_id where j.business_key='crypto-fee-refund:'||${cryptoObligations.id}::text and p.direction='credit' and a.owner_id=${userId}::uuid and a.purpose='available_payable'),0)`;
   return tx
     .select({
@@ -39,7 +41,7 @@ export async function ownNativeReceipts(
     .where(
       and(
         eq(cryptoObligations.userId, userId),
-        eq(cryptoObligations.environment, "testnet"),
+        eq(cryptoObligations.environment, environment),
         eq(cryptoObligations.kind, "withdrawal"),
         eq(cryptoObligations.status, "settled"),
         id ? eq(cryptoObligations.id, id) : undefined,

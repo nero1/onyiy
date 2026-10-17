@@ -21,28 +21,24 @@ import { readRegistry } from "@gifters/chains";
 import {
   assertRegistryBinding,
   financialImplementationComplete,
+  financialEnvironmentIn,
 } from "./financial-config";
 export async function nativeCatalog(tx: DbExecutor) {
-  const mode =
-    process.env.APP_ENV === "testnet" ||
-    process.env.CHAIN_FIXTURE_MODE === "isolated"
-      ? "testnet"
-      : "simulation";
-  if (mode === "simulation")
-    return { mode, execution_enabled: false, assets: [], plans: [] };
+  if(process.env.APP_ENV!=='testnet'&&process.env.APP_ENV!=='mainnet'&&process.env.CHAIN_FIXTURE_MODE!=='isolated')return {mode:'simulation',execution_enabled:false,assets:[],plans:[]};
+  const mode=await financialEnvironmentIn(tx);
   const manifest = await readManifest(tx);
   if (!manifest.feature_wallets && !manifest.feature_gifts) throw new Error("FEATURE_DISABLED");
   const registry = readRegistry(),
     rows = await tx
       .select()
       .from(assets)
-      .where(eq(assets.environment, "testnet"))
+      .where(eq(assets.environment, mode))
       .orderBy(asc(assets.symbol))
       .limit(20);
   if (rows.length > 10) throw new Error("CONFIGURATION_INVALID");
   const currencies = rows.map((row) => {
     const item = registry.find(
-      (v) => v.key.toUpperCase() === row.symbol && v.network === row.chainId,
+      (v) => v.environment===mode && v.key.toUpperCase() === row.symbol && v.network === row.chainId,
     );
     let identityValid = false;
     if (item) {
@@ -63,7 +59,7 @@ export async function nativeCatalog(tx: DbExecutor) {
       mint: item?.mint,
       kind: item?.kind ?? "native",
       explorer: item?.explorer,
-      environment: "testnet",
+      environment: mode,
     };
   });
   const versions = await tx
@@ -88,7 +84,7 @@ export async function nativeCatalog(tx: DbExecutor) {
     .innerJoin(assets, eq(assets.id, planVersions.assetId))
     .where(
       and(
-        eq(assets.environment, "testnet"),
+        eq(assets.environment, mode),
         eq(planVersions.active, true),
         eq(assets.enabled, true),
       ),
@@ -100,7 +96,7 @@ export async function nativeCatalog(tx: DbExecutor) {
     mode,presentation:presentationFromManifest(manifest),profile_revision:manifest.profile_revision,
     execution_enabled: financialImplementationComplete,
     assets: currencies,
-    plans: versions.map(row=>({...row,profile_revision:manifest.profile_revision,plan:planFinancialPresentation({amountBaseUnits:row.amount_base_units,usdReference:row.usd_reference,receiverBps:row.receiver_bps,marketingBps:row.marketing_bps,referralBps:row.referral_bps,developerBps:row.developer_bps,reserveBps:row.reserve_bps,receiptsRequired:row.receipts_required},{symbol:row.asset,decimals:row.decimals,chainId:row.network,environment:'testnet'})})).filter((row) =>
+    plans: versions.map(row=>({...row,profile_revision:manifest.profile_revision,plan:planFinancialPresentation({amountBaseUnits:row.amount_base_units,usdReference:row.usd_reference,receiverBps:row.receiver_bps,marketingBps:row.marketing_bps,referralBps:row.referral_bps,developerBps:row.developer_bps,reserveBps:row.reserve_bps,receiptsRequired:row.receipts_required},{symbol:row.asset,decimals:row.decimals,chainId:row.network,environment:mode})})).filter((row) =>
       currencies.some(
         (currency) => currency.id === row.asset_id && currency.enabled,
       ),
@@ -108,7 +104,7 @@ export async function nativeCatalog(tx: DbExecutor) {
   };
 }
 export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
-  await tx.execute(sql`select set_config('gw.environment','testnet',true)`);
+  const environment=await financialEnvironmentIn(tx);
   const policy = await readManifest(tx);
   if (!policy.feature_wallets || !policy.entitlements_member.dashboard) throw new Error("FEATURE_DISABLED");
   const balances = await tx
@@ -125,7 +121,7 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
     .innerJoin(ledgerAccounts, eq(ledgerAccounts.assetId, assets.id))
     .where(
       and(
-        eq(assets.environment, "testnet"),
+        eq(assets.environment, environment),
         eq(ledgerAccounts.ownerId, userId),
         inArray(ledgerAccounts.purpose, [
           "available_payable",
@@ -151,7 +147,7 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
     withdrawn_net:sql<string>`coalesce(sum(public.gw_account_bucket(${ledgerAccounts.id},'settled_payout_net')),0)::text`,
     refund_held:sql<string>`coalesce(sum(public.gw_account_bucket(${ledgerAccounts.id},'refund_held')),0)::text`,
   }).from(ledgerAccounts).innerJoin(assets,eq(assets.id,ledgerAccounts.assetId))
-    .where(and(eq(ledgerAccounts.ownerId,userId),eq(ledgerAccounts.ownerType,'user'),eq(ledgerAccounts.purpose,'held_payable'),eq(assets.environment,'testnet')))
+    .where(and(eq(ledgerAccounts.ownerId,userId),eq(ledgerAccounts.ownerType,'user'),eq(ledgerAccounts.purpose,'held_payable'),eq(assets.environment,environment)))
     .groupBy(ledgerAccounts.assetId).limit(10);
   const summary=[...new Set(balances.map(row=>row.asset_id))].map(id=>{
     const rows=balances.filter(row=>row.asset_id===id),asset=rows[0];
@@ -172,7 +168,7 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
     .where(
       and(
         eq(walletLinks.userId, userId),
-        eq(walletLinks.environment, "testnet"),
+        eq(walletLinks.environment, environment),
       ),
     )
     .limit(8);
@@ -223,7 +219,7 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
     )
     .orderBy(desc(cryptoObligations.createdAt), desc(cryptoObligations.id))
     .limit(30);
-  await tx.execute(sql`select set_config('gw.environment','testnet',true)`);
+
   const active = await tx
     .select({
       id: cycles.id,
@@ -244,13 +240,11 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
     .innerJoin(plans, eq(plans.id, planVersions.planId))
     .innerJoin(assets, eq(assets.id, planVersions.assetId))
     .leftJoin(queueEntries, eq(queueEntries.cycleId, cycles.id))
-    .where(and(eq(cycles.userId, userId), eq(assets.environment, "testnet")))
+    .where(and(eq(cycles.userId, userId), eq(assets.environment, environment)))
     .orderBy(desc(cycles.createdAt))
     .limit(30);
-  await tx.execute(
-    sql`select set_config('gw.environment',${process.env.APP_ENV ?? "simulation"},true)`,
-  );
-  const [user]=await tx.select({id:users.id,username:users.username,status:users.status,role:users.role,locale:users.locale}).from(users).where(eq(users.id,userId)).limit(1);
+
+  const [user]=await tx.select({id:users.id,username:users.username,status:users.status,role:users.role,locale:users.locale,time_zone:users.timeZone}).from(users).where(eq(users.id,userId)).limit(1);
   const notices=policy.feature_notifications?await notificationPage(tx,userId):null;
   const badge=policy.feature_notifications?await notificationBadge(tx,userId):{has_new:false};
   return { user,manifest:{...publicManifest(policy),presentation:presentationFromManifest(policy),configuration_available:true},notifications:notices?.items??[],notification_badge:badge,balances, summary, wallets:policy.entitlements_member.wallet_link?wallets:[], invoices:policy.entitlements_member.history?invoices:[], withdrawals:policy.entitlements_member.history?withdrawals:[], cycles: active };
