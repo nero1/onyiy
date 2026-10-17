@@ -1,8 +1,8 @@
-# LLM handover v71
+# LLM handover v72
 
 ## Owner direction
 
-Complete all Phase One/Two, including the real-money product, bugs and every unfinished requirement. Keep moving in substantial batches through [status](PROJECT-STATUS_v71.md), without milestone pauses. Owner launch details are deferred to final testing; put protected settings in SETUP and continue independent coding. **The product is incomplete; actual hosted/live acceptance and observation periods remain open.**
+Complete all Phase One/Two, including the real-money product, bugs and every unfinished requirement. Keep moving in substantial batches through [status](PROJECT-STATUS_v72.md), without milestone pauses. Owner launch details are deferred to final testing; put protected settings in SETUP and continue independent coding. **The product is incomplete; actual hosted/live acceptance and observation periods remain open.**
 
 ## Current branch and capability
 
@@ -74,7 +74,7 @@ Finish required checks/exact-head CI/merge for this batch, then continue C004/C0
 
 `/workspace/work/cycle-history-v70`: `records-and-preview-r4` compares actual baseline source against fixed restricted-service reads: legacy1 versus true serving2 under disclosed priority,35 explicitly synthetic completed history rows hiding the retained active cycle, exact completion/cooldown/filter validation and member isolation. Ledger counts/totals unchanged. r1 failed CJS re-export before creating a database; r2 used read access even though real APIs use service+actor/reportSnapshot and was denied on x_manifest. Preserve those logs/targets; fresh r3/r4 pass. `browser-cycles-r1` actual Chromium390px EN/FR verifies correct position, Completed/live cooldown, no overflow and no rotation for12.5sec with two currencies; final r2 also checks localized raw states. Synthetic history is not funded-payment evidence.
 
-Continue without a milestone pause. The two v70 audit findings (client compatibility and managed recovery sessions) are implemented in v71 below. Automatic backup cadence and external signed-alert receiver setup remain operational work. Do not claim full295-requirement or all-asset lifecycle acceptance.
+Continue without a milestone pause. The two v70 audit findings (client compatibility and managed recovery sessions) are implemented in v71 below. Automatic backup cadence is implemented in v72 below; hosted acceptance and external signed-alert receiver setup remain open. Do not claim full295-requirement or all-asset lifecycle acceptance.
 
 ## Managed recovery and client compatibility (v71)
 
@@ -88,4 +88,14 @@ Continue without a milestone pause. The two v70 audit findings (client compatibi
 
 Publishing: injected gh CLI credential expired; use the connected GitHub Git Data/PR app. Verify its tree matches the reviewed local tree; require both push and pull_request CI on its exact final commit. Public unauthenticated fetch remains available. One financial command’s automatic approval review timed out; its single retry passed, with no pending approval or unsafe-action finding.
 
-v71
+## Automatic encrypted backups (v72)
+
+- PR70 merged as `f9cef683c35c59dca5d565648aa7476f3420d39d`; exact head4df5402 passed push39070856823 / PR39070866948. New branch: `feat/scheduled-encrypted-backups`.
+- Recovery workflow has an opt-in hourly wake-up using the existing protected backup environment. It reads the authoritative policy through the restricted runtime and verifies owner/runtime namespace identity before deciding whether a backup is due. No signing, restoration, deployment or application-table writes.
+- Successful checkpoints are bound to the actual database identity. Missing/deleted/expired archives, failed/untrusted runs, short retention or a changed database cannot suppress a backup. A new checkpoint requires the upload’s actual retention to satisfy policy. Unsupported retention above90days or inconsistent interval/RPO/retention fails rather than silently weakening policy.
+- Start up to one hour early to allow the hourly wake-up. GitHub can delay or disable schedules: owner monitoring, real restore drills and measured RPO/RTO remain required. Artifact quota/paid storage must be reviewed; a public repository’s retained encrypted backups are downloadable by readers, so keys stay separately protected.
+- `scheduled-backup-v72/policy-and-history-r2`: actual restricted database policy/binding plus11 explicit GitHub metadata fixtures. `retention-r1`: actual checkpoint writer accepts adequate retention and rejects5 missing/short/expired/invalid/API cases. YAML and embedded shell syntax pass. These fixtures do not prove hosted scheduling/upload.
+- `archive-r1` creates a real encrypted archive/current signed inventory through the schedule-triggered controller with no payment credentials. `selection-r2` accepts trusted scheduled/manual backups and denies foreign events/branches/failed runs using real Git ancestry plus explicit metadata. The r1 selector attempt hit sandbox child-process EPERM; preserve its log. Script typecheck r1 lacked scratch typeRoots; fresh r2 passes. Required checks, production build and bundle budgets pass. Original archives/keys and source financial rows remain untouched.
+- Continue external alert receiver setup, the full all-asset lifecycle/product audit, hosted/device acceptance and real observation periods. Automatic backup implementation is separate from operational acceptance.
+
+v72

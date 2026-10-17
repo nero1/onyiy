@@ -175,7 +175,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v71.md](PROJECT-STATUS_v71.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v72.md](PROJECT-STATUS_v72.md).
 
 ## 10. Read-only preview using the same database
 
@@ -422,7 +422,7 @@ Code supports Ethereum `1`, BNB `56`, Solana `mainnet-beta` and TRON `mainnet`. 
 17. Redeploy Production, then run the isolated signer workflow once. Check its run result and the site's signer heartbeat. A changed policy, registry, address or alert binding needs new hashes/probes; never reuse an unrelated approval.
 18. With the owner present, fund only the approved treasury/reserve amounts, activate the intended per-currency plans and perform the final tests with small limits. Confirm actual wallet approval, chain receipts, balances, fees, refunds, alerts and restore reconciliation. Complete the required observation periods before public launch.
 
-Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v71.md).
+Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v72.md).
 
 ## If something fails
 
@@ -578,7 +578,17 @@ Do not add web, Google, MFA, signer or scheduler secrets here. Keep old archive 
 2. Choose **main**, action **backup** and the payment mode. Leave archive/target fields blank. Click **Run workflow** and approve the protected environment if prompted.
 3. Open the successful run. Under **Artifacts**, download its `financial-backup-…` ZIP. Save the original ZIP and the **Archive release commit** printed in the recovery step. The ZIP contains encrypted data, its signed inventory and `release.json`; never add keys.
 4. The Actions copy expires after **one day**. Keep the ZIP in your protected storage. For browser recovery after expiry, open the repository → **Releases → Draft a new release**. Create a tag such as `recovery-mainnet-20261017a`, keep **Target: main**, attach only that original ZIP, mark it as a pre-release and publish. Keep the original backup commit recorded separately; the release tag is only a storage label.
-5. Run backups at the configured backup interval and retain the required history. This manual workflow does not provide automatic backup scheduling or prove the required recovery time.
+5. For automatic backups, follow the next subsection. A successful backup does not prove restore time or chain reconciliation.
+
+### Turn on automatic backups
+
+1. Complete **Prepare protected recovery settings** above and make one successful manual backup first.
+2. Open GitHub → **Settings → Secrets and variables → Actions → Variables → New repository variable**. Add `AUTOMATIC_BACKUP_ENVIRONMENT` with your active payment mode: `simulation`, `testnet` or `mainnet`. Add `ENABLE_AUTOMATIC_BACKUPS` with value `true`.
+3. In **Settings → Actions → General → Artifact and log retention**, allow at least the app’s `backup_policy.keep_days` (default30). This workflow supports up to90days; longer retention needs reviewed external storage. Check storage usage/billing before enabling it.
+4. The workflow wakes hourly and follows the database’s backup policy. Under **Actions → encrypted-financial-recovery**, check scheduled runs and their `financial-backup-…` artifacts. A second small `financial-backup-state-…` artifact is only a checkpoint; restore uses the financial archive’s run ID. A successful skipped run has no new archive.
+5. Enable GitHub’s failed-workflow notifications for your account. Check that the last actual archive stays within your recovery target; GitHub schedules can be delayed or disabled after inactivity. If backups stop, make a manual backup and investigate. The app does not guarantee GitHub scheduling or storage availability.
+6. Keep archive keys separately. In a public repository, readers can download encrypted artifacts. Download important originals before expiry and retain them as described above. Complete a separate restore/verify drill at `restore_check_days` (default30); scheduled backups do not perform it.
+7. When changing payment mode, update `AUTOMATIC_BACKUP_ENVIRONMENT` and its protected environment settings. A different database identity starts fresh backup history. To stop automation, set `ENABLE_AUTOMATIC_BACKUPS=false`; manual recovery stays available.
 
 ### Prepare an empty target and restore
 

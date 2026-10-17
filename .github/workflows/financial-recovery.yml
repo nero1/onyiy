@@ -1,5 +1,7 @@
 name: encrypted-financial-recovery
 on:
+  schedule:
+    - cron: '23 * * * *'
   workflow_dispatch:
     inputs:
       action:
@@ -35,12 +37,12 @@ permissions:
   actions: read
 jobs:
   recovery:
-    if: github.repository == 'nero1/onyiy' && github.ref == 'refs/heads/main'
+    if: github.repository == 'nero1/onyiy' && github.ref == 'refs/heads/main' && (github.event_name != 'schedule' || vars.ENABLE_AUTOMATIC_BACKUPS == 'true')
     runs-on: ubuntu-24.04
     timeout-minutes: 40
-    environment: recovery-${{ inputs.action == 'backup' && 'backup' || 'restore' }}-${{ inputs.payment_environment }}
+    environment: recovery-${{ (inputs.action || 'backup') == 'backup' && 'backup' || 'restore' }}-${{ inputs.payment_environment || vars.AUTOMATIC_BACKUP_ENVIRONMENT }}
     concurrency:
-      group: financial-recovery-${{ inputs.payment_environment }}
+      group: financial-recovery-${{ inputs.payment_environment || vars.AUTOMATIC_BACKUP_ENVIRONMENT }}
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -68,7 +70,7 @@ jobs:
           printf '%s\n' /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
       - name: Validate restore selection without database credentials
         id: release
-        if: inputs.action != 'backup'
+        if: github.event_name != 'schedule' && inputs.action != 'backup'
         env:
           ARCHIVE_RUN_ID: ${{ inputs.archive_run_id }}
           ARCHIVE_RELEASE: ${{ inputs.archive_release }}
@@ -91,7 +93,7 @@ jobs:
           }else{
             if(process.env.ARCHIVE_COMMIT||!/^[1-9][0-9]{0,19}$/.test(id??''))throw Error('RECOVERY_ARCHIVE_SOURCE_INVALID');
             const run=JSON.parse(execFileSync('gh',['api','repos/nero1/onyiy/actions/runs/'+id],{encoding:'utf8'}));
-            if(run.path!=='.github/workflows/financial-recovery.yml'||run.event!=='workflow_dispatch'||run.head_branch!=='main'||run.conclusion!=='success')throw Error('RECOVERY_MATCHING_RELEASE_REQUIRED');
+            if(run.path!=='.github/workflows/financial-recovery.yml'||!['workflow_dispatch','schedule'].includes(run.event)||run.head_branch!=='main'||run.conclusion!=='success')throw Error('RECOVERY_MATCHING_RELEASE_REQUIRED');
             commit=run.head_sha;appendFileSync(process.env.GITHUB_OUTPUT,'source=workflow\n');
           }
           if(!/^[a-f0-9]{40}$/.test(commit??''))throw Error('RECOVERY_MATCHING_RELEASE_REQUIRED');
@@ -100,7 +102,7 @@ jobs:
           appendFileSync(process.env.GITHUB_OUTPUT,'commit='+commit+'\n');
           JS
       - name: Use the verified backup release before attaching credentials
-        if: inputs.action != 'backup'
+        if: github.event_name != 'schedule' && inputs.action != 'backup'
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           ref: ${{ steps.release.outputs.commit }}
@@ -147,11 +149,26 @@ jobs:
                           if remaining<0: raise ValueError('RECOVERY_ARCHIVE_SOURCE_INVALID')
                           output.write(chunk)
           PYTHON
+      - name: Check authoritative automatic backup policy and retained history
+        id: cadence
+        if: github.event_name == 'schedule'
+        env:
+          RECOVERY_PAYMENT_ENVIRONMENT: ${{ vars.AUTOMATIC_BACKUP_ENVIRONMENT }}
+          APP_ENV: ${{ vars.AUTOMATIC_BACKUP_ENVIRONMENT }}
+          MAINNET_ENABLED: 'false'
+          SIGNER_PROVIDER: disabled
+          RECOVERY_CONFIRM: isolated-${{ vars.AUTOMATIC_BACKUP_ENVIRONMENT }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
+          DATABASE_TLS_CA_PEM: ${{ secrets.DATABASE_TLS_CA_PEM }}
+          GH_TOKEN: ${{ github.token }}
+        run: node --import tsx scripts/backup-schedule.ts
       - name: Run isolated encrypted recovery without payment credentials
         id: archive
+        if: github.event_name != 'schedule' || steps.cadence.outputs.due == 'true'
         env:
-          RECOVERY_ACTION: ${{ inputs.action }}
-          RECOVERY_PAYMENT_ENVIRONMENT: ${{ inputs.payment_environment }}
+          RECOVERY_ACTION: ${{ inputs.action || 'backup' }}
+          RECOVERY_PAYMENT_ENVIRONMENT: ${{ inputs.payment_environment || vars.AUTOMATIC_BACKUP_ENVIRONMENT }}
           RECOVERY_ARCHIVE_RUN_ID: ${{ inputs.archive_run_id }}
           RECOVERY_ARCHIVE_RELEASE: ${{ inputs.archive_release }}
           RECOVERY_ARCHIVE_COMMIT: ${{ steps.release.outputs.commit }}
@@ -162,9 +179,23 @@ jobs:
           EXPORT_ENCRYPTION_KEY: ${{ secrets.EXPORT_ENCRYPTION_KEY }}
         run: node scripts/financial-recovery.mjs
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: inputs.action == 'backup'
+        if: (inputs.action || 'backup') == 'backup' && steps.archive.outcome == 'success'
         with:
-          name: financial-backup-${{ inputs.payment_environment }}-${{ github.run_id }}
+          name: financial-backup-${{ inputs.payment_environment || vars.AUTOMATIC_BACKUP_ENVIRONMENT }}-${{ github.run_id }}
           path: ${{ steps.archive.outputs.archive_directory }}/
           if-no-files-found: error
-          retention-days: 1
+          retention-days: ${{ github.event_name == 'schedule' && steps.cadence.outputs.retention_days || 1 }}
+      - name: Write successful automatic backup checkpoint
+        if: github.event_name == 'schedule' && steps.archive.outcome == 'success'
+        env:
+          BACKUP_RETENTION_DAYS: ${{ steps.cadence.outputs.retention_days }}
+          RECOVERY_PAYMENT_ENVIRONMENT: ${{ vars.AUTOMATIC_BACKUP_ENVIRONMENT }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/backup-retention.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: github.event_name == 'schedule' && steps.archive.outcome == 'success'
+        with:
+          name: ${{ steps.cadence.outputs.state_name }}
+          path: ${{ runner.temp }}/backup-checkpoint.txt
+          if-no-files-found: error
+          retention-days: ${{ steps.cadence.outputs.retention_days }}
