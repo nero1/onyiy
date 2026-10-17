@@ -1,12 +1,12 @@
-# LLM handover v62
+# LLM handover v63
 
 ## Owner direction
 
-Complete **all Phase One/Two**, including real-money mainnet and every unfinished feature. Keep working through [the full gap list](PROJECT-STATUS_v62.md) without milestone pauses. Read [PRD](PRD.md) §§29–33. Owner launch details are deferred to final testing; document them in SETUP and continue independent coding. **The product is incomplete; mainnet sending remains disabled.**
+Complete **all Phase One/Two**, including real-money mainnet and every unfinished feature. Keep working through [the full gap list](PROJECT-STATUS_v63.md) without milestone pauses. Read [PRD](PRD.md) §§29–33. Owner launch details are deferred to final testing; document them in SETUP and continue independent coding. **The product is incomplete; mainnet sending remains disabled.**
 
 ## Current work
 
-- Repository `nero1/onyiy`; branch `feat/public-preview-app`, following PR60 merge `4061eec22d7c927588ecc94ef918bd38af2254fb`.
+- Repository `nero1/onyiy`; branch `feat/mainnet-recovery-boundary`, based on PR61 merge `cfac359822890544c963426a9b70bc54893f8c8c`.
 - New `publicPreviewTransaction` requires a separate login holding only `gw_preview`, uses bounded read-only repeatable snapshots and rejects unsafe role/ownership/table/column/function drift before callbacks. `publicPreviewManifest` parses only public settings; no private defaults.
 - Named `/workspace/work/public-preview-v61/boundary-r4.mts` and `r5` pass actual restricted-login projection parity, simulation/mainnet scopes, user/write/escalation denial and privilege drift. r1 failed on wrapped-error text; all fixtures/logs are preserved. Budget/admission integration passes r3 onward.
 - **Preview app is now wired locally:** `PUBLIC_PREVIEW_MODE=read_only`, only Preview hosting, separate `gw_preview` login, no private credentials. Public catalogue/configuration/help/search work; authentication/private/jobs/writes are closed before handlers. Homepage/gifts omit auth/payment portals, navigation is public-only, private pages are denied, noindex is set. Protected workflow skips owner initialization and verifies the restricted login. Continue actual mainnet execution/recovery/provider and product work; hosted acceptance is still open.
@@ -14,7 +14,7 @@ Complete **all Phase One/Two**, including real-money mainnet and every unfinishe
 ## Financial boundaries and pending implementation
 
 - `runtimeProviders` accepts mainnet only in explicit public read-only preview; `nativePaymentEnvironment` still denies mainnet execution. `financialImplementationComplete` and signer `implementationComplete` remain false. Do not flip flags to claim completion.
-- `assertIsolated`, signer EVM ID allowlist, Solana transfer preparation, many financial APIs/UI paths and recovery still need mainnet implementation. Read-only observation is separate from payment support.
+- `assertIsolated`, signer EVM ID allowlist, Solana transfer preparation, many financial APIs/UI paths and chain recovery still need mainnet implementation. Mainnet encrypted archive/restore now pass locally through the separate maintenance boundary. Read-only observation is separate from payment support.
 - Automatic approval previously rejected a broad mainnet replacement before isolation/signing/recovery evidence. Do not replay or split that rejected edit to evade review. Continue targeted changes with proved prerequisites and unchanged execution gates.
 - Registry has closed network bindings; explicit observer facades cannot build/broadcast. DualRpc authenticates exact serialized read requests. Live public-provider probes failed; no live acceptance or invented token contracts. JAGA provenance remains owner-deferred.
 - Key envelopes v2 bind chain/environment/network/address; v1 remains testnet-only. Private files use same-descriptor reads, no symlinks and mode0600. The manual custody package workflow generates new unfunded keys offline; final host installation/import/operation still needs completion.
@@ -43,6 +43,13 @@ Both exact-head CI events must pass before merge; no direct main pushes. Keep fi
 
 ## Read-only preview app evidence (v62)
 
-`/workspace/work/public-preview-app-v62`: `api-r2` proves actual mainnet public reads,39 private/auth/job route denials, write/signing denial and unchanged retained hashes. `browser-r1` and final `browser-r2` prove actual production Chromium390px EN/FR catalogue/help/search, banner, public-only navigation, unavailable private pages/API and noindex; no response interception. `credential-scope-r1` rejects21 private credential names; `hosted-preflight-r1` accepts the restricted login and rejects owner login/mode mismatch. r1 API harness failure used the unsupported mainnet recovery inventory; preserved, then r2 hashes the unchanged simulation fixture outside request execution. Mainnet recovery itself remains unfinished. PR60 passed push39024849840 / PR39024875695 before merging.
+`/workspace/work/public-preview-app-v62`: `api-r2` proves actual mainnet public reads,39 private/auth/job route denials, write/signing denial and unchanged retained hashes. `browser-r1` and final `browser-r2` prove actual production Chromium390px EN/FR catalogue/help/search, banner, public-only navigation, unavailable private pages/API and noindex; no response interception. `credential-scope-r1` rejects21 private credential names; `hosted-preflight-r1` accepts the restricted login and rejects owner login/mode mismatch. r1 API harness failure used the unsupported mainnet recovery inventory; preserved, then r2 hashes the unchanged simulation fixture outside request execution. The archive gap from that release is addressed by v63; chain reconciliation remains unfinished. PR60 passed push39024849840 / PR39024875695 before merging.
 
-v62
+
+## Mainnet archive evidence (v63)
+
+`/workspace/work/mainnet-recovery-v63`: `readonly-boundary-r1` verifies binding, read-only scope, write/downgrade denial and unchanged hashes; `archive-r2` backs up/restores/verifies83 retained tables. `testnet-and-final-mainnet-r1` verifies fresh testnet backup/restore plus the original mainnet packet on another fresh target. `legacy-and-guards-r2` restores/verifies the original v55 packet and rejects retired scope, signed environment mismatch and wrong-database binding. Its failed r1 target/logs remain preserved; proof-backend shutdown is now awaited without terminating other clients or weakening target guards. `worker-regression-r1` verifies ordinary worker/context behavior after extracting the unchanged role checks. No RPC, signer, broadcast or real funds.
+
+Original mainnet packet/key: `mainnet-isolated-r2.gwbackup` / `mainnet-isolated-r2.key` (raw32-byte key; its harness encodes it only inside the protected process); original v55 packet/key remain at their handover paths. Browser recovery workflow and mainnet chain reconciliation/no-resend remain open. PR61 merged after push39025742213 and PR39025758110 passed for a7e16c713f9fa3b35f0cfe02dfafd22c6b2e6049. Continue the full product after the next checked merge.
+
+v63

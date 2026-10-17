@@ -47,7 +47,9 @@ export async function recoveryInventory(database:DbExecutor) {
   const keys=await database.select({key:schema.xManifest.key}).from(schema.xManifest);
   if(keys.some(row=>!manifestDefinition(row.key))) throw new Error('RECOVERY_CONFIG_UNCLASSIFIED');
   const assets=await database.select({environment:schema.assets.environment}).from(schema.assets);
-  const environment=process.env.APP_ENV??'simulation';if(!['simulation','testnet'].includes(environment)||assets.some(row=>row.environment!=='simulation'&&(environment!=='testnet'||row.environment!=='testnet'))) throw new Error('RECOVERY_ENVIRONMENT_INVALID');
+  const environment=process.env.APP_ENV??'simulation',allowed:Record<string,string[]>={simulation:['simulation'],testnet:['simulation','testnet'],mainnet:['simulation','testnet','mainnet']};
+  const instances=await database.select({environment:schema.environmentInstances.environment}).from(schema.environmentInstances);
+  if(!allowed[environment]||!instances.some(row=>row.environment===environment)||[...assets,...instances].some(row=>!allowed[environment].includes(row.environment)))throw new Error('RECOVERY_ENVIRONMENT_INVALID');
   const extensions=await database.execute<{name:string;schema:string;version:string}>(sql`select e.extname::text as name,n.nspname::text as schema,e.extversion::text as version from pg_extension e join pg_namespace n on n.oid=e.extnamespace where e.extname in ('pgcrypto','pg_trgm') order by e.extname`);
   if(!recoveryExtensions.safeParse([...extensions]).success) throw new Error('RECOVERY_SCHEMA_UNCLASSIFIED');
   const records:Record<string,{rows:number;sha256:string}>={};

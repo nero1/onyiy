@@ -175,7 +175,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v62.md](PROJECT-STATUS_v62.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v63.md](PROJECT-STATUS_v63.md).
 
 ## 10. Read-only preview using the same database
 
@@ -386,7 +386,7 @@ Other supported test-network registry values: Ethereum Sepolia `11155111`, BNB t
 2. In the existing Vercel project, open **Settings → Domains** and attach the real domain using step 11. Update Production `WEB_ORIGIN`, Google's production callback and Turnstile hostname.
 3. Review the existing account's hosting plan. Vercel Hobby is personal/non-commercial; choose a compliant plan on the **same account** before operating this commercial service. Free database/cache quotas are shared by every deployment, not multiplied by changing mode.
 4. Keep the current main domain on simulation or testnet with signing disabled while implementation finishes. Do not tell users to send real assets to it.
-5. Have the maintainer complete: supported mainnet registry/adapters, isolated custody/signing, funding/fees, external alert evidence and verified backup/restore. These are existing release requirements, not checkboxes that environment variables can replace.
+5. Have the maintainer complete: supported mainnet registry/adapters, isolated custody/signing, funding/fees, external alerts and hosted backup/restore. Encrypted mainnet archive/restore code passes local checks; the owner’s browser recovery workflow and chain reconciliation are still pending. These are existing release requirements, not checkboxes that environment variables can replace.
 6. Before reusing this database for real funds, require a reviewed implementation that isolates mainnet financial records and disables demo/preview financial writes. Retain all GIV/testnet history in its original environment; never convert its balances, queues or receipts to real money.
 7. Use step10’s restricted read-only preview. Local mainnet-scope API/browser checks pass; owner-hosted acceptance remains required. It cannot run sign-in, financial jobs or payments and uses the same database/project.
 8. After that release is implemented and verified, the maintainer must update this section with exact supported mainnet settings and rollout steps. Until then, keep deployments and financial activation at their supported simulation/testnet settings. There is no honest “flip one variable and go live” step today.
@@ -434,7 +434,7 @@ Other supported test-network registry values: Ethereum Sepolia `11155111`, BNB t
 8. Members accept materially changed terms before another gift. Payments submitted before the switch retain their original rights. Members can enable or withdraw optional publication under account settings.
 9. Keep the readiness record **Not reviewed** until supporting evidence exists. A profile change never approves real-money operation.
 
-Archives created before SQL004 need the matching earlier release to restore. Keep original archives, keys and release references; do not alter checksums or signed inventories.
+Archives created before SQL004 need the matching earlier release to restore. Keep original archives, keys and release references; do not alter checksums or signed inventories. A restored staging site must get fresh scheduler/worker request keys, with previous-key settings removed, before any reviewed activation. Keep its custody/MFA encryption keys backed up separately.
 
 ## Final testing: details to prepare
 

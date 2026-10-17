@@ -16,7 +16,7 @@ export function recoveryKey() {
   const raw=process.env.EXPORT_ENCRYPTION_KEY??'';
   if(!/^[A-Za-z0-9_-]{43}$/.test(raw)) throw new Error('RECOVERY_KEY_REQUIRED');
   const key=Buffer.from(raw,'base64url');
-  if(key.length!==32||key.toString('base64url')!==raw) throw new Error('RECOVERY_KEY_REQUIRED');
+  if(key.length!==32||key.toString('base64url')!==raw){key.fill(0);throw new Error('RECOVERY_KEY_REQUIRED');}
   return key;
 }
 

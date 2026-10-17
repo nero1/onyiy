@@ -1,11 +1,9 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import { sql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/postgres-js';
 import { z } from 'zod';
-import { validateRuntimeEnv } from '@gifters/config';
-import { closeDb, migrationClient, readManifest, schema, withContext } from './index';
-import { verifyDatabaseBinding } from './verify-binding';
+import {closeDb,readManifest} from './index';
+import {recoveryEnvironment,recoveryMaintenance} from './recovery-maintenance';
 import { recoveryExtensions, provisionRecoveryExtensions } from './recovery-extensions';
 import {provisionRecoveryRoles} from './recovery-roles';
 import { canonical, digest, migrationFingerprint, recoveryInventory, schemaContractVersion } from './recovery-inventory';
@@ -13,7 +11,7 @@ import { archiveChecksum, authenticatedCopy, encryptedDump, exclusiveFile, nativ
 
 const hash=z.string().regex(/^[0-9a-f]{64}$/);
 const inventorySchema=z.object({
-  format:z.enum(['gw-simulation-backup-v1','gw-financial-backup-v2']),environment:z.enum(['simulation','testnet']),created_at:z.string().datetime(),
+  format:z.enum(['gw-simulation-backup-v1','gw-financial-backup-v2']),environment:z.enum(['simulation','testnet','mainnet']),created_at:z.string().datetime(),
   archive_sha256:hash,schema_sha256:hash,migrations_sha256:hash,
   schema_contract_version:z.literal(schemaContractVersion),
   extensions:recoveryExtensions,
@@ -25,7 +23,7 @@ function signature(value:unknown,key:Buffer) {
   return crypto.createHmac('sha256',signing).update(canonical(value)).digest('hex');
 }
 
-async function ensureEmpty(owner:ReturnType<typeof migrationClient>) {
+async function ensureEmpty(owner:ReturnType<typeof recoveryMaintenance>['owner']) {
   // This is PostgreSQL restore infrastructure, not application table access.
   const tables=await owner<{name:string}[]>`select c.relname as name from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','p','v','m','S') limit 1`;
   const functions=await owner`select p.oid from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and not exists(select 1 from pg_depend d where d.objid=p.oid and d.classid='pg_proc'::regclass and d.deptype='e') limit 1`;
@@ -53,17 +51,14 @@ async function validatePacket(file:string,key:Buffer) {
 async function main() {
   const mode=process.argv[2];
   if(!['backup','restore','verify'].includes(mode)||process.argv.length!==4) throw new Error('RECOVERY_INPUT_INVALID');
-  const file=recoveryPath(process.argv[3]);const key=recoveryKey();
-  const environment=process.env.APP_ENV;if(!['simulation','testnet'].includes(environment??'')||process.env.MAINNET_ENABLED!=='false'||process.env.SIGNER_PROVIDER!=='disabled'
-    ||process.env.VERCEL==='1'||process.env.RECOVERY_CONFIRM!==`isolated-${environment}`) throw new Error('RECOVERY_ENVIRONMENT_INVALID');
-  if(process.env.SCHEDULER_HMAC_KEY||process.env.SCHEDULER_HMAC_PREVIOUS_KEY) throw new Error('RECOVERY_SCHEDULER_MUST_BE_OFF');
-  validateRuntimeEnv();
+  const environment=recoveryEnvironment();
+  const file=recoveryPath(process.argv[3]);
   const url=process.env.DATABASE_MIGRATION_URL;
   if(!url) throw new Error('DATABASE_MIGRATION_URL_REQUIRED');
   const databaseName=nativeDatabaseName(url);
   if(mode==='restore'&&process.env.RECOVERY_RESTORE_CONFIRM!==`restore:${databaseName}`) throw new Error('RECOVERY_TARGET_CONFIRMATION_REQUIRED');
-  const owner=migrationClient({quiet:true});
-  const database=drizzle(owner,{schema});
+  const maintenance=recoveryMaintenance(),{owner,database}=maintenance;
+  const key=recoveryKey();
   let input:Awaited<ReturnType<typeof authenticatedCopy>>|undefined;
   try {
     if(mode==='backup') {
@@ -71,7 +66,7 @@ async function main() {
         try {await fs.stat(output);throw new Error('RECOVERY_OUTPUT_EXISTS');}
         catch(error) {if(!error||typeof error!=='object'||!('code'in error)||error.code!=='ENOENT') throw error;}
       }
-      await verifyDatabaseBinding(false,true);
+      await maintenance.verifyBinding();
       // Source hashes and native pg_dump share one repeatable-read snapshot.
       const inventory=await database.transaction(async transaction=>{
         await transaction.execute(sql`set local search_path=pg_catalog,public,pg_temp`);
@@ -79,7 +74,7 @@ async function main() {
         const captured=await recoveryInventory(transaction);
         const [snapshot]=await transaction.execute<{id:string}>(sql`select pg_export_snapshot() as id`);
         await encryptedDump(file,snapshot.id,key);
-        return {format:environment==='testnet'?'gw-financial-backup-v2' as const:'gw-simulation-backup-v1' as const,environment:environment as 'simulation'|'testnet',created_at:new Date().toISOString(),
+        return {format:environment!=='simulation'?'gw-financial-backup-v2' as const:'gw-simulation-backup-v1' as const,environment,created_at:new Date().toISOString(),
           archive_sha256:await archiveChecksum(file),...captured};
       },{isolationLevel:'repeatable read',accessMode:'read only'});
       await exclusiveFile(file+'.json',canonical({inventory,signature:signature(inventory,key)})+'\n');
@@ -91,8 +86,8 @@ async function main() {
     input=await authenticatedCopy(file,key,expected.archive_sha256);
     if(mode==='restore') {
       await ensureEmpty(owner);
-      await verifyDatabaseBinding(true,true);
-      await closeDb(); // The staging-target check must not see our proof client.
+      await maintenance.verifyBinding();
+      await maintenance.closeRuntime(); // Staging must not see our proof client.
       await ensureEmpty(owner);
       // Schema-scoped native dumps exclude provider auth/storage/vault data.
       // Provision only authenticated, closed dependencies after empty-target checks.
@@ -100,7 +95,7 @@ async function main() {
       await provisionRecoveryExtensions(owner,expected.extensions);
       await restoreArchive(input.file,key);
     }
-    await verifyDatabaseBinding(false,true);
+    await maintenance.verifyBinding();
     const actual=await database.transaction(async transaction=>{
       await transaction.execute(sql`set local search_path=pg_catalog,public,pg_temp`);
       await transaction.execute(sql`set local statement_timeout='60s'`);
@@ -108,9 +103,13 @@ async function main() {
     },{isolationLevel:'repeatable read',accessMode:'read only'});
     if(expected.schema_sha256!==actual.schema_sha256||expected.migrations_sha256!==actual.migrations_sha256||digest(expected.records)!==digest(actual.records)||digest(expected.extensions)!==digest(actual.extensions)) throw new Error('RECOVERY_CONTENT_MISMATCH');
     // Fresh runtime configuration/role checks are separate from copied IDs.
-    await withContext({access:'service'},async database=>{await readManifest(database);await database.execute(sql`set local statement_timeout='2000ms'`);});
+    await maintenance.readRuntime(async database=>{await readManifest(database);await database.execute(sql`set local statement_timeout='2000ms'`);});
     console.log('Exact financial rows, schema/RLS/grants, queue counters, work and financial history verified. Staging remains unpublished; reconcile and explicitly review before starting any scheduler.');
-  } finally {await input?.release();await owner.end({timeout:3});await closeDb();key.fill(0);}
+  } finally {
+    key.fill(0);
+    const cleanup=await Promise.allSettled([input?.release(),maintenance.close(),closeDb()]);
+    if(cleanup.some(result=>result.status==='rejected')){console.error('Financial recovery cleanup failed; staging remains unpublished.');process.exitCode=1;}
+  }
 }
 
 main().catch(async(error:unknown)=>{
@@ -119,7 +118,7 @@ main().catch(async(error:unknown)=>{
   // fixed category; failure never publishes, repairs or automatically resumes.
   const safe=new Set(['RECOVERY_INPUT_INVALID','RECOVERY_PATH_INVALID','RECOVERY_KEY_REQUIRED','RECOVERY_ENVIRONMENT_INVALID','RECOVERY_SCHEDULER_MUST_BE_OFF','DATABASE_MIGRATION_URL_REQUIRED','RECOVERY_TARGET_CONFIRMATION_REQUIRED',
     'RECOVERY_TARGET_NOT_EMPTY','RECOVERY_TARGET_ACTIVE','RECOVERY_INVENTORY_INVALID','RECOVERY_ARCHIVE_INVALID','RECOVERY_VERSION_MISMATCH','RECOVERY_CONTENT_MISMATCH','RECOVERY_SCHEMA_UNCLASSIFIED','RECOVERY_CONFIG_UNCLASSIFIED','RECOVERY_NATIVE_TOOL_FAILED','RECOVERY_OUTPUT_EXISTS','CONFIGURATION_INVALID']);
-  safe.add('RECOVERY_ROLE_UNSAFE');
+  safe.add('RECOVERY_ROLE_UNSAFE');safe.add('RECOVERY_SIGNER_MUST_BE_OFF');safe.add('DATABASE_NAMESPACE_MISMATCH');
   const category=error instanceof Error&&safe.has(error.message)?error.message:'RECOVERY_FAILED';
   console.error(`Financial recovery failed (${category}). Check guards, bindings, native tools and the preserved inventory; staging must remain unpublished.`);
   process.exitCode=1;
