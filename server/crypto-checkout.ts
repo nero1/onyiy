@@ -1,3 +1,4 @@
+import {presentationFromManifest,planFinancialPresentation,type PublicQueueDisclosure} from './presentation';
 import { and, eq, sql } from "drizzle-orm";
 import {
   cryptoInvoices,
@@ -17,7 +18,7 @@ import {
 } from "./financial-config";
 import { lockUser } from "./core";
 import type { AssetRegistry } from "@gifters/chains";
-export async function prepareNativeInvoice(
+async function validatedNativeInvoice(
   tx: DbExecutor,
   userId: string,
   generation: string,
@@ -48,6 +49,7 @@ export async function prepareNativeInvoice(
     sql`select clock_timestamp() as now`,
   );
   if (
+    invoice.profileRevision!==policy.profile_revision ||
     invoice.status !== "quoted" ||
     invoice.sessionGeneration !== generation ||
     invoice.expiresAt <= new Date(now.now)
@@ -78,13 +80,21 @@ export async function prepareNativeInvoice(
   )
     throw new Error("DESTINATION_CHANGED");
   const [plan] = await tx
-    .select({ status: plans.status, active: planVersions.active })
+    .select({ status: plans.status, active: planVersions.active,version:planVersions })
     .from(planVersions)
     .innerJoin(plans, eq(plans.id, planVersions.planId))
     .where(eq(planVersions.id, invoice.planVersionId))
     .limit(1);
   if (!plan || plan.status !== "active" || !plan.active)
     throw new Error("PLAN_UNAVAILABLE");
+  return {policy,invoice,asset,registry,version:plan.version};
+}
+export async function validateNativeInvoiceReview(tx:DbExecutor,userId:string,generation:string,invoiceId:string){
+ const {policy,invoice}=await validatedNativeInvoice(tx,userId,generation,invoiceId);
+ return {invoice_id:invoice.id,profile_revision:policy.profile_revision,sender:invoice.sender,destination:invoice.treasury,amount_base_units:invoice.expectedBaseUnits,expires_at:invoice.expiresAt.toISOString()};
+}
+export async function prepareNativeInvoice(tx:DbExecutor,userId:string,generation:string,invoiceId:string){
+ const {policy,invoice,asset,registry,version}=await validatedNativeInvoice(tx,userId,generation,invoiceId);
   const chain = await adapter(registry),
     amount = BigInt(invoice.expectedBaseUnits),
     fee = await chain.estimateFee({
@@ -110,6 +120,8 @@ export async function prepareNativeInvoice(
       fee,
     });
   return {
+    presentation:presentationFromManifest(policy),plan:planFinancialPresentation(version,asset),queue_disclosure:(await tx.execute<{value:PublicQueueDisclosure|null}>(sql`select public.gw_public_queue_disclosure(${version.id}::uuid) as value`))[0].value,
+    profile_revision:policy.profile_revision,
     invoice_id: invoice.id,
     asset_key: registry.key,
     asset: asset.symbol,

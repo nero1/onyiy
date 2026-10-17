@@ -233,6 +233,7 @@ export async function quoteCryptoInvoice(
     await tx
       .insert(cryptoInvoices)
       .values({
+        profileRevision:manifest.profile_revision,
         userId,
         planVersionId: version.version.id,
         assetId: asset.id,
@@ -458,7 +459,7 @@ export async function verifyCryptoDeposit(
         .from(planVersions)
         .where(eq(planVersions.id, invoice.planVersionId))
         .limit(1);
-      await sendGift(tx, user, version.planId, eventId, version.id, asset);
+      await sendGift(tx,user,version.planId,eventId,version.id,asset,invoice.status==='submitted'&&invoice.profileRevision<(await readManifest(tx)).profile_revision);
       await tx
         .update(cryptoEvents)
         .set({ status: "credited" })

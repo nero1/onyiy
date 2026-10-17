@@ -1,3 +1,4 @@
+import type {PublicQueueDisclosure,PlanFinancialPresentation} from '@/server/presentation';
 import type { Locale } from './i18n';
 
 export type PublicArticle = {
@@ -9,6 +10,7 @@ export type PublicArticle = {
 };
 
 export type PublicGift = {
+  profile_revision?:number;queue_disclosure?:PublicQueueDisclosure|null;plan?:PlanFinancialPresentation;
   id: string;
   name: string;
   slug?: string;

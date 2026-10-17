@@ -14,11 +14,12 @@ type SessionScope={userId:string;sessionId:string;accessHash:string;version:numb
 const sessionScopes=new AsyncLocalStorage<SessionScope>();
 export function withSessionScope<T>(scope:SessionScope,fn:()=>T){return sessionScopes.run(scope,fn);}
 
-export type DatabaseContext = { access: 'public' | 'member' | 'staff' | 'service'; actorId?: string; requireAdmin?: boolean; requireModerator?:boolean; snapshot?: boolean; reportSnapshot?: boolean };
+export type DatabaseContext = { access: 'public' | 'member' | 'staff' | 'service'; actorId?: string; requireAdmin?: boolean; requireModerator?:boolean; snapshot?: boolean; reportSnapshot?: boolean; profileSwitch?:boolean };
 
 export async function scopedTransaction<T>(database: Database, context: DatabaseContext, fn: (tx: DbExecutor) => Promise<T>) {
   if (context.actorId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(context.actorId)) throw new Error('INVALID_INPUT');
   if ((['member','staff'].includes(context.access) || context.requireAdmin || context.requireModerator) && !context.actorId) throw new Error('UNAUTHENTICATED');
+  if(context.profileSwitch&&(context.access!=='service'||!context.requireAdmin||context.snapshot||context.reportSnapshot))throw new Error('FORBIDDEN');
   if (context.reportSnapshot && context.access!=='service') throw new Error('FORBIDDEN');
   const config = validateRuntimeEnv();
   return admissionFor(database,databaseConnectionOptions(config.databaseUrl).max).run(performance.now()+Math.min(1500,remainingExecutionTime()),()=>{remainingExecutionTime();return database.transaction(rawTx => withBoundedTransaction(rawTx,async (tx) => {
@@ -36,6 +37,9 @@ export async function scopedTransaction<T>(database: Database, context: Database
         as safe from pg_roles r where r.rolname=session_user
     `);
     if (!role[0]?.safe) throw new Error('CONFIGURATION_INVALID');
+    // Profile switches fence every application transaction before actor/data
+    // locks. New intake cannot straddle a presentation/terms/queue transition.
+    await tx.execute(context.profileSwitch?sql`select pg_advisory_xact_lock(hashtextextended('gw-release-profile',0))`:sql`select pg_advisory_xact_lock_shared(hashtextextended('gw-release-profile',0))`);
     if (config.appEnv === 'simulation') {
       await tx.execute(sql.raw('SET LOCAL ROLE gw_service'));
       await fenceSimulationDatabase(tx);
@@ -48,6 +52,7 @@ export async function scopedTransaction<T>(database: Database, context: Database
     const binding = await databaseBinding(tx, process.env.DATABASE_URL);
     await tx.execute(sql`select set_config('gw.request_id',${activeRequestId()??''},true)`);
     await tx.execute(sql`select set_config('gw.actor_id',${context.actorId ?? ''},true), set_config('gw.access',${context.access},true), set_config('gw.environment',${config.appEnv},true), set_config('gw.database_binding',${binding},true)`);
+    await tx.execute(sql`select set_config('gw.profile_transition',${String(!!context.profileSwitch)},true)`);
     const authenticated=sessionScopes.getStore();
     async function checkFamily(fence=false){
       if(!authenticated||context.actorId!==authenticated.userId)return;

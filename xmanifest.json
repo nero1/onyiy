@@ -468,5 +468,61 @@
       "connard",
       "merde"
     ]
-  }
+  },
+  "feature_transparency": false,
+  "profile_revision": 1,
+  "bootstrap_presentation": "legacy",
+  "priority_presentation": "legacy",
+  "activity_presentation": "fixtures",
+  "transparency_content": {
+    "version": "transparency-1",
+    "en": {
+      "mechanics": "Send a crypto gift, join its receiver queue, and become eligible for allocations from later participants.",
+      "risk": "Receipts depend on later participants and are not guaranteed. You may receive less than you send.",
+      "fees": "You pay incoming network gas. A withdrawal deducts only the charges you approve, including any account setup charge. Platform reserves pay business settlement fees. Internal credits are separate from transfers to your wallet.",
+      "example": "At the default 85% receiver share, a $200-equivalent gift may receive two $170-equivalent internal credits: $340 gross only if both later gifts confirm. Withdrawal charges reduce any amount sent to your wallet. This is a conditional example, not a promised return.",
+      "slots": "Each gift adds its configured receipt target to the queue while funding one receiver allocation. At a target of two, one new unfunded conditional slot remains per gift. Money for all future receipts is not already held.",
+      "bootstrap_label": "Platform-controlled position",
+      "priority_label": "Administrative priority applies to this queue",
+      "empty_queue": "When no receiver is waiting, the selected startup rule either blocks checkout or credits the first receiver share to the disclosed developer/marketing role. That business allocation is not a member payout."
+    },
+    "fr": {
+      "mechanics": "Envoyez un don en crypto, rejoignez sa file de réception et devenez admissible aux allocations de participants ultérieurs.",
+      "risk": "Les réceptions dépendent de participants ultérieurs et ne sont pas garanties. Vous pouvez recevoir moins que votre don.",
+      "fees": "Vous payez le coût réseau du don entrant. Un retrait déduit uniquement les frais approuvés, y compris la création éventuelle d’un compte. Les réserves de la plateforme paient les règlements professionnels. Un crédit interne est distinct d’un transfert vers votre portefeuille.",
+      "example": "Avec la part destinataire par défaut de 85 %, un don équivalent à 200 $ peut recevoir deux crédits internes de 170 $, soit 340 $ bruts uniquement si les deux dons ultérieurs sont confirmés. Les frais de retrait réduisent le montant envoyé au portefeuille. Cet exemple est conditionnel, sans rendement promis.",
+      "slots": "Chaque don ajoute son objectif de réceptions à la file tout en finançant une allocation. Avec un objectif de deux, chaque don laisse une place conditionnelle supplémentaire non financée. L’argent de toutes les réceptions futures n’est pas déjà détenu.",
+      "bootstrap_label": "Position contrôlée par la plateforme",
+      "priority_label": "Une priorité administrative s’applique à cette file",
+      "empty_queue": "Si personne n’attend, la règle de démarrage bloque le paiement ou crédite la première part destinataire au rôle développeur/marketing annoncé. Cette allocation professionnelle n’est pas un paiement à un membre."
+    }
+  },
+  "verified_activity_policy": {
+    "require_opt_in": true,
+    "max_records": 50,
+    "max_age_hours": 24,
+    "exclude_system": true,
+    "exclude_test": true
+  },
+  "queue_disclosure_policy": {
+    "show_system_ahead": true,
+    "show_priority_ahead": true,
+    "show_snapshot_time": true
+  },
+  "public_receipt_policy": {
+    "show_asset": true,
+    "show_network": true,
+    "show_time": true,
+    "mask_identity": true,
+    "show_environment": true
+  },
+  "transparency_snapshot_policy": {
+    "preview_ttl_minutes": 15,
+    "client_poll_seconds": 60
+  },
+  "financial_readiness_record": {
+    "status": "not_reviewed",
+    "evidence_refs": []
+  },
+  "activity_epoch": 1
 }

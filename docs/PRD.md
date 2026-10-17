@@ -1248,8 +1248,15 @@ The owner explicitly approved P1-065 on **14 October 2026 at 02:25:24 PM WAT**, 
 - Closed signed-archive dependencies accept pgcrypto-only older packets or an additional pg_trgm declaration; unknown names, duplicates, versions and schemas fail.
 - Signatures/checksums, empty-target verification and exact post-restore inventories remain mandatory. Search approval does not activate financial gates.
 
-Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v53.md](PROJECT-STATUS_v53.md). Current bug evidence/tasks: [report](custom-bugs-report_v53.md) and [plan](custom-bugs-fix-plan_v53.md).
+Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v54.md](PROJECT-STATUS_v54.md). Current bug evidence/tasks: [report](custom-bugs-report_v54.md) and [plan](custom-bugs-fix-plan_v54.md).
 
 ### Retention implementation clarification (v52)
 
-Use the same database for online monthly archives of ledger postings, scan pages and audit events. Keep journals/events as global identity registries; enforce cross-month record uniqueness separately. Freeze eligible months, process at most 100 rows per step and require a second matching checksum pass. Preserve all financial evidence indefinitely (including beyond the minimum retention period); no automatic financial purge. Archives remain readable and still count toward provider storage quotas. Retention holds stop compaction and archival. Expire message bodies and compact only completed expendable task payloads, preserving permanent keys and unresolved/financial work. Recovery must bind column ACLs and partition metadata under signed schema contract v2; historical packets require matching historical releases.
+Use the same database for online monthly archives of ledger postings, scan pages and audit events. Keep journals/events as global identity registries; enforce cross-month record uniqueness separately. Freeze eligible months, process at most 100 rows per step and require a second matching checksum pass. Preserve all financial evidence indefinitely (including beyond the minimum retention period); no automatic financial purge. Archives remain readable and still count toward provider storage quotas. Retention holds stop compaction and archival. Expire message bodies and compact only completed expendable task payloads, preserving permanent keys and unresolved/financial work. Recovery must bind column ACLs and partition metadata under signed schema contract3, including exact PostgreSQL timestamp precision; historical packets require matching historical releases.
+
+
+### Current Phase Two implementation record — v54
+
+P2.0–P2.3 are implemented on the current working branch: staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v54.md).
+
+P2.4 assessment: **not_reviewed**. Missing evidence: supported mainnet execution/asset registry; isolated custody/signing; funding, refund and closure model; target countries and jurisdiction review; owner-approved financial copy/terms; operating/gas budget; hosted capacity, alert and restore acceptance. The affected mainnet integration remains disabled. Presentation implementation is separate from financial/business/legal readiness.

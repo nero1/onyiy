@@ -8,9 +8,9 @@ import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { manifestDefinition } from '@gifters/config';
 import { readManifest, schema, type DbExecutor } from './index';
 
-// Older inventories did not bind column ACLs. Never reinterpret their signed
-// schema hashes using the expanded security contract.
-export const schemaContractVersion = 2 as const;
+// Contract3 preserves PostgreSQL microseconds in row hashes and keyset cursors.
+// Older signed inventories require their matching historical release.
+export const schemaContractVersion = 3 as const;
 
 export function canonical(value:unknown):string {
   if (value===null || typeof value!=='object') return JSON.stringify(typeof value==='bigint'?value.toString():value);
@@ -56,6 +56,9 @@ export async function recoveryInventory(database:DbExecutor) {
     const order=primary.length?primary:config.columns.filter(column=>column.primary);
     if(!order.length) throw new Error('RECOVERY_SCHEMA_UNCLASSIFIED');
     const columns=Object.entries(getTableColumns(table));
+    // Keep timestamp strings at PostgreSQL precision: JS Date truncates microseconds
+    // and can repeatedly select the final row of a composite-key page. UTC is set above.
+    const projection=Object.fromEntries(columns.map(([key,column])=>[key,column.dataType==='date'?sql<string|null>`${column}::text`.as(column.name):column]));
     const keys=order.map(column=>columns.find(([,value])=>value.name===column.name)?.[0]);
     if(keys.some(key=>!key)) throw new Error('RECOVERY_SCHEMA_UNCLASSIFIED');
     const hash=crypto.createHash('sha256');let rows=0;let last:Record<string,unknown>|undefined;
@@ -63,7 +66,7 @@ export async function recoveryInventory(database:DbExecutor) {
     // is a small PostgreSQL expression; all table access remains Drizzle-first.
     while(true) {
       const after=last?sql`(${sql.join(order.map(column=>sql`${column}`),sql`,`)}) > (${sql.join(keys.map(key=>{const value=last![key!];return sql`${value instanceof Date?value.toISOString():value}`;}),sql`,`)})`:undefined;
-      const batch=await database.select().from(table).where(after).orderBy(...order).limit(manifest.export_import_limits.chunk_rows);
+      const batch=await database.select(projection).from(table).where(after).orderBy(...order).limit(manifest.export_import_limits.chunk_rows);
       if(!batch.length) break;
       for(const row of batch) {hash.update(canonical(row)+'\n');rows++;}
       last=batch[batch.length-1];

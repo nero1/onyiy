@@ -1,4 +1,7 @@
 "use client";
+import ProfileDisclosure from './profile-disclosure';
+import {latestPublicManifest} from '@/lib/profile-state';
+import type {ProfilePresentation,PublicQueueDisclosure,PlanFinancialPresentation} from '@/server/presentation';
 import type {PublicManifestDto,NativePortfolioDto,NativeWithdrawalQuote,NativeWithdrawalReview,NativeWithdrawalRow} from '@/lib/financial-contracts';
 import type {MemberRecord} from '@/lib/member-records';
 import {useAppearance,useNavigationIdentity} from './appearance-provider';
@@ -33,6 +36,7 @@ const AdminPanel = dynamic(() => import("./admin-panel"));
 import { formatBaseUnits, decimalToBaseUnits } from "@gifters/domain";
 import type { NativeCurrency, PreparedPayment } from "@/lib/native-wallet";
 type Catalog = {
+  profile_revision:number;presentation?:ProfilePresentation;
   mode: string;
   execution_enabled: boolean;
   assets: NativeCurrency[];
@@ -46,7 +50,7 @@ type Catalog = {
     amount_base_units: string;
     receipts_required: number;
     status: string;
-    version_id?: string;
+    version_id?: string;profile_revision?:number;queue_disclosure?:PublicQueueDisclosure|null;plan?:PlanFinancialPresentation;
   }[];
 };
 export default function NativePortal() {
@@ -113,7 +117,7 @@ export default function NativePortal() {
     ])
       .then(([m, c, s]) => {
         if (mounted.current && epoch.current === active) {
-          setManifest(m);
+          setManifest(old=>latestPublicManifest(old,m));
           setCatalog(c);
           receive(s);
         }
@@ -166,7 +170,7 @@ export default function NativePortal() {
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
-  function applyPortfolio(value:NativePortfolioDto){setData(value);if(value.manifest)setManifest(old=>old?({...old,...value.manifest}):old);if(value.user)setSession(old=>old?.user?{...old,user:{...old.user,...value.user}}:old);}
+  function applyPortfolio(value:NativePortfolioDto){setData(value);if(value.manifest)setManifest(old=>old?latestPublicManifest(old,{...old,...value.manifest}):old);if(value.user)setSession(old=>old?.user?{...old,user:{...old.user,...value.user}}:old);}
   async function load() {
     if (!user || session?.requires_mfa || user.status === "pending_consent")
       return;
@@ -238,6 +242,7 @@ export default function NativePortal() {
       if (valid()) setBusy(false);
     }
   }
+  useEffect(()=>{let active=true;const controller=new AbortController();const pull=()=>{if(!navigator.onLine||document.visibilityState!=='visible')return;void Promise.all([api<PublicManifestDto>('/manifest','',{signal:controller.signal}),api<Catalog>('/crypto/catalog','',{signal:controller.signal})]).then(([m,c])=>{if(!active)return;setManifest(old=>latestPublicManifest(old,m));setCatalog(c);}).catch(()=>{});};const interval=manifest?.presentation?.client_poll_seconds??60;const timer=setInterval(pull,(Number.isSafeInteger(interval)&&interval>=15&&interval<=300?interval:60)*1000);addEventListener('gw:profile-changed',pull);return()=>{active=false;controller.abort();clearInterval(timer);removeEventListener('gw:profile-changed',pull);};},[manifest?.presentation?.client_poll_seconds]);
   async function financial(action: () => Promise<void>, safeRecovery=false) {
     if (!user || (!catalog?.execution_enabled&&!safeRecovery) || !navigator.onLine || busy || financialFlight.current) return;
     financialFlight.current=true;
@@ -262,13 +267,13 @@ export default function NativePortal() {
       const invoice = await mutation<{ id: string }>(
         "/gifts/crypto/invoices",
         owner,
-        { plan_id: plan.id, asset_key: currency.key,...(botProof?{bot_proof:botProof}:{}) },
+        { plan_id: plan.id, asset_key: currency.key,profile_revision:manifest?.profile_revision,...(botProof?{bot_proof:botProof}:{}) },
       );
       if (epoch.current !== active) return;
       const prepared = await mutation<PreparedPayment>(
         "/gifts/crypto/prepare",
         owner,
-        { invoice_id: invoice.id },
+        { invoice_id: invoice.id,profile_revision:manifest?.profile_revision },
       );
       if (epoch.current === active) {setPayment(prepared);setBotReset(v=>v+1);}
     });
@@ -285,6 +290,8 @@ export default function NativePortal() {
       beginPayment(user.id);
       try{
       const retained=pendingPayment(user.id);
+      if(retained&&retained.prepared.invoice_id!==prepared.invoice_id)throw new ApiError('VERSION_CONFLICT');
+      if(!retained){const valid=await mutation<{invoice_id:string;profile_revision:number;sender:string;destination:string;amount_base_units:string}>('/gifts/crypto/validate',owner,{invoice_id:prepared.invoice_id,profile_revision:prepared.profile_revision});if(epoch.current!==active)return;if(valid.sender!==prepared.sender||valid.destination!==prepared.destination||valid.amount_base_units!==prepared.amount_base_units)throw new ApiError('VERSION_CONFLICT');}
       const hash = retained?.prepared.invoice_id===prepared.invoice_id?retained.hash:await wallet.sendNativePayment(
         currency,
         prepared,
@@ -427,7 +434,7 @@ export default function NativePortal() {
       />
       {user && !session?.requires_mfa && ["active","deactivated"].includes(user.status) && (
         <>
-          {session?.generation&&manifest?.feature_wallets&&manifest?.entitlements_member?.dashboard!==false&&<ScopedSnapshotPoll owner={user.username} generation={session.generation} path="/me/crypto" seconds={manifest.cache_policy.client_poll_seconds} enabled={!busy} locale={locale} onStart={()=>++readGeneration.current} onValue={(value,token)=>{if(token===readGeneration.current&&value.user?.username===user.username)applyPortfolio(value)}} onError={(error,token)=>{if(token===readGeneration.current&&error instanceof ApiError&&['UNAUTHENTICATED','ACCOUNT_RESTRICTED'].includes(error.code)){setData(null);if(error.code==='UNAUTHENTICATED')receive({user:null,requires_mfa:false,provider:session.provider})}}}/>}
+          {session?.generation&&manifest?.feature_wallets&&manifest?.entitlements_member?.dashboard!==false&&<ScopedSnapshotPoll owner={user.username} generation={session.generation} path="/me/crypto" seconds={manifest.presentation?.transparent?manifest.presentation.client_poll_seconds:manifest.cache_policy.client_poll_seconds} enabled={!busy} locale={locale} onStart={()=>++readGeneration.current} onValue={(value,token)=>{if(token===readGeneration.current&&value.user?.username===user.username)applyPortfolio(value)}} onError={(error,token)=>{if(token===readGeneration.current&&error instanceof ApiError&&['UNAUTHENTICATED','ACCOUNT_RESTRICTED'].includes(error.code)){setData(null);if(error.code==='UNAUTHENTICATED')receive({user:null,requires_mfa:false,provider:session.provider})}}}/>}
           {data&&manifest?.feature_notifications&&<NotificationInbox key={user.username+session?.generation} user={user.username} locale={locale} initial={data.notifications??[]} badge={!!data.notification_badge?.has_new} onChange={()=>void load()}/>}
 
           {user.role === "admin" && (
@@ -451,7 +458,8 @@ export default function NativePortal() {
             </>
           )}
           {manifest?.feature_gifts && user.status === "active" && session?.generation && <BotCheck owner={user.username} generation={session.generation} surface="suspicious_checkout" locale={locale} reset={botReset} onReady={(ready,value)=>{setBotReady(ready);setBotProof(value)}}/>}
-          {catalog?.plans
+          {catalog?.profile_revision!==manifest?.profile_revision&&<p role="status">{fr?'Actualisation des informations des dons…':'Updating gift information…'}</p>}
+          {(catalog?.profile_revision===manifest?.profile_revision?(catalog?.plans??[]):[])
             .filter((plan) => plan.status === "active")
             .map((plan) => (
               <article className="card" key={plan.version_id ?? plan.id}>
@@ -465,9 +473,10 @@ export default function NativePortal() {
                   )}{" "}
                   {plan.asset}
                 </p>
+                <ProfileDisclosure presentation={manifest?.presentation} locale={locale} queue={plan.queue_disclosure} plan={plan.plan}/>
                 <button
                   disabled={
-                    busy || !botReady || !catalog.execution_enabled || !navigator.onLine
+                    busy || catalog?.profile_revision!==manifest?.profile_revision || !botReady || !catalog?.execution_enabled || !navigator.onLine
                   }
                   onClick={() => void quoteGift(plan)}
                 >
@@ -511,9 +520,9 @@ export default function NativePortal() {
                   ? "Payés par votre portefeuille. Aucun cycle avant confirmation du réseau."
                   : "Paid by your wallet. No cycle is admitted before network confirmation."}
               </p>
-              <p className="wallet-address">{payment.destination}</p>
+<ProfileDisclosure presentation={manifest?.presentation} locale={locale} queue={payment.queue_disclosure} plan={payment.plan} mode="checkout"/><p className="wallet-address">{payment.destination}</p>
               <button
-                disabled={busy || !navigator.onLine}
+                disabled={busy || !navigator.onLine || !sentHash&&payment.profile_revision!==manifest?.profile_revision}
                 onClick={() => void pay()}
               >
                 {sentHash?(fr?"Soumettre le transfert déjà envoyé":"Submit the transfer already sent"):(fr ? "Approuver dans le portefeuille" : "Approve in wallet")}
@@ -703,6 +712,7 @@ export default function NativePortal() {
                 {row.status}
               </p>
               {row.under_review&&<p>{fr?"Financement sous révision — position historique conservée.":"Funding under review — historical position retained."}</p>}
+              <ProfileDisclosure presentation={manifest?.presentation} locale={locale} queue={row.queue_disclosure} mode="cycle"/>
               {row.display_position && (
                 <p>
                   {t.position}: {row.display_position}

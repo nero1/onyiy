@@ -1,4 +1,5 @@
 "use client";
+import type {ProfilePresentation,PublicQueueDisclosure,PlanFinancialPresentation} from '@/server/presentation';
 export type NativeCurrency = {
   id: string;
   key: string;
@@ -123,6 +124,7 @@ export async function signNativeOwnership(
 }
 
 export type PreparedPayment = {
+  profile_revision?:number;presentation?:ProfilePresentation;queue_disclosure?:PublicQueueDisclosure|null;plan?:PlanFinancialPresentation;
   invoice_id: string;
   asset_key: string;
   asset: string;

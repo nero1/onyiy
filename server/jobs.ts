@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { dataExports, auditEvents, financialReconciliationResults, maintenanceResults, jobs, notifications, operationKeys, outbox, readManifest, schedulerRuns, users, chainObservations, withContext, withRequestContext, activeRequestId, remainingExecutionTime, type DbExecutor } from '@gifters/db';
 import { validateRuntimeEnv } from '@gifters/config';
 import { reconcile } from './reconcile';
-import { advanceLedgerCounters,cleanupSchedulerRecords,retireEphemeralPayloads } from './maintenance';
+import { advanceLedgerCounters,cleanupSchedulerRecords,retireEphemeralPayloads,cleanupProfilePreviews } from './maintenance';
 import {cleanupAuthentication} from './auth-cleanup';
 import {redactDeletedUserContent,enqueuePrivacyRedaction} from './privacy-redaction';
 import {advanceArchivesForJob} from './retention';
@@ -145,7 +145,8 @@ async function executeJobWithinContext(id:string,token:string,generation:number,
       const authentication=await cleanupAuthentication(database);
       const counters=await advanceLedgerCounters(database);
       const retirement=await retireEphemeralPayloads(database);
-      result.more_possible=result.more_possible||authentication.more_possible||counters.more_possible||retirement.more_possible||archiveMore;
+      const expiredPreviews=await cleanupProfilePreviews(database);
+      result.more_possible=result.more_possible||authentication.more_possible||counters.more_possible||retirement.more_possible||expiredPreviews>=100||archiveMore;
       await database.insert(maintenanceResults).values({sourceJobId:row.id,environment:row.environment,runDate:payload.data.anchor,pageNumber:payload.data.page,leaseGeneration:generation,
         noncesDeleted:result.nonces_deleted,runsDeleted:result.runs_deleted,batchLimit:result.batch_limit,held:result.held,morePossible:result.more_possible,
       });

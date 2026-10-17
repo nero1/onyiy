@@ -1,111 +1,34 @@
-"use client";
-import { useEffect, useState } from "react";
-export default function PublicInformation() {
-  const [statements, setStatements] = useState<string[]>([]),
-    [seconds, setSeconds] = useState(10),
-    [index, setIndex] = useState(0),
-    [paused, setPaused] = useState(false),
-    [reduced, setReduced] = useState(false),
-    [fr, setFr] = useState(false),
-    [stats, setStats] = useState<any>(null);
-  useEffect(() => {
-    let active = true, revision = 0;
-    let controller: AbortController | undefined;
-    const language = () => setFr(document.documentElement.lang === "fr"),
-      observer = new MutationObserver(language);
-    language();
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["lang"],
-    });
-    const motion = matchMedia("(prefers-reduced-motion: reduce)"),
-      change = () => setReduced(motion.matches);
-    change();
-    motion.addEventListener("change", change);
-    const load = () => {
-      if (document.visibilityState !== "visible") return;
-      controller?.abort(); controller = new AbortController();
-      const current = ++revision, signal = controller.signal;
-      void fetch("/api/v1/manifest", { credentials: "omit", signal })
-        .then((r) => (r.ok ? r.json() : null))
-        .then(async (value) => {
-          if (!active || current !== revision || !value) return;
-          const data = value.data;
-          setStatements(data.feature_activity ? (data.activity_statements ?? []) : []);
-          setSeconds(data.ui_rotation_policy?.activity_seconds ?? 10);
-          if (!data.public_stats_policy?.enabled) setStats(null);
-          if (data.public_stats_policy?.enabled) {
-            const response = await fetch("/api/v1/statistics", {
-              credentials: "omit", signal,
-            });
-            if (response.ok) {
-              const value = await response.json();
-              if (active && current === revision) setStats(value.data);
-            }
-          }
-        })
-        .catch(() => {});
-    };
-    load();
-    const refresh = setInterval(load, 60000);
-    document.addEventListener("visibilitychange", load);
-    return () => {
-      active = false; controller?.abort(); revision++;
-      clearInterval(refresh);
-      document.removeEventListener("visibilitychange", load);
-      observer.disconnect();
-      motion.removeEventListener("change", change);
-    };
-  }, []);
-  useEffect(() => {
-    if (paused || reduced || !statements.length) return;
-    const timer = setInterval(
-      () => setIndex((i) => (i + 1) % statements.length),
-      seconds * 1000,
-    );
-    return () => clearInterval(timer);
-  }, [paused, reduced, statements, seconds]);
-  return (
-    <>
-      {statements.length > 0 && (
-        <aside className="ticker" aria-label={fr ? "Activité" : "Activity"}>
-          <span>{statements[index % statements.length]}</span>
-          <button
-            aria-pressed={paused || reduced}
-            onClick={() => setPaused((p) => !p)}
-            disabled={reduced}
-          >
-            {paused || reduced ? (fr ? "Reprendre" : "Resume") : "Pause"}
-          </button>
-        </aside>
-      )}
-      {stats?.enabled && !stats.pending && (
-        <aside className="public-statistics">
-          <span>
-            {fr ? "Membres inscrits avec consentement" : "Consented members"}:{" "}
-            {stats.consented_members}
-          </span>{" "}
-          ·{" "}
-          <span>
-            {fr ? "Inscriptions en attente" : "Pending registrations"}:{" "}
-            {stats.pending_registrations}
-          </span>{" "}
-          ·{" "}
-          <span>
-            {fr ? "Versements aux membres" : "Settled member payments"}: $
-            {String(stats.settled_member_usd).split(".")[0] +
-              "." +
-              (String(stats.settled_member_usd).split(".")[1] ?? "")
-                .padEnd(2, "0")
-                .slice(0, 2)}{" "}
-            ({stats.environment})
-          </span>
-          {stats.stale && <span>{fr ? "Instantané antérieur" : "Earlier snapshot"}</span>}
-          <time dateTime={stats.observed_at}>
-            {new Date(stats.observed_at).toLocaleString(fr ? "fr" : "en")}
-          </time>
-        </aside>
-      )}
-    </>
-  );
+'use client';
+import {useEffect,useMemo,useRef,useState} from 'react';
+import type {PublicManifestDto} from '@/lib/financial-contracts';
+import type {ActivityRecord} from '@/server/activity';
+import {formatBaseUnits} from '@gifters/domain';
+import {latestPublicManifest} from '@/lib/profile-state';
+type Activity={enabled:boolean;source:'fixtures'|'labelled_demo'|'verified'|'disabled';profile_revision:number;records:ActivityRecord[];statements:string[]};
+type Statistics={enabled:boolean;pending?:boolean;stale?:boolean;verified_only?:boolean;excluded_environment?:boolean;profile_revision?:number;consented_members?:string;pending_registrations?:string;settled_member_usd?:string;observed_at?:string;environment?:string};
+export default function PublicInformation(){
+ const [policy,setPolicy]=useState<PublicManifestDto|null>(null),[activity,setActivity]=useState<Activity|null>(null),[stats,setStats]=useState<Statistics|null>(null),[locale,setLocale]=useState<'en'|'fr'>('en'),[index,setIndex]=useState(0),[paused,setPaused]=useState(false),[reduced,setReduced]=useState(false);const latest=useRef<PublicManifestDto|null>(null),fr=locale==='fr';
+ useEffect(()=>{let active=true,revision=0;let controller:AbortController|undefined;
+  const language=()=>setLocale(document.documentElement.lang==='fr'?'fr':'en'),observer=new MutationObserver(language);language();observer.observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
+  const motion=matchMedia('(prefers-reduced-motion: reduce)'),change=()=>setReduced(motion.matches);change();motion.addEventListener('change',change);
+  const fetchData=async<T,>(path:string,signal:AbortSignal)=>{const response=await fetch('/api/v1'+path,{credentials:'omit',cache:'no-store',signal});if(!response.ok)throw Error('UNAVAILABLE');return (await response.json()).data as T;};
+  async function load(){if(document.visibilityState!=='visible')return;controller?.abort();controller=new AbortController();const current=++revision,signal=AbortSignal.any([controller.signal,AbortSignal.timeout(10000)]);try{
+   const incoming=await fetchData<PublicManifestDto>('/manifest',signal);if(!active||current!==revision)return;const selected=latestPublicManifest(latest.current,incoming);latest.current=selected;setPolicy(selected);
+   let local:Activity|null=null;if(selected.feature_activity){const source=selected.presentation?.activity??'fixtures';if(source==='verified'&&selected.presentation?.non_real_money)local={enabled:true,source:'verified',profile_revision:selected.profile_revision,records:[],statements:[]};else if(source==='verified')local=await fetchData<Activity>('/activity',signal);else if(source==='labelled_demo'||source==='fixtures')local={enabled:true,source,profile_revision:selected.profile_revision,records:[],statements:selected.activity_statements??[]};}
+   const totals=selected.public_stats_policy.enabled?await fetchData<Statistics>('/statistics',signal):null;
+   if(!active||current!==revision)return;setActivity(local?.profile_revision===selected.profile_revision?local:null);setStats(totals?.profile_revision===selected.profile_revision?totals:null);
+  }catch{if(active&&current===revision){setActivity(null);setStats(null);}}}
+  void load();const interval=policy?.presentation?.client_poll_seconds??60;const refresh=setInterval(()=>void load(),(Number.isSafeInteger(interval)&&interval>=15&&interval<=300?interval:60)*1000);document.addEventListener('visibilitychange',load);addEventListener('gw:profile-changed',load);
+  return()=>{active=false;revision++;controller?.abort();clearInterval(refresh);document.removeEventListener('visibilitychange',load);removeEventListener('gw:profile-changed',load);observer.disconnect();motion.removeEventListener('change',change);};
+ },[policy?.presentation?.client_poll_seconds]);
+ const statements=useMemo(()=>{
+  if(!policy?.feature_activity||!activity?.enabled||activity.profile_revision!==policy.profile_revision)return [];
+  if(activity.source==='fixtures')return activity.statements;
+  if(activity.source==='labelled_demo')return activity.statements.map(value=>(fr?'EXEMPLE FICTIF — aucun événement réel : ':'DEMO EXAMPLE — not a real event: ')+value);
+  return activity.records.map(row=>{const labels=fr?{signup:'Un membre a rejoint la plateforme',gift:'Don confirmé',receiver_credit:'Crédit destinataire interne — pas un transfert au portefeuille',referral_credit:'Crédit de parrainage interne — pas un transfert au portefeuille',withdrawal:'Transfert de retrait confirmé'}:{signup:'A member joined',gift:'Gift confirmed',receiver_credit:'Internal receiver credit — not a wallet transfer',referral_credit:'Internal referral credit — not a wallet transfer',withdrawal:'Withdrawal transfer confirmed'};return labels[row.kind]+(row.amount_base_units!==null&&row.decimals!==null?' · '+formatBaseUnits(BigInt(row.amount_base_units),row.decimals)+' '+row.asset:'')+(row.historical_usd?' (≈ $'+row.historical_usd+')':'')+' · '+new Date(row.event_at).toLocaleString(locale);});
+ },[activity,policy,locale,fr]);
+ useEffect(()=>{if(paused||reduced||!statements.length)return;const timer=setInterval(()=>setIndex(value=>(value+1)%statements.length),(policy?.ui_rotation_policy.activity_seconds??10)*1000);return()=>clearInterval(timer);},[paused,reduced,statements,policy?.ui_rotation_policy.activity_seconds]);
+ return <>{statements.length>0?<aside className="ticker" aria-label={fr?'Activité':'Activity'}><span>{statements[index%statements.length]}</span><button aria-pressed={paused||reduced} disabled={reduced} onClick={()=>setPaused(value=>!value)}>{paused||reduced?(fr?'Reprendre':'Resume'):'Pause'}</button></aside>:policy?.feature_activity&&activity?.source==='verified'?<aside className="ticker"><span>{fr?'Aucune activité réelle vérifiée à afficher. Les simulations et réseaux de test sont exclus.':'No verified real-money activity to show. Simulation and test networks are excluded.'}</span></aside>:null}
+ {stats?.enabled&&stats.pending&&<aside className="public-statistics">{fr?'Totaux vérifiés temporairement indisponibles ; aucun chiffre de remplacement.':'Verified totals are temporarily unavailable; no substitute figures.'}</aside>}
+ {stats?.enabled&&!stats.pending&&<aside className="public-statistics">{stats.verified_only&&<strong>{fr?'Données réelles vérifiées uniquement — tests exclus. ':'Verified real-money data only — tests excluded. '}</strong>}<span>{fr?'Membres avec consentement':'Consented members'}: {stats.consented_members}</span>{!stats.verified_only&&<> · <span>{fr?'Inscriptions en attente':'Pending registrations'}: {stats.pending_registrations}</span></>} · <span>{fr?'Paiements réglés aux membres':'Settled member payments'}: ${String(stats.settled_member_usd??'0').split('.')[0]+'.'+(String(stats.settled_member_usd??'0').split('.')[1]??'').padEnd(2,'0').slice(0,2)} ({stats.environment})</span>{stats.excluded_environment&&<span>{fr?' Cette application fonctionne en simulation/test ; ses paiements sont exclus.':' This app is running in simulation/test mode; its payments are excluded.'}</span>}{stats.stale&&<span>{fr?' Instantané antérieur':' Earlier snapshot'}</span>}{stats.observed_at&&<time dateTime={stats.observed_at}>{new Date(stats.observed_at).toLocaleString(locale)}</time>}</aside>}</>;
 }

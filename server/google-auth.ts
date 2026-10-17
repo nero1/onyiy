@@ -33,7 +33,7 @@ export async function finishGoogle(request:Request){
     const base=attempt>Math.floor(policy.collision_attempts/2)?'u':stem||'u';
     const username=(base.slice(0,Math.max(0,policy.username_max-suffix.length))+suffix).padEnd(policy.username_min,'0').slice(0,policy.username_max);
     try{await validateUsername(tx,username)}catch{continue}
-    [created]=await tx.insert(users).values({username,email:identity.email.toLowerCase(),locale:identity.locale?.startsWith('fr')?'fr':'en'}).onConflictDoNothing({target:users.username}).returning();
+    [created]=await tx.insert(users).values({publicationClassification:process.env.APP_ENV==='mainnet'?'real':'test',username,email:identity.email.toLowerCase(),locale:identity.locale?.startsWith('fr')?'fr':'en'}).onConflictDoNothing({target:users.username}).returning();
     if(created)break;
    }
    if(!created)throw new Error('VERSION_CONFLICT');

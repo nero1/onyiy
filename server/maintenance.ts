@@ -62,3 +62,9 @@ export async function retireEphemeralPayloads(database:DbExecutor) {
   if(!row)throw new Error('CONFIGURATION_INVALID');
   return row.result;
 }
+
+export async function cleanupProfilePreviews(database:DbExecutor){
+ const held=operationalRetentionHeld();await database.execute(sql`select set_config('gw.operational_retention_hold',${String(held)},true)`);
+ if(held)return 0;
+ const [row]=await database.execute<{removed:number}>(sql`select public.gw_expire_profile_previews(100) as removed`);return row.removed;
+}

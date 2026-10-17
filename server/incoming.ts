@@ -1,3 +1,4 @@
+import {presentationFromManifest,planFinancialPresentation,type PublicQueueDisclosure} from './presentation';
 import crypto from 'node:crypto';
 import {and,desc,eq,exists,inArray,isNull,lte,sql} from 'drizzle-orm';
 import {auditEvents,cycles,giftInvoices,ledgerJournals,operationKeys,plans,planVersions,queuePartitions,readManifest,simulationIncomingControls,simulationIncomingEvents,simulationIncomingRefunds,simulationReorgReviews,simulationReorgResolutions,users,type DbExecutor} from '@gifters/db';
@@ -7,7 +8,11 @@ import {assertUnfrozen,assertPartitionReady} from './financial-review';
 type Invoice=typeof giftInvoices.$inferSelect;
 type Outcome='reject'|'under'|'over'|'late'|'delay';
 async function clock(tx:DbExecutor){const rows=await tx.execute<{now:Date}>(sql`select clock_timestamp() as now`);return new Date(rows[0].now)}
-function dto(item:Invoice){return {id:item.id,plan_version_id:item.planVersionId,expected_base_units:item.expectedBaseUnits,actual_base_units:item.actualBaseUnits,refundable_base_units:item.refundableBaseUnits,status:item.status,expires_at:item.quoteExpiresAt,submitted_at:item.submittedAt}}
+function dto(item:Invoice){return {id:item.id,plan_version_id:item.planVersionId,expected_base_units:item.expectedBaseUnits,actual_base_units:item.actualBaseUnits,refundable_base_units:item.refundableBaseUnits,status:item.status,profile_revision:item.profileRevision,expires_at:item.quoteExpiresAt,submitted_at:item.submittedAt}}
+async function quotedDto(tx:DbExecutor,item:Invoice,version:typeof planVersions.$inferSelect,asset:{symbol:string;decimals:number;chainId:string;environment:string},policy:Awaited<ReturnType<typeof readManifest>>){
+ const [row]=await tx.execute<{value:PublicQueueDisclosure|null}>(sql`select public.gw_public_queue_disclosure(${item.planVersionId}::uuid) as value`);
+ return {...dto(item),presentation:presentationFromManifest(policy),queue_disclosure:row.value,plan:planFinancialPresentation(version,asset)};
+}
 async function invoice(tx:DbExecutor,id:string,owner?:string){
  const [item]=await tx.select().from(giftInvoices).where(owner?and(eq(giftInvoices.id,id),eq(giftInvoices.userId,owner)):eq(giftInvoices.id,id)).limit(1).for('update');
  if(!item)throw new Error('NOT_FOUND');return item;
@@ -24,7 +29,7 @@ export async function quoteIncoming(tx:DbExecutor,userId:string,planId:string,ke
  if(user.status!=='active')throw new Error(user.status==='pending_consent'?'CONSENT_REQUIRED':'ACCOUNT_RESTRICTED');
  if(!user.consentedAt || user.consentVersion!==policy.terms_content.version)throw new Error('CONSENT_REQUIRED');
  const [prior]=await tx.select().from(giftInvoices).where(and(eq(giftInvoices.userId,userId),eq(giftInvoices.requestKey,key))).limit(1);
- if(prior){const [version]=await tx.select().from(planVersions).where(eq(planVersions.id,prior.planVersionId)).limit(1);if(version.planId!==planId)throw new Error('VERSION_CONFLICT');return dto(prior)}
+ if(prior){const [version]=await tx.select().from(planVersions).where(eq(planVersions.id,prior.planVersionId)).limit(1);if(version.planId!==planId)throw new Error('VERSION_CONFLICT');return quotedDto(tx,prior,version,asset,policy)}
  await assertUnfrozen(tx,userId,asset.id);
  await tx.select({id:plans.id}).from(plans).where(eq(plans.id,planId)).for('share');
  const [version]=await tx.select({version:planVersions,status:plans.status}).from(planVersions).innerJoin(plans,eq(plans.id,planVersions.planId)).where(and(eq(plans.id,planId),eq(planVersions.assetId,asset.id),eq(planVersions.active,true))).limit(1);
@@ -37,7 +42,10 @@ export async function quoteIncoming(tx:DbExecutor,userId:string,planId:string,ke
  const [open]=await tx.select({id:giftInvoices.id}).from(giftInvoices).where(and(eq(giftInvoices.userId,userId),eq(giftInvoices.planVersionId,version.version.id),inArray(giftInvoices.status,['quoted','submitted']))).limit(1);
  if(open)throw new Error('ACTIVE_INVOICE_EXISTS');
  if(await availableBalance(tx,userId,asset.id)<BigInt(version.version.amountBaseUnits))throw new Error('INSUFFICIENT_BALANCE');
- const [created]=await tx.insert(giftInvoices).values({userId,planVersionId:version.version.id,assetId:asset.id,requestKey:key,expectedBaseUnits:version.version.amountBaseUnits,quoteExpiresAt:new Date(now.getTime()+policy.quote_ttl_minutes*60000)}).returning();return dto(created);
+ const [created]=await tx.insert(giftInvoices).values({profileRevision:policy.profile_revision,userId,planVersionId:version.version.id,assetId:asset.id,requestKey:key,expectedBaseUnits:version.version.amountBaseUnits,quoteExpiresAt:new Date(now.getTime()+policy.quote_ttl_minutes*60000)}).returning();return quotedDto(tx,created,version.version,asset,policy);
+}
+export async function reviewIncoming(tx:DbExecutor,userId:string,id:string){
+ const policy=await readManifest(tx),asset=await simulationAsset(tx,policy),item=await invoice(tx,id,userId);const [version]=await tx.select().from(planVersions).where(eq(planVersions.id,item.planVersionId)).limit(1);return quotedDto(tx,item,version,asset,policy);
 }
 export async function controlIncoming(tx:DbExecutor,actorId:string,id:string,outcome:Outcome,reason:string,key:string,actual?:string){
  await staff(tx,actorId);const manifest=await readManifest(tx);if(!manifest.feature_simulation || !manifest.feature_admin)throw new Error('FEATURE_DISABLED');
@@ -61,7 +69,7 @@ async function finish(tx:DbExecutor,item:Invoice,outcome:'exact'|'reject'|'under
  if(accepted){
   acceptId=await postJournal(tx,'GIV_INCOMING_ACCEPT',`incoming-accept:${item.id}`,[{accountId:from.id,direction:'debit',amount:expected},{accountId:available.id,direction:'credit',amount:expected}],{invoice_id:item.id});
   const [user]=await tx.select().from(users).where(eq(users.id,item.userId)).limit(1);const [version]=await tx.select().from(planVersions).where(eq(planVersions.id,item.planVersionId)).limit(1);
-  await sendGift(tx,user,version.planId,item.id,item.planVersionId);giftKey=`gift:${item.userId}:${item.id}`;
+  await sendGift(tx,user,version.planId,item.id,item.planVersionId,undefined,item.submittedAt!==null&&item.profileRevision<(await readManifest(tx)).profile_revision);giftKey=`gift:${item.userId}:${item.id}`;
  }
  const refundable=accepted?actual-expected:actual;
  if(refundable>0n){const refund=await account(tx,item.assetId,'user',item.userId,'refund_payable','credit');refundId=await postJournal(tx,'REFUND_HOLD',`incoming-refund-hold:${item.id}`,[{accountId:from.id,direction:'debit',amount:refundable},{accountId:refund.id,direction:'credit',amount:refundable}],{invoice_id:item.id});}
@@ -70,8 +78,9 @@ async function finish(tx:DbExecutor,item:Invoice,outcome:'exact'|'reject'|'under
  const [updated]=await tx.update(giftInvoices).set({status,refundableBaseUnits:refundable.toString()}).where(eq(giftInvoices.id,item.id)).returning();
  if(refundable>0n)await enqueueNotification(tx,`incoming:${item.id}:exception`,{user_id:item.userId,title_key:'incoming_exception',body:'Your GIV payment has a refundable amount awaiting simulation review. No extra queue right was created.'});return dto(updated);
 }
-export async function submitIncoming(tx:DbExecutor,userId:string,id:string){
+export async function submitIncoming(tx:DbExecutor,userId:string,id:string,profileRevision?:number){
  const manifest=await readManifest(tx);const {user}=await lockGiftParticipants(tx,userId,manifest);let item=await invoice(tx,id,userId);if(item.status!=='quoted')return dto(item);
+ if(item.profileRevision!==manifest.profile_revision||profileRevision!==undefined&&profileRevision!==manifest.profile_revision||manifest.deployment_profile==='transparent'&&profileRevision===undefined)throw new Error('VERSION_CONFLICT');
  await simulationAsset(tx,manifest);if(!manifest.feature_gifts)throw new Error('FEATURE_DISABLED');
  if(user.status!=='active' || user.consentVersion!==manifest.terms_content.version)throw new Error('ACCOUNT_RESTRICTED');
  await assertUnfrozen(tx,userId,item.assetId);

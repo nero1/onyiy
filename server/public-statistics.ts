@@ -1,3 +1,4 @@
+import {transparentStatisticsSnapshot} from './activity';
 import { eq, sql } from "drizzle-orm";
 import {
   publicStatistics,
@@ -13,7 +14,7 @@ import {
 const environment = () =>
   process.env.APP_ENV === "testnet" ? "testnet" : "simulation";
 const projection = (row: typeof publicStatistics.$inferSelect) => ({
-  environment: row.environment,
+  environment: row.environment,profile_revision:row.profileRevision,verified_only:row.verifiedOnly,
   consented_members: row.members.toString(),
   pending_registrations: row.pendingRegistrations.toString(),
   settled_member_usd: row.settledMemberUsd,
@@ -24,6 +25,7 @@ export async function statisticsSnapshot(tx: DbExecutor) {
     scope = environment();
   if (!policy.public_stats_policy.enabled)
     return { enabled: false, environment: scope };
+  if(policy.deployment_profile==='transparent')return transparentStatisticsSnapshot(tx,policy);
   await tx.execute(sql`set local statement_timeout='5000ms'`);
   const [cached] = await tx
     .select()
@@ -33,7 +35,7 @@ export async function statisticsSnapshot(tx: DbExecutor) {
   const [clock] = await tx.execute<{ now: Date }>(
     sql`select clock_timestamp() as now`,
   );
-  if (cached && cached.expiresAt > new Date(clock.now))
+  if (cached && !cached.verifiedOnly && cached.profileRevision===policy.profile_revision && cached.expiresAt > new Date(clock.now))
     return { enabled: true, stale: false, ...projection(cached) };
   const [refresh] = await tx.execute<{ acquired: boolean }>(
     sql`select pg_try_advisory_xact_lock(hashtextextended(${`public-statistics:${scope}`},0)) as acquired`,
@@ -46,7 +48,7 @@ export async function statisticsSnapshot(tx: DbExecutor) {
     .from(publicStatistics)
     .where(eq(publicStatistics.environment, scope))
     .limit(1);
-  if (again && again.expiresAt > new Date(clock.now))
+  if (again && !again.verifiedOnly && again.profileRevision===policy.profile_revision && again.expiresAt > new Date(clock.now))
     return { enabled: true, stale: false, ...projection(again) };
   const belongs =
     scope === "simulation"
@@ -80,7 +82,7 @@ export async function statisticsSnapshot(tx: DbExecutor) {
             sql`${cryptoObligations.environment}='testnet' and ${cryptoObligations.status}='settled' and ${cryptoObligations.userId} is not null and ${cryptoObligations.kind} in ('withdrawal','recovery')`,
           );
   const value = {
-    environment: scope,
+    environment: scope,profileRevision:policy.profile_revision,verifiedOnly:false,
     members: BigInt(counts.members),
     pendingRegistrations: BigInt(counts.pending),
     settledMemberUsd: paid.usd,

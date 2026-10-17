@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import {and,asc,eq,sql} from 'drizzle-orm';
 import {z} from 'zod';
-import {manifestDefinition,validateManifestValue,parseManifest,validateSecurityCeilings,validatePublicText} from '@gifters/config';
+import {manifestDefinition,transparencySettingKeys,validateManifestValue,parseManifest,validateSecurityCeilings,validatePublicText} from '@gifters/config';
 import {auditEvents,helpArticles,slugRedirects,queueEntries,queuePartitions,cycles,planVersions,xManifest,operationKeys,readManifest,type DbExecutor} from '@gifters/db';
 import {databaseNow} from './auth';
 const reason=z.string().trim().min(3).max(500);const slug=z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/);
@@ -16,6 +16,7 @@ export async function editSetting(tx:DbExecutor,actorId:string,input:z.infer<typ
  const rows=await tx.select().from(xManifest).orderBy(asc(xManifest.key)).limit(1001).for('update');if(rows.length>1000)throw new Error('CONFIGURATION_INVALID');
  const manifest=await readManifest(tx);if(!manifest.feature_admin)throw new Error('FEATURE_DISABLED');const definition=manifestDefinition(input.key);if(!definition)throw new Error('INVALID_INPUT');
  const key=`setting:${actorId}:${requestKey.toLowerCase()}`,saved=await prior(tx,key,input);if(saved.result)return saved.result;
+ if(transparencySettingKeys.has(input.key)||manifest.deployment_profile==='transparent'&&['feature_bootstrap','feature_priority','terms_content','public_stats_policy'].includes(input.key))throw new Error('FORBIDDEN');
  const row=rows.find(r=>r.key===input.key);if(!row||row.version!==input.version)throw new Error('VERSION_CONFLICT');const value=validateManifestValue(input.key,input.value,definition.scope);
  // Active/used plan snapshots are immutable. Lifecycle/economics use their own service.
  if(input.key.startsWith('plan_config_')||input.key.startsWith('asset_config_'))throw new Error('FORBIDDEN');
