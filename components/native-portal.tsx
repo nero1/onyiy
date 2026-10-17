@@ -1,4 +1,6 @@
 "use client";
+import {useCurrencyPreview} from './use-currency-preview';
+import {currencyCopy} from '@/lib/currency-copy';
 import {formatDisplayDate} from '@/lib/display-time';
 import {useDisplayTimeZone} from './appearance-provider';
 import ProfileDisclosure from './profile-disclosure';
@@ -78,6 +80,11 @@ export default function NativePortal() {
     user = session?.user ?? null,
     fr = locale === "fr",
     t = copy[locale];
+  const enabledCurrencies=(catalog?.assets??[]).filter(asset=>asset.enabled);
+  const currencyPreview=useCurrencyPreview(enabledCurrencies.map(asset=>asset.id),!!manifest?.feature_gifts&&!!data&&!busy&&!payment&&!withdrawal&&!existingInvoice&&!existingHash&&!data.cycles.some(cycle=>cycle.status!=='completed'||cycle.under_review),manifest?.ui_rotation_policy.currency_seconds??10);
+  const giftPlans=manifest?.feature_gifts&&catalog?.profile_revision===manifest?.profile_revision?(catalog?.plans??[]).filter(plan=>plan.status==='active'&&plan.asset_id===currencyPreview.value):[];
+  const currencyText=currencyCopy[locale];
+  const currencySelector=(position:string)=>enabledCurrencies.length?<section aria-label={currencyText.currency}><label htmlFor={'gift-currency-'+position}>{currencyText.currency}</label><select id={'gift-currency-'+position} value={currencyPreview.value} onChange={event=>currencyPreview.select(event.target.value)}>{enabledCurrencies.map(asset=><option value={asset.id} key={asset.id}>{asset.symbol} · {asset.network}</option>)}</select>{enabledCurrencies.length>1&&<><button aria-pressed={currencyPreview.paused||currencyPreview.reduced} disabled={currencyPreview.reduced} onClick={currencyPreview.toggle}>{currencyPreview.paused||currencyPreview.reduced?currencyText.resume:currencyText.pause}</button><small>{currencyText.idle}</small></>}</section>:null;
   useNavigationIdentity(session?.requires_mfa?null:user);
   function receive(value: SessionResult) {
     epoch.current++;
@@ -462,10 +469,11 @@ export default function NativePortal() {
           )}
           {manifest?.feature_gifts && user.status === "active" && session?.generation && <BotCheck owner={user.username} generation={session.generation} surface="suspicious_checkout" locale={locale} reset={botReset} onReady={(ready,value)=>{setBotReady(ready);setBotProof(value)}}/>}
           {catalog?.profile_revision!==manifest?.profile_revision&&<p role="status">{fr?'Actualisation des informations des dons…':'Updating gift information…'}</p>}
-          {(catalog?.profile_revision===manifest?.profile_revision?(catalog?.plans??[]):[])
-            .filter((plan) => plan.status === "active")
-            .map((plan) => (
-              <article className="card" key={plan.version_id ?? plan.id}>
+          {manifest?.feature_gifts&&currencySelector('top')}
+          {manifest?.feature_gifts&&<nav className="gift-tiles" aria-label={fr?'Dons':'Gifts'}>{giftPlans.map(plan=><button id={'gift-tile-'+(plan.version_id??plan.id)} className="gift-tile" key={plan.version_id??plan.id} onClick={()=>{const card=document.getElementById('gift-card-'+(plan.version_id??plan.id));card?.scrollIntoView({block:'start'});card?.focus({preventScroll:true})}}><span aria-hidden="true">🎁</span><strong>{plan.name}</strong><strong>{formatBaseUnits(BigInt(plan.amount_base_units),plan.decimals)} {plan.asset}</strong>{plan.plan&&<small>{manifest.presentation?.transparent?currencyText.potential:currencyText.expected}: ${plan.plan.estimated_reference_usd}</small>}</button>)}</nav>}
+          {manifest?.feature_gifts&&enabledCurrencies.length>0&&!giftPlans.length&&<p>{currencyText.empty}</p>}
+          {giftPlans.map((plan) => (
+              <article id={'gift-card-'+(plan.version_id??plan.id)} tabIndex={-1} className="card" key={plan.version_id ?? plan.id}>
                 <h2>
                   {plan.name} · {plan.asset} · {plan.network}
                 </h2>
@@ -485,8 +493,10 @@ export default function NativePortal() {
                 >
                   {fr ? "Vérifier le paiement" : "Review payment"}
                 </button>
+                <button onClick={()=>{const tile=document.getElementById('gift-tile-'+(plan.version_id??plan.id));tile?.scrollIntoView({block:'center'});tile?.focus({preventScroll:true})}}>{currencyText.back}</button>
               </article>
             ))}
+          {manifest?.feature_gifts&&currencySelector('bottom')}
           {payment && (
             <section
               className="card"

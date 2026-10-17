@@ -1,6 +1,6 @@
-# Bug fix plan — Rounds One/Two/Three v55
+# Bug fix plan — Rounds One/Two/Three v56
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v55.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v56.md).
 
 Updated: **17 October 2026 at 01:06:45 UTC**.
 
@@ -8,7 +8,7 @@ Updated: **17 October 2026 at 01:06:45 UTC**.
 
 Historical numbered migration paths below identify the original fixes in Git history. Fresh installations use `000_initial_schema.sql` then the forward files `001`–`004` in filename order; do not run removed historical files.
 
-PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the three fresh Round Two findings below; The same batch includes the Round Three recovery fix below; Phase Two implementation/local review is complete in v55.
+PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the three fresh Round Two findings below; The same batch includes the Round Three recovery fix below; Phase Two transparency implementation/local review was completed in v54; full-product work remains open.
 
 ## Complete task list
 
@@ -96,7 +96,7 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 
 ## Fix and acceptance reference
 
-These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v55.md).
+These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v56.md).
 
 ### 1: BUG P1-001: Expired or dismissed native invoices prevent another checkout
 
@@ -476,7 +476,7 @@ These are named manual checks, not instructions to add an automated test suite. 
 - Use fresh isolated fixtures and rollback-only generated records where possible. Keep original financial sources, failed fixtures, signed bytes, archives and keys.
 - Run relevant verification and required checks; record what actually ran. Both exact-final-head **push** and **pull_request** CI must succeed before merge. No direct pushes to main.
 - Keep five core docs plus these two requested trackers. Rename status, handover, report and plan together. Fold decisions into existing files; keep old versions in Git.
-- See [current status](PROJECT-STATUS_v55.md) for release evidence and [handover](LLM-HANDOVER_v55.md) for the exact stop boundary.
+- See [current status](PROJECT-STATUS_v56.md) for release evidence and [handover](LLM-HANDOVER_v56.md) for the exact stop boundary.
 
 Signed: **16 October 2026 at 09:21:01 PM WAT**.
 
@@ -487,7 +487,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v55.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v56.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -505,11 +505,11 @@ These are locally verified code fixes, not hosted acceptance. Private named proc
 
 Fresh review covered request/worker admission, public configuration/cache boundaries, authentication cleanup, export/privacy handling, financial call sites and native recovery. The named findings are fixed locally; this is not a claim that every possible bug is absent or that hosted behavior was accepted.
 
-## Phase Two transition finding (working v55)
+## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v55.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v56.md).
 
-v55
+v56
 
 
 ### Additional Phase Two review fixes
@@ -551,3 +551,10 @@ The new owner directive reopens overall product completion, including mainnet. E
 - **C017 — Product navigation/idle preview:** Verify and finish §18 currency browsing/idle rotation, focus-safe behaviour and all scheduled-plan presentation; current native portal has no currency rotation implementation.
 
 Owner update: all launch details are deferred to final testing. Document the fields in SETUP and continue code without waiting for them. C006 fixed-token pricing is implemented and passed an isolated rollback-only activation/replay/immutability procedure; final release/schema verification remains pending.
+
+## v56 findings and delivery
+
+- **C003 / key custody foundation:** version2 AEAD binds exact environment, network, chain and public address. Legacy files remain testnet-only. Generated eight-network packaging/tamper procedures pass; mainnet execution is still unfinished.
+- **C017 / currency browsing:** implemented enabled-only selectors, idle preview pause, focus/reduced-motion/financial-state guards and tile/card keyboard return. Browser acceptance is being checked; scheduled plans and broader dashboard requirements remain open.
+- **C016 follow-up:** changing the display zone left verified activity text cached in the old zone. Include the zone in the formatting dependencies.
+- **Key-file race:** checking a path and reading it later could read a different file. Inspect/read the same descriptor and reject symlinks, preserving private-file permissions and zeroing buffers.

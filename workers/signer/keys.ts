@@ -1,20 +1,6 @@
 import fs from "node:fs";
-import crypto from "node:crypto";
-import { z } from "zod";
+import {openKeyEnvelope} from './key-envelope';
 import type { Chain } from "../../packages/chains/src/types";
-const keyFile = z
-  .object({
-    version: z.literal(1),
-    chain: z.enum(["eth", "bnb", "sol", "tron"]),
-    environment: z.literal("testnet"),
-    network: z.string().min(1).max(100),
-    publicAddress: z.string().min(1).max(100),
-    salt: z.string(),
-    iv: z.string(),
-    tag: z.string(),
-    cipher: z.string(),
-  })
-  .strict();
 export function assertIsolated() {
   if (
     process.env.APP_ENV !== "testnet" ||
@@ -46,37 +32,15 @@ export async function withSigningKey<T>(
     secret = process.env.SIGNER_DECRYPTION_SECRET;
   if (!filename || !secret || secret.length < 32 || secret.length > 1024)
     throw new Error("SIGNER_KEY_UNAVAILABLE");
-  const stat = fs.statSync(filename);
-  if (!stat.isFile() || stat.size > 4096 || (stat.mode & 0o077) !== 0)
-    throw new Error("SIGNER_KEY_UNAVAILABLE");
-  let derived: Buffer | undefined, plain: Buffer | undefined;
+  let plain: Buffer | undefined, fd: number | undefined;
   try {
-    const record = keyFile.parse(JSON.parse(fs.readFileSync(filename, "utf8")));
-    if (record.chain !== chain || record.network !== network) throw Error();
-    const salt = Buffer.from(record.salt, "base64url"),
-      iv = Buffer.from(record.iv, "base64url"),
-      tag = Buffer.from(record.tag, "base64url");
-    if (salt.length !== 16 || iv.length !== 12 || tag.length !== 16)
-      throw Error();
-    derived = crypto.scryptSync(secret, salt, 32, {
-      N: 16384,
-      r: 8,
-      p: 1,
-      maxmem: 64 * 1024 * 1024,
-    });
-    const decipher = crypto.createDecipheriv("aes-256-gcm", derived, iv);
-    decipher.setAuthTag(tag);
-    decipher.setAAD(
-      Buffer.from(
-        `gw-signer-key-v1:${chain}:${network}:testnet:${record.publicAddress}`,
-      ),
-    );
-    plain = Buffer.concat([
-      decipher.update(Buffer.from(record.cipher, "base64url")),
-      decipher.final(),
-    ]);
-    if (plain.length !== (chain === "sol" ? 64 : 32)) throw Error();
-    return await fn(plain, record.publicAddress);
+    // Inspect and read the same open file; reject symlinks and public modes.
+    fd=fs.openSync(filename,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+    const stat=fs.fstatSync(fd);
+    if(!stat.isFile()||stat.size>4096||(stat.mode&0o077)!==0)throw new Error();
+    const opened=openKeyEnvelope(JSON.parse(fs.readFileSync(fd,'utf8')),{chain,network,environment:'testnet'},secret);
+    plain=opened.bytes;
+    return await fn(plain,opened.address);
   } catch (error) {
     if (
       error instanceof Error &&
@@ -89,7 +53,7 @@ export async function withSigningKey<T>(
       throw error;
     throw new Error("SIGNER_KEY_UNAVAILABLE");
   } finally {
-    derived?.fill(0);
     plain?.fill(0);
+    if(fd!==undefined)fs.closeSync(fd);
   }
 }

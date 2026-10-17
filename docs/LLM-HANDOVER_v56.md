@@ -1,12 +1,12 @@
-# LLM handover v55
+# LLM handover v56
 
 ## Current owner instruction
 
-Complete the entire Phase One/Two product, including verified real-money mainnet and every missing feature. Do not stop at transparency implementation or a partial checklist. Continue code work without acceptance pauses; require actual evidence and owner-provisioned details for external activation. Read [PRD](PRD.md) §§29–33 and the complete [gap list](PROJECT-STATUS_v55.md) first.
+Complete the entire Phase One/Two product, including verified real-money mainnet and every missing feature. Do not stop at transparency implementation or a partial checklist. Continue code work without acceptance pauses; require actual evidence and owner-provisioned details for external activation. Read [PRD](PRD.md) §§29–33 and the complete [gap list](PROJECT-STATUS_v56.md) first.
 
 ## Active work
 
-- Repository `nero1/onyiy`, branch `feat/production-completion` based on PR53 merge6c323dc43c45efa1957308e467ce06e7cc0b36c0.
+- Repository `nero1/onyiy`, branch `feat/custody-key-binding` based on PR54 merge4757acf6aaa7de7b6d5080a6a37da7a28c6d46af.
 - Private scratch `/workspace/work/production-v55` contains295 extracted requirement-bearing PRD lines and source research. Review every section; do not treat extraction or source reading as verified acceptance.
 - Uncommitted first foundation: `FinancialEnvironment`, mainnet/testnet closed network bindings, environment-specific RPC/address suffixes and fingerprints. Registry parsing can stage mainnet records, but active adapters/runtime still deny mainnet until the complete financial release. Initial typecheck passed.
 - C001–C017 in status/report/plan track the entire product; C006/C015/C016 now have locally verified implementations. Production recovery accepts no mainnet, many SQL/service/signer paths are testnet-specific, both readiness gates are false, and shared preview isolation is unfinished.
@@ -38,4 +38,19 @@ Owned PostgreSQL cluster: `/workspace/work/shared-hosting-v50/pgdata`, TLS port5
 - Automatic approval review rejected a broad environment replacement; it never ran. Do not retry/split that rejected edit to evade review. Proceed with safer targeted work after isolation/key proofs, keeping unfinished execution gates closed.
 - Continue all C001–C017 work immediately after this foundation PR/merge. Audit translation keys, build compatibility/reload and browser-only recovery operations as part of C010/C011. Mainnet runtime, environment-bound key envelope, workers, preview app, UI and recovery remain unfinished. Owner inputs are deferred, not an excuse to pause coding or claim completion.
 
-v55
+
+## Current v56 continuation
+
+- PR54 is merged. Exact head934686ab388ad2da581f7ebaa16cb1760add4e7a passed push39012602186/PR39012617199; merge4757acf6aaa7de7b6d5080a6a37da7a28c6d46af. Do not reopen its source changes unnecessarily.
+- Scratch `/workspace/work/custody-v56`: key-envelope-r1 passed eight closed network/environment cases, tamper/wrong-secret rejection, legacy compatibility/mainnet relabelling denial, private-buffer cleanup and symlink/public-mode rejection. This is packaging only; runtime execution gates remain unchanged.
+- New key-envelope.ts version2 binds explicit environment/network/family/address under AEAD. Existing v1 files are accepted for testnet only. Offline sealing still obeys the original testnet-only scope. No mainnet worker/adapter was activated.
+- Native currency preview uses a pure idle policy plus visibility/focus/reduced-motion/interactions and manual pause. Enabled assets only; invoice/withdrawal/active-cycle state stops rotation. Tiles navigate to cards and return focus. New currencyCopy literal keys join CI parity checks.
+- currency-policy-r1 failed on CJS/ESM harness import; r2 fixes the harness and passes. Browser-r1–r4 failed due harness database mode/missing record-page data; r5 passed UI checks but falsely counted bot challenges as financial writes. r6 fixes those harness contracts and passes actual Chromium390px EN/FR rotation/focus/manual-choice/reduced-motion/existing-invoice/active-cycle/tile-return checks. Generated intercepted UI data is not financial/provider acceptance. Original attempts are preserved.
+- Activity feed memo now includes display zone, fixing stale formatted dates after a zone change.
+- Required check:all r2 passed; production build/bundle passed (homepage182.19KiB, API1.441MiB, all clients0.678MiB). Final exact-head dual CI/PR merge remain pending. Continue missing mainnet runtime/signing/workers/preview/recovery and complete every C-item after merging; owner inputs remain deferred.
+
+
+- Browser-r6 passed actual production390px EN/FR currency selection, idle rotation, focus, reduced motion, existing-invoice and active-cycle guards, and tile/card keyboard return. Only bot-challenge requests occurred; no financial call, signing or broadcast. Data was generated/intercepted.
+- Actual offline sealing tool passed five testnet bindings: v2 round-trip, private modes, retained input and existing-output refusal. This does not enable mainnet signing.
+
+v56
