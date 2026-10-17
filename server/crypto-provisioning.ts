@@ -32,7 +32,7 @@ import {
   assertRegistryBinding,
   financialConfiguration,
   assertExternalActivation,
-  assertFinancialEnvironment,
+  financialEnvironmentIn,
 } from "./financial-config";
 import { lockUser } from "./core";
 export const nativeProvision = z
@@ -81,7 +81,7 @@ export async function provisionNativeAsset(
   input: z.infer<typeof nativeProvision>,
   requestKey: string,
 ) {
-  assertFinancialEnvironment();
+  const environment=await financialEnvironmentIn(tx);
   await staff(tx, actorId);
   const registry = registryAsset(input.asset_key);
   if (registry.key === "trx" && input.enabled)
@@ -111,7 +111,7 @@ export async function provisionNativeAsset(
     .from(assets)
     .where(
       and(
-        eq(assets.environment, "testnet"),
+        eq(assets.environment, environment),
         eq(assets.symbol, registry.key.toUpperCase()),
         eq(assets.chainId, registry.network),
       ),
@@ -134,7 +134,7 @@ export async function provisionNativeAsset(
           .insert(assets)
           .values({
             symbol: registry.key.toUpperCase(),
-            environment: "testnet",
+            environment,
             chainId: registry.network,
             decimals: registry.decimals,
             enabled: input.enabled,
@@ -144,7 +144,7 @@ export async function provisionNativeAsset(
       )[0];
   await seedManifestValue(tx, `asset_config_${row.id}`, {
     enabled: input.enabled,
-    environment: "testnet",
+    environment,
     chain_id: registry.network,
     kind: registry.kind,
     decimals: registry.decimals,
@@ -202,7 +202,7 @@ export async function activateNativePlan(
   input: z.infer<typeof nativePlanActivation>,
   requestKey: string,
 ) {
-  assertFinancialEnvironment();
+  const environment=await financialEnvironmentIn(tx);
   const policy = await staff(tx, actorId),
     registry = registryAsset(input.asset_key),
     config = await financialConfiguration(tx, registry);
@@ -238,7 +238,7 @@ export async function activateNativePlan(
       .from(assets)
       .where(
         and(
-          eq(assets.environment, "testnet"),
+          eq(assets.environment, environment),
           eq(assets.symbol, registry.key.toUpperCase()),
           eq(assets.chainId, registry.network),
           eq(assets.enabled, true),

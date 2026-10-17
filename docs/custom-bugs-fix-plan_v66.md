@@ -1,6 +1,6 @@
 # Bug fix plan — Rounds One/Two/Three v64
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v65.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v66.md).
 
 Updated: **17 October 2026 at 01:06:45 UTC**.
 
@@ -96,7 +96,7 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 
 ## Fix and acceptance reference
 
-These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v65.md).
+These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v66.md).
 
 ### 1: BUG P1-001: Expired or dismissed native invoices prevent another checkout
 
@@ -476,7 +476,7 @@ These are named manual checks, not instructions to add an automated test suite. 
 - Use fresh isolated fixtures and rollback-only generated records where possible. Keep original financial sources, failed fixtures, signed bytes, archives and keys.
 - Run relevant verification and required checks; record what actually ran. Both exact-final-head **push** and **pull_request** CI must succeed before merge. No direct pushes to main.
 - Keep five core docs plus these two requested trackers. Rename status, handover, report and plan together. Fold decisions into existing files; keep old versions in Git.
-- See [current status](PROJECT-STATUS_v65.md) for release evidence and [handover](LLM-HANDOVER_v65.md) for the exact stop boundary.
+- See [current status](PROJECT-STATUS_v66.md) for release evidence and [handover](LLM-HANDOVER_v66.md) for the exact stop boundary.
 
 Signed: **16 October 2026 at 09:21:01 PM WAT**.
 
@@ -487,7 +487,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v65.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v66.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -507,7 +507,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v65.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v66.md).
 
 
 
@@ -609,3 +609,11 @@ Fixed two reproduced issues: native plan creation required an RLS-hidden GIV ass
 Reproduced historical acceptance of mismatched EVM gas fields, extra Solana account metadata and unapproved SPL account creation. Pure canonical-intent checks now reject these before key access. TRON network verification precedes key-file access and retains RPC failure classification; unsigned builders reject attached assets, permissions, pre-signatures and changed fee limits. SOL rejects increased rent after quotation.
 
 `unsigned-mainnet-v65/preparation-r5`, `signer-validation-r2`, `tron-reference-before-key-r1`, `evm-execution-regression-r1` and `observation-regression-r1` pass isolated procedures. Preserve failed first signer import harness and generated unfunded encrypted key fixtures. Mainnet unsigned preparation covers eight generated protocol cases without custody files or sending authority; token provenance/live acceptance and actual mainnet signing remain pending. PR63 merged after exact-head push39028197593 / PR39028338335 passed. No schema changes.
+
+## Native write and operational namespaces (v66)
+
+Reproduced withdrawal balance reads and recovery scans silently replacing the selected database scope. Native writes now validate it before working; filters, invoices/events/obligations, fee claims, retained keys, reserve-funding statements, sweeps and liability recovery keep captured scope. Signed prices must match it. Alerts, reminders and daily business scheduling use selected scopes rather than testnet literals; registry iteration selects matching assets. Execution gates remain unchanged.
+
+`native-write-v66/scope-and-prices-r5` passes39 restricted-login boundary rejections with unchanged retained hashes, one42-unit fee bill with replay/conflict checks, valid signed-price replay/cross-environment rejection and testnet alert namespace/deduplication. Failed r1 import and r2 argument/order fixtures remain preserved. No schema changes. PR64 merged after push39044213842 / PR39044236038 passed for83896035ab64f43693dfe1c738ef025c0037cca4. Continue actual mainnet runtime/signing and full product acceptance without milestone pauses.
+
+Simulation alert regression: `native-write-v66/simulation-alerts-r1.mts` passes actual restricted-login simulation payload/budget selection, signed local HTTP delivery and acknowledgement, no duplicate dispatch, and a forged acknowledgement retained as failed. Financial hashes remain unchanged. Generated local webhook/key only.

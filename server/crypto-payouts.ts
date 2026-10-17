@@ -27,7 +27,7 @@ import {
   adapter,
   platformAddress,
   financialConfiguration,
-  assertFinancialEnvironment,
+  financialEnvironmentIn,
   assertExternalActivation,
   assertRegistryBinding,
 } from "./financial-config";
@@ -46,7 +46,7 @@ async function balance(
   ownerId: string | null,
   purpose: string,
 ) {
-  await tx.execute(sql`select set_config('gw.environment','testnet',true)`);
+  await financialEnvironmentIn(tx);
   const [row] = await tx
     .select({
       amount: sql<string>`coalesce(sum(public.gw_account_balance(${ledgerAccounts.id})),0)::text`,
@@ -71,7 +71,7 @@ export async function quoteCryptoWithdrawal(
   requestKey: string,
   support?: { actorId: string; proofReference: string; reason: string },
 ) {
-  assertFinancialEnvironment();
+  const environment=await financialEnvironmentIn(tx);
   if (support) {
     for (const id of [...new Set([userId, support.actorId])].sort())
       await lockUser(tx, id);
@@ -104,7 +104,7 @@ export async function quoteCryptoWithdrawal(
     .where(
       and(
         eq(assets.symbol, registry.key.toUpperCase()),
-        eq(assets.environment, "testnet"),
+        eq(assets.environment, environment),
         eq(assets.chainId, registry.network),
         eq(assets.enabled, true),
       ),
@@ -166,7 +166,7 @@ export async function quoteCryptoWithdrawal(
     .where(
       and(
         eq(walletLinks.userId, userId),
-        eq(walletLinks.environment, "testnet"),
+        eq(walletLinks.environment, environment),
         eq(walletLinks.chainId, registry.network),
       ),
     )
@@ -247,7 +247,7 @@ export async function quoteCryptoWithdrawal(
         kind: support ? "recovery" : "withdrawal",
         businessKey,
         requestHash,
-        environment: "testnet",
+        environment,
         chain: registry.chain,
         treasuryFingerprint: config.treasuryFingerprint,
         treasurySender: sender,
@@ -278,7 +278,7 @@ export async function confirmCryptoWithdrawal(
   generation: string,
   id: string,
 ) {
-  assertFinancialEnvironment();
+  const environment=await financialEnvironmentIn(tx);
   const user = await lockUser(tx, userId);
   if (!["active", "deactivated"].includes(user.status) || !user.consentedAt)
     throw new Error("ACCOUNT_RESTRICTED");
@@ -319,7 +319,7 @@ export async function confirmCryptoWithdrawal(
     .where(
       and(
         eq(walletLinks.userId, userId),
-        eq(walletLinks.environment, "testnet"),
+        eq(walletLinks.environment, environment),
         eq(walletLinks.chainId, registry.network),
       ),
     )
@@ -363,7 +363,7 @@ export async function confirmCryptoWithdrawal(
       { accountId: available.id, direction: "debit", amount: gross },
       { accountId: held.id, direction: "credit", amount: gross },
     ],
-    { obligation_id: row.id, environment: "testnet" },
+    { obligation_id: row.id, environment },
   );
   const auto =
     principalUsdMicros(gross, row.rateSnapshot as RateSnapshot) <=
@@ -384,6 +384,7 @@ export async function cancelCryptoWithdrawal(
   userId: string,
   id: string,
 ) {
+  await financialEnvironmentIn(tx);
   await lockUser(tx, userId);
   const [row] = await tx
     .select()
@@ -461,6 +462,7 @@ export async function approveCryptoObligation(
   id: string,
   reason: string,
 ) {
+  await financialEnvironmentIn(tx);
   const actor = await lockUser(tx, actorId);
   if (actor.role !== "admin" || actor.status !== "active")
     throw new Error("FORBIDDEN");
@@ -636,6 +638,7 @@ export async function requoteCryptoWithdrawal(
   id: string,
   requestKey: string,
 ) {
+  await financialEnvironmentIn(tx);
   const [old] = await tx
     .select()
     .from(cryptoObligations)

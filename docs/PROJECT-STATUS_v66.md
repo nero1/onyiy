@@ -1,4 +1,4 @@
-# Project status v65
+# Project status v66
 
 **Phase One/Two is incomplete. Mainnet sending is disabled.** The owner requires the full real-money product, all missing features and actual verification. Continue without milestone approval pauses; defer owner setup details to final testing.
 
@@ -27,11 +27,12 @@
 
 ## Current batch
 
-- Branch `feat/unsigned-mainnet-preparation`, based on PR63 merge `bb9898edbe62571f704e405051e9a82aafd1210e`.
-- Fixed native plan creation/editing, which previously required a simulation GIV asset hidden by the active native namespace. Native edits now save disabled plan metadata; per-currency prices still require explicit gated activation. Simulation keeps its inactive GIV version behavior.
-- Catalogue, portfolio, member records and receipts check the captured transaction environment instead of silently switching it. Registry/receipt filters use that verified scope; mismatches are rejected. Mainnet payment gates remain closed.
-- Actual restricted-login procedures reproduce both old bugs and verify native creation/edit/replay/stale/role checks, simulation compatibility, namespace denial, timezone output and unchanged financial/work hashes.
-- Remaining discovered work includes saved-language restoration on login and native scheduled launch: its generic launcher still uses simulation activation. Both remain on the list above.
+- Branch `feat/native-write-scope`; PR64 merged at `dfe3c1be435543ccbc04eccec21e6a0fb05f5ec2` after exact-head push39044213842 / PR39044236038 passed.
+- Native payment writes, fee accounting, operating funding, treasury sweeps, liability recovery, reorg and recovery scans capture and validate their transaction environment. Withdrawal balances and recovery scans no longer rewrite it. Registry filters, retained keys, statements and records use captured scope.
+- Signed prices bind the signed document environment to the selected transaction; a valid cross-environment signature is rejected. Alerts/reminders/daily settlements use their selected namespace and matching registry; simulation alerts retain simulation budgets and payloads.
+- `native-write-v66/scope-and-prices-r5.mts`:39 restricted-login scope rejections, unchanged retained hashes after denials,42-unit fee journal exactly once/replay/conflict and signed-price binding. Earlier failed harness/import/order fixtures remain intact. Simulation signed-webhook evidence is tracked below.
+- No DDL, installer, execution-flag or owner acceptance changes. Mainnet activation remains unfinished. Continue actual runtime/signer/UI integration and the full C001–C017 list after merge; also complete native scheduling, saved-language restoration and browser recovery operation.
+
 
 ## Recent verified deliveries
 
@@ -54,7 +55,7 @@
 
 Current proof: `/workspace/work/native-read-v64/plan-and-scope-r3.mts` and `simulation-regression-r1.mts`. Failed r1 generated-registry fixture is preserved. PR62 passed push39026765895 / PR39026798890 before merging. Mainnet archive evidence remains in the v63 Git history and bug trackers.
 
-v65
+v66
 
 ## Unsigned preparation and signer checks (v65)
 
@@ -63,3 +64,5 @@ v65
 - Local protocol fixtures cover eight asset/network combinations; generated token addresses are not live provenance evidence. Actual encrypted testnet-key signing reproduces historical EVM/Solana bugs and verifies corrected signatures. No real funds or external broadcast.
 - Evidence: `unsigned-mainnet-v65/preparation-r5.mts`, `signer-validation-r2.mts`, `tron-reference-before-key-r1.mts`, `evm-execution-regression-r1.mts` and `observation-regression-r1.mts`. Failed first signer harness/import fixture is preserved. No DDL or installer changes.
 - Continue directly with actual mainnet runtime/signer integration and C001–C017 after checked merge; this prerequisite does not complete payment support.
+
+Simulation alert regression: `native-write-v66/simulation-alerts-r1.mts` passes actual restricted-login simulation payload/budget selection, signed local HTTP delivery and acknowledgement, no duplicate dispatch, and a forged acknowledgement retained as failed. Financial hashes remain unchanged. Generated local webhook/key only.

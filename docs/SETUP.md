@@ -175,7 +175,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v65.md](PROJECT-STATUS_v65.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v66.md](PROJECT-STATUS_v66.md).
 
 ## 10. Read-only preview using the same database
 

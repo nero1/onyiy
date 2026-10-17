@@ -1,17 +1,17 @@
-# LLM handover v65
+# LLM handover v66
 
 ## Owner direction
 
-Complete **all Phase One/Two**, including real-money mainnet and every unfinished feature. Keep working through [the full gap list](PROJECT-STATUS_v65.md) without milestone pauses. Read [PRD](PRD.md) §§29–33. Owner launch details are deferred to final testing; document them in SETUP and continue independent coding. **The product is incomplete; mainnet sending remains disabled.**
+Complete **all Phase One/Two**, including real-money mainnet and every unfinished feature. Keep working through [the full gap list](PROJECT-STATUS_v66.md) without milestone pauses. Read [PRD](PRD.md) §§29–33. Owner launch details are deferred to final testing; document them in SETUP and continue independent coding. **The product is incomplete; mainnet sending remains disabled.**
 
 ## Current work
 
-- Repository `nero1/onyiy`; branch `feat/unsigned-mainnet-preparation`, based on PR63 merge `bb9898edbe62571f704e405051e9a82aafd1210e`.
-- Native plan metadata creation/editing no longer requires a GIV simulation asset. Native saves remain disabled with no asset price version until gated per-currency activation. Simulation still creates its inactive GIV version.
-- Native catalogue/portfolio/member-record/receipt reads validate the transaction environment and never rewrite it. Wrong scopes are rejected; receipt/registry filters use captured scope. Portfolio user output includes saved timezone.
-- Named `/workspace/work/native-read-v64/plan-and-scope-r3.mts` reproduces both old bugs and passes real restricted-login plan/replay/stale/role/scope checks with unchanged financial hashes; `simulation-regression-r1.mts` preserves exact GIV pricing/audit identity. Failed r1 used an invalid generated finality mode and is preserved.
-- **Next:** finish actual mainnet signing/execution and all C-items. Also fix saved server locale not applied on login, native scheduled launch (generic `activateDuePlans` calls GIV-only `activatePlan`), scheduled native catalogue visibility and remaining dashboard layout. Do not mistake plan metadata CRUD for completed native scheduling.
-- Read-only Preview application is merged (PR60–61): Preview-only `PUBLIC_PREVIEW_MODE=read_only`, separate `gw_preview` login, no private credentials. Public catalogue/configuration/help/search and noindex are locally verified in actual production Chromium390px EN/FR. Private/auth/job/write paths are closed before handlers. Protected workflow skips owner initialization; hosted acceptance remains open.
+- Branch `feat/native-write-scope`; PR64 merged at `dfe3c1be435543ccbc04eccec21e6a0fb05f5ec2` after exact-head push39044213842 / PR39044236038 passed.
+- Native payment writes, fee accounting, operating funding, treasury sweeps, liability recovery, reorg and recovery scans capture and validate their transaction environment. Withdrawal balances and recovery scans no longer rewrite it. Registry filters, retained keys, statements and records use captured scope.
+- Signed prices bind the signed document environment to the selected transaction; a valid cross-environment signature is rejected. Alerts/reminders/daily settlements use their selected namespace and matching registry; simulation alerts retain simulation budgets and payloads.
+- `native-write-v66/scope-and-prices-r5.mts`:39 restricted-login scope rejections, unchanged retained hashes after denials,42-unit fee journal exactly once/replay/conflict and signed-price binding. Earlier failed harness/import/order fixtures remain intact. Simulation signed-webhook evidence is tracked below.
+- No DDL, installer, execution-flag or owner acceptance changes. Mainnet activation remains unfinished. Continue actual runtime/signer/UI integration and the full C001–C017 list after merge; also complete native scheduling, saved-language restoration and browser recovery operation.
+
 
 ## Financial boundaries and pending implementation
 
@@ -47,7 +47,7 @@ Both exact-head CI events must pass before merge; no direct main pushes. Keep fi
 
 PR62 merged after push39026765895 / PR39026798890 passed. Recovery has a separate maintenance boundary and read-only runtime checks; ordinary web mainnet execution is still denied. Mainnet backup/restore/independent verification preserves83 retained tables. Testnet and the unchanged original v55 signed archive pass, including retired-mode/wrong-packet/wrong-database denials. Original source, failed first compatibility target and all packets/keys remain under `/workspace/work/mainnet-recovery-v63`. Mainnet packet/key `mainnet-isolated-r2.gwbackup` / `mainnet-isolated-r2.key` (raw32 bytes; harness encodes privately). Browser recovery workflow and chain reconciliation/no-resend remain open.
 
-v65
+v66
 
 ## Unsigned preparation and signer checks (v65)
 
@@ -56,3 +56,5 @@ v65
 - Local protocol fixtures cover eight asset/network combinations; generated token addresses are not live provenance evidence. Actual encrypted testnet-key signing reproduces historical EVM/Solana bugs and verifies corrected signatures. No real funds or external broadcast.
 - Evidence: `unsigned-mainnet-v65/preparation-r5.mts`, `signer-validation-r2.mts`, `tron-reference-before-key-r1.mts`, `evm-execution-regression-r1.mts` and `observation-regression-r1.mts`. Failed first signer harness/import fixture is preserved. No DDL or installer changes.
 - Continue directly with actual mainnet runtime/signer integration and C001–C017 after checked merge; this prerequisite does not complete payment support.
+
+Simulation alert regression: `native-write-v66/simulation-alerts-r1.mts` passes actual restricted-login simulation payload/budget selection, signed local HTTP delivery and acknowledgement, no duplicate dispatch, and a forged acknowledgement retained as failed. Financial hashes remain unchanged. Generated local webhook/key only.

@@ -24,7 +24,7 @@ import {
   adapter,
   platformAddress,
   financialConfiguration,
-  assertFinancialEnvironment,
+  financialEnvironmentIn,
   assertExternalActivation,
   assertRegistryBinding,
 } from "./financial-config";
@@ -44,7 +44,7 @@ export async function holdBusinessSettlement(
   requestKey: string,
   scheduled = false,
 ) {
-  assertFinancialEnvironment();
+  const environment=await financialEnvironmentIn(tx);
   if (actorId) {
     const actor = await lockUser(tx, actorId);
     if (actor.role !== "admin" || actor.status !== "active")
@@ -65,7 +65,7 @@ export async function holdBusinessSettlement(
     .from(assets)
     .where(
       and(
-        eq(assets.environment, "testnet"),
+        eq(assets.environment, environment),
         eq(assets.symbol, registry.key.toUpperCase()),
         eq(assets.chainId, registry.network),
       ),
@@ -78,7 +78,7 @@ export async function holdBusinessSettlement(
     }>(sql`select (clock_timestamp() at time zone 'UTC')::date::text as day`),
     sourcePurpose = `${input.role}_payable`,
     key = scheduled
-      ? `business-daily:testnet:${asset.id}:${input.role}:${clock.day}`
+      ? `business-daily:${environment}:${asset.id}:${input.role}:${clock.day}`
       : `business-manual:${actorId}:${requestKey}:${asset.id}:${input.role}`,
     digest = crypto
       .createHash("sha256")
@@ -188,7 +188,7 @@ export async function holdBusinessSettlement(
         previousObligationId:input.previous_obligation_id,
         businessKey: `${key}:leg:${legIds.length}`,
         requestHash: digest,
-        environment: "testnet",
+        environment,
         chain: registry.chain,
         treasuryFingerprint: config.treasuryFingerprint,
         treasurySender: sender,

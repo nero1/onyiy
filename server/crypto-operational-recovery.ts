@@ -9,7 +9,7 @@ import {
   type DbExecutor,
 } from "@gifters/db";
 import type { AssetRegistry } from "@gifters/chains";
-import { adapter, assertFinancialEnvironment } from "./financial-config";
+import { adapter, financialEnvironmentIn } from "./financial-config";
 import { lockUser, account, postJournal } from "./core";
 import { settleCryptoAttempt } from "./crypto-settlement";
 import { verifySignedExpiry } from "./crypto-expiry";
@@ -21,7 +21,7 @@ export async function recoverOperationalObligation(
   id: string,
   reason: string,
 ) {
-  assertFinancialEnvironment();
+  await financialEnvironmentIn(tx);
   const [lookup] = await tx
     .select()
     .from(cryptoObligations)

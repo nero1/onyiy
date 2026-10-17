@@ -15,7 +15,7 @@ import {
   type DbExecutor,
 } from "@gifters/db";
 import type { AssetRegistry, TransferEvidence } from "@gifters/chains";
-import { adapter, assertFinancialEnvironment } from "./financial-config";
+import { adapter, financialEnvironmentIn } from "./financial-config";
 import { account, postJournal } from "./core";
 import { enqueueNotification } from "./jobs";
 const digest = (value: unknown) =>
@@ -40,7 +40,7 @@ export const nativeResolutionInput = z
   })
   .strict();
 async function staff(tx: DbExecutor, actorId: string) {
-  assertFinancialEnvironment();
+  await financialEnvironmentIn(tx);
   const [actor] = await tx
     .select({ role: users.role, status: users.status })
     .from(users)
@@ -162,6 +162,7 @@ export async function recordNativeReorg(
   input: z.infer<typeof nativeReviewInput>,
   requestKey: string,
 ) {
+  await financialEnvironmentIn(tx);
   await staff(tx, actorId);
   const key = `native-reorg:${actorId}:${requestKey}`,
     payload = { action: "invalidate", ...input },
@@ -253,7 +254,7 @@ export async function recordNativeReorg(
     await enqueueNotification(tx, `native-reorg:${id}:${row.invoice.userId}`, {
       user_id: row.invoice.userId,
       title_key: "financial_review",
-      body: "A testnet incoming event is under chain review. Existing balances, holds and payout history are retained; new activity in this currency is paused.",
+      body: "An incoming event is under chain review. Existing balances, holds and payout history are retained; new activity in this currency is paused.",
     });
     result = { review_id: id, status: "review" };
     await tx
@@ -278,6 +279,7 @@ export async function reconfirmNativeReorg(
   input: z.infer<typeof nativeResolutionInput>,
   requestKey: string,
 ) {
+  await financialEnvironmentIn(tx);
   await staff(tx, actorId);
   const key = `native-reorg-resolution:${actorId}:${requestKey}`,
     payload = { action: "reconfirm", ...input },
@@ -368,6 +370,7 @@ export async function reconfirmNativeReorg(
   return result;
 }
 export async function nativeReorgHistory(tx: DbExecutor) {
+  await financialEnvironmentIn(tx);
   return tx
     .select({
       review_id: cryptoReorgReviews.id,

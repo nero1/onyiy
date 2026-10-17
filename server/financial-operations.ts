@@ -1,3 +1,4 @@
+import {financialEnvironmentIn,operationalEnvironmentIn} from './financial-environment';
 import { and, asc, eq, sql } from "drizzle-orm";
 import {
   operationalAlerts,
@@ -14,6 +15,7 @@ import { lockUser } from "./core";
 import {enqueueAlertDelivery} from './financial-alerts';
 /** At most 100 due reminders per invocation; each ordinal is permanent. */
 export async function enqueueFinancialReminders(tx: DbExecutor) {
+  const environment=await operationalEnvironmentIn(tx);
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtextextended('financial-reminder-budget',0))`,
   );
@@ -38,7 +40,7 @@ export async function enqueueFinancialReminders(tx: DbExecutor) {
     .from(operationalAlerts)
     .where(
       and(
-        eq(operationalAlerts.environment, "testnet"),
+        eq(operationalAlerts.environment, environment),
         eq(operationalAlerts.status, "open"),
         sql`${operationalAlerts.nextReminderAt}<=clock_timestamp()`,
       ),
@@ -86,6 +88,7 @@ export async function controlFinancialAlert(
   action: "acknowledge" | "resolve",
   reason: string,
 ) {
+  await operationalEnvironmentIn(tx);
   const actor = await lockUser(tx, actorId),
     policy = await readManifest(tx);
   if (
@@ -127,6 +130,7 @@ export async function controlFinancialAlert(
   return { id, status };
 }
 export async function financialAlertList(tx: DbExecutor) {
+  await operationalEnvironmentIn(tx);
   return tx
     .select({
       id: operationalAlerts.id,
@@ -151,19 +155,20 @@ export async function scheduleDailyBusiness() {
     (v) => v.enabled && v.verified && v.key !== "trx",
   );
   return withContext({ access: "service" }, async (tx) => {
+    const environment=await financialEnvironmentIn(tx);
     if (!(await readManifest(tx)).business_settlement_policy.daily_enabled)
       return { status: "disabled" };
     const { assets, operationKeys } = await import("@gifters/db");
     const [clock] = await tx.execute<{ day: string }>(
       sql`select (clock_timestamp() at time zone 'UTC')::date::text as day`,
     );
-    for (const item of registry) {
+    for (const item of registry.filter(row=>row.environment===environment)) {
       const [asset] = await tx
         .select({ id: assets.id })
         .from(assets)
         .where(
           and(
-            eq(assets.environment, "testnet"),
+            eq(assets.environment, environment),
             eq(assets.symbol, item.key.toUpperCase()),
             eq(assets.chainId, item.network),
             eq(assets.enabled, true),
@@ -178,7 +183,7 @@ export async function scheduleDailyBusiness() {
           .where(
             eq(
               operationKeys.businessKey,
-              `business-daily:testnet:${asset.id}:${role}:${clock.day}`,
+              `business-daily:${environment}:${asset.id}:${role}:${clock.day}`,
             ),
           )
           .limit(1);
