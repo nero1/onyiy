@@ -22,3 +22,4 @@
 .appearance-controls{display:flex;justify-content:flex-end;gap:.5rem;max-width:75rem;margin:.5rem auto;padding:0 1rem}.appearance-controls button{min-height:44px}
 
 .profile-disclosure{font-size:.92rem;line-height:1.5;min-width:0;flex-basis:100%}.profile-disclosure p{margin:.5rem 0}.profile-disclosure small{display:block;opacity:.8}.cycle:has(.profile-disclosure){flex-wrap:wrap}.release-profiles pre{max-height:22rem;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}.release-profiles textarea{max-width:100%;width:100%}
+.public-page .gift-tiles{grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr))}.public-page .gift-tiles>.card{min-width:0;overflow-wrap:anywhere}

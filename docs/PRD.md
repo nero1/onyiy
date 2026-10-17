@@ -655,7 +655,7 @@ This is the Phase One runtime-configurable inventory. Phase Two additions are de
 | `cycle_max_concurrent` | number / public | 0 | Gifts; zero = no extra cap |
 | `cycle_rejoin_cooldown_hours` | number / public | 24 | Gifts; elapsed-time, prospective only |
 | `plan_templates` | json / staff | Twelve price/target rows in §2.2 | Plans; seed catalog only, not edits to active economics |
-| `plan_config_<plan_uuid>` | json / public | Disabled; `price_usd` from template, `pricing_mode:usd_at_activation`, `amount_base_units` absent until activation, `receipts_required:2`, `icon:gift`, `launch_at` absent, `countdown:true`, `countdown_lead_days:7`, `bootstrap_enabled:true`, `bootstrap_count:10` | Plans; immutable used economics, safe public fields only |
+| `plan_config_<plan_uuid>` | json / public | Disabled; `price_usd` from template, `pricing_mode:usd_at_activation`, `amount_base_units` absent until activation, `receipts_required:2`, `icon:gift`, `launch_at` and `native_launches` absent, `countdown:true`, `countdown_lead_days:7`, `bootstrap_enabled:true`, `bootstrap_count:10` | Plans; immutable used economics, safe public fields only |
 | `payment_split_bps` | json / public | `{receiver:8500,marketing:400,referral:400,developer:600,reserve:100}` | Finance; sum must equal basis-point total |
 | `asset_config_<asset_id>` | json / public | Disabled; asset registry fields in §30; `display_unit:usd`, `confirmation_policy` from registry | Crypto; contract/decimals required for tokens, native amount always visible |
 | `quote_ttl_minutes` | number / public | 15 | Payments; positive bounded window |
@@ -1220,7 +1220,7 @@ uj*****p3 just received $9.5 referral commission
 - Collect owner credentials securely and record actual external alerts, chain transactions, restore reconciliation, capacity and the observation periods in §30. Do not manufacture approval, elapsed time or provider evidence.
 - Both exact-final-head push and pull-request CI must pass before each merge. No direct main pushes. Keep five core docs and two versioned trackers. Existing no-automated-test-suite instructions remain binding; named isolated manual verification continues.
 
-The current gap list and acceptance evidence belong in [status](PROJECT-STATUS_v67.md) and the [report](custom-bugs-report_v67.md)/[plan](custom-bugs-fix-plan_v67.md). Continue until all requirements have actual verification; report any owner-dependent blocker precisely.
+The current gap list and acceptance evidence belong in [status](PROJECT-STATUS_v68.md) and the [report](custom-bugs-report_v68.md)/[plan](custom-bugs-fix-plan_v68.md). Continue until all requirements have actual verification; report any owner-dependent blocker precisely.
 
 ### Fresh installation and historical compatibility
 
@@ -1243,7 +1243,7 @@ The owner explicitly approved P1-065 on **14 October 2026 at 02:25:24 PM WAT**, 
 - Closed signed-archive dependencies accept pgcrypto-only older packets or an additional pg_trgm declaration; unknown names, duplicates, versions and schemas fail.
 - Signatures/checksums, empty-target verification and exact post-restore inventories remain mandatory. Search approval does not activate financial gates.
 
-Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v67.md](PROJECT-STATUS_v67.md). Current bug evidence/tasks: [report](custom-bugs-report_v67.md) and [plan](custom-bugs-fix-plan_v67.md).
+Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v68.md](PROJECT-STATUS_v68.md). Current bug evidence/tasks: [report](custom-bugs-report_v68.md) and [plan](custom-bugs-fix-plan_v68.md).
 
 ### Retention implementation clarification (v52)
 
@@ -1252,7 +1252,7 @@ Use the same database for online monthly archives of ledger postings, scan pages
 
 ### Phase Two presentation baseline — PR53
 
-P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v67.md).
+P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v68.md).
 
 P2.4 external assessment remains **not_reviewed** until actual owner/provider evidence is recorded. Mainnet runtime, encrypted signing and local financial procedures are implemented in v67. Remaining evidence includes live registry/provider/custody operation, funding/refund/closure review, countries and terms, budget, hosted capacity/alerts/restore and observation periods. Local implementation does not approve public launch.
 
@@ -1265,3 +1265,5 @@ Read-only shared preview contract: `PUBLIC_PREVIEW_MODE=read_only` is a Preview-
 - One isolated worker can load four environment-bound encrypted keys. Its browser-operated GitHub workflow validates the bundle before installing private files, then runs a bounded pass. Web and preview reject signer material.
 - Named local procedures also verify restricted roles, reserve funding, wallet proof, exact/underpayment handling, failed-refund rights and actual worker-to-web settlement. Fixtures are not live chain, contract provenance, hosted acceptance or elapsed observation evidence.
 - Continue the full gap list, browser recovery operations, remaining product fixes and final external checks. This delivery does not declare Phase One/Two100% complete.
+
+Native launch scheduling stores per-currency USD/fixed-price intents for one UTC deadline. Activation must recheck database time, active administrator, current reviewed configuration, signed alert acceptance and fresh signed prices; failed activation must leave all financial state unchanged. Bounded retries must not starve other currencies. Show upcoming gifts without an invented payable amount, and keep checkout closed until activation. Account language restores on authenticated entry unless an explicit language choice takes precedence.

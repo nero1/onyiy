@@ -27,8 +27,8 @@ for (const file of files) {
       if(specifier&&ts.isStringLiteral(specifier)&&!typeOnly){
         const source=specifier.text;
         if(client&&(/(?:^|\/)server(?:\/|$)|(?:^|\/)workers(?:\/|$)/.test(source)||source==='@gifters/db'||source==='@gifters/chains'||source==='postgres'))errors.push(`${file}: client runtime imports a service/DB/chain boundary`);
-        // The existing SSR page renderer may reuse this pure disclosure view.
-        if(file.includes('/server/')&&!(file.endsWith('/server/public-pages.tsx')&&source==='@/components/profile-disclosure')&&/(?:^|\/)components(?:\/|$)/.test(source))errors.push(`${file}: service runtime imports a UI component`);
+        // The SSR page renderer may reuse these two presentation-only views.
+        if(file.includes('/server/')&&!(file.endsWith('/server/public-pages.tsx')&&['@/components/profile-disclosure','@/components/scheduled-launch'].includes(source))&&/(?:^|\/)components(?:\/|$)/.test(source))errors.push(`${file}: service runtime imports a UI component`);
       }
     }
     if(client&&(ts.isCallExpression(node)&&node.expression.kind===ts.SyntaxKind.ImportKeyword)){

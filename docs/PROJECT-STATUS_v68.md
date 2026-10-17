@@ -1,4 +1,4 @@
-# Project status v67
+# Project status v68
 
 **Phase One/Two is incomplete.** Mainnet execution is now implemented behind protected configuration, policy, registry and signed-alert checks. Local procedures pass; no real chain transaction, owner-hosted acceptance or observation period is claimed. Continue without milestone approval pauses. Owner launch details remain deferred to final testing.
 
@@ -21,17 +21,23 @@
 | C013 | Observation periods | Actual14-day beta plus14-day initial-cap mainnet observation required; no elapsed evidence recorded. |
 | C014 | Owner launch review | Countries/terms, funding/refund/closure, custody and budget remain owner-deferred. Record real review/evidence at setup. |
 | C015 | Age eligibility | Server-date DOB eligibility without retaining DOB passes local API checks; hosted browser acceptance remains. |
-| C016 | Preferences | Timezones/DST pass locally; saved server language restoration on login remains to fix. |
-| C017 | Scheduling/navigation | Currency rotation/navigation pass390px EN/FR. Native scheduled launch still uses the GIV-only launcher; complete asset-aware scheduling/presentation and remaining layout. |
+| C016 | Preferences | Timezones/DST pass locally; saved account language now restores on login, with explicit/manual language choices preserved; production-browser checks pass locally. |
+| C017 | Scheduling/navigation | Currency rotation/navigation pass390px EN/FR. Currency-specific native schedules, current approval/price checks, countdown and early-checkout denial are implemented and locally verified. Continue broader layout/device acceptance. |
 
 ## Current delivery
 
-- Branch `feat/mainnet-runtime-integration`, based on PR65 merge `0ea4cf5e62a0ef7e7f83c26c1a512d6935775ac3`. PR64 and PR65 both passed their exact-head push and pull-request checks before merging.
+- Branch `feat/native-launch-and-preferences`, based on PR66 merge `1acbe3b18fdf125186fec1541a74baecab92110c`. PR66 passed exact-head push39049426195 and PR39049451596 before merging.
 - Removed the hardcoded unsupported-mainnet path. Shared execution capability is implemented; repository defaults remain disabled. Actual sends require selected mode, explicit enablement, transparent non-demo settings, approved readiness, approved hashes and recent signed acknowledgement.
 - Fixed one-hash activation across several networks, one-file custody limitations, client transaction validation and testnet-only identity/record/label assumptions. Preview/web reject signer material. SQL006 corrects an ambiguous queue parameter; the final-state installer is refreshed and the original SQL000–005 bytes remain unchanged.
 - SETUP now has mainnet and isolated-signer browser steps. Remaining provider/owner details belong there; do not request them again while independent coding can continue.
 
-## Local evidence
+## Current batch
+
+Saved-language restoration, native scheduling and the stale mainnet public label are fixed. Native schedules store currency/price intent only; activation uses database time, fresh prices and current financial approvals. Failures fully roll back, warn and retry with backoff; another ready plan can proceed. Cancelling clears pending intents. The public catalogue now fits narrow screens. No DDL, migration receipt or financial-history rewrite.
+
+`/workspace/work/native-launch-v68`: `browser-language-r4` passes actual production Chromium390px language precedence/navigation/timezone checks; `native-schedules-r7` covers due prices, replay/concurrency, cancellation, expired-price rollback/retry, warning recovery and changed-approval/administrator fences. `simulation-schedule-r2` preserves GIV scheduling. `browser-scheduling-r3` passes the live countdown, no early checkout, native controls and narrow EN/FR public catalogue. Required checks, production build and bundle limits pass (home182.64KiB gzip; API trace1.450MiB gzip). Original failures and databases remain.
+
+## Earlier local evidence
 
 All under `/workspace/work/mainnet-runtime-v67`:
 
@@ -54,4 +60,4 @@ Contract4 packets created before SQL006 require their matching pre-006 release (
 
 Follow-up UI acceptance: identify the background request/cancellation path that logged a bounded database deadline around MFA/reload. The selected alert-probe request returned200 and its hash displayed correctly; do not treat this as completed whole-app reliability acceptance.
 
-v67
+v68

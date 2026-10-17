@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
-  assets,
+  assets,operationalAlerts,
   plans,
   planVersions,
   priceQuotes,
@@ -56,6 +56,7 @@ async function staff(tx: DbExecutor, id: string) {
   const actor = await lockUser(tx, id);
   if (actor.role !== "admin" || actor.status !== "active")
     throw new Error("FORBIDDEN");
+  await tx.execute(sql`select pg_advisory_xact_lock_shared(hashtextextended('financial-policy',0))`);
   const policy = await readManifest(tx);
   if (!policy.feature_admin) throw new Error("FEATURE_DISABLED");
   return policy;
@@ -201,6 +202,7 @@ export async function activateNativePlan(
   actorId: string,
   input: z.infer<typeof nativePlanActivation>,
   requestKey: string,
+  expectedScheduleVersion?: number,
 ) {
   const environment=await financialEnvironmentIn(tx);
   const policy = await staff(tx, actorId),
@@ -226,6 +228,7 @@ export async function activateNativePlan(
     .limit(1);
   if (old) {
     if (old.requestHash !== digest) throw new Error("VERSION_CONFLICT");
+    if(expectedScheduleVersion!==undefined)throw new Error('VERSION_CONFLICT');
     return old.result;
   }
   const [plan] = await tx
@@ -248,6 +251,15 @@ export async function activateNativePlan(
   if (!plan || !asset || plan.status === "retired")
     throw new Error("PLAN_UNAVAILABLE");
   assertRegistryBinding(asset, registry);
+  const configKey=`plan_config_${plan.id}`;
+  const [scheduled]=await tx.select().from(xManifest).where(eq(xManifest.key,configKey)).for('update');
+  const schedule=scheduled?.value as {status:string;launch_at?:string;native_launches?:{asset_key:string;pricing_mode:string;amount_base_units?:string;registry_hash:string;released:boolean}[]}|undefined;
+  const pending=schedule?.native_launches?.find(item=>item.asset_key===registry.key&&!item.released);
+  if(expectedScheduleVersion===undefined&&schedule?.native_launches?.some(item=>!item.released)&&['scheduled','active'].includes(plan.status))throw new Error('VERSION_CONFLICT');
+  if(expectedScheduleVersion!==undefined||pending){
+    const [clock]=await tx.execute<{due:boolean}>(sql`select ${schedule?.launch_at??null}::timestamptz<=clock_timestamp() as due`);
+    if(expectedScheduleVersion===undefined||!scheduled||scheduled.version!==expectedScheduleVersion||!pending||!['scheduled','active'].includes(plan.status)||!clock?.due||pending.registry_hash!=='sha256_'+Buffer.from(config.hash,'hex').toString('base64url')||pending.pricing_mode!==input.pricing_mode||pending.amount_base_units!==input.amount_base_units)throw new Error('VERSION_CONFLICT');
+  }
   const [previous] = await tx
     .select()
     .from(planVersions)
@@ -376,6 +388,11 @@ export async function activateNativePlan(
       updatedAt: sql`clock_timestamp()`,
     })
     .where(eq(plans.id, plan.id));
+  if(pending&&scheduled&&schedule){
+    const value={...schedule,status:'active',countdown:schedule.native_launches!.some(item=>!item.released&&item.asset_key!==registry.key),native_launches:schedule.native_launches!.map(item=>item.asset_key===registry.key?{...item,released:true}:item)};
+    await tx.update(xManifest).set({value,version:scheduled.version+1,updatedAt:sql`clock_timestamp()`}).where(eq(xManifest.key,configKey));
+    await tx.update(operationalAlerts).set({status:'resolved',resolvedAt:sql`clock_timestamp()`}).where(eq(operationalAlerts.conditionKey,`native-launch:${environment}:${plan.id}:${registry.key}`));
+  }
   const result = {
     plan_id: plan.id,
     version_id: version.id,

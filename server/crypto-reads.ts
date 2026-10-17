@@ -1,4 +1,5 @@
 import {presentationFromManifest,planFinancialPresentation,type QueueDisclosure,type PublicQueueDisclosure} from './presentation';
+import {planConfigSchema} from '../packages/config/src/policies';
 import {publicManifest} from '@gifters/config';
 import {notificationPage,notificationBadge} from './notifications';
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
@@ -95,15 +96,25 @@ export async function nativeCatalog(tx: DbExecutor) {
     .orderBy(asc(plans.name), asc(assets.symbol))
     .limit(801);
   if (versions.length > 800) throw new Error("CONFIGURATION_INVALID");
+  const scheduledPlans=await tx.select().from(plans).where(inArray(plans.status,['scheduled','active'])).orderBy(asc(plans.name)).limit(101);
+  if(scheduledPlans.length>100)throw new Error('CONFIGURATION_INVALID');
+  const upcoming=scheduledPlans.flatMap(plan=>{
+    const raw=manifest[`plan_config_${plan.id}`];if(!raw)return [];
+    const config=planConfigSchema.parse(raw);if(!config.countdown||!config.launch_at)return [];
+    return (config.native_launches??[]).filter(item=>!item.released).flatMap(item=>{
+      const currency=currencies.find(currency=>currency.key===item.asset_key&&currency.enabled);if(!currency)return [];
+      return [{id:plan.id,name:plan.name,slug:plan.slug,asset_id:currency.id,asset:currency.symbol,network:currency.network,decimals:currency.decimals,amount_base_units:item.amount_base_units??null,usd_reference:plan.usdReference,receipts_required:plan.receiptsRequired,status:'scheduled',launch_at:config.launch_at,profile_revision:manifest.profile_revision}];
+    });
+  });
   return {
     mode,presentation:presentationFromManifest(manifest),profile_revision:manifest.profile_revision,
     execution_enabled: currencies.some(currency=>currency.enabled&&currency.execution_enabled),
     assets: currencies,
-    plans: versions.map(row=>({...row,profile_revision:manifest.profile_revision,plan:planFinancialPresentation({amountBaseUnits:row.amount_base_units,usdReference:row.usd_reference,receiverBps:row.receiver_bps,marketingBps:row.marketing_bps,referralBps:row.referral_bps,developerBps:row.developer_bps,reserveBps:row.reserve_bps,receiptsRequired:row.receipts_required},{symbol:row.asset,decimals:row.decimals,chainId:row.network,environment:mode})})).filter((row) =>
+    plans: [...upcoming,...versions.map(row=>({...row,profile_revision:manifest.profile_revision,plan:planFinancialPresentation({amountBaseUnits:row.amount_base_units,usdReference:row.usd_reference,receiverBps:row.receiver_bps,marketingBps:row.marketing_bps,referralBps:row.referral_bps,developerBps:row.developer_bps,reserveBps:row.reserve_bps,receiptsRequired:row.receipts_required},{symbol:row.asset,decimals:row.decimals,chainId:row.network,environment:mode})})).filter((row) =>
       currencies.some(
-        (currency) => currency.id === row.asset_id && currency.enabled,
+        (currency) => currency.id === row.asset_id && currency.enabled && !upcoming.some(item=>item.id===row.id&&item.asset_id===row.asset_id),
       ),
-    ),
+    )],
   };
 }
 export async function ownNativePortfolio(tx: DbExecutor, userId: string) {

@@ -1,12 +1,12 @@
-# LLM handover v67
+# LLM handover v68
 
 ## Owner direction
 
-Complete all Phase One/Two, including the real-money product, bugs and every unfinished requirement. Keep moving in substantial batches through [status](PROJECT-STATUS_v67.md), without milestone pauses. Owner launch details are deferred to final testing; put protected settings in SETUP and continue independent coding. **The product is incomplete; actual hosted/live acceptance and observation periods remain open.**
+Complete all Phase One/Two, including the real-money product, bugs and every unfinished requirement. Keep moving in substantial batches through [status](PROJECT-STATUS_v68.md), without milestone pauses. Owner launch details are deferred to final testing; put protected settings in SETUP and continue independent coding. **The product is incomplete; actual hosted/live acceptance and observation periods remain open.**
 
 ## Current branch and capability
 
-- `nero1/onyiy`, branch `feat/mainnet-runtime-integration`, based on merged PR65 `0ea4cf5e62a0ef7e7f83c26c1a512d6935775ac3`. PR64 head8389603 passed push39044213842 / PR39044236038; PR65 head5780ec6 passed push39044887939 / PR39044911887.
+- `nero1/onyiy`, branch `feat/native-launch-and-preferences`, based on merged PR66 `1acbe3b18fdf125186fec1541a74baecab92110c`. Exact PR66 head3fb8539 passed push39049426195 / PR39049451596 before merge.
 - Mainnet config/runtime, authentication issuer, native core credit, checkout/history/labels/wallets and signer now support the closed four-network registry. `nativePaymentExecutionSupported=true` is a capability, not launch acceptance. Defaults remain off. Mainnet requires explicit enablement, transparent non-demo policy, no simulation authority, reviewed readiness, matching configuration approvals and a recent signed alert acknowledgement.
 - Multiple network hashes use `FINANCIAL_CONFIG_APPROVALS_JSON` and `ALERT_ACCEPTANCE_FINGERPRINTS_JSON`; legacy singular values remain compatible but cannot be mixed with lists. Policy/readiness/profile changes participate in hashes. Per-currency catalogue readiness controls checkout.
 - `SIGNER_KEY_FILES_JSON` selects four environment-bound encrypted files; legacy single-file support remains. `prepare-key-package` emits a single encrypted bundle; installer validates every record before writing a new private directory. `.github/workflows/isolated-signer.yml` is opt-in, main-only, separately protected, bounded and browser-operated. No website/preview credentials or signer material may be mixed.
@@ -23,7 +23,7 @@ Complete all Phase One/Two, including the real-money product, bugs and every unf
 
 ## Next work
 
-Finish required checks/build/browser verification and merge the current PR only after both exact-head CI events pass. Then continue C001–C017, especially browser backup/restore with chain reconciliation/no-resend, complete financial lifecycle coverage, saved-language restoration, native scheduling (generic `activateDuePlans` still calls the GIV-only launcher), full product audit and device/i18n/accessibility acceptance. Do not stop after this merge or call the isolated fixture matrix live acceptance.
+Finish this batch’s exact-head CI/merge, then continue C001–C017: browser backup/restore with chain reconciliation/no-resend, complete financial lifecycle coverage, full product audit and device/i18n/accessibility acceptance. Saved-language restoration and currency-specific native scheduling are now implemented; do not repeat the old claim that native launches still call GIV. Do not stop after a merge or call isolated fixtures live acceptance.
 
 ## Schema and recovery
 
@@ -48,4 +48,12 @@ Contract4 packets created before SQL006 require their matching pre-006 release (
 
 Follow-up UI acceptance: identify the background request/cancellation path that logged a bounded database deadline around MFA/reload. The selected alert-probe request returned200 and its hash displayed correctly; do not treat this as completed whole-app reliability acceptance.
 
-v67
+## Current preference/scheduling batch
+
+`/workspace/work/native-launch-v68`: actual production Chromium390px `browser-language-r4` passes saved French restoration, explicit/manual English precedence through reload/navigation, unknown-locale fallback and Lagos timezone preservation. Native `scheduleNativePlan` stages up to seven currency intents at one UTC deadline; all existing versions must be inactive/drained. The launcher freezes USD/fixed amounts only when due, rechecks pinned configuration/current approval/fresh price/admin status, atomically marks each released, and rejects manual schedule bypass. No new tables/migrations.
+
+Core scheduler tries at most seven launches/10 seconds, each in its own transaction; failures roll back before a separate metadata/warning transaction. Five-minute retry backoff and oldest-attempt ordering avoid starvation. Success/cancellation resolves the warning. Schema allows optional public `native_launches`; its digest is `sha256_` plus base64url so public secret/address rejection remains intact. Native admin hides GIV controls; public/portal upcoming cards show unknown amounts honestly and wait for activation. Public mainnet label and narrow catalogue grid corrected.
+
+`native-schedules-r7` verifies restricted-role mainnet pricing, replay/concurrency, cancellation, stale-price rollback/backoff/retry, warning resolution, changed treasury approval and suspended-admin fences. `simulation-schedule-r2` passes unchanged GIV scheduling. r1 duplicate network approval hashes were rejected; r2 exposed public hex-digest rejection; r3 procedure attempted an immutable price update and was denied. Corrected procedures wait for actual signed-price expiry in new databases. Simulation r1 used a double-encoded fixture timestamp; r2 passes a typed timestamp. Browser scheduling r1 found genuine catalogue overflow. Preserve every failed target/log. Language browser r2 asserted before the router settled; r3 used a selector absent from the MFA auth view. Fresh r4 waits for the real URL and actual navigation control. Build r1/r2 and bundle r1 lacked required child-process/local-port permissions; permission-scoped reruns pass. No owner credentials or public chain sends used.
+
+v68
