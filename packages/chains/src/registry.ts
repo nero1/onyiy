@@ -145,10 +145,10 @@ export function assertActive(asset: AssetRegistry) {
   if(asset.environment!=="testnet")throw new Error("MAINNET_NOT_IMPLEMENTED");
   if (process.env.MAINNET_ENABLED === "true") throw new Error("MAINNET_DENIED");
 }
-/** Explicit observation is separate from financial execution. It can verify
- * network/asset evidence but cannot prepare or broadcast a transfer. */
-export function assertAdapterAsset(asset:AssetRegistry,observationOnly=false){
-  if(!observationOnly)return assertActive(asset);
+/** Non-sending adapters validate staged network/asset metadata. Their RPC
+ * capability separately limits observation or unsigned preparation. */
+export function assertAdapterAsset(asset:AssetRegistry,nonSendingOnly=false){
+  if(!nonSendingOnly)return assertActive(asset);
   validateRegistry([asset]);
   if(!asset.enabled||!asset.verified)throw new Error('REGISTRY_UNVERIFIED');
   if(process.env.MAINNET_ENABLED==='true')throw new Error('MAINNET_DENIED');

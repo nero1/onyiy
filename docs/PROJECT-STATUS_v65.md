@@ -1,4 +1,4 @@
-# Project status v64
+# Project status v65
 
 **Phase One/Two is incomplete. Mainnet sending is disabled.** The owner requires the full real-money product, all missing features and actual verification. Continue without milestone approval pauses; defer owner setup details to final testing.
 
@@ -27,7 +27,7 @@
 
 ## Current batch
 
-- Branch `feat/native-read-scope`, based on PR62 merge `a02f9a542d76ba32e03fd977bff17d0672fd1431`.
+- Branch `feat/unsigned-mainnet-preparation`, based on PR63 merge `bb9898edbe62571f704e405051e9a82aafd1210e`.
 - Fixed native plan creation/editing, which previously required a simulation GIV asset hidden by the active native namespace. Native edits now save disabled plan metadata; per-currency prices still require explicit gated activation. Simulation keeps its inactive GIV version behavior.
 - Catalogue, portfolio, member records and receipts check the captured transaction environment instead of silently switching it. Registry/receipt filters use that verified scope; mismatches are rejected. Mainnet payment gates remain closed.
 - Actual restricted-login procedures reproduce both old bugs and verify native creation/edit/replay/stale/role checks, simulation compatibility, namespace denial, timezone output and unchanged financial/work hashes.
@@ -54,4 +54,12 @@
 
 Current proof: `/workspace/work/native-read-v64/plan-and-scope-r3.mts` and `simulation-regression-r1.mts`. Failed r1 generated-registry fixture is preserved. PR62 passed push39026765895 / PR39026798890 before merging. Mainnet archive evidence remains in the v63 Git history and bug trackers.
 
-v64
+v65
+
+## Unsigned preparation and signer checks (v65)
+
+- Mainnet preparation now estimates fees and builds unsigned transfers through a frozen capability with no broadcast method. Private RPC guards block sending even if caller options or public getters change. Ordinary mainnet execution remains disabled.
+- Signer validation rejects changed EVM gas fields, extra Solana instructions/account metadata, unapproved associated-account costs, and altered TRON permissions, attached assets, signatures, expiry or energy caps. TRON checks its network reference before opening a key file.
+- Local protocol fixtures cover eight asset/network combinations; generated token addresses are not live provenance evidence. Actual encrypted testnet-key signing reproduces historical EVM/Solana bugs and verifies corrected signatures. No real funds or external broadcast.
+- Evidence: `unsigned-mainnet-v65/preparation-r5.mts`, `signer-validation-r2.mts`, `tron-reference-before-key-r1.mts`, `evm-execution-regression-r1.mts` and `observation-regression-r1.mts`. Failed first signer harness/import fixture is preserved. No DDL or installer changes.
+- Continue directly with actual mainnet runtime/signer integration and C001–C017 after checked merge; this prerequisite does not complete payment support.

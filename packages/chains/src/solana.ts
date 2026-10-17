@@ -67,7 +67,7 @@ export class SolanaAdapter implements ChainAdapter {
     readonly asset: AssetRegistry,
     options: RpcOptions,
   ) {
-    assertAdapterAsset(asset,options.observationOnly);
+    assertAdapterAsset(asset,options.observationOnly||options.preparationOnly);
     if (asset.chain !== "sol")
       throw new Error("WRONG_NETWORK");
     this.rpc = new DualRpc(options);
@@ -233,7 +233,7 @@ export class SolanaAdapter implements ChainAdapter {
       throw new Error("TOKEN_REGISTRY_MISMATCH");
   }
   private async finalizedBalancePair(asset:AssetRegistry,address:string,height:bigint){
-    assertAdapterAsset(asset,this.rpc.observationOnly);
+    assertAdapterAsset(asset,this.rpc.nonSendingOnly);
     if(asset.key!==this.asset.key||height<0n||height>9007199254740991n)throw new Error("INVALID_INPUT");
     const account=normalized(address),target=asset.kind==="native"?account:getAssociatedTokenAddressSync(new PublicKey(asset.mint!),new PublicKey(account)).toBase58();
     return Promise.all(([0,1] as const).map(async side=>{
@@ -270,7 +270,7 @@ export class SolanaAdapter implements ChainAdapter {
     return values[0].amount;
   }
   async getBalance(asset: AssetRegistry, address: string, fresh = false) {
-    assertAdapterAsset(asset,this.rpc.observationOnly);
+    assertAdapterAsset(asset,this.rpc.nonSendingOnly);
     if (asset.chain !== "sol" || asset.network !== this.asset.network)
       throw new Error("WRONG_NETWORK");
     if (asset.kind === "native") return this.getNativeBalance(address, fresh);
@@ -412,21 +412,21 @@ export class SolanaAdapter implements ChainAdapter {
     };
   }
   async buildTransfer(intent: TransferIntent): Promise<PreparedTransfer> {
-    if(this.rpc.observationOnly)throw new Error("OBSERVATION_ONLY");
-    assertActive(this.asset);
+    if(this.rpc.assertPreparation())assertAdapterAsset(this.asset,true);else assertActive(this.asset);
     if (normalized(intent.sender) === normalized(intent.destination)) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
     await this.network();
     if (
       !intent.fee.validity ||
       intent.asset.chain !== "sol" ||
-      intent.asset.network !== "devnet"
+      intent.asset.network !== this.asset.network || intent.asset.environment!==this.asset.environment
     )
       throw new Error("INVALID_INPUT");
-    const { tx } = await this.unsigned(intent, intent.fee.validity.blockhash);
+    const { tx,rent } = await this.unsigned(intent, intent.fee.validity.blockhash);
+    if(rent>(intent.fee.accountSetupCost??0n))throw new Error('FEE_REQUOTE_REQUIRED');
     return {
       family: "sol",
       environment: intent.asset.environment,
-      network: "devnet",
+      network: this.asset.network,
       intent,
       payload: tx
         .serialize({ requireAllSignatures: false, verifySignatures: false })
@@ -435,7 +435,7 @@ export class SolanaAdapter implements ChainAdapter {
     };
   }
   async broadcastSigned(signed: SignedTransfer) {
-    if(this.rpc.observationOnly)throw new Error("OBSERVATION_ONLY");
+    this.rpc.assertBroadcast();
     assertActive(this.asset);
     const tx = Transaction.from(Buffer.from(signed.bytes, "base64"));
     if (

@@ -32,7 +32,7 @@ export class EvmAdapter implements ChainAdapter {
     readonly asset: AssetRegistry,
     options: RpcOptions,
   ) {
-    assertAdapterAsset(asset,options.observationOnly);
+    assertAdapterAsset(asset,options.observationOnly||options.preparationOnly);
     if (!["eth", "bnb"].includes(asset.chain))
       throw new Error("REGISTRY_INVALID");
     this.rpc = new DualRpc(options);
@@ -189,12 +189,12 @@ export class EvmAdapter implements ChainAdapter {
       throw new Error("TOKEN_REGISTRY_MISMATCH");
   }
   async getReconciledBalance(asset:AssetRegistry,address:string,height:bigint){
-    assertAdapterAsset(asset,this.rpc.observationOnly);if(asset.key!==this.asset.key||asset.network!==this.asset.network)throw new Error("WRONG_NETWORK");await this.getCanonicalBlock(height);const account=await this.normalizeAddress(address);
+    assertAdapterAsset(asset,this.rpc.nonSendingOnly);if(asset.key!==this.asset.key||asset.network!==this.asset.network)throw new Error("WRONG_NETWORK");await this.getCanonicalBlock(height);const account=await this.normalizeAddress(address);
     const values=await Promise.all(([0,1] as const).map(side=>asset.kind==="native"?this.rpc.request(side,"eth_getBalance",[account,hex(height)]):this.rpc.request(side,"eth_call",[{to:asset.contract,data:erc20.encodeFunctionData("balanceOf",[account])},hex(height)])));
     const amounts=values.map(quantity);if(amounts[0]!==amounts[1])throw new Error("RPC_BALANCE_CONTRADICTION");return amounts[0];
   }
   async getBalance(asset: AssetRegistry, address: string, fresh = false) {
-    assertAdapterAsset(asset,this.rpc.observationOnly);
+    assertAdapterAsset(asset,this.rpc.nonSendingOnly);
     if (
       asset.chain !== this.asset.chain ||
       asset.network !== this.asset.network
@@ -259,6 +259,7 @@ export class EvmAdapter implements ChainAdapter {
     if (!gas.length || !fees.length) throw new Error("FEE_UNAVAILABLE");
     const gasLimit = gas.reduce((a, b) => (a > b ? a : b)),
       unitPrice = fees.reduce((a, b) => (a > b ? a : b));
+    if(gasLimit<21000n||unitPrice<=0n)throw new Error('RPC_EVIDENCE_INVALID');
     return {
       nativeFee: gasLimit * unitPrice,
       gasLimit,
@@ -267,16 +268,15 @@ export class EvmAdapter implements ChainAdapter {
     };
   }
   async buildTransfer(intent: TransferIntent): Promise<PreparedTransfer> {
-    if(this.rpc.observationOnly)throw new Error("OBSERVATION_ONLY");
-    assertActive(this.asset);
+    if(this.rpc.assertPreparation())assertAdapterAsset(this.asset,true);else assertActive(this.asset);
     if (getAddress(intent.sender) === getAddress(intent.destination)) throw new Error("SELF_TRANSFER_NOT_ALLOWED");
     await this.network();
     if (
       intent.asset.network !== this.asset.network ||
       intent.nonce === undefined ||
       intent.nonce < 0n ||
-      intent.fee.gasLimit <= 0n ||
-      intent.fee.unitPrice <= 0n
+      intent.fee.gasLimit < 21000n ||
+      intent.fee.unitPrice <= 0n || intent.fee.nativeFee!==intent.fee.gasLimit*intent.fee.unitPrice
     )
       throw new Error("INVALID_INPUT");
     await this.token(intent.asset);
@@ -299,7 +299,7 @@ export class EvmAdapter implements ChainAdapter {
     };
   }
   async broadcastSigned(signed: SignedTransfer) {
-    if(this.rpc.observationOnly)throw new Error("OBSERVATION_ONLY");
+    this.rpc.assertBroadcast();
     assertActive(this.asset);
     const parsed = Transaction.from(signed.bytes);
     if (
@@ -507,7 +507,7 @@ export class EvmAdapter implements ChainAdapter {
       expected.asset.mint !== this.asset.mint
     )
       throw new Error("WRONG_NETWORK");
-    assertAdapterAsset(expected.asset,this.rpc.observationOnly);
+    assertAdapterAsset(expected.asset,this.rpc.nonSendingOnly);
     await this.network();
     const result = reconcileEvidence(
       await Promise.allSettled([
