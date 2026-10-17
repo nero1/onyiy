@@ -2,11 +2,11 @@ import type { Metadata } from 'next';
 import {headers} from 'next/headers';
 import { cache } from 'react';
 import { notFound } from 'next/navigation';
-import { loadManifest, publicManifest, type Manifest } from '@gifters/config';
+import { loadManifest, type Manifest } from '@gifters/config';
 import { formatBaseUnits } from '@gifters/domain';
 import type { Locale } from '@/lib/i18n';
 import type { PublicArticle, PublicGift } from '@/lib/public-content';
-import { getPublicCatalog, getPublicHelp, getPublicManifest, getPublicNativeCatalog } from './public-reads';
+import { getPublicCatalog, getPublicHelp, getPublicManifest, getPublicNativeCatalog, unavailablePublicManifest } from './public-reads';
 
 export type PublicPolicy = Pick<Manifest, 'product_content' | 'feature_help' | 'feature_gifts' | 'feature_wallets' | 'feature_referrals' | 'feature_admin' | 'feature_moderation' | 'terms_content'>;
 export type LocaleQuery = Promise<{ locale?: string | string[]; article?: string | string[]; slug?: string | string[] }>;
@@ -18,7 +18,7 @@ const publicRequest = cache(async (path: string) => {
 });
 export const publicPolicy = cache(async () => {
   try { return (await getPublicManifest(await publicRequest('/manifest'))).data as PublicPolicy; }
-  catch { return publicManifest(loadManifest()) as PublicPolicy; }
+  catch { return unavailablePublicManifest() as PublicPolicy; }
 });
 export const publishedArticles = cache(async (locale: Locale) => (await getPublicHelp(locale, await publicRequest('/help'))).data as PublicArticle[]);
 export function publicLocale(value: string | string[] | undefined): Locale { return value === 'fr' ? 'fr' : 'en'; }

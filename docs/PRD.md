@@ -1212,11 +1212,11 @@ uj*****p3 just received $9.5 referral commission
 
 ## §33. Current scope and continuation
 
-**Owner directive, 16 October 2026:** resume application work and continue through completed Phase Two and final bug fixes. Merge the verified retention batch, then complete fresh bug rounds Two/Three and §32 milestones. Make substantial batches, update concise versioned docs, and create/merge PRs after both exact-head CI events pass; do not pause for milestone acceptance. Real-money mainnet remains an unfinished, separately evidenced release: never mark unimplemented gates ready.
+**Owner directive, 16 October 2026:** resume application work and continue through completed Phase Two and final bug fixes. Complete fresh bug rounds Two/Three after the merged retention batch and §32 milestones. Make substantial batches, update concise versioned docs, and create/merge PRs after both exact-head CI events pass; do not pause for milestone acceptance. Real-money mainnet remains an unfinished, separately evidenced release: never mark unimplemented gates ready.
 
 | Area | Current boundary |
 |---|---|
-| Round One | 74/74 findings implemented and locally verified; v52 release checks pending |
+| Round One | 74/74 findings implemented, locally verified and merged in PR51 |
 | Later rounds / Phase Two | Authorized; follow remaining Round One fixes |
 | Financial execution | Web and signer readiness gates remain false; mainnet prohibited |
 | Historical completion claims | Feature checklists are not bug-free, hosted or financial acceptance |
@@ -1248,7 +1248,7 @@ The owner explicitly approved P1-065 on **14 October 2026 at 02:25:24 PM WAT**, 
 - Closed signed-archive dependencies accept pgcrypto-only older packets or an additional pg_trgm declaration; unknown names, duplicates, versions and schemas fail.
 - Signatures/checksums, empty-target verification and exact post-restore inventories remain mandatory. Search approval does not activate financial gates.
 
-Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v52.md](PROJECT-STATUS_v52.md). Current bug evidence/tasks: [report](custom-bugs-report_v52.md) and [plan](custom-bugs-fix-plan_v52.md).
+Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v53.md](PROJECT-STATUS_v53.md). Current bug evidence/tasks: [report](custom-bugs-report_v53.md) and [plan](custom-bugs-fix-plan_v53.md).
 
 ### Retention implementation clarification (v52)
 

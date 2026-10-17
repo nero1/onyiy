@@ -1,6 +1,6 @@
 # How Gifters World works
 
-For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v52.md).
+For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v53.md).
 
 ## Main parts
 
@@ -103,7 +103,7 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Durable notification, observation and payout jobs use leases, retries and replay protection. One long-lived observation retains its identity rather than creating endless jobs.
 - Scheduler requests bind body, environment, timestamp and nonce to a private authentication key. Replays, stale requests and wrong environments are rejected.
 - Alerts retain immutable occurrence payloads and retry/escalation order. Critical alerts get priority within a shared daily attempt budget.
-- Database queues, statements, requests and outbound RPC/cache calls have explicit deadlines and byte/row limits. Recovery and diagnostics cannot hide unbounded history scans behind a small page size.
+- Database queues, statements, requests and outbound RPC/cache calls have explicit deadlines and byte/row limits. Body cancellation cannot hold a request open; worker signatures still cover exact received text. Temporary capacity/outage failures retain retry eligibility. Recovery and diagnostics cannot hide unbounded history scans behind a small page size.
 - Redis is a bounded cache, not the financial source of truth. Unknown/missing provider configuration fails explicitly. Selected hosted adapters need their own expiry, increment, outage and error-response observations.
 - Expired session/rate records have bounded cleanup. Account deletion redacts private message content while preserving required financial/audit history.
 - Retention honors the operational hold. Old notification bodies expire; completed expendable task payloads compact while permanent identifiers and retry protection remain. Financial and unresolved work payloads are retained.
@@ -112,6 +112,7 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 ## Help, exports and recovery
 
 - Published help uses locale-specific title/body full-text search and title-typo fallback. Results are capped and drafts excluded. Offline search is clearly limited to saved articles.
+- If the live public configuration is unavailable, fallback pages disable features and demo activity and show an unavailable message; seeded defaults cannot re-enable them.
 - Public pages carry locale/canonical metadata; private routes are excluded from indexing. English/French text and accessibility checks remain required.
 - Member JSON/CSV exports fix a creation cutoff. Later records are excluded, but mutable values are captured during bounded parts: **this is not one global point-in-time snapshot**. Export metadata discloses the capture interval; spreadsheet-leading values are escaped.
 - Full application archives encrypt native PostgreSQL dumps with AES-256-GCM and authenticate their inventory separately. Dump and row inventory share one consistent read snapshot.
@@ -128,4 +129,4 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Relevant named manual checks cover rollback/replay, concurrent admission, missing-wallet liabilities, rejected withdrawals, account isolation, cache expiry/outage, signing recovery and exact restore. Use isolated data and preserve failed evidence. Never reset a shared source to repeat a check.
 - Hosted Google, Upstash, RPC, alerts, mobile performance and release readiness require observations on the selected services. Health/compilation alone do not satisfy them.
 - Keep **five core docs** plus the two explicitly requested bug trackers. Use clear lists/tables and short explanations; update current facts instead of appending repeated history. Only add a document when explicitly requested or essential. Prior versions remain in Git.
-- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v52.md) records the exact continuation boundary.
+- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v53.md) records the exact continuation boundary.

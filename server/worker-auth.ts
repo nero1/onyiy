@@ -1,3 +1,4 @@
+import {boundedText} from './request-body';
 import crypto from "node:crypto";
 import { z } from "zod";
 import { workerRequests, withContext } from "@gifters/db";
@@ -21,25 +22,7 @@ export async function authenticateWorker(request: Request, purpose: string) {
     !/^[A-Za-z0-9_-]{43}$/.test(signature)
   )
     throw new Error("UNAUTHENTICATED");
-  const reader = request.body?.getReader();
-  if (!reader) throw new Error("INVALID_INPUT");
-  let bytes = 0;
-  const chunks: Uint8Array[] = [];
-  try {
-    while (true) {
-      const part = await reader.read();
-      if (part.done) break;
-      bytes += part.value.byteLength;
-      if (bytes > 16384) {
-        await reader.cancel();
-        throw new Error("INVALID_INPUT");
-      }
-      chunks.push(part.value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  const body = Buffer.concat(chunks).toString("utf8"),
+  const body = await boundedText(request,16384),
     key = environmentKey("FINANCIAL_WORKER_AUTH_KEY");
   let expected: string;
   try {

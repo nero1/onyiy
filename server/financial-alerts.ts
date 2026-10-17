@@ -1,3 +1,4 @@
+import {boundedText} from './request-body';
 import { pinnedPost } from '../packages/config/src/outbound-http';
 import crypto from "node:crypto";
 import { and, asc, eq, sql } from "drizzle-orm";
@@ -201,23 +202,6 @@ export async function deliverFinancialAlert() {
         body,
         signal: AbortSignal.timeout(5000), maxBytes: 2048, fixture,
       });
-      const rawLength = response.headers.get("content-length");
-      if (rawLength && parseInt(rawLength, 10) > 2048)
-        throw new Error("ALERT_UNAVAILABLE");
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("ALERT_UNAVAILABLE");
-      let size = 0;
-      const chunks: Uint8Array[] = [];
-      while (true) {
-        const part = await reader.read();
-        if (part.done) break;
-        size += part.value.length;
-        if (size > 2048) {
-          await reader.cancel();
-          throw new Error("ALERT_UNAVAILABLE");
-        }
-        chunks.push(part.value);
-      }
       const ack = z
           .object({
             delivery_key: z.literal(claim.delivery.businessKey),
@@ -225,7 +209,7 @@ export async function deliverFinancialAlert() {
             signature: z.string(),
           })
           .strict()
-          .parse(JSON.parse(Buffer.concat(chunks).toString("utf8"))),
+          .parse(JSON.parse(await boundedText(response,2048))),
         expected = crypto
           .createHmac("sha256", key)
           .update(`ack\n${claim.delivery.businessKey}\n${digest}`)

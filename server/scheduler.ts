@@ -1,3 +1,4 @@
+import {boundedText} from './request-body';
 import {activateDuePlans} from './plans';import {invalidatePublicReads} from './public-reads';
 import {expireExportChunks} from './own-data';
 import {expireSuspensions} from './account-expiry';
@@ -21,18 +22,7 @@ function keyFor(id:string) {
 
 async function bodyText(request:Request) {
   if (request.headers.get('content-type')?.split(';')[0]!=='application/json') throw new Error('INVALID_INPUT');
-  if (!request.body) throw new Error('INVALID_INPUT');
-  const reader=request.body.getReader();
-  const chunks:Uint8Array[]=[];let bytes=0;
-  try {
-    while (true) {
-      const part=await reader.read();if (part.done) break;
-      bytes+=part.value.byteLength;
-      if (bytes>1024) { await reader.cancel();throw new Error('INVALID_INPUT'); }
-      chunks.push(part.value);
-    }
-  } finally { reader.releaseLock(); }
-  return Buffer.concat(chunks).toString('utf8');
+  return boundedText(request,1024);
 }
 
 export async function schedulerTick(request:Request) {

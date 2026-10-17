@@ -74,16 +74,23 @@ async function nativeTool(name:'pg_dump'|'pg_restore',args:string[],fn:(child:Re
     child=spawn(name,args,{env:await nativeEnvironment(directory),stdio:['pipe','pipe','pipe']});
     child.stderr?.resume(); // Native errors may contain connection data; never forward them.
     const current=child;
-    const stop=()=>{current.kill('SIGTERM');};
+    let escalation:ReturnType<typeof setTimeout>|undefined;let interrupted=false;
+    const stop=()=>{
+      if(current.exitCode!==null||current.signalCode!==null)return;
+      interrupted=true;current.kill('SIGTERM');
+      if(!escalation)escalation=setTimeout(()=>{
+        if(current.exitCode===null&&current.signalCode===null)current.kill('SIGKILL');
+      },2000);
+    };
     process.once('SIGTERM',stop);process.once('SIGINT',stop);
-    const timer=setTimeout(()=>current.kill('SIGTERM'),MAX_RUN_MS);
+    const timer=setTimeout(stop,MAX_RUN_MS);
     const exited=new Promise<void>((resolve,reject)=>{
       current.once('error',()=>reject(new Error('RECOVERY_NATIVE_TOOL_FAILED')));
       current.once('close',code=>code===0?resolve():reject(new Error('RECOVERY_NATIVE_TOOL_FAILED')));
     });
-    try {await Promise.all([exited,fn(current)]);}
-    catch {current.kill('SIGTERM');await Promise.allSettled([exited]);throw new Error('RECOVERY_NATIVE_TOOL_FAILED');}
-    finally {clearTimeout(timer);process.removeListener('SIGTERM',stop);process.removeListener('SIGINT',stop);}
+    try {await Promise.all([exited,fn(current)]);if(interrupted)throw new Error('RECOVERY_NATIVE_TOOL_FAILED');}
+    catch {stop();await Promise.allSettled([exited]);throw new Error('RECOVERY_NATIVE_TOOL_FAILED');}
+    finally {clearTimeout(timer);clearTimeout(escalation);process.removeListener('SIGTERM',stop);process.removeListener('SIGINT',stop);}
   } finally {if(child&&!child.killed) child.kill('SIGTERM');await fsp.rm(directory,{recursive:true,force:true});}
 }
 

@@ -1,3 +1,4 @@
+import {boundedText} from './request-body';
 import crypto from "node:crypto";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -161,25 +162,8 @@ async function turnstile(token: string, id: string, surface: BotSurface) {
       },
     );
     if (!response.ok || !response.body) throw new Error("CAPTCHA_UNAVAILABLE");
-    const reader = response.body.getReader(),
-      chunks: Uint8Array[] = [];
-    let bytes = 0;
-    try {
-      while (true) {
-        const part = await reader.read();
-        if (part.done) break;
-        bytes += part.value.length;
-        if (bytes > 16384) {
-          await reader.cancel();
-          throw new Error("CAPTCHA_UNAVAILABLE");
-        }
-        chunks.push(part.value);
-      }
-    } finally {
-      reader.releaseLock();
-    }
     return acceptTurnstileResponse(
-      JSON.parse(Buffer.concat(chunks).toString("utf8")),
+      JSON.parse(await boundedText(response,16384)),
       { hostname: host.hostname, action: surface, challengeId: id },
     );
   } catch (error) {
