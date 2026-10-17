@@ -129,8 +129,13 @@ export function loadManifest(root = process.cwd()): Manifest {
   catch { throw new Error('CONFIGURATION_INVALID'); }
 }
 
-// Hosting stage (Vercel preview/production) is independent of payment mode.
-// Resolve defaults without mutating process.env, including for copied CI envs.
+// Resolve native scope without widening execution or isolated-fixture authority.
+export function nativePaymentEnvironment(env:NodeJS.ProcessEnv=process.env):'testnet'|'mainnet'{
+ if(env.APP_ENV!=='testnet'&&!(env.APP_ENV==='simulation'&&env.CHAIN_FIXTURE_MODE==='isolated'&&env.VERCEL!=='1'))throw new Error('FINANCIAL_ENVIRONMENT_DENIED');
+ if(env.MAINNET_ENABLED==='true')throw new Error('MAINNET_DENIED');
+ return 'testnet'; // Mainnet remains closed until its complete execution release.
+}
+// Hosting stage is independent of payment mode; defaults never mutate env.
 export function runtimeProviders(env: NodeJS.ProcessEnv = process.env) {
   const environment = env.APP_ENV ?? 'simulation';
   if (!['simulation', 'testnet'].includes(environment)) {

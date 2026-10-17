@@ -5,13 +5,14 @@ import {
   walletChallenges,
   walletLinks,
   users,
+  auditEvents,
   readManifest,
   type DbExecutor,
 } from "@gifters/db";
 import {
   registryAsset,
   adapter,
-  assertFinancialEnvironment,
+  financialEnvironmentIn,
 } from "./financial-config";
 import { lockUser } from "./core";
 export const walletChallengeInput = z
@@ -27,12 +28,23 @@ export const walletProofInput = z
     signature: z.string().min(20).max(1000),
   })
   .strict();
+function ownershipMessage(input:{environment:string;network:string;chain:string;userId:string;generation:string;address:string;id:string;expires:Date}){
+ return [
+  'Gifters World wallet ownership',
+  'Origin: '+new URL(process.env.WEB_ORIGIN??'').origin,
+  'Operation: link_wallet','Environment: '+input.environment,
+  'Network: '+input.network,'Chain: '+input.chain,'Account: '+input.userId,
+  'Session: '+input.generation,'Address: '+input.address,'Challenge: '+input.id,
+  'Expires: '+input.expires.toISOString(),
+  'This message links a wallet and authorizes no transfer.',
+ ].join('\n');
+}
 export async function challengeWallet(
   tx: DbExecutor,
   userId: string,
   input: z.infer<typeof walletChallengeInput>,
 ) {
-  assertFinancialEnvironment();
+  const environment=await financialEnvironmentIn(tx);
   const manifest = await readManifest(tx);
   if (!manifest.feature_wallets || !manifest.entitlements_member.wallet_link)
     throw new Error("FEATURE_DISABLED");
@@ -48,26 +60,13 @@ export async function challengeWallet(
     }>(sql`select clock_timestamp() as now`),
     now = new Date(clock.now),
     expires = new Date(now.getTime() + 300000);
-  const message = [
-    "Gifters World wallet ownership",
-    "Origin: " + new URL(process.env.WEB_ORIGIN ?? "").origin,
-    "Operation: link_wallet",
-    "Environment: testnet",
-    "Network: " + asset.network,
-    "Chain: " + asset.chain,
-    "Account: " + userId,
-    "Session: " + input.session_generation,
-    "Address: " + address,
-    "Challenge: " + id,
-    "Expires: " + expires.toISOString(),
-    "This message links a wallet and authorizes no transfer.",
-  ].join("\n");
+  const message=ownershipMessage({environment,network:asset.network,chain:asset.chain,userId,generation:input.session_generation,address,id,expires});
   await tx
     .insert(walletChallenges)
     .values({
       id,
       userId,
-      environment: "testnet",
+      environment,
       chain: asset.chain,
       assetKey: asset.key,
       address,
@@ -81,6 +80,7 @@ export async function challengeWallet(
     address,
     chain: asset.chain,
     network: asset.network,
+    environment,
     expires_at: expires.toISOString(),
   };
 }
@@ -90,7 +90,7 @@ export async function proveWallet(
   generation: string,
   input: z.infer<typeof walletProofInput>,
 ) {
-  assertFinancialEnvironment();
+  const environment=await financialEnvironmentIn(tx);
   const manifest = await readManifest(tx);
   if (!manifest.feature_wallets || !manifest.entitlements_member.wallet_link)
     throw new Error("FEATURE_DISABLED");
@@ -119,6 +119,7 @@ export async function proveWallet(
   )
     throw new Error("INVALID_PROOF");
   const asset = registryAsset(challenge.assetKey);
+  if(challenge.environment!==environment||challenge.chain!==asset.chain||challenge.message!==ownershipMessage({environment,network:asset.network,chain:asset.chain,userId,generation,address:challenge.address,id:challenge.id,expires:challenge.expiresAt}))throw new Error('INVALID_PROOF');
   const chain = await adapter(asset);
   if (
     !(await chain.verifyOwnershipProof(
@@ -134,7 +135,7 @@ export async function proveWallet(
     .where(
       and(
         eq(walletLinks.userId, userId),
-        eq(walletLinks.environment, "testnet"),
+        eq(walletLinks.environment, environment),
         eq(walletLinks.chainId, asset.network),
       ),
     )
@@ -164,13 +165,14 @@ export async function proveWallet(
         .insert(walletLinks)
         .values({
           userId,
-          environment: "testnet",
+          environment,
           chainId: asset.network,
           address: challenge.address,
           verifiedAt: now,
           coolingUntil: now,
         })
         .returning();
+  await tx.insert(auditEvents).values({actorUserId:userId,action:'wallet.link',targetType:'wallet_link',targetId:row.id,beforeState:old?{environment,network:asset.network,address:old.address,revision:old.revision}:null,afterState:{environment,network:asset.network,address:row.address,revision:row.revision},reason:'Verified domain-bound wallet ownership'});
   await tx
     .update(walletChallenges)
     .set({ usedAt: now })

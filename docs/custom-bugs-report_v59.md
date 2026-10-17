@@ -1,6 +1,6 @@
-# Bug report — Rounds One/Two/Three v58
+# Bug report — Rounds One/Two/Three v59
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v58.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v59.md).
 
 Updated: **17 October 2026 at 01:06:45 UTC**.
 
@@ -93,7 +93,7 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 - “Defect” means a source/contract failure; “requirement gap” means missing requested behavior; “hardening” means a conditional defensive improvement; “maintenance” means structural/dependency risk.
 - Initial audit ratings (current → projected after fixes): money/recovery 5 → 8; security/privacy 6.5 → 8.5; performance 5 → 8; maintainability 6 → 8; product/accessibility/SEO 6 → 8, out of 10. These were qualitative judgments, not measured guarantees or updated release ratings.
 - Original audit: 70 findings; four more were found during remediation. Three analysis passes were one audit round. CRON frequency and test-only issues were excluded.
-- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v58.md).
+- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v59.md).
 
 ## Original evidence by finding
 
@@ -559,7 +559,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v58.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v59.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -579,7 +579,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v58.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v59.md).
 
 
 
@@ -642,3 +642,9 @@ Owner update: all launch details are deferred to final testing. Document the fie
 - **C004 — Stale adapter execution gate:** transfer build/broadcast previously relied on construction-time validation. Recheck the current execution gate immediately before preparing/sending.
 - **C004 — TRON outage misclassification:** when both identity providers failed, WRONG_NETWORK could make a transient outage permanent. Preserve RPC_UNAVAILABLE; actual wrong IDs remain rejected.
 - **C001 — Solana devnet literals:** explicit observation used closed mainnet metadata, but constructor/balance checks still required devnet. Bind those reads to the validated registry network; active mainnet sending remains denied.
+
+## Wallet scope and worker binding (v59)
+
+- Fixed a reproduced TRON wallet-proof bug: a Nile challenge could silently create a Shasta link after registry changes. Proofs now recheck the exact original domain, environment, network, account and session; changed destinations receive an atomic audit record.
+- Shared the existing v1 worker-signature format across receiver, signer and scheduler. Environment, purpose, route and exact body bytes are authenticated; signer inputs must match the captured worker scope. Mainnet execution remains disabled.
+- Named isolated procedures in `/workspace/work/financial-v59`: `wallet-before-fix-r1` reproduces the old bug; fresh `wallet-scope-r2` proves rejection, successful fresh linking, two exact audit/archive identities and unchanged financial hashes; `worker-binding-r2` proves compatibility, byte binding, replay/clock/scope rejection and unchanged financial hashes. Failed r1 harness fixtures are preserved. No RPC transfer or real funds.

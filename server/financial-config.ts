@@ -4,6 +4,7 @@ import {
   financialPolicySnapshot,
 } from "../packages/chains/src/runtime";
 import { acceptedAlert } from "./financial-alerts";
+import {nativePaymentEnvironment} from '@gifters/config';
 import { z } from "zod";
 import {
   chainEnvironmentSuffix,
@@ -22,8 +23,8 @@ const addressRoles = [
 ] as const;
 type Role = (typeof addressRoles)[number];
 export function registryAsset(key: string) {
-  const rows = readRegistry(),
-    asset = rows.find((v) => v.key === key);
+  const environment=assertFinancialEnvironment(),rows = readRegistry(),
+    asset = rows.find((v) => v.key === key&&v.environment===environment);
   if (!asset) throw new Error("REGISTRY_NOT_PROVISIONED");
   assertActive(asset);
   return asset;
@@ -47,16 +48,13 @@ export async function financialConfiguration(
   );
 }
 export function assertFinancialEnvironment() {
-  if (
-    process.env.APP_ENV !== "testnet" &&
-    !(
-      process.env.APP_ENV === "simulation" &&
-      process.env.CHAIN_FIXTURE_MODE === "isolated" &&
-      process.env.VERCEL !== "1"
-    )
-  )
-    throw new Error("FINANCIAL_ENVIRONMENT_DENIED");
-  if (process.env.MAINNET_ENABLED === "true") throw new Error("MAINNET_DENIED");
+  return nativePaymentEnvironment();
+}
+export async function financialEnvironmentIn(tx:DbExecutor){
+ const environment=assertFinancialEnvironment();
+ const [scope]=await tx.execute<{environment:string}>(sql`select current_setting('gw.environment',true) as environment`);
+ if(scope?.environment!==environment)throw new Error('FINANCIAL_ENVIRONMENT_DENIED');
+ return environment;
 }
 export const financialImplementationComplete = false;
 export async function assertExternalActivation(
@@ -111,7 +109,7 @@ export function assertRegistryBinding(
   };
   const binding = asset.registryBinding as Record<string, unknown> | null;
   if (
-    asset.environment !== "testnet" ||
+    asset.environment !== registry.environment ||
     asset.decimals !== registry.decimals ||
     asset.chainId !== registry.network ||
     (!binding &&

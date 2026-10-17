@@ -1,9 +1,12 @@
 import {boundedText} from './request-body';
-import crypto from "node:crypto";
+import {nativePaymentEnvironment} from "@gifters/config";
+import {financialWorkerSignature} from "../packages/config/src/worker-signature.mjs";
 import { z } from "zod";
 import { workerRequests, withContext } from "@gifters/db";
 import { environmentKey, equalText, hash } from "./auth-crypto";
 export async function authenticateWorker(request: Request, purpose: string) {
+  let environment:"testnet"|"mainnet";
+  try{environment=nativePaymentEnvironment()}catch{throw new Error("UNAUTHENTICATED")}
   const url = new URL(request.url),
     timestamp = request.headers.get("x-worker-timestamp") ?? "",
     parsedNonce = z
@@ -13,12 +16,12 @@ export async function authenticateWorker(request: Request, purpose: string) {
     signature = request.headers.get("x-worker-signature") ?? "";
   if (
     request.method !== "POST" ||
-    url.search ||
+    url.search || url.pathname!=="/api/v1/internal/financial" || purpose!=="financial" ||
     request.headers.get("content-type")?.split(";")[0] !== "application/json" ||
     !parsedNonce.success ||
     !/^[0-9]{10}$/.test(timestamp) ||
     Math.abs(Date.now() / 1000 - parseInt(timestamp, 10)) > 300 ||
-    request.headers.get("x-worker-environment") !== "testnet" ||
+    request.headers.get("x-worker-environment") !== environment ||
     !/^[A-Za-z0-9_-]{43}$/.test(signature)
   )
     throw new Error("UNAUTHENTICATED");
@@ -26,21 +29,7 @@ export async function authenticateWorker(request: Request, purpose: string) {
     key = environmentKey("FINANCIAL_WORKER_AUTH_KEY");
   let expected: string;
   try {
-    expected = crypto
-      .createHmac("sha256", key)
-      .update(
-        [
-          "v1",
-          "testnet",
-          purpose,
-          request.method,
-          url.pathname,
-          timestamp,
-          parsedNonce.data,
-          hash(body),
-        ].join("\n"),
-      )
-      .digest("base64url");
+    expected=financialWorkerSignature({environment,purpose:'financial',method:'POST',path:'/api/v1/internal/financial',timestamp,nonce:parsedNonce.data,bodyHash:hash(body)},key);
   } finally {
     key.fill(0);
   }
@@ -56,7 +45,7 @@ export async function authenticateWorker(request: Request, purpose: string) {
       .insert(workerRequests)
       .values({
         nonce: parsedNonce.data,
-        environment: "testnet",
+        environment,
         purpose,
         bodyHash: hash(body),
         expiresAt: new Date(Date.now() + 600000),

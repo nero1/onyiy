@@ -13,7 +13,8 @@ import type {
   PreparedTransfer,
   SignedTransfer,
 } from "../../packages/chains/src/types";
-import { withSigningKey } from "./keys";
+import { assertIsolated,withSigningKey } from "./keys";
+import {assertNetworkBinding} from "../../packages/chains/src/network";
 const erc20 = new Interface([
   "function transfer(address,uint256) returns (bool)",
 ]);
@@ -21,9 +22,12 @@ export async function signPrepared(
   prepared: PreparedTransfer,
   nativeCap: bigint,
 ): Promise<SignedTransfer> {
+  const environment=assertIsolated();
   assertActive(prepared.intent.asset);
+  assertNetworkBinding(prepared.intent.asset);
   if (
-    prepared.environment !== "testnet" ||
+    prepared.environment !== environment ||
+    prepared.intent.asset.environment !== environment ||
     prepared.network !== prepared.intent.asset.network ||
     prepared.family !== prepared.intent.asset.chain ||
     prepared.intent.amount <= 0n ||

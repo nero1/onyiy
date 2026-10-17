@@ -21,6 +21,7 @@ jobs:
           node-version-file: .nvmrc
       - name: Bounded authenticated testnet observations and operations
         env:
+          APP_ENV: ${{ vars.APP_ENV || 'testnet' }}
           FINANCIAL_API_ORIGIN: ${{ vars.FINANCIAL_API_ORIGIN }}
           FINANCIAL_WORKER_AUTH_KEY: ${{ secrets.FINANCIAL_WORKER_AUTH_KEY }}
         run: node scripts/financial-tick.mjs
