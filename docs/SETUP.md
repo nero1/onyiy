@@ -175,7 +175,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v69.md](PROJECT-STATUS_v69.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v70.md](PROJECT-STATUS_v70.md).
 
 ## 10. Read-only preview using the same database
 
@@ -422,7 +422,7 @@ Code supports Ethereum `1`, BNB `56`, Solana `mainnet-beta` and TRON `mainnet`. 
 17. Redeploy Production, then run the isolated signer workflow once. Check its run result and the site's signer heartbeat. A changed policy, registry, address or alert binding needs new hashes/probes; never reuse an unrelated approval.
 18. With the owner present, fund only the approved treasury/reserve amounts, activate the intended per-currency plans and perform the final tests with small limits. Confirm actual wallet approval, chain receipts, balances, fees, refunds, alerts and restore reconciliation. Complete the required observation periods before public launch.
 
-Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v69.md).
+Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v70.md).
 
 ## If something fails
 
@@ -486,6 +486,8 @@ Provide these during final setup; coding can continue before they are available.
 3. In native plan administration, choose USD-derived pricing or enter the exact token amount. Use **Resume the existing price unchanged** to preserve a paused plan's existing amount.
 4. To schedule a new plan, save it disabled in **Plans and system positions**. In **Payment administration**, load/select it, select a currency and pricing mode, enter **Scheduled launch (UTC)**, then click **Schedule this currency**. Repeat for other currencies with the same date.
 5. Keep the scheduler, signed prices and approvals current. The countdown does not open payments by itself: launch checks must pass. A failure appears in payment alerts and retries after five minutes; other ready currencies can proceed. To cancel, pause/disable the plan. To change its date, cancel first, save it disabled and schedule again after existing obligations resolve.
+
+6. On the member wallet, open **All my current items → Type: Cycles → View: Completed** to inspect completed cycles, recorded completion times and the live rejoin cooldown. Dates use the saved account time zone.
 
 New backups use recovery inventory contract4. Keep original archives, keys and release references. Contract4 packets made before SQL006 need the matching pre-006 release (PR65 `0ea4cf5e62a0ef7e7f83c26c1a512d6935775ac3`) before a reviewed forward upgrade. Contract3 archives require release `6c323dc43c45efa1957308e467ce06e7cc0b36c0`; do not edit or re-sign them.
 

@@ -1,4 +1,5 @@
 "use client";
+import {paymentStateLabel} from '@/lib/payment-state';
 import {useCurrencyPreview} from './use-currency-preview';
 import {currencyCopy} from '@/lib/currency-copy';
 import {formatDisplayDate} from '@/lib/display-time';
@@ -82,7 +83,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
     fr = locale === "fr",
     t = copy[locale];
   const enabledCurrencies=(catalog?.assets??[]).filter(asset=>asset.enabled);
-  const currencyPreview=useCurrencyPreview(enabledCurrencies.map(asset=>asset.id),!!manifest?.feature_gifts&&!!data&&!busy&&!payment&&!withdrawal&&!existingInvoice&&!existingHash&&!data.cycles.some(cycle=>cycle.status!=='completed'||cycle.under_review),manifest?.ui_rotation_policy.currency_seconds??10);
+  const currencyPreview=useCurrencyPreview(enabledCurrencies.map(asset=>asset.id),!!manifest?.feature_gifts&&!!data&&!busy&&!payment&&!withdrawal&&!existingInvoice&&!existingHash&&data.has_active_cycles===false,manifest?.ui_rotation_policy.currency_seconds??10);
   const giftPlans=manifest?.feature_gifts&&catalog?.profile_revision===manifest?.profile_revision?(catalog?.plans??[]).filter(plan=>['active','scheduled'].includes(plan.status)&&plan.asset_id===currencyPreview.value):[];
   const currencyText=currencyCopy[locale];
   const currencySelector=(position:string)=>enabledCurrencies.length?<section aria-label={currencyText.currency}><label htmlFor={'gift-currency-'+position}>{currencyText.currency}</label><select id={'gift-currency-'+position} value={currencyPreview.value} onChange={event=>currencyPreview.select(event.target.value)}>{enabledCurrencies.map(asset=><option value={asset.id} key={asset.id}>{asset.symbol} · {asset.network}</option>)}</select>{enabledCurrencies.length>1&&<><button aria-pressed={currencyPreview.paused||currencyPreview.reduced} disabled={currencyPreview.reduced} onClick={currencyPreview.toggle}>{currencyPreview.paused||currencyPreview.reduced?currencyText.resume:currencyText.pause}</button><small>{currencyText.idle}</small></>}</section>:null;
@@ -724,7 +725,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
               </h2>
               <p>
                 {t.credited}: {row.credited_count}/{row.receipts_required} ·{" "}
-                {row.status}
+                {paymentStateLabel(row.status,locale)}
               </p>
               {row.under_review&&<p>{fr?"Financement sous révision — position historique conservée.":"Funding under review — historical position retained."}</p>}
               <ProfileDisclosure presentation={manifest?.presentation} locale={locale} queue={row.queue_disclosure} mode="cycle"/>
@@ -738,7 +739,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
           {data?.withdrawals?.map((row) => (
             <article className="card" key={row.id}>
               <p>
-                {row.status} · {row.asset} · {row.network}
+                {paymentStateLabel(row.status,locale)} · {row.asset} · {row.network}
               </p>
               <p>
                 {t.gross}:{" "}
