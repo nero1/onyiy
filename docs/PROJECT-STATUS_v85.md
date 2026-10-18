@@ -1,4 +1,4 @@
-# Project status v84
+# Project status v85
 
 **Phase One/Two remains incomplete.** Four mainnets/eight asset protocols are implemented. Seven member assets pass local incoming/refund/withdrawal/company/sweep procedures. Public RPC identities match; hosted payments and observation periods are unverified. Continue without milestone approval pauses. Owner launch inputs remain deferred to final testing.
 
@@ -26,13 +26,17 @@
 
 ## Current delivery
 
-Branch `feat/oauth-callback-cleanup`, base PR82 merge `f37a1eb6e861582a671b3973b20c3e5142a2333d`. PR82 head6edee0b passed push39106801210 / PR39106811717 before merge. P1-080/081 recovery receipts/activity/statistics/recent-wallet fixes are merged in PR81/82.
+Branch `feat/member-case-pagination`, base PR83 merge `c606f4cc6c94a7aca2c290c8b499989d91c3e1f6`. PR83 head0f50536 passed push39107336149 / PR39107344071 before merge. OAuth cleanup/mainnet CAPTCHA defaults and recovery displays are merged.
 
-**P1-082:** failed Google GET callbacks now expire their temporary OAuth state even when rate limiting/configuration errors bypass normal redirect cleanup. Original error status/body and session cookies remain. No schema/financial changes.
+**P1-084:** members can page retained reports/appeals independently, including older eligible appeal cases. Cursors bind to member, collection and exact filter; microsecond timestamp/ID ordering prevents gaps. Staff permissions remain separate, and stale page failures cannot replace newer reads. No financial/schema change.
 
-**P1-083:** bot-check now uses the shared validated CAPTCHA provider default, so the documented mainnet setup with unset overrides correctly selects Turnstile rather than rejecting dummy. Explicit provider overrides retain their existing checks.
+**P1-085:** nonstaff authenticated GETs now use the read policy rather than action quotas. Staff/mutation policies remain. Actual API checks verify six report reads succeed while the sixth report creation remains429.
+
+**P1-086:** account/moderation errors translate from ephemeral error state at render time, clear on identity changes and reject stale asynchronous results. Public bootstrap data remains available even if session identity changes mid-load.
 
 ## Current verification
+
+`member-cases-v85/baseline-r1` reproduces the newest100-only limit. `pagination-r1` reaches101 own reports; `pagination-r3` reaches101 reports and101 appeals with identical microsecond timestamps, exact ordering/no duplicates or gaps, cursor account/collection/filter isolation, no internal timestamp leakage, unrelated-case exclusion and older-case token access. Failed r2 attempted to change immutable case creation times and was rejected; it is retained. Fresh r3 inserts generated cases directly with the intended timestamps, preserving earlier fixtures. The first browser attempts exposed low action quotas on GETs and are retained; the first error-language baseline did not reach its intended check. Corrected `browser-language-baseline-r2` then reproduced P1-086. `read-quota-baseline-r1` reproduces the sixth-read429, and `read-quota-fixed-r1` verifies corrected reads with unchanged POST limits. `browser-r2` passes EN/FR390px report/appeal pagination, collection independence, privacy and no overflow. `integrity-r1` independently verifies unchanged financial event/obligation/attempt/ledger hashes across all case/rate fixtures, including failures. Final `browser-language-fixed-r1` passes EN/FR390px pagination, offline error-language change with retained case data, and completed reconnection refresh. `check-all-r4`, `build-r4` and `bundle-r4` pass locally.
 
 `auth-callback-v84/limited-callback-baseline-r1` reproduces missing state-cookie cleanup on429. `limited-callback-fixed-r2` passes invalid-state302, rate-limit429, configuration503, secure/HttpOnly/path attributes and unrelated-route isolation with generated settings, no Google token requests and no financial writes. `captcha-default-baseline-r1` also reproduces the mainnet default mismatch; `captcha-default-fixed-r1` passes default Turnstile challenge creation plus dummy rejection/none. `captcha-simulation-regression-r2` passes dummy generation/proof/replay behavior. These are generated settings without Google/Cloudflare verification requests. Combined `check-all-r2`, `build-r2` and `bundle-r2` pass locally.
 
@@ -75,9 +79,9 @@ Public read-only evidence in `public-network-v79`: four expected network identit
 ## Release and preservation rules
 
 - Fresh install: paste only `packages/db/fresh-install.sql`. Seven receipts; immutable SQL000–005; SQL006 queue fix. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 standalone indexes. No DDL in this batch.
-- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v84.md) retain references/key-handling rules.
+- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v85.md) retain references/key-handling rules.
 - Hashes bind actual database identity. Keep historical obligation/attempt snapshots. Rotate request/auth keys on restore, retain original MFA/custody/payload keys, reconcile chains and obtain fresh approvals/alert acknowledgements before publication.
 - Preserve all failed/successful financial fixtures, archives and keys. Corrections use fresh targets. SPL’s inherited console captions contain an old amount typo; integer assertions/rows are authoritative. Prior failed harness/transport/index/cache attempts remain in their original roots.
 - Five core guides plus two requested versioned trackers. Keep current facts concise; history is in Git. Both CI events must pass the exact final head before merge. Named manual procedures/required checks are authorized; broad automated suite remains deferred. Continue without approval pauses; do not claim100%.
 
-v84
+v85
