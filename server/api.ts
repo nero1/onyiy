@@ -511,6 +511,9 @@ export async function handleApiRequest(method:string,path:string[],request:Reque
  return withRequestContext(async()=>{
   let response:Response;try{response=await withExecutionBudget(50000,()=>routeApiRequest(method,path,request),request.signal);}catch(error){response=fail(error);}
   const headers=new Headers(response.headers);
+  // Clear transient callback state even when rate limiting or broken origin
+  // configuration prevented normal redirect handling. No session is changed.
+  if(method==='GET'&&path.join('/')==='auth/google/callback'&&response.status>=400)headers.append('Set-Cookie','gw_oauth_state=; Path=/api/v1/auth/google; Max-Age=0; SameSite=Lax; HttpOnly'+(new URL(request.url).protocol==='https:'?'; Secure':''));
   headers.set('X-Request-ID',requestId());
   headers.set('X-GW-API-Protocol',String(APP_WIRE_VERSION));headers.set('X-GW-Min-Client-Protocol',String(APP_MINIMUM_CLIENT_VERSION));
   return new Response(response.body,{status:response.status,statusText:response.statusText,headers});

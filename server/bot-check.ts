@@ -1,4 +1,5 @@
 import {boundedText} from './request-body';
+import {runtimeProviders} from '@gifters/config';
 import crypto from "node:crypto";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -22,9 +23,7 @@ export const botProof = z
   .strict();
 export type BotSurface = "consent" | "suspicious_checkout";
 function provider() {
-  const selected =
-    process.env.CAPTCHA_PROVIDER ??
-    (process.env.APP_ENV === "testnet" ? "turnstile" : "dummy");
+  const selected = runtimeProviders().CAPTCHA_PROVIDER;
   if (
     !["dummy", "turnstile", "none"].includes(selected) ||
     (selected === "dummy" && process.env.APP_ENV !== "simulation")
