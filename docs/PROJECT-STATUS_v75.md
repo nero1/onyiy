@@ -1,4 +1,4 @@
-# Project status v74
+# Project status v75
 
 **Phase One/Two is incomplete.** Four mainnets/eight protocols are implemented; all seven member-asset procedures now cover incoming payments, refunds, withdrawals, company settlements and sweeps locally. Generated endpoints/contracts are fixtures. Actual providers, custody, hosted operation and observation periods remain unverified. Continue without milestone approval pauses; owner launch inputs are deferred to final testing.
 
@@ -13,7 +13,7 @@
 | C005 | Provenance | Owner must verify real contracts/mints/decimals and independent RPCs. Generated JAGA is not real provenance; keep unverified assets disabled. |
 | C006 | Pricing | Fixed/derived activation, replay and signed-price checks pass locally. Verify actual feed operation and full price-change scenarios. |
 | C007 | UI/wallets | Seven canonical sends/eight protocols, saved locale, narrow EN/FR and wallet-safe updates pass locally. Finish devices, actual wallets and accessibility review. |
-| C008 | Recovery | Encrypted exact restore, matching releases, managed idle-session guard and database-bound approvals work. Known pending ETH recovery passes locally; finish other families, post-backup history reconciliation and hosted drills. |
+| C008 | Recovery | Encrypted exact restore, matching releases, managed idle-session guard and database-bound approvals work. Known pending ETH recovery passes locally; known pending SOL/SPL/TRC20 cases now pass too; finish broader restart/expiry/reorg cases, post-backup history reconciliation and hosted drills. |
 | C009 | Identity/access | Verify real Google/MFA/CAPTCHA, permissions, rate limits and recovery end to end. |
 | C010 | Product audit | Complete a current-PRD audit of queues/points/referrals/admin/data controls/flags/PWA/accessibility. Historical295-row checklist is not full current acceptance. |
 | C011 | Operations | Protected signer/schedulers and opt-in automatic encrypted backups are implemented. Finish actual external alerts, schedule/storage monitoring and incident/closure acceptance. |
@@ -26,7 +26,7 @@
 
 ## Current delivery
 
-Branch `feat/solana-tron-lifecycle`, based on PR72 merge `e9988f7ffc50b2babf356e078c4c08c1b15af169`. Its exact headf92f96e passed push39072511492 / PR39072520501. PR70 added managed restore/client compatibility; PR71 added policy-bound automatic backups; PR72 protected all wallet prompts from reload. Git history retains their detailed evidence.
+Branch `feat/recovery-family-audit`, based on PR73 merge `f0a655d620875fa08a652bec47a9fdc41854f2e4`. PR73 exact headae81a0d passed push39087811247 / PR39087821984. PR70 added managed restore/client compatibility; PR71 added policy-bound automatic backups; PR72 protected all wallet prompts from reload. Git history retains their detailed evidence.
 
 New read-only correction: an obligation can retain internal `signing` while its durable attempt is signed/broadcast. Recent and paginated member reads add `display_status`; EN/FR displays the recorded progress. Raw financial status, actions, history, wire compatibility and schema remain unchanged. The recorded transaction hash is also shown. `native-lifecycle-v74/send-status-r2` passes funded claim/signed/broadcast progression, old-code baseline, member isolation and unchanged obligation/attempt/ledger hashes. `send-status-browser-r1` passes production Chromium390px EN/FR recent and paginated views with the exact retained hash; no API interception or financial mutations. Required checks, production build and bundle budgets pass locally.
 
@@ -58,4 +58,12 @@ Preserve failed originals. Notable fixture corrections: ETH omitted transport lo
 - Automatic backups use authoritative policy and retained successful artifacts bound to database identity. Retention is checked after upload. GitHub timing/storage and measured RPO/RTO remain external acceptance; backups never restore/deploy/start payments.
 - Five core guides plus two versioned trackers. Both CI events must pass the exact final head before merge. Named isolated procedures/required checks are authorized; broad automated suite remains deferred. Continue after each merge; do not claim100%.
 
-v74
+v75
+
+## Recovery follow-up and transaction selection
+
+- `native-lifecycle-v74/restore-pending-sol-r1`, `restore-pending-spl-r1` and `restore-pending-tron-r1` pass the same encrypted pending-refund backup/empty-target restore/exact verification, source approval/authentication denial, missing-index hold preservation and retained-hash settlement with no new signature/broadcast. Source databases/packets remain unchanged. Missing custody causes expected preflight pauses (one SOL asset, two token/native registry entries); this does not establish new-send readiness or unknown-history recovery.
+- Transaction display now prefers confirmed, then broadcast/signed attempts, then failed attempts. `hash-priority-r2` executes the actual helper against five temporary-only scenarios and reproduces the old failed-before-broadcast selection. No real financial table is changed. Preserve r1: its harness passed a transaction client to an incompatible Drizzle constructor; r2 compiles through the actual PostgreSQL dialect.
+- Independent `recovery-integrity-r1` read-only checks pass across all four source/target pairs: two retained attempts each, pending source with one gas journal versus settled target with two, and zero unbalanced journals.
+- Follow-up required checks, production build and bundle budgets pass locally.
+- Current PRD scratch audit was refreshed to392 keyword candidates in `native-lifecycle-v74/current-prd-audit-r1.json`. All begin review-pending; extraction is an audit aid, not acceptance.

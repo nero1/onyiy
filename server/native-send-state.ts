@@ -6,7 +6,7 @@ export function nativeSendDisplayStatus(){return sql<string>`case when ${cryptoO
  when exists(select 1 from ${signedAttemptStatus} a where a.obligation_id=${cryptoObligations.id} and a.status='broadcast') then 'broadcast'
  when exists(select 1 from ${signedAttemptStatus} a where a.obligation_id=${cryptoObligations.id} and a.status='signed') then 'signed'
  else ${cryptoObligations.status} end else ${cryptoObligations.status} end`;}
-/** Prefer the confirmed winner over any superseded replacement. */
+/** Prefer the confirmed winner, then a live attempt, over earlier failures. */
 export function nativeSendTransactionHash(){return sql<string|null>`(select a.tx_hash from ${signedAttemptStatus} a
  where a.obligation_id=${cryptoObligations.id}
- order by case a.status when 'confirmed' then 0 when 'failed' then 1 when 'broadcast' then 2 when 'signed' then 3 else 4 end,a.created_at desc,a.id desc limit 1)`;}
+ order by case a.status when 'confirmed' then 0 when 'broadcast' then 1 when 'signed' then 2 when 'failed' then 3 else 4 end,a.created_at desc,a.id desc limit 1)`;}
