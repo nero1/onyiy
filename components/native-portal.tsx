@@ -467,8 +467,8 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
           {manifest?.feature_gifts&&<nav className="gift-tiles" aria-label={fr?'Dons':'Gifts'}>{giftPlans.map(plan=><button id={'gift-tile-'+(plan.version_id??plan.id)} className="gift-tile" key={plan.version_id??plan.id} onClick={()=>{const card=document.getElementById('gift-card-'+(plan.version_id??plan.id));card?.scrollIntoView({block:'start'});card?.focus({preventScroll:true})}}><span aria-hidden="true">🎁</span><strong>{plan.name}</strong><strong>{plan.amount_base_units===null?(fr?'Montant fixé au lancement':'Amount set at launch'):formatBaseUnits(BigInt(plan.amount_base_units??0),plan.decimals)} {plan.asset}</strong>{plan.plan&&<small>{manifest.presentation?.transparent?currencyText.potential:currencyText.expected}: ${plan.plan.estimated_reference_usd}</small>}</button>)}</nav>}
           {manifest?.feature_gifts&&enabledCurrencies.length>0&&!giftPlans.length&&<p>{currencyText.empty}</p>}
           {giftPlans.map((plan) => (
-              <article id={'gift-card-'+(plan.version_id??plan.id)} tabIndex={-1} className="card" key={plan.version_id ?? plan.id}>
-                <h2>
+              <article id={'gift-card-'+(plan.version_id??plan.id)} aria-labelledby={'gift-card-heading-'+(plan.version_id??plan.id)} tabIndex={-1} className="card" key={plan.version_id ?? plan.id}>
+                <h2 id={'gift-card-heading-'+(plan.version_id??plan.id)}>
                   {plan.name} · {plan.asset} · {plan.network}
                 </h2>
                 <p>
