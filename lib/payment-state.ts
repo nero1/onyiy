@@ -19,7 +19,7 @@ const historyLabels={
  REFUND_HOLD:['Refund reserved','Remboursement réservé'],REFUND_SETTLE:['Refund settled','Remboursement réglé'],
  REORG_COMPENSATE:['Funding correction','Correction du financement'],REORG_LOSS:['Funding invalidation','Invalidation du financement'],REORG_RECONFIRM:['Funding reconfirmed','Financement reconfirmé'],ADMIN_ADJUST:['Recorded adjustment','Ajustement enregistré'],
  signup:['Signup points','Points d’inscription'],gift_sender:['Gift points','Points du don'],gift_referrer:['Referral points','Points de parrainage'],
- withdrawal:['Withdrawal','Retrait'],refund:['Refund','Remboursement'],unallocated_refund:['Unassigned payment refund','Remboursement du paiement non attribué'],
+ withdrawal:['Withdrawal','Retrait'],recovery:['Account recovery payout','Paiement après récupération du compte'],refund:['Refund','Remboursement'],unallocated_refund:['Unassigned payment refund','Remboursement du paiement non attribué'],
  available_payable:['Available balance','Solde disponible'],held_payable:['Reserved balance','Solde réservé'],refund_payable:['Refund balance','Solde à rembourser'],
  credit:['Credit','Crédit'],debit:['Debit','Débit'],
 } as const;
