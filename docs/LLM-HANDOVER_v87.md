@@ -1,8 +1,8 @@
-# LLM handover v86
+# LLM handover v87
 
 ## Owner direction
 
-Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v86.md).
+Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v87.md).
 
 - Keep five core guides plus the two explicitly requested bug trackers. Rename the four versioned files together; fold new human guidance into these guides. SETUP stays concise, newbie-friendly, web UI only, with manual SQL paste.
 - Reuse existing provider accounts/resources and database names; one financially active mode per shared database. Preview uses public-only credentials.
@@ -11,13 +11,17 @@ Complete every Phase One/Two requirement, including real-money support and bugs.
 
 ## Repository and tooling
 
-`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/localized-operation-notices`, base PR84 merge `30efd43a7bbd9afe33cbfab0293154895d3b3b36`. PR72 exact headf92f96e passed push39072511492 / PR39072520501. PR70/71/72 are merged; implementation/evidence summaries are in status and Git history.
+`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/post-backup-recovery-audit`, base PR85 merge `9591dc5218aec55e4db101b032952d4f89d2861c`. PR72 exact headf92f96e passed push39072511492 / PR39072520501. PR70/71/72 are merged; implementation/evidence summaries are in status and Git history.
 
 - Read AGENTS and relevant Next16 documentation before relevant code edits. Node22: `/workspace/work/tooling/node-v22.23.3-linux-x64/bin`; PostgreSQL tools: `/workspace/work/tooling/pg-tls/bin`.
 - Owned PostgreSQL:55450, data `/workspace/work/shared-hosting-v50/pgdata`; public CA `server.crt` in that directory. Never read its private TLS key. Owner/runtime roles: `gw_v50_owner` / `gw_v50_runtime`. Preserve original failed `gw_v27_native_refund_isolated`; stopped cross-host55455/55456 retain data.
 - Local listeners/tsx/builds need the command's additional network permission. Git writes need `/workspace/onyiy/.git` write permission. Sandbox EPERM can otherwise resemble build/process errors; preserve failed logs and retry with correct scope.
 - Injected gh CLI credential expired. Connected GitHub Git Data/PR tools work. Build a remote tree from reviewed public files, assert its SHA equals the local reviewed tree, create commit/ref/PR and verify both exact-head CI events. Public unauthenticated fetch works with credential helpers/extra headers disabled. Align the clean local branch only after identical-tree verification.
 - Use `/workspace/work` for scratch. Never print secret JSON/key files. Only generated allowlisted web env is saved0600 for browser procedures; no owner/signer credentials enter the web child. One earlier automatic approval review timed out; its retry passed, with no pending rejection/approval.
+
+## Current recovery audit
+
+`post-backup-v87/eth-unknown-r2` passes coherent post-backup unknown ETH incoming/outgoing, typed loss review, full custody reconciliation and a new withdrawal after fresh target approvals/alert/price/custody. Preserve both r1 and stronger r2 sources/targets/packets/keys; r1 had a simplified timeline/nonce model. Restricted-role current/history proof reproduces then fixes P1-089. Other families, missing off-chain intents and hosted drills remain open; do not infer complete disaster recovery.
 
 ## Capability and constraints
 
@@ -57,4 +61,4 @@ Finish the operation-notice native/browser/required/build/bundle/docs checks, pu
 
 Owner inputs remain deferred. Continue independent work without asking again; actual provider/custody/Google/CAPTCHA/devices/alerts/hosting/costs/post-backup reconciliation and14+14-day observation remain unverified. Do not stop after a checked merge or claim production100%.
 
-v86
+v87
