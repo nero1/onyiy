@@ -175,7 +175,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v104.md](PROJECT-STATUS_v104.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v105.md](PROJECT-STATUS_v105.md).
 
 ## 10. Read-only preview using the same database
 
@@ -373,8 +373,8 @@ Start with **Solana devnet** to avoid needing a test token contract. Solana's se
 Use the UTC format `YYYY-MM-DDTHH:MM:SSZ`. `verified=true` records a real network review, not permission to send. This registry entry does not itself create or activate the database asset.
 
 7. Redeploy `main` and `preview`. Have the verified administrator open **Admin → Testnet administration**, select **sol**, enter a reason, and use **Stage disabled** when those controls are available. Do not select enable/activate to bypass the readiness pause. RPC/balance access is still required for staging.
-8. Prepare the reviewed signed-price verification key, actual fee/gas limits and HTTPS alert receiver through the owner/maintainer. These are financial activation inputs, not values the guide can invent. For new encrypted keys, use the browser custody-preparation steps below. Signer-host installation and financial activation remain unfinished.
-9. **Stop before payment activation.** The unfinished financial release checks and hosted acceptance must be resolved before normal testnet sending can be accepted. Record the workspace as configured, not “payments working.”
+8. Prepare the reviewed signed-price verification key (`PRICE_FEED_PUBLIC_KEY`), actual fee/gas limits and HTTPS alert receiver through the owner/maintainer. These are financial activation inputs, not values the guide can invent. For new encrypted keys, use the browser custody-preparation steps below. Follow the custody, isolated-signer and background-job steps below; actual hosted acceptance remains required.
+9. Complete the provider, readiness, custody and signer checks below before controlled testnet sending. Record actual results; configuration alone does not prove payments work.
 
 Other supported test-network registry values: Ethereum Sepolia `11155111`, BNB testnet `97`, and reviewed TRON `nile`/`shasta`. Token assets additionally need independently verified contract/mint and decimals; do not copy a mainnet token address into a test registry. [Official Solana network details](https://solana.com/docs/references/clusters).
 
@@ -417,12 +417,12 @@ Code supports Ethereum `1`, BNB `56`, Solana `mainnet-beta` and TRON `mainnet`. 
 
 13. Prepare custody using **Prepare new encrypted custody keys** below, then configure **Run the isolated signer**. Do not replace an existing funded treasury with new keys.
 14. On the site, open native payment administration. Provision each reviewed asset; TRX is an operating/gas asset, not a member gift currency. Leave JAGA disabled unless its exact BNB contract is verified. Add current signed prices; keep plans disabled until the approvals below are in place.
-15. In the existing GitHub `production` environment, set `APP_ENV=mainnet` and the current `FINANCIAL_API_ORIGIN`. Run the existing non-signing financial scheduler as in section12 so queued deliveries can reach the receiver. Use **Check alert channel** in native payment administration for each enabled network. Confirm that the real receiver accepts the signed delivery and returns a valid acknowledgement. Keep the probe open for reminders/renewal; an old acknowledgement expires after24 hours.
+15. In the existing GitHub `production` environment, set `APP_ENV=mainnet` and the current `FINANCIAL_API_ORIGIN`. Run the non-signing financial scheduler using **Background jobs** below so queued deliveries can reach the receiver. Use **Check alert channel** in native payment administration for each enabled network. Confirm that the real receiver accepts the signed delivery and returns a valid acknowledgement. Keep the probe open for reminders/renewal; an old acknowledgement expires after24 hours.
 16. Copy every distinct returned configuration hash. In Vercel Production and the matching GitHub signer environment, set both `FINANCIAL_CONFIG_APPROVALS_JSON` and `ALERT_ACCEPTANCE_FINGERPRINTS_JSON` to the reviewed list, for example `["FIRST_64_CHARACTER_HASH","SECOND_64_CHARACTER_HASH"]`. Use real returned hashes. Remove the older singular approval/fingerprint variables when using these lists.
 17. Redeploy Production, then run the isolated signer workflow once. Check its run result and the site's signer heartbeat. A changed policy, registry, address or alert binding needs new hashes/probes; never reuse an unrelated approval.
 18. With the owner present, fund only the approved treasury/reserve amounts, activate the intended per-currency plans and perform the final tests with small limits. Confirm actual wallet approval, chain receipts, balances, fees, refunds, alerts and restore reconciliation. Complete the required observation periods before public launch.
 
-Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v104.md).
+Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v105.md).
 
 ## If something fails
 
@@ -445,12 +445,12 @@ Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), 
 ## Limits and later operations
 
 - **Costs:** review current plans before creating resources. Vercel Hobby is for personal, non-commercial use; commercial hosting needs a suitable plan. Free quotas do not prove large-user capacity. Domain, gas and backup costs are separate.
-- **Mode changes:** Preview/Production can share one supported payment mode and database. Testnet promotion retires simulation access; real-money promotion still requires the implementation described above.
+- **Mode changes:** Preview/Production can share one supported payment mode and database. Testnet promotion retires simulation access; real-money promotion requires the setup and acceptance checks above.
 - **Background work:** deployment does not activate all workers. Non-signing scheduler workflows need separate URL/key settings. Do not enable workers or signing just to remove a warning.
 - **Backups:** use the protected GitHub recovery steps below. Keep archive, MFA and custody keys separately. Supabase backups do not replace signed app verification. Never restore onto an occupied project.
 - **Later schema changes:** preserve the installed baseline. Add a reviewed forward migration for later changes. Old 99-file archives require their matching historical release, not this fresh installer.
 
-**Documentation rule:** keep five core guides plus the two owner-requested bug trackers. Fold notes into them unless a new file is explicitly requested or essential. Use beginner language, exact clicks/values, web UIs and manual SQL installation. Keep old versions in Git history.
+**Documentation rule:** keep five core guides plus one concise bug report; no separate fix plan. Summarize fixed bugs by range and omit repeated histories. Keep this SETUP detailed for a beginner: exact web UI clicks, fields, values, checks and manual SQL. Keep the PRD comprehensive. New documents require an owner request or essential need; history stays in Git.
 
 
 ## Choose the transparent profile
@@ -497,6 +497,15 @@ Provide these during final setup; coding can continue before they are available.
 6. On the member wallet, open **All my current items → Type: Cycles → View: Completed** to inspect completed cycles, recorded completion times and the live rejoin cooldown. Dates use the saved account time zone.
 
 New backups use recovery inventory contract4. Keep original archives, keys and release references. Contract4 packets made before SQL006 need the matching pre-006 release (PR65 `0ea4cf5e62a0ef7e7f83c26c1a512d6935775ac3`) before a reviewed forward upgrade. Contract3 archives require release `6c323dc43c45efa1957308e467ce06e7cc0b36c0`; do not edit or re-sign them.
+
+## Background jobs
+
+1. In Supabase SQL Editor, run the key generator from section6 again. Save the two new results as `SCHEDULER_HMAC_KEY` and `FINANCIAL_WORKER_AUTH_KEY` in your password manager. Do not replace your existing authentication or MFA keys.
+2. Add both to Vercel **Production** and GitHub **Settings → Environments → production → Environment secrets**. Redeploy Production after saving.
+3. In that GitHub environment's **Variables**, set `APP_ENV` to the active mode, `SCHEDULER_ORIGIN` and `FINANCIAL_API_ORIGIN` to the exact site HTTPS origin.
+4. In **Settings → Secrets and variables → Actions → Variables**, set `ENABLE_SCHEDULER=true`. For testnet/mainnet, set `ENABLE_FINANCIAL_SCHEDULER=true` after configuring the financial providers; keep it off for simulation.
+5. Open **Actions → non-signing-scheduler → Run workflow → main**. For native modes, also run **non-signing-financial-scheduler**. Check accepted results and actual delivery; five-minute schedules can be delayed.
+6. These jobs do not sign transfers. Configure the separate signer below. To pause a scheduler, set its enable variable to `false`.
 
 ## Prepare new encrypted custody keys in your browser
 

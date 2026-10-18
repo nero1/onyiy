@@ -861,7 +861,7 @@ Keep these **five core documents** in `/docs`:
 | `PROJECT-STATUS_vN.md` | Verified progress, open bugs, checks actually run, blockers and next work |
 | `LLM-HANDOVER_vN.md` | Self-contained current instructions and stop boundary for the next LLM |
 
-- The two explicitly owner-requested `custom-bugs-report_vN.md` and `custom-bugs-fix-plan_vN.md` are approved exceptions. Version them with status/handover; keep previous versions in Git history.
+- Keep one concise `custom-bugs-report_vN.md` alongside the five core guides. Summarize fixed bugs by range; list only open problems, next fixes and status. No separate fix plan. Version the report with status/handover; keep history in Git. Shorten status/general explanations without condensing this PRD; retain detailed beginner steps in SETUP.
 - Create another non-core document only when the owner explicitly requests it or it is essential. Otherwise fold the information into the appropriate existing file. Essential machine evidence belongs beside its tooling, not in a new human handover.
 - Write for a high-school developer still learning: plain words, short explanations, useful lists/tables, and enough detail to act. Be concise without hiding necessary steps or limitations.
 - SETUP uses web UIs only. Research current official platform screens before changing instructions. Apply the single migration by pasting its complete SQL into Supabase SQL Editor. Do not add terminal, localhost or automated-migration instructions.
@@ -1220,9 +1220,9 @@ uj*****p3 just received $9.5 referral commission
 - Finish verified mainnet registry/adapters, isolated signing/custody, shared-database financial isolation and restricted preview access, payment/fee/refund/recovery paths, all exposed UI/help and operational setup.
 - Retain configured limits and evidence-based activation. Replace unfinished implementation gates only after their dependent work is verified; never remove a financial safeguard merely to make a status green.
 - Collect owner credentials securely and record actual external alerts, chain transactions, restore reconciliation, capacity and the observation periods in §30. Do not manufacture approval, elapsed time or provider evidence.
-- Both exact-final-head push and pull-request CI must pass before each merge. No direct main pushes. Keep five core docs and two versioned trackers. Existing no-automated-test-suite instructions remain binding; named isolated manual verification continues.
+- Both exact-final-head push and pull-request CI must pass before each merge. No direct main pushes. Keep five core guides and one concise versioned bug report. Existing no-automated-test-suite instructions remain binding; named isolated manual verification continues.
 
-The current gap list and acceptance evidence belong in [status](PROJECT-STATUS_v104.md) and the [report](custom-bugs-report_v104.md)/[plan](custom-bugs-fix-plan_v104.md). Continue until all requirements have actual verification; report any owner-dependent blocker precisely.
+The current gap list and acceptance evidence belong in [status](PROJECT-STATUS_v105.md) and the [bug report](custom-bugs-report_v105.md). Continue until all requirements have actual verification; report any owner-dependent blocker precisely.
 
 ### Fresh installation and historical compatibility
 
@@ -1245,7 +1245,7 @@ The owner explicitly approved P1-065 on **14 October 2026 at 02:25:24 PM WAT**, 
 - Closed signed-archive dependencies accept pgcrypto-only older packets or an additional pg_trgm declaration; unknown names, duplicates, versions and schemas fail.
 - Signatures/checksums, empty-target verification and exact post-restore inventories remain mandatory. Search approval does not activate financial gates.
 
-Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v104.md](PROJECT-STATUS_v104.md). Current bug evidence/tasks: [report](custom-bugs-report_v104.md) and [plan](custom-bugs-fix-plan_v104.md).
+Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v105.md](PROJECT-STATUS_v105.md). Current bug evidence/tasks: [bug report](custom-bugs-report_v105.md).
 
 ### Retention implementation clarification (v52)
 
@@ -1254,7 +1254,7 @@ Use the same database for online monthly archives of ledger postings, scan pages
 
 ### Phase Two presentation baseline — PR53
 
-P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v104.md).
+P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v105.md).
 
 P2.4 external assessment remains **not_reviewed** until actual owner/provider evidence is recorded. Mainnet runtime, encrypted signing and local financial procedures are implemented in v67. Remaining evidence includes live registry/provider/custody operation, funding/refund/closure review, countries and terms, budget, hosted capacity/alerts/restore and observation periods. Local implementation does not approve public launch.
 
