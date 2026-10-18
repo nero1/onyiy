@@ -1,6 +1,7 @@
 "use client";
+import {useLocalizedNotice} from './use-localized-notice';
 import AdminTimeZone from './admin-time-zone';
-import {errorMessage} from "@/lib/error-messages";
+
 import ChainRecoveryAdmin from "./chain-recovery-admin";
 import { decimalToBaseUnits, formatBaseUnits } from "@gifters/domain";
 import { useState } from "react";
@@ -44,7 +45,7 @@ export default function NativeAdmin({
     [alertCursor,setAlertCursor]=useState<string|null>(null),[alertView,setAlertView]=useState<'current'|'history'>('current'),
     [role, setRole] = useState("developer"),
     [obligation, setObligation] = useState(""),
-    [message, setMessage] = useState(""),
+    [message,setMessage]=useLocalizedNotice(locale),
     [busy, setBusy] = useState(false);
   const [activationProbe,setActivationProbe]=useState<{asset_key:string;alert_id:string;configuration_hash:string}|null>(null);
   const keys = [
@@ -65,7 +66,7 @@ export default function NativeAdmin({
       await fn();
       setMessage(fr ? "Action enregistrée." : "Action recorded.");
     } catch (e) {
-      setMessage(errorMessage(e, locale));
+      setMessage({error:e});
     } finally {
       setBusy(false);
     }

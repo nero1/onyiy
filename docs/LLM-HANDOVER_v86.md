@@ -1,8 +1,8 @@
-# LLM handover v85
+# LLM handover v86
 
 ## Owner direction
 
-Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v85.md).
+Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v86.md).
 
 - Keep five core guides plus the two explicitly requested bug trackers. Rename the four versioned files together; fold new human guidance into these guides. SETUP stays concise, newbie-friendly, web UI only, with manual SQL paste.
 - Reuse existing provider accounts/resources and database names; one financially active mode per shared database. Preview uses public-only credentials.
@@ -11,7 +11,7 @@ Complete every Phase One/Two requirement, including real-money support and bugs.
 
 ## Repository and tooling
 
-`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/member-case-pagination`, base PR83 merge `c606f4cc6c94a7aca2c290c8b499989d91c3e1f6`. PR72 exact headf92f96e passed push39072511492 / PR39072520501. PR70/71/72 are merged; implementation/evidence summaries are in status and Git history.
+`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/localized-operation-notices`, base PR84 merge `30efd43a7bbd9afe33cbfab0293154895d3b3b36`. PR72 exact headf92f96e passed push39072511492 / PR39072520501. PR70/71/72 are merged; implementation/evidence summaries are in status and Git history.
 
 - Read AGENTS and relevant Next16 documentation before relevant code edits. Node22: `/workspace/work/tooling/node-v22.23.3-linux-x64/bin`; PostgreSQL tools: `/workspace/work/tooling/pg-tls/bin`.
 - Owned PostgreSQL:55450, data `/workspace/work/shared-hosting-v50/pgdata`; public CA `server.crt` in that directory. Never read its private TLS key. Owner/runtime roles: `gw_v50_owner` / `gw_v50_runtime`. Preserve original failed `gw_v27_native_refund_isolated`; stopped cross-host55455/55456 retain data.
@@ -30,13 +30,15 @@ Complete every Phase One/Two requirement, including real-money support and bugs.
 
 ## Current work/evidence
 
-PR79–83 are merged after both exact-head CI events. Latest PR83 merge `c606f4c`, head0f50536: push39107336149 / PR39107344071. P1-080/081 restore settled support-recovery earnings to receipts/activity/statistics/recent wallet; seven-asset actual isolated recovery and independent journal/receipt/total checks pass. P1-082 clears transient OAuth state on failed302/429/503 paths without changing session/error status. P1-083 uses shared CAPTCHA defaults, fixing mainnet consent when overrides are unset. Generated settings/local checks are not real Google/Cloudflare/provider acceptance.
+PR79–84 are merged after both exact-head events. Latest PR84 merge `30efd43`, head1405aed: push39108470457 / PR39108477898. P1-080–086 recovery displays, CAPTCHA default/callback cleanup and own-case pagination/read quotas/error language are merged. Earlier named evidence is in status/Git; actual hosted/provider/device acceptance remains open.
 
-Current P1-084 adds own report/appeal pagination to fix newest100-only access. `ownCasesInput` is parsed on `/me/reports`; explicit own predicates remain; cursors use existing authenticated cursor utilities with separate own-collection scopes and exact timestamp/ID positions. Full microsecond cursor values are kept internal, not emitted in rows. Account UI pages collections independently and guards stale failures. No schema/financial change.
+Current P1-087 introduces `useLocalizedNotice` in15 components and render-time dashboard exception/notice keys, fixing frozen-language errors. Native proof/payment copy follows locale too. P1-088 separates native read errors from operation notices so successful owned reads clear recovered read errors without erasing payment warnings. Source requests, mutation guards and financial rules are unchanged. Read relevant Next16 client docs before further component edits.
 
-`member-cases-v85/baseline-r1` reproduces inaccessible older reports. `pagination-r1` verifies101 reports; `pagination-r3` verifies101 reports/101 appeals at tied microsecond timestamps, cursor account/collection/filter isolation, foreign-case exclusion and older-case token access. Failed r2 correctly hit immutable-case creation-time protection; retain it and all source fixtures. Fresh r3 inserts intended generated rows rather than rewriting old timestamps. The initial browser attempts exposed action quotas on GETs; retain their logs. The first error-language baseline did not reach its assertion; corrected `browser-language-baseline-r2` reproduced P1-086. Account errors now translate at render time, clear on identity changes and reject stale bootstrap/page/action results while preserving public bootstrap data. P1-085 classifies nonstaff GETs as reads before mutation categories. `read-quota-baseline-r1` reproduces sixth-read429 and `read-quota-fixed-r1` passes six reads while the sixth CSRF-protected report POST remains429. `browser-r2` passes EN/FR390px pagination/privacy and `integrity-r1` verifies unchanged financial hashes across all case/rate fixtures. Final `browser-language-fixed-r1` passes pagination plus offline error translation/data preservation and completed reconnection refresh. `check-all-r4`, `build-r4` and `bundle-r4` pass. Finish docs/secrets/whitespace checks, publish and require both exact-head CI events before merge. Relevant Next16 client/route guides have been read.
+`notices-v86/native-baseline-r1` reproduces stale native error language. Final `simulation-fixed-r2` passes production Chromium390px translation/reconnection and unchanged financial/point fingerprints. `native-fixed-r2` observes actual successful portfolio responses, verifies read-error recovery/translation and operation-warning retention, and rejects malformed payment input without a send. `financial-integrity-r1` checks unchanged native financial hashes against retained copies. The first native procedure/deadline logs remain intact. Final check-allr4/buildr4/bundler4 pass; finish docs/secrets/whitespace checks, publish and require both exact-head CI events before merge.
 
-Owned PostgreSQL is running with TLS on55450 after environment restart; restarting must explicitly retain port/TLS options. All generated financial databases/packets/keys remain intact. See status/Git history for earlier named browser, archive, lifecycle and auth evidence; no public funds were sent.
+`fee-variance-v86/KEY-r1` passes all seven assets: above-tolerance fee change pauses unsigned holds without changing old amounts or signing; fresh linked quotes require confirmation, then actual worker/separate web settle once. `integrity-r1` independently checks five attempts/gas journals, one old release/new hold and balanced ledgers. `expiry-{eth,usdt_sol,usdt_tron}-r1` actually waits a configured one-minute quote, refreshes signed prices and proves held pause/requote; `expiry-integrity-r1` verifies renewal after expiry with preserved costs/net. No timestamp rewrites or elapsed launch-period claims. `price-contract-r1` verifies signed-feed denials/exact replay with unchanged financial fingerprints. All contracts/keys/providers are generated, including JAGA; not real provenance/live approval.
+
+Owned PostgreSQL runs with TLS on55450; restart must explicitly retain port/TLS options. Preserve every generated source/failed fixture/packet/key. Never reset financial evidence. Current code/schema does not need new DDL.
 
 ## Archive/schema essentials
 
@@ -51,8 +53,8 @@ P1-080 adds settled `recovery` earnings to receipt/activity/statistic reads, res
 
 ## Continue
 
-Finish the member-case browser/required/build/bundle/docs checks, publish the fix and merge after both exact-head CI events. Then continue C004/C008 remaining variants and C010 full current-PRD/public/admin/flags/accessibility audit. The historical295-row and current392-keyword scratch files are not whole-product acceptance.
+Finish the operation-notice native/browser/required/build/bundle/docs checks, publish the fixes and merge after both exact-head CI events. Then continue C004/C008 remaining variants and C010 full current-PRD/public/admin/flags/accessibility audit. The historical295-row and current392-keyword scratch files are not whole-product acceptance.
 
 Owner inputs remain deferred. Continue independent work without asking again; actual provider/custody/Google/CAPTCHA/devices/alerts/hosting/costs/post-backup reconciliation and14+14-day observation remain unverified. Do not stop after a checked merge or claim production100%.
 
-v85
+v86

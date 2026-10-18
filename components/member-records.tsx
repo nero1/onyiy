@@ -1,11 +1,12 @@
 'use client';
+import {useLocalizedNotice} from './use-localized-notice';
 import {paymentStateLabel} from '@/lib/payment-state';
 import CycleCooldown from './cycle-cooldown';
 import {useDisplayTimeZone} from './appearance-provider';
 import {formatDisplayDate} from '@/lib/display-time';
 import {useEffect,useRef,useState} from 'react';
 import {api,clientSessionMatches} from '@/lib/api-client';
-import {errorMessage} from '@/lib/error-messages';
+
 import {formatBaseUnits} from '@gifters/domain';
 import type {Locale} from '@/lib/i18n';
 import type {MemberCollection,MemberRecord,MemberRecordPage} from '@/lib/member-records';
@@ -14,7 +15,7 @@ type Props={owner:string;generation:string;environment:'simulation'|'testnet'|'m
  * memory is bounded by the dashboard's recent-history window. */
 export default function MemberRecords(props:Props){
  const {owner,generation,environment,locale,collections,history,disabled}=props,fr=locale==='fr',zone=useDisplayTimeZone();
- const [collection,setCollection]=useState<MemberCollection>(collections[0]),[view,setView]=useState<'current'|'history'|'completed'>('current'),[page,setPage]=useState<MemberRecordPage|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [collection,setCollection]=useState<MemberCollection>(collections[0]),[view,setView]=useState<'current'|'history'|'completed'>('current'),[page,setPage]=useState<MemberRecordPage|null>(null),[busy,setBusy]=useState(false),[error,setError]=useLocalizedNotice(locale);
  const pageStart=useRef<string|undefined>(undefined),previousScope=useRef('');
  const sequence=useRef(0),controller=useRef<AbortController|null>(null);
  const scope=owner+'|'+generation+'|'+environment+'|'+collection+'|'+view;
@@ -30,7 +31,7 @@ export default function MemberRecords(props:Props){
    const query=new URLSearchParams({environment,collection,view});if(after)query.set('after',after);
    const result=await api<MemberRecordPage>('/me/records?'+query,owner,{signal:cancel.signal});
    if(valid())setPage(result);
-  }catch(cause){if(sequence.current===serial&&activeScope.current===started&&clientSessionMatches(owner,generation))setError(errorMessage(cause,locale));}
+  }catch(cause){if(sequence.current===serial&&activeScope.current===started&&clientSessionMatches(owner,generation))setError({error:cause});}
   finally{clearTimeout(timer);if(sequence.current===serial&&activeScope.current===started)setBusy(false);}
  }
  useEffect(()=>{if(previousScope.current!==scope){previousScope.current=scope;pageStart.current=undefined;}void load(pageStart.current);return()=>{sequence.current++;controller.current?.abort();};},[scope,props.revision]);

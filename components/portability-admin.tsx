@@ -1,5 +1,6 @@
 "use client";
-import {errorMessage} from "@/lib/error-messages";
+import {useLocalizedNotice} from './use-localized-notice';
+
 import { useState } from "react";
 import {
   api,
@@ -30,7 +31,7 @@ export default function PortabilityAdmin({
     [confirmation, setConfirmation] = useState(""),
     [status, setStatus] = useState<any>(null),
     [file, setFile] = useState<File | null>(null),
-    [notice, setNotice] = useState(""),
+    [notice,setNotice]=useLocalizedNotice(locale),
     [busy, setBusy] = useState(false);
   async function run(fn: () => Promise<void>) {
     if (busy) return;
@@ -39,7 +40,7 @@ export default function PortabilityAdmin({
     try {
       await fn();
     } catch (e) {
-      setNotice(errorMessage(e, locale));
+      setNotice({error:e});
     } finally {
       setBusy(false);
     }

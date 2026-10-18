@@ -1,5 +1,6 @@
 "use client";
-import {errorMessage} from "@/lib/error-messages";
+import {useLocalizedNotice} from './use-localized-notice';
+
 import { useState } from "react";
 import { api, mutation, ApiError } from "@/lib/api-client";
 import type { Locale } from "@/lib/i18n";
@@ -32,7 +33,7 @@ export default function ChainRecoveryAdmin({
     [rows, setRows] = useState<any>(null),
     [result, setResult] = useState<any>(null),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error,setError]=useLocalizedNotice(locale);
   const [view,setView]=useState<'current'|'history'>('current'),[lookup,setLookup]=useState('');
   const [inventory,setInventory]=useState<{current_address:string;rows:{address:string;current:boolean}[];next_after:string|null}|null>(null);
   async function loadTreasuries(after?:string){
@@ -50,7 +51,7 @@ export default function ChainRecoveryAdmin({
     try {
       setResult(await fn());
     } catch (e) {
-      setError(errorMessage(e, locale));
+      setError({error:e});
     } finally {
       setBusy(false);
     }

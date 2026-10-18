@@ -1,9 +1,10 @@
 'use client';
+import {useLocalizedNotice} from './use-localized-notice';
 import {formatDisplayDate} from '@/lib/display-time';
 import {useDisplayTimeZone} from './appearance-provider';
 import {useEffect,useRef,useState} from 'react';
 import {api} from '@/lib/api-client';
-import {errorMessage} from '@/lib/error-messages';
+
 import type {Locale} from '@/lib/i18n';
 import type {JsonWire} from '@/lib/financial-contracts';
 import type {releaseProfile} from '@/server/transparency';
@@ -13,12 +14,12 @@ type Snapshot=JsonWire<Awaited<ReturnType<typeof releaseProfile>>>;
 type Stage={stage_id:string;expected_revision:number;expires_at:string;proposed:ProfilePresentation;impact:Snapshot['impact']};
 export default function ReleaseProfiles({owner,locale,enabled}:{owner:string;locale:Locale;enabled:boolean}){
  const timeZone=useDisplayTimeZone();
- const fr=locale==='fr',[snapshot,setSnapshot]=useState<Snapshot|null>(null),[stage,setStage]=useState<Stage|null>(null),[preset,setPreset]=useState('transparent'),[bootstrap,setBootstrap]=useState('labelled'),[priority,setPriority]=useState('disabled'),[activity,setActivity]=useState('verified'),[stats,setStats]=useState(false),[advanced,setAdvanced]=useState(''),[reason,setReason]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[preview,setPreview]=useState<'summary'|'checkout'|'cycle'|'mechanics'>('summary'),[readiness,setReadiness]=useState('not_reviewed'),[references,setReferences]=useState('');
+ const fr=locale==='fr',[snapshot,setSnapshot]=useState<Snapshot|null>(null),[stage,setStage]=useState<Stage|null>(null),[preset,setPreset]=useState('transparent'),[bootstrap,setBootstrap]=useState('labelled'),[priority,setPriority]=useState('disabled'),[activity,setActivity]=useState('verified'),[stats,setStats]=useState(false),[advanced,setAdvanced]=useState(''),[reason,setReason]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useLocalizedNotice(locale),[preview,setPreview]=useState<'summary'|'checkout'|'cycle'|'mechanics'>('summary'),[readiness,setReadiness]=useState('not_reviewed'),[references,setReferences]=useState('');
  const epoch=useRef(0),active=useRef(true),flight=useRef(false),lifetime=useRef(new AbortController()),keys=useRef(new Map<string,{body:string;key:string}>());
  const labels:Record<string,string>=fr?{waiting:'Positions en attente',untouched_system:'Positions contrôlées intactes',partial_system:'Positions contrôlées partiellement allouées',remaining_system_slots:'Allocations contrôlées restantes',priority_positions:'Positions prioritaires',business_obligations:'Obligations de positions contrôlées à conserver'}:{waiting:'Waiting positions',untouched_system:'Untouched platform positions',partial_system:'Partly allocated platform positions',remaining_system_slots:'Remaining platform allocations',priority_positions:'Priority positions',business_obligations:'Platform-position obligations to retain'};
  async function get(){const started=epoch.current;const value=await api<Snapshot>('/admin/release-profiles',owner,{signal:AbortSignal.any([lifetime.current.signal,AbortSignal.timeout(10000)])});if(active.current&&started===epoch.current){setSnapshot(value);setReadiness(value.readiness.status);setReferences(value.readiness.evidence_refs.join(', '));}return value;}
  async function send<T>(path:string,body:unknown){const content=JSON.stringify(body);let pending=keys.current.get(path);if(!pending||pending.body!==content){pending={body:content,key:crypto.randomUUID()};keys.current.set(path,pending);}return api<T>(path,owner,{method:'POST',body:content,headers:{'Idempotency-Key':pending.key},signal:AbortSignal.any([lifetime.current.signal,AbortSignal.timeout(30000)])});}
- async function run(action:()=>Promise<void>){if(flight.current)return;const started=epoch.current;flight.current=true;setBusy(true);setMessage('');try{await action();}catch(error){if(active.current&&started===epoch.current)setMessage(errorMessage(error,locale));}finally{if(started===epoch.current){flight.current=false;if(active.current)setBusy(false);}}}
+ async function run(action:()=>Promise<void>){if(flight.current)return;const started=epoch.current;flight.current=true;setBusy(true);setMessage('');try{await action();}catch(error){if(active.current&&started===epoch.current)setMessage({error:error});}finally{if(started===epoch.current){flight.current=false;if(active.current)setBusy(false);}}}
  useEffect(()=>{epoch.current++;active.current=true;flight.current=false;lifetime.current=new AbortController();void run(async()=>{await get()});return()=>{active.current=false;epoch.current++;lifetime.current.abort();};},[]);
  useEffect(()=>{if(!stage)return;const timer=setTimeout(()=>{setStage(null);setMessage(fr?'Aperçu expiré. Préparez-en un nouveau.':'Preview expired. Stage a new one.');},Math.max(1,Date.parse(stage.expires_at)-Date.now()));return()=>clearTimeout(timer);},[stage,fr]);
  function draft(){return {preset,bootstrap,priority,activity,public_stats_enabled:stats,...(advanced.trim()?{overrides:JSON.parse(advanced)}:{})};}

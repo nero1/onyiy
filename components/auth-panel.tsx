@@ -1,5 +1,6 @@
 'use client';
-import {errorMessage} from '@/lib/error-messages';
+import {useLocalizedNotice} from './use-localized-notice';
+
 import dynamic from 'next/dynamic';import type {BotProof} from './bot-check';
 const BotCheck=dynamic(()=>import('./bot-check'));
 import {useEffect,useState,useRef} from 'react';
@@ -11,10 +12,10 @@ export default function AuthPanel({environment='simulation',scope,securityReady=
  const renderScope=(user?.id??'anonymous')+':'+(scope??'')+':'+requiresMfa;const scopeRef=useRef(renderScope);scopeRef.current=renderScope;const mounted=useRef(true);useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);const valid=()=>mounted.current&&scopeRef.current===renderScope&&clientSessionMatches(user?.username??'',scope);
  const [botReady,setBotReady]=useState(false),[proof,setProof]=useState<BotProof|undefined>();
  const ageSatisfied=!!user?.age_confirmed&&(user.age_minimum_accepted??0)>=(manifest?.eligibility_min_age??1);
- const t=copy[locale];const [username,setUsername]=useState(user?.username??'member_01');const [newName,setNewName]=useState('');const [accepted,setAccepted]=useState(false);const [adult,setAdult]=useState(false);const [birthDate,setBirthDate]=useState('');const [referral,setReferral]=useState('');const [code,setCode]=useState('');const [recovery,setRecovery]=useState(false);const [secret,setSecret]=useState<string|null>(null);const [codes,setCodes]=useState<string[]>([]);const [enrolled,setEnrolled]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState('');
+ const t=copy[locale];const [username,setUsername]=useState(user?.username??'member_01');const [newName,setNewName]=useState('');const [accepted,setAccepted]=useState(false);const [adult,setAdult]=useState(false);const [birthDate,setBirthDate]=useState('');const [referral,setReferral]=useState('');const [code,setCode]=useState('');const [recovery,setRecovery]=useState(false);const [secret,setSecret]=useState<string|null>(null);const [codes,setCodes]=useState<string[]>([]);const [enrolled,setEnrolled]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useLocalizedNotice(locale);
  useEffect(()=>{try{const url=new URL(location.href);const referral=url.searchParams.get('ref');if(referral&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(referral))setReferral(referral);if(url.searchParams.get('auth_error')==='1'){setError(t.signInFailed);url.searchParams.delete('auth_error');history.replaceState(null,'',url.pathname+url.search+url.hash)}}catch{}},[]);
  useEffect(()=>{setBusy(false);setError('');setUsername(user?.username??'member_01');setAccepted(false);setAdult(false);setBirthDate('');setBotReady(false);setProof(undefined);setSecret(null);setCodes([]);setCode('');setEnrolled(false);if(user)void api<{enrolled:boolean}>('/auth/2fa/status',user.username).then(value=>{if(valid())setEnrolled(value.enrolled)}).catch(()=>{});},[user?.id,scope,requiresMfa]);
- async function run(fn:()=>Promise<void>){setBusy(true);setError('');try{await fn()}catch(e){if(valid())setError(errorMessage(e, locale))}finally{if(valid())setBusy(false)}}
+ async function run(fn:()=>Promise<void>){setBusy(true);setError('');try{await fn()}catch(e){if(valid())setError({error:e})}finally{if(valid())setBusy(false)}}
  function session(value:SessionResult){if(!valid())return;setBirthDate('');if(value.recovery_codes)setCodes(value.recovery_codes);onSession(value);}
  return <section className="card auth-panel" lang={locale}>
   <h2>{requiresMfa?t.verifyAuthenticator:user?t.accountSecurity:t.signIn}</h2>
