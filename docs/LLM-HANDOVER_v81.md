@@ -1,8 +1,8 @@
-# LLM handover v80
+# LLM handover v81
 
 ## Owner direction
 
-Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v80.md).
+Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v81.md).
 
 - Keep five core guides plus the two explicitly requested bug trackers. Rename the four versioned files together; fold new human guidance into these guides. SETUP stays concise, newbie-friendly, web UI only, with manual SQL paste.
 - Reuse existing provider accounts/resources and database names; one financially active mode per shared database. Preview uses public-only credentials.
@@ -11,7 +11,7 @@ Complete every Phase One/Two requirement, including real-money support and bugs.
 
 ## Repository and tooling
 
-`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/phase-two-product-audit`, base PR78 merge `61adf9375e0c534cad9e52d841df31702d61677b`. PR72 exact headf92f96e passed push39072511492 / PR39072520501. PR70/71/72 are merged; implementation/evidence summaries are in status and Git history.
+`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/phase-two-acceptance-audit`, base PR79 merge `f1af8d7`. PR72 exact headf92f96e passed push39072511492 / PR39072520501. PR70/71/72 are merged; implementation/evidence summaries are in status and Git history.
 
 - Read AGENTS and relevant Next16 documentation before relevant code edits. Node22: `/workspace/work/tooling/node-v22.23.3-linux-x64/bin`; PostgreSQL tools: `/workspace/work/tooling/pg-tls/bin`.
 - Owned PostgreSQL:55450, data `/workspace/work/shared-hosting-v50/pgdata`; public CA `server.crt` in that directory. Never read its private TLS key. Owner/runtime roles: `gw_v50_owner` / `gw_v50_runtime`. Preserve original failed `gw_v27_native_refund_isolated`; stopped cross-host55455/55456 retain data.
@@ -30,7 +30,7 @@ Complete every Phase One/Two requirement, including real-money support and bugs.
 
 ## Current work/evidence
 
-Use [status](PROJECT-STATUS_v80.md) for the concise current evidence matrix and C001–C017 remaining list. Detailed historical delivery is in Git, not repeated here.
+Use [status](PROJECT-STATUS_v81.md) for the concise current evidence matrix and C001–C017 remaining list. Detailed historical delivery is in Git, not repeated here.
 
 PR78 merged at head4a9fb86 after push39090744721 / PR39090751758 passed. Solana v1 reads now share maximum1 across network/adapter/bounded scanner; recorded-public-data and local financial regressions pass. Actual public network identities match; public-secondary403/executor direct transport failures are not hosted acceptance.
 
@@ -45,10 +45,12 @@ Under `product-audit-v78`, old production-browser baselines reproduce mode/units
 - Preserve `production-v55/production-foundation-v55-r1.gwbackup` and `cross-host-r1/archive.key`; `mainnet-recovery-v63/mainnet-isolated-r2.gwbackup` / `.key`; current-seven `browser-recovery-v69/mainnet-seven-migrations-r1.gwbackup` / `.key`. Keys in the last two pairs are raw32 bytes; the original cross-host key is encoded text. New packets/keys stay under their named procedure roots.
 - Request replay state is excluded; fresh request/auth keys are needed before publication. Retained MFA/custody/payload encryption keys remain necessary. `archive_record_keys` audit additions are expected; compare exact additions, not a blanket unchanged-table assertion.
 
+PR79 merged (`f1af8d7`) after exact head28058bf passed push39092977355 / PR39092983203. The current activity eligibility/exclusion audit passes; see status for limits. Generated clone `gw_v81_activity_r3` retains consent/epoch evidence; original fixtures and financial hashes are unchanged. `gw_v81_activity_r1` failed fixture consent setup and r2 is an earlier retained clone. The suspected signup/member-count alias issue was ruled out by independent SQL; do not invent a fix. PostgreSQL was recovered after environment restart and is running with TLS on55450; restart must explicitly retain port/TLS options.
+
 ## Continue
 
-Finish current browser/required checks/build/bundle/docs, create a PR and merge only after push and pull_request CI pass the exact final head. Then continue C004/C008 remaining variants and C010 full current-PRD/public/admin/flags/accessibility audit. The historical295-row and current392-keyword scratch files are not whole-product acceptance.
+Publish the current concise evidence update after docs/secrets/whitespace checks and both exact-head CI events. Then continue C004/C008 remaining variants and C010 full current-PRD/public/admin/flags/accessibility audit. The historical295-row and current392-keyword scratch files are not whole-product acceptance.
 
 Owner inputs remain deferred. Continue independent work without asking again; actual provider/custody/Google/CAPTCHA/devices/alerts/hosting/costs/post-backup reconciliation and14+14-day observation remain unverified. Do not stop after a checked merge or claim production100%.
 
-v80
+v81

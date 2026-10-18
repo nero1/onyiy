@@ -1,4 +1,4 @@
-# Project status v80
+# Project status v81
 
 **Phase One/Two remains incomplete.** Four mainnets/eight asset protocols are implemented. Seven member assets pass local incoming/refund/withdrawal/company/sweep procedures. Public RPC identities match; hosted payments and observation periods are unverified. Continue without milestone approval pauses. Owner launch inputs remain deferred to final testing.
 
@@ -26,7 +26,7 @@
 
 ## Current delivery
 
-Branch `feat/phase-two-product-audit`, base PR78 merge `61adf9375e0c534cad9e52d841df31702d61677b`. PR78 exact head4a9fb86 passed push39090744721 / PR39090751758 and fixed Solana v1 reads. Earlier releases/evidence remain in Git.
+Branch `feat/phase-two-acceptance-audit`, base PR79 merge `f1af8d7`. PR79 head28058bf passed push39092977355 / PR39092983203 before merge. PR78 exact head4a9fb86 passed push39090744721 / PR39090751758 and fixed Solana v1 reads. Earlier releases/evidence remain in Git.
 
 - **P1-076:** receipt sharing starts in the authenticated deployment mode. Explicit historical-mode selection remains available.
 - **P1-077:** history adds bounded currency/network metadata and formats exact base units with the original decimals. Native labels cover both testnet/mainnet; refund/withdrawal, balance purpose and direction are distinguished. Recorded send progress/hash match recent/paginated views. Correlated attempt IDs stay qualified even in Drizzle single-table selections. Portable exports and raw financial state are unchanged.
@@ -41,6 +41,10 @@ Under `product-audit-v78`:
 - `member-history-reads-r2` and `simulation-history-reads-r1` verify all six sections with actual ETH18/mainnet and GIV/simulation metadata: same original values/IDs/page limits, separate-member isolation, unchanged portable projections and unchanged obligation/attempt/ledger hashes.
 - `history-pending-r3` verifies the actual retained pending withdrawal across joined recent/paginated reads and shared history: raw signing state stays intact; display shows broadcast with the exact saved hash. Preserve r1, which exposed the single-table correlation ambiguity; the qualified identifier fixes the read.
 - `member-history-browser-r1` passes390px EN/FR receipt selection, real PNG preview, masked identity, exact amounts/network/hash, explicit simulation empty state and history/points routes. Final `member-history-browser-r5` also passes offline language/error preservation and reconnection. Required checks, production buildr5, bundle budgets, script/whitespace checks pass locally. Earlier r2–r4 exposed the offline server-navigation failure; those logs remain intact.
+
+## Verified activity audit
+
+`product-audit-v78/activity-eligibility-r2` and `activity-exclusions-r1` pass on an isolated clone of the generated ETH mainnet fixture through restricted service-role queries. Validated verified-feed policy is supplied directly; the fixture's stored activity feature remains off. They cover explicit opt-in/revocation, genuine gift/internal-credit/confirmed-withdrawal sources, opaque IDs, exact amounts/network, record cap, disabled dedicated/batch reads, mainnet demo denial and test-classification exclusion. Member totals match independent SQL; financial event/obligation/attempt/ledger hashes stay unchanged. No runtime bug was found in these cases. Hosted feed/cache/client acceptance remains open. Preserve failed r1 (stored feature was disabled) and the separate failed fixture setup; neither changed financial evidence.
 
 ## Financial evidence
 
@@ -72,9 +76,9 @@ Public read-only evidence in `public-network-v79`: four expected network identit
 ## Release and preservation rules
 
 - Fresh install: paste only `packages/db/fresh-install.sql`. Seven receipts; immutable SQL000–005; SQL006 queue fix. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 standalone indexes. No DDL in this batch.
-- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v80.md) retain references/key-handling rules.
+- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v81.md) retain references/key-handling rules.
 - Hashes bind actual database identity. Keep historical obligation/attempt snapshots. Rotate request/auth keys on restore, retain original MFA/custody/payload keys, reconcile chains and obtain fresh approvals/alert acknowledgements before publication.
 - Preserve all failed/successful financial fixtures, archives and keys. Corrections use fresh targets. SPL’s inherited console captions contain an old amount typo; integer assertions/rows are authoritative. Prior failed harness/transport/index/cache attempts remain in their original roots.
 - Five core guides plus two requested versioned trackers. Keep current facts concise; history is in Git. Both CI events must pass the exact final head before merge. Named manual procedures/required checks are authorized; broad automated suite remains deferred. Continue without approval pauses; do not claim100%.
 
-v80
+v81
