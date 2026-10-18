@@ -49,7 +49,11 @@ export default function AppearanceProvider({ locale: initialLocale, children }: 
     setLocale(saved);
     try{localStorage.setItem('locale',saved)}catch{/* Optional browser storage. */}
     const url=new URL(location.href);url.searchParams.set('locale',saved);
-    if(url.href!==location.href)router.replace(url.pathname+url.search+url.hash,{scroll:false});
+    if(url.href!==location.href){
+      const target=url.pathname+url.search+url.hash;
+      if(navigator.onLine)router.replace(target,{scroll:false});
+      else window.history.replaceState(null,'',target);
+    }
   },[ready,navigationUser?.id,navigationUser?.locale,router]);
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -62,7 +66,9 @@ export default function AppearanceProvider({ locale: initialLocale, children }: 
     try{localStorage.setItem('locale',value)}catch{/* Optional. */}
     const url = new URL(location.href);
     url.searchParams.set('locale',value);
-    router.replace(url.pathname + url.search + url.hash, { scroll: false });
+    const target=url.pathname + url.search + url.hash;
+    if(navigator.onLine)router.replace(target, { scroll: false });
+    else window.history.replaceState(null,'',target);
   };
   return <Context.Provider value={{ locale, theme,timeZone,setTimeZone, setLocale: changeLocale, setTheme, navigationUser, setNavigationUser }}>{children}</Context.Provider>;
 }
