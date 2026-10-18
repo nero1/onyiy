@@ -1,6 +1,6 @@
-# Bug fix plan — Rounds One/Two/Three v98
+# Bug fix plan — Rounds One/Two/Three v99
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v98.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v99.md).
 
 Updated: **18 October2026 (Africa/Lagos)**.
 
@@ -11,6 +11,8 @@ Historical numbered migration paths below identify the original fixes in Git his
 PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the three fresh Round Two findings below; The same batch includes the Round Three recovery fix below; Phase Two transparency implementation/local review was completed in v54; full-product work remains open.
 
 ## Complete task list
+
+- **P1-103:** disabled staff-feature admin previews implemented; actual TOTP/role/flag API, production EN/FR browser and financial-integrity checks passed.
 
 - **P1-102:** GIV dashboard retirement filter implemented; genuine-session page/feature/retention and original-source integrity checks passed.
 
@@ -123,11 +125,11 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 1. Finish C004 remaining native failure/account-setup/reorg/restart variants and C008 recovery reconciliation.
 2. Complete C010 current-PRD coverage, including public/admin/flags/accessibility; local financial procedures are partial evidence.
 3. Verify hosted services, custody, identity, provenance, operations/costs and observation periods after the owner supplies deferred launch setup.
-4. Keep substantial batches moving; both exact-head CI events must pass before each merge. Current evidence and remaining scope: [status](PROJECT-STATUS_v98.md).
+4. Keep substantial batches moving; both exact-head CI events must pass before each merge. Current evidence and remaining scope: [status](PROJECT-STATUS_v99.md).
 
 ## Fix and acceptance reference
 
-These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v98.md).
+These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v99.md).
 
 ### 1: BUG P1-001: Expired or dismissed native invoices prevent another checkout
 
@@ -507,7 +509,7 @@ These are named manual checks, not instructions to add an automated test suite. 
 - Use fresh isolated fixtures and rollback-only generated records where possible. Keep original financial sources, failed fixtures, signed bytes, archives and keys.
 - Run relevant verification and required checks; record what actually ran. Both exact-final-head **push** and **pull_request** CI must succeed before merge. No direct pushes to main.
 - Keep five core docs plus these two requested trackers. Rename status, handover, report and plan together. Fold decisions into existing files; keep old versions in Git.
-- See [current status](PROJECT-STATUS_v98.md) for release evidence and [handover](LLM-HANDOVER_v98.md) for the exact stop boundary.
+- See [current status](PROJECT-STATUS_v99.md) for release evidence and [handover](LLM-HANDOVER_v99.md) for the exact stop boundary.
 
 Signed: **16 October 2026 at 09:21:01 PM WAT**.
 
@@ -518,7 +520,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v98.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v99.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -538,7 +540,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v98.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v99.md).
 
 
 
@@ -559,7 +561,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Current completion and delivery
 
-Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v98.md) and [handover](LLM-HANDOVER_v98.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-fix-plan_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
+Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v99.md) and [handover](LLM-HANDOVER_v99.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-fix-plan_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
 
 ### P1-075 — Solana v1 reads
 
@@ -690,3 +692,9 @@ A notice saved for a French-speaking member stayed French after selecting Englis
 ### P1-102 — GIV dashboard returns retired notification placeholders
 
 The inbox excluded retired notices, but the dashboard's initial notification query returned their `[expired]` bodies. Add the same `retired_at is null` filter while preserving existing response aliases. `dashboard-retention-v98/baseline-r4` reproduces the mismatch; fresh `fixed-r1` verifies page agreement, retained retirement body/hash and feature off/on behavior. `integrity-r1` independently confirms seven financial/point tables match the original simulation source. Earlier wrong-mode fixture refusals were correct guards, not application defects; retain all copies. No financial timestamps, schema or balances change. Required/build/bundle checks pass; hosted acceptance remains separate.
+
+### P1-103 — Disabled staff features lose the required admin preview
+
+Disabled moderation rejected administrator reads; disabled administration/moderation pages disappeared without a preview entry point, contrary to PRD §3. Provide administrator-only read-only previews through account settings and navigation. Allow admin moderation reads through the existing fresh-MFA gate; moderator/disabled writes remain denied. Render cases in the disabled preview and disable mutation controls even with valid input. Normal disabled feature URLs stay404; preview parameters grant no authority.
+
+`staff-permissions-v99/baseline-r3` and production `browser-baseline-r1` reproduce the gap. Fresh `fixed-r4` passes full genuine-session/CSRF TOTP/role/moderation/flag checks. `browser-fixed-r1` verifies actual data, EN/FR390px layout, disabled controls, normal404s and member denial. `integrity-r1` independently compares original source and four retained copies. No financial/schema/auth-cookie change; required/build/bundle checks pass. Real Google/device/hosted acceptance remains separate.

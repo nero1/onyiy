@@ -10,7 +10,7 @@ export default function ProductNavigation({ locale, policy, user,readOnlyPreview
   if (policy?.feature_referrals && !restricted) links.push({ href: '/referrals', label: locale === 'fr' ? 'Parrainages' : 'Referrals' });
   links.push({ href: '/settings/account', label: locale === 'fr' ? 'Paramètres' : 'Settings' });
   if (policy?.feature_help) links.push({ href: '/help', label: t.help });
-  if (user?.role === 'admin' && policy?.feature_admin) links.push({ href: '/admin', label: t.admin });
-  if (user && ['admin', 'moderator'].includes(user.role) && policy?.feature_moderation) links.push({ href: '/moderation', label: locale === 'fr' ? 'Modération' : 'Moderation' });
-  return <nav className="primary-navigation" aria-label={t.navigation}>{links.map(link => <a key={link.href} href={link.href + ('?locale='+locale)}>{link.label}</a>)}</nav>;
+  if (user?.role === 'admin') links.push({ href: policy?.feature_admin?'/admin':'/settings/account?preview=admin', label: policy?.feature_admin?t.admin:t.admin+(locale==='fr'?' (lecture seule)':' (read-only)') });
+  if(user&&(user.role==='admin'||user.role==='moderator'&&policy?.feature_moderation))links.push({href:policy?.feature_moderation?'/moderation':'/settings/account?preview=moderation',label:(locale==='fr'?'Modération':'Moderation')+(!policy?.feature_moderation?(locale==='fr'?' (lecture seule)':' (read-only)'):'')});
+  return <nav className="primary-navigation" aria-label={t.navigation}>{links.map(link => <a key={link.href} href={link.href + (link.href.includes('?')?'&':'?')+'locale='+locale}>{link.label}</a>)}</nav>;
 }

@@ -1,8 +1,8 @@
-# LLM handover v98
+# LLM handover v99
 
 ## Owner direction
 
-Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v98.md).
+Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v99.md).
 
 - Keep five core guides plus the two explicitly requested bug trackers. Rename the four versioned files together; fold new human guidance into these guides. SETUP stays concise, newbie-friendly, web UI only, with manual SQL paste.
 - Reuse existing provider accounts/resources and database names; one financially active mode per shared database. Preview uses public-only credentials.
@@ -11,7 +11,7 @@ Complete every Phase One/Two requirement, including real-money support and bugs.
 
 ## Repository and tooling
 
-`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/dashboard-retention-and-currency`, base PR96 merge `5284a89b7abfa89b23cf52c9477837f24b5a0574`. PR96 headdc5c6fa passed push39152380636 / PR39152403835. P1-096–101 are merged.
+`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/staff-permission-acceptance`, base PR97 merge `b62f916554afb0908409f320ef798c6ef8a82afa`. PR97 heade6fe832 passed push39152969193 / PR39153003961. P1-096–102 are merged.
 
 - Read AGENTS and relevant Next16 documentation before relevant code edits. Node22: `/workspace/work/tooling/node-v22.23.3-linux-x64/bin`; PostgreSQL tools: `/workspace/work/tooling/pg-tls/bin`.
 - Owned PostgreSQL:55450, data `/workspace/work/shared-hosting-v50/pgdata`; public CA `server.crt` in that directory. Never read its private TLS key. Owner/runtime roles: `gw_v50_owner` / `gw_v50_runtime`. Preserve original failed `gw_v27_native_refund_isolated`; stopped cross-host55455/55456 retain data.
@@ -49,10 +49,12 @@ Use status's compact audit table for account/privacy/exports/priority/notificati
 
 ## Continue
 
-Current P1-102 adds the missing retired-notification filter to the GIV dashboard. `dashboard-retention-v98/baseline-r4` reproduces the mismatch; fresh `fixed-r1` passes genuine-session dashboard/inbox agreement, retained retirement body/hash and feature off/on checks. `integrity-r1` compares seven financial/point tables against original simulation source `gw_v78_product_simulation_r3`. The new operational fixture is explicitly aged; no financial date is changed. Preserve r1–r3: mainnet template missing GIV, correct environment-scoped asset hiding and correct financial-mode denial. No cross-currency defect was reproduced.
+Current P1-103 restores disabled staff-feature admin read-only preview. Settings accepts only `preview=admin|moderation`; AccountPortal restricts preview data to actual admin role, uses existing disabled AdminPanel controls and disables staff mutations. Navigation exposes preview links only to administrators. Staff-read gate permits admin moderation reads when the feature is off; existing fresh-MFA API and all write/role gates remain intact. Normal disabled feature pages still404.
 
-Finish final release/docs/secrets/whitespace checks, publish reviewed v98 tree and merge only after both exact-head CI events. Continue C001–C017 after merge; do not claim100% from local evidence.
+`staff-permissions-v99/contract-r1`/`contract-r2` pass actual HTTP/CSRF/session/TOTP enrollment and staff permissions, including suspend/restore/ban boundaries and feature switches. `baseline-r3`/`browser-baseline-r1` reproduce the gap; fresh `fixed-r4` and production390px EN/FR `browser-fixed-r1` verify actual settings/cases, disabled valid-input controls, normal404s and member denial. `integrity-r1` confirms original-source/four-copy financial equality. Protected generated env/cookie files stay0600 in that scratch root; never print them. No auth-cookie/schema change.
+
+Finish release/docs/secrets/whitespace checks, publish reviewed v99 tree and merge only after both exact-head CI events. Continue C001–C017 after merge; do not claim100% from local evidence. Prior dashboard retention evidence remains under `dashboard-retention-v98`; original simulation source is `gw_v78_product_simulation_r3`. Preserve all originals/failed copies/packets/keys.
 
 Owner inputs remain deferred. Actual provider/custody/Google/CAPTCHA/devices/alerts/hosting/costs and14+14-day observation remain unverified. Historical295-row/current392-keyword scratch files are not whole-product acceptance.
 
-v98
+v99
