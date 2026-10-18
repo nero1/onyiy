@@ -1,4 +1,4 @@
-# Project status v103
+# Project status v104
 
 **Phase One/Two remains incomplete.** Four mainnets/eight asset protocols are implemented. Seven member assets pass local incoming/refund/withdrawal/company/sweep procedures. Public RPC identities match; hosted payments and observation periods are unverified. Continue without milestone approval pauses. Owner launch inputs remain deferred to final testing.
 
@@ -26,14 +26,17 @@
 
 ## Current delivery
 
-Branch `feat/public-widget-protocol`, base [PR101](https://github.com/nero1/onyiy/pull/101) merge `9815cc7`. PR101 headb92ffec passed push39156864259 / PR39156912073. P1-108–110 add public-widget protocol and server mode/profile checks, separate cache namespaces and neutral bilingual terms metadata. Schema and financial rules are unchanged.
+Branch `feat/mainnet-outage-fallback`, base [PR102](https://github.com/nero1/onyiy/pull/102) merge `b015147`. PR102 head12141b3 passed push39160280711 / PR39160298965. P1-111 fixes the mainnet informational outage fallback; normal financial configuration guards remain intact.
 
 ## Current verification
 
-`public-wire-v103/baseline-r1` / final `fixed-r2` verify real public bodies with controlled incompatible protocol headers: anonymous requests advertise wire1; incompatible data clears and safe reload appears. `mainnet-cache-baseline-r1` and `profile-cache-baseline-r1` reproduce cold-page stale simulation activity; both `*-cache-fixed-r1` procedures pass EN/FR390px current data, stale-response rejection and recovery. These are **nonfinancial protocol/cache models**, not provider acceptance. `terms-baseline-r1` / `terms-fixed-r1` verify actual mainnet HTTP title/OpenGraph EN/FR. `integrity-r1` compares five financial/point tables across both original sources and six retained copies. Required/build/bundle checks pass locally. Preserve the original profile fixture's misspelled unused env key; corrected fresh `profile-fixture-r2` supplies the final same-mode verification. Hosted/device acceptance remains open.
+`mainnet-outage-v104/baseline-r1` / `fixed-r1` verify disabled fallback projections in all three modes and unchanged mainnet invalid-policy rejection. Actual production `http-baseline-r1` / final `http-fixed-r3` verify Home200, disabled help404 and authoritative wallet closure during database loss, EN/FR, without public demo activity or counters. Earlier HTTP assertions expected inappropriate feature availability; preserve those failed harnesses. Required/build/bundle checks pass. No database/financial/schema mutation.
+
+After this batch merges, **first complete the owner's documentation cleanup**: remove the separate bug-fix plan, retain one concise bug report, shorten other guides except PRD, and record the new rules. Merge that documentation PR before resuming C001–C017.
 
 | Recent audit root | Verified local procedures |
 |---|---|
+| `public-wire-v103` | Protocol-header and retained cache-replay models, mainnet metadata, independent original-source financial/point comparisons. PR102 merged with both CI events passing. |
 | `account-copy-v102` | `baseline-r1` / `fixed-r1`: readable account/case/role and balance labels, exact ETH amount, unchanged raw API status; original-source/two-copy `integrity-r1`. |
 | `keyboard-v101` | `baseline-r1` / `fixed-r2`: actual EN/FR390px keyboard focus to accessibility-tree-named card and back to the selected tile; `integrity-r2`: unchanged financial/point records. |
 | `wallet-route-v100` | `fixed-r2`: three wallet paths off/on. `simulation-fixed-r1`: GIV/native separation. `testnet-route-r1`: current-schema testnet heading/routes. Fresh-copy-only006 upgrade and grouped `integrity-r1` preserve original sources. |
@@ -99,9 +102,10 @@ Public read-only evidence in `public-network-v79`: four expected network identit
 ## Release and preservation rules
 
 - Fresh install: paste only `packages/db/fresh-install.sql`. Seven receipts; immutable SQL000–005; SQL006 queue fix. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 standalone indexes. No DDL in this batch.
-- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v103.md) retain references/key-handling rules.
+- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v104.md) retain references/key-handling rules.
 - Hashes bind actual database identity. Keep historical obligation/attempt snapshots. Rotate request/auth keys on restore, retain original MFA/custody/payload keys, reconcile chains and obtain fresh approvals/alert acknowledgements before publication.
 - Preserve all failed/successful financial fixtures, archives and keys. Corrections use fresh targets. SPL’s inherited console captions contain an old amount typo; integer assertions/rows are authoritative. Prior failed harness/transport/index/cache attempts remain in their original roots.
 - Five core guides plus two requested versioned trackers. Keep current facts concise; history is in Git. Both CI events must pass the exact final head before merge. Named manual procedures/required checks are authorized; broad automated suite remains deferred. Continue without approval pauses; do not claim100%.
 
-v102
+
+v104

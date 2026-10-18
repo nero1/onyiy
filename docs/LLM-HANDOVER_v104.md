@@ -1,8 +1,8 @@
-# LLM handover v103
+# LLM handover v104
 
 ## Owner direction
 
-Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v103.md).
+Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v104.md).
 
 - Keep five core guides plus the two explicitly requested bug trackers. Rename the four versioned files together; fold new human guidance into these guides. SETUP stays concise, newbie-friendly, web UI only, with manual SQL paste.
 - Reuse existing provider accounts/resources and database names; one financially active mode per shared database. Preview uses public-only credentials.
@@ -11,7 +11,7 @@ Complete every Phase One/Two requirement, including real-money support and bugs.
 
 ## Repository and tooling
 
-`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/public-widget-protocol`, base PR101 merge `9815cc76316e2422254c3dc692ccd5c97a3df790`. PR101 headb92ffec passed push39156864259 / PR39156912073. P1-096–107 are merged.
+`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/mainnet-outage-fallback`, base PR102 merge `b015147cfca557a53f751d39be522bfddd2dbfff`. PR102 head12141b3 passed push39160280711 / PR39160298965. P1-096–110 are merged.
 
 - Read AGENTS and relevant Next16 documentation before relevant code edits. Node22: `/workspace/work/tooling/node-v22.23.3-linux-x64/bin`; PostgreSQL tools: `/workspace/work/tooling/pg-tls/bin`.
 - Owned PostgreSQL:55450, data `/workspace/work/shared-hosting-v50/pgdata`; public CA `server.crt` in that directory. Never read its private TLS key. Owner/runtime roles: `gw_v50_owner` / `gw_v50_runtime`. Preserve original failed `gw_v27_native_refund_isolated`; stopped cross-host55455/55456 retain data.
@@ -49,8 +49,8 @@ Use status's compact audit table for account/privacy/exports/priority/notificati
 
 ## Continue
 
-Current P1-108–110: public-widget wire headers/cache namespace and incompatible-response closure; server-bound payment mode/minimum profile revision; neutral EN/FR terms metadata. Public query namespaces are not authorization. Financial gates, schema, legal body and wire constants are unchanged.
+P1-111 fixes the mainnet informational outage fallback without relaxing live-policy validation. `mainnet-outage-v104/baseline-r1` / `fixed-r1` cover all three modes; production `http-baseline-r1` / final `http-fixed-r3` cover EN/FR Home200, disabled help404 and authoritative native-wallet closure during DB loss. Preserve failed HTTP expectation harnesses. Required/build/bundle checks pass; no DB/financial mutation.
 
-`public-wire-v103/baseline-r1` / final `fixed-r2` pass controlled header compatibility checks retaining real bodies. Both `mainnet-cache-*` and `profile-cache-*` baseline/fixed procedures verify cold stale simulation response rejection and normal recovery, EN/FR390px. These are nonfinancial response-replay models, not live-provider evidence. `terms-*-r1` verify actual mainnet HTTP metadata. `integrity-r1` compares five financial/point tables across original simulation/mainnet sources and six retained copies. Profile fixture r1 had a misspelled unused deployment env key; preserve it and use corrected fresh `profile-fixture-r2` / `profile-r2-web.env.json` for final evidence. All generated env files remain0600, without owner credentials. Required/build/bundle checks pass.
+Check this batch's PR state; merge only after both CI events pass the exact head. **Then prioritize the owner's new documentation task before any further product work:** delete `custom-bugs-fix-plan`, retain a concise `custom-bugs-report` stating fixed ranges without histories/how/why/evidence; list only outstanding actionable bugs and brief fix directions. Shorten other guides except PRD. Preserve necessary setup/recovery instructions; put this rule in the handover/relevant guide. Update the docs validator for the single tracker. Merge the cleanup PR, then resume C001–C017 autonomously. Do not claim100% from local evidence. Preserve all source/failed fixtures, packets and keys; Git retains historical detail.
 
-Check this batch's GitHub PR state before resuming. If unmerged, finish release/docs/secrets/whitespace checks and merge reviewed v103 only after both exact-head CI events. If merged, continue C001–C017 from current main. Never claim100% from local evidence. Preserve every original/failed fixture, source, packet and key. Continue the current-PRD audit, including public policy propagation and feature boundaries; these cold-page fixes do not prove hosted propagation or all already-open-page switch cases.
+v104
