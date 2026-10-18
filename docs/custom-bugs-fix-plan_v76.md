@@ -1,6 +1,6 @@
-# Bug fix plan — Rounds One/Two/Three v75
+# Bug fix plan — Rounds One/Two/Three v76
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v75.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v76.md).
 
 Updated: **17 October2026 (Africa/Lagos)**.
 
@@ -96,7 +96,7 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 
 ## Fix and acceptance reference
 
-These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v75.md).
+These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v76.md).
 
 ### 1: BUG P1-001: Expired or dismissed native invoices prevent another checkout
 
@@ -476,7 +476,7 @@ These are named manual checks, not instructions to add an automated test suite. 
 - Use fresh isolated fixtures and rollback-only generated records where possible. Keep original financial sources, failed fixtures, signed bytes, archives and keys.
 - Run relevant verification and required checks; record what actually ran. Both exact-final-head **push** and **pull_request** CI must succeed before merge. No direct pushes to main.
 - Keep five core docs plus these two requested trackers. Rename status, handover, report and plan together. Fold decisions into existing files; keep old versions in Git.
-- See [current status](PROJECT-STATUS_v75.md) for release evidence and [handover](LLM-HANDOVER_v75.md) for the exact stop boundary.
+- See [current status](PROJECT-STATUS_v76.md) for release evidence and [handover](LLM-HANDOVER_v76.md) for the exact stop boundary.
 
 Signed: **16 October 2026 at 09:21:01 PM WAT**.
 
@@ -487,7 +487,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v75.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v76.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -507,7 +507,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v75.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v76.md).
 
 
 
@@ -648,20 +648,20 @@ Follow-up UI acceptance: identify the background request/cancellation path that 
 - C016: saved language was ignored on login; restore it unless the member explicitly selects a language. Keep English explicit across reload/full navigation.
 - C017: native schedules incorrectly used GIV activation. Stage per-currency intents, recheck database deadlines/current approvals/fresh prices, release atomically and keep early checkout disabled. Roll back failures before warning/backoff; retain fairness, cancellation and replay fences.
 - Public mainnet copy incorrectly claimed payments were unavailable, and catalogue cards overflowed narrow screens. Correct the label and responsive grid.
-- Named restricted-role/native/simulation and actual production-browser evidence: [status](PROJECT-STATUS_v75.md). Whole-product/live acceptance remains open; continue after checked merge.
+- Named restricted-role/native/simulation and actual production-browser evidence: [status](PROJECT-STATUS_v76.md). Whole-product/live acceptance remains open; continue after checked merge.
 
 ## Browser recovery and restore activation fixes (v69)
 
 - C008/C011: add a protected GitHub browser flow for encrypted backup, empty-target restore and independent exact verification, plus permanent encrypted ZIP release selection after short-term artifacts expire. Run only the selected trusted backup release; reject extra files, wrong confirmation, occupied targets and mixed signer/web credentials.
 - Financial approval hashes lacked database identity, so a restored copy could retain apparently valid source approvals/acknowledgements. Bind web/signer hashes to the actual database nonce/name/OID; require fresh approval without modifying retained financial snapshots.
-- Exact seven-migration archive roundtrip, full restricted-role worker/web regression, controller denials, copied-ack activation denial and bounded ZIP checks pass locally. [Status](PROJECT-STATUS_v75.md) distinguishes this evidence from hosted acceptance and remaining chain/lifecycle work.
+- Exact seven-migration archive roundtrip, full restricted-role worker/web regression, controller denials, copied-ack activation denial and bounded ZIP checks pass locally. [Status](PROJECT-STATUS_v76.md) distinguishes this evidence from hosted acceptance and remaining chain/lifecycle work.
 
 ## Cycle history and idle-preview fixes (v70)
 
 - Transparent paginated cycle positions incorrectly used legacy display rank. Select actual serving rank consistently, retaining the legacy profile’s rule.
 - Completed history omitted completion/cooldown and a Completed view. Add the entitled filter, original completion time, localized live cooldown and member status labels; preserve financial records.
 - A recent30-row window could miss an older active cycle and allow currency rotation. Use a separate bounded scoped existence flag; keep unresolved chain-review cycles in Current.
-- Baseline reproduction, restricted-service reads,35 declared synthetic historical rows, user isolation, unchanged ledger totals and actual390px EN/FR browser checks pass locally. Evidence/remaining build-client, managed-recovery and full-product work: [status](PROJECT-STATUS_v75.md).
+- Baseline reproduction, restricted-service reads,35 declared synthetic historical rows, user isolation, unchanged ledger totals and actual390px EN/FR browser checks pass locally. Evidence/remaining build-client, managed-recovery and full-product work: [status](PROJECT-STATUS_v76.md).
 
 ## Managed recovery and client compatibility (v71)
 
@@ -698,10 +698,16 @@ Follow-up UI acceptance: identify the background request/cancellation path that 
 - All seven local member-asset procedures now pass incoming/refund/member withdrawal plus company settlement/surplus sweep. Independent retained-database reads verify five attempts/gas journals per full case, settled obligations and zero unbalanced journals. Generated contracts/RPCs are not actual provenance or hosted acceptance.
 - A pending signed ETH refund survives encrypted backup/empty-target restore/exact verification. The target rejects source approvals/worker keys, preserves the hold while index evidence is missing, and settles the retained hash once without custody/new signature/broadcast. Original source/packet remain unchanged. Unknown post-backup history remains a separate reconciliation requirement.
 - Recorded sends could still display “Preparing signature.” Add `display_status` from durable attempt evidence to recent/paginated reads, keeping raw financial status and action rules. No DDL or historical rewrite. Funded staged/baseline/isolation/read-integrity procedure `send-status-r2` and production390px EN/FR recent/paginated status/hash procedure `send-status-browser-r1` pass. Required checks, production build and bundle budgets pass locally.
-- [Status](PROJECT-STATUS_v75.md) and [handover](LLM-HANDOVER_v75.md) now consolidate current evidence/remaining work; detailed history stays in Git. Continue recovery edge cases, the current PRD audit and external acceptance without milestone pauses.
+- [Status](PROJECT-STATUS_v76.md) and [handover](LLM-HANDOVER_v76.md) now consolidate current evidence/remaining work; detailed history stays in Git. Continue recovery edge cases, the current PRD audit and external acceptance without milestone pauses.
 
-v75
+v76
 
 ## Recovery families and live transaction hashes (v75)
 
-Pending SOL/SPL/TRC20 refund archive/restore procedures pass locally without new signatures/broadcasts, with source/packet preservation and source approvals/authentication rejected. Prefer live broadcast/signed hashes over earlier failed attempts while keeping confirmed winners first; five actual-helper temporary scenarios pass (`hash-priority-r2`). Details and outstanding work: [status](PROJECT-STATUS_v75.md). Hosted/unknown-history recovery and whole-product completion remain open.
+Pending SOL/SPL/TRC20 refund archive/restore procedures pass locally without new signatures/broadcasts, with source/packet preservation and source approvals/authentication rejected. Prefer live broadcast/signed hashes over earlier failed attempts while keeping confirmed winners first; five actual-helper temporary scenarios pass (`hash-priority-r2`). Details and outstanding work: [status](PROJECT-STATUS_v76.md). Hosted/unknown-history recovery and whole-product completion remain open.
+
+## Mainnet expiry and replacement preparation (v76)
+
+SOL/SPL/TRC20 pending refunds retain principal before expiry and close only after dual-provider positive expiry through actual worker/separate authenticated web. Original-sender liability returns once without additional gas/signature/broadcast; independent retained-database accounting reads pass. ETH post-withdrawal reorg also passes absence/outage denial, retained review/asset fence, immutable allocations and once-only cash/point reconfirmation. Native ETH and18-decimal BNB token replacement preparation preserves exact intent and rejects unsafe fee/evidence changes. This does not establish complete replacement persistence/restart or hosted-chain acceptance. Evidence and remaining work: [status](PROJECT-STATUS_v76.md).
+
+v76

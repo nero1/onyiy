@@ -1,4 +1,4 @@
-# Project status v75
+# Project status v76
 
 **Phase One/Two is incomplete.** Four mainnets/eight protocols are implemented; all seven member-asset procedures now cover incoming payments, refunds, withdrawals, company settlements and sweeps locally. Generated endpoints/contracts are fixtures. Actual providers, custody, hosted operation and observation periods remain unverified. Continue without milestone approval pauses; owner launch inputs are deferred to final testing.
 
@@ -9,7 +9,7 @@
 | C001 | Mainnet | Runtime, wallet/signing and seven-asset local lifecycle work. Finish edge cases and actual launch acceptance. |
 | C002 | Shared database/preview | One active financial mode and public-only Preview pass locally. Verify hosted promotion/permissions. |
 | C003 | Custody | Encrypted four-key package and isolated worker→separate web settlement work. Verify the actual protected host and keys. |
-| C004 | Payment matrix | All seven basic lifecycles, company settlements and sweeps pass. Finish replacement/expiry/reorg/restart and remaining failure/account-setup variants. |
+| C004 | Payment matrix | All seven basic lifecycles, company settlements and sweeps pass. SOL/SPL/TRC20 refund expiry and EVM replacement preparation now pass locally. Finish full replacement persistence/restart, wider reorg and failure/account-setup variants. |
 | C005 | Provenance | Owner must verify real contracts/mints/decimals and independent RPCs. Generated JAGA is not real provenance; keep unverified assets disabled. |
 | C006 | Pricing | Fixed/derived activation, replay and signed-price checks pass locally. Verify actual feed operation and full price-change scenarios. |
 | C007 | UI/wallets | Seven canonical sends/eight protocols, saved locale, narrow EN/FR and wallet-safe updates pass locally. Finish devices, actual wallets and accessibility review. |
@@ -26,7 +26,7 @@
 
 ## Current delivery
 
-Branch `feat/recovery-family-audit`, based on PR73 merge `f0a655d620875fa08a652bec47a9fdc41854f2e4`. PR73 exact headae81a0d passed push39087811247 / PR39087821984. PR70 added managed restore/client compatibility; PR71 added policy-bound automatic backups; PR72 protected all wallet prompts from reload. Git history retains their detailed evidence.
+Branch `feat/mainnet-expiry-replacement`, based on PR74 merge `15588830f57b7d13572082c7d748b7905132d527`. PR74 exact headfe99e83 passed push39088138512 / PR39088144256. PR70 added managed restore/client compatibility; PR71 added policy-bound automatic backups; PR72 protected all wallet prompts from reload. Git history retains their detailed evidence.
 
 New read-only correction: an obligation can retain internal `signing` while its durable attempt is signed/broadcast. Recent and paginated member reads add `display_status`; EN/FR displays the recorded progress. Raw financial status, actions, history, wire compatibility and schema remain unchanged. The recorded transaction hash is also shown. `native-lifecycle-v74/send-status-r2` passes funded claim/signed/broadcast progression, old-code baseline, member isolation and unchanged obligation/attempt/ledger hashes. `send-status-browser-r1` passes production Chromium390px EN/FR recent and paginated views with the exact retained hash; no API interception or financial mutations. Required checks, production build and bundle budgets pass locally.
 
@@ -58,7 +58,6 @@ Preserve failed originals. Notable fixture corrections: ETH omitted transport lo
 - Automatic backups use authoritative policy and retained successful artifacts bound to database identity. Retention is checked after upload. GitHub timing/storage and measured RPO/RTO remain external acceptance; backups never restore/deploy/start payments.
 - Five core guides plus two versioned trackers. Both CI events must pass the exact final head before merge. Named isolated procedures/required checks are authorized; broad automated suite remains deferred. Continue after each merge; do not claim100%.
 
-v75
 
 ## Recovery follow-up and transaction selection
 
@@ -67,3 +66,12 @@ v75
 - Independent `recovery-integrity-r1` read-only checks pass across all four source/target pairs: two retained attempts each, pending source with one gas journal versus settled target with two, and zero unbalanced journals.
 - Follow-up required checks, production build and bundle budgets pass locally.
 - Current PRD scratch audit was refreshed to392 keyword candidates in `native-lifecycle-v74/current-prd-audit-r1.json`. All begin review-pending; extraction is an audit aid, not acceptance.
+
+## Expiry and replacement evidence (v76)
+
+- `native-lifecycle-v74/{sol,spl,tron}-expiry-r1` passes actual encrypted worker→separate authenticated web expiry for a pending original-sender refund. Missing hashes before the deadline preserve held principal; dual-provider positive expiry records one expired attempt without new signature/broadcast/gas. Administrative recovery returns the full original-sender liability once, even while the sender remains banned. SOL uses a declared advanced block height; TRON uses a declared advanced provider block timestamp. These are explicit transport fixtures, not elapsed live-chain evidence.
+- Independent `expiry-integrity-r1` reads verify two signed attempts, one expired attempt, one earlier failed-receipt gas journal, full remaining refund principal and zero unbalanced journals in all three databases.
+- `replacement-eth-r2` (native) and `replacement-bnb-r1` (18-decimal token) exercise the actual EVM replacement preparation with generated signatures and amounts above safe JavaScript integer precision. They preserve nonce/recipient/principal/calldata/gas limit, wait30 blocks, bump10% within the approved25% budget, and reject changed destination, contradictory/confirmed evidence and excess fees. No broadcast or replacement persistence is claimed. Preserve ETHr1: it exercised generic token intent on Ethereum, not the intended native case.
+- ETH post-withdrawal reorg procedure `eth-reorg-r2` passes: absence/provider outage cannot book loss; positively replaced canonical block creates one retained review, freezes spending, preserves allocations and rejects evidence rewrite; reconfirmation restores cash/points once. Preserve r1: it correctly hit the asset safety fence, but the harness expected the wrong error name. Its committed review and original financial database remain unchanged; r2 uses a fresh database.
+
+v76
