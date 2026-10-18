@@ -32,7 +32,10 @@ function captured(data:unknown,manifest:Pick<Manifest,'cache_policy'>,publicSeco
 export function unavailablePublicManifest(){
  const value=publicManifest(seed),unavailable={en:'Service temporarily unavailable. Refresh to try again.',fr:'Service temporairement indisponible. Actualisez pour réessayer.'};
  const features=Object.fromEntries(Object.keys(value).filter(key=>key.startsWith('feature_')).map(key=>[key,false]));
- return {...value,...features,configuration_available:false as const,presentation:presentationFromManifest({...seed,...features,feature_activity:false,feature_transparency:false,activity_presentation:'disabled'}),activity_statements:[],public_stats_policy:{...value.public_stats_policy,enabled:false},product_content:{...value.product_content,tagline:unavailable,short_description:unavailable}};
+ // Build truthful mainnet copy without relaxing the normal live-policy guard.
+ const mainnet=selectedPaymentEnvironment()==='mainnet',profile=mainnet?'transparent':seed.deployment_profile;
+ const presentation={...presentationFromManifest({...seed,...features,deployment_profile:profile,feature_simulation:false,feature_activity:false,feature_transparency:mainnet,activity_presentation:'disabled'}),enabled:false};
+ return {...value,...features,deployment_profile:profile,configuration_available:false as const,presentation,activity_statements:[],public_stats_policy:{...value.public_stats_policy,enabled:false},product_content:{...value.product_content,tagline:unavailable,short_description:unavailable}};
 }
 async function manifestLoader():Promise<Loaded> {
  if(isReadOnlyPreview()){const value=await previewManifest();return captured(value.data,value.policy,value.policy.cache_policy.manifest_public_seconds);}
