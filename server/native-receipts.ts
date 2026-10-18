@@ -1,5 +1,5 @@
 import {financialEnvironmentIn} from './financial-config';
-import { and, asc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import {
   assets,
   cryptoObligations,
@@ -42,7 +42,8 @@ export async function ownNativeReceipts(
       and(
         eq(cryptoObligations.userId, userId),
         eq(cryptoObligations.environment, environment),
-        eq(cryptoObligations.kind, "withdrawal"),
+        inArray(cryptoObligations.kind, ["withdrawal", "recovery"]),
+        eq(cryptoObligations.sourcePurpose, "available_payable"),
         eq(cryptoObligations.status, "settled"),
         id ? eq(cryptoObligations.id, id) : undefined,
         after ? gt(cryptoObligations.id, after) : undefined,
