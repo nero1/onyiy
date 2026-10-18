@@ -1,8 +1,8 @@
-# LLM handover v92
+# LLM handover v93
 
 ## Owner direction
 
-Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v92.md).
+Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v93.md).
 
 - Keep five core guides plus the two explicitly requested bug trackers. Rename the four versioned files together; fold new human guidance into these guides. SETUP stays concise, newbie-friendly, web UI only, with manual SQL paste.
 - Reuse existing provider accounts/resources and database names; one financially active mode per shared database. Preview uses public-only credentials.
@@ -11,7 +11,7 @@ Complete every Phase One/Two requirement, including real-money support and bugs.
 
 ## Repository and tooling
 
-`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/remaining-phase-two-audit`, base PR90 merge `9c804c6ca2cb12eb74a35dc46f77180f022e1e78`. PR90 head0b0d4c0 passed push39129344339 / PR39129353472 before merge.
+`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/missing-intent-incident-audit`, base PR91 merge `e5c7c7eba12119dbd4a4c4b5a3a9b9f57d32c913`. PR91 head951d4de passed push39131356781 / PR39131364287 before merge.
 
 - Read AGENTS and relevant Next16 documentation before relevant code edits. Node22: `/workspace/work/tooling/node-v22.23.3-linux-x64/bin`; PostgreSQL tools: `/workspace/work/tooling/pg-tls/bin`.
 - Owned PostgreSQL:55450, data `/workspace/work/shared-hosting-v50/pgdata`; public CA `server.crt` in that directory. Never read its private TLS key. Owner/runtime roles: `gw_v50_owner` / `gw_v50_runtime`. Preserve original failed `gw_v27_native_refund_isolated`; stopped cross-host55455/55456 retain data.
@@ -56,10 +56,10 @@ Owned PostgreSQL runs with TLS on55450; restart must explicitly retain port/TLS 
 
 ## Continue
 
-P1-089–094 are merged through PR90 after both exact-head CI events. All seven full post-backup procedures and independent integrity checks now pass under `post-backup-v87`; use the compact matrix in status for exact names. Token checks separately verify native gas and token cash. Thirteen SOL/SPL and15 TRX/TRC20 read-only balance-witness boundaries pass. Keep every original/failed source, packet, key and log; Sol r1 source-name and token r1 pause-count errors are retained harness mistakes, with fresh corrected fixtures.
+P1-089–094 are merged through PR90; PR91 merged the seven-asset/28-witness evidence after both exact-head CI events. Current `eth-missing-intent-r1` and combined fresh r3 pass a known member-wallet transfer without inferred withdrawal/debit/receipt, then one fresh approved payout. R3 additionally uses normal plan pause: new checkout rejects, financial rows/hash remain unchanged during pause, replay/conflict behaves correctly, and the approved payout settles while intake remains paused. Independent `missing-intent-incident-integrity-r1` passes. Retain failed r2 with its paused plan/approved payout; a fixture variable shadow stopped that new assertion, so a fresh target was used.
 
-Publish this evidence-only v92 batch after docs/secrets/whitespace checks and both exact-head CI events. Then continue missing off-chain intent/incident handling and the full current-PRD/public/admin/flags/accessibility audit. No owner/provider/device/hosting acceptance or elapsed observation follows from generated fixtures. The historical295-row/current392-keyword scratch files are not whole-product acceptance.
+Finish docs/secrets/whitespace and publish this v93 evidence/guide batch; require both exact-head CI events before merge. Then continue the full current-PRD/public/admin/flags/accessibility audit and selected incident/closure acceptance. Generated fixtures do not prove hosted/provider/custody/device acceptance or elapsed launch observations. The historical295-row/current392-keyword scratch files are not whole-product acceptance.
 
 Owner inputs remain deferred. Continue independent work without asking again; actual provider/custody/Google/CAPTCHA/devices/alerts/hosting/costs and wider post-backup recovery and14+14-day observation remain unverified. Do not stop after a checked merge or claim production100%.
 
-v92
+v93
