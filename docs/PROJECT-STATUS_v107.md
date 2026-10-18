@@ -1,4 +1,4 @@
-# Project status v106
+# Project status v107
 
 **Phase One/Two is incomplete.** Four mainnets/eight protocols are implemented; seven member currencies have local financial checks. Configured-provider acceptance, hosted operation and observation periods remain. Owner launch inputs are deferred to final testing.
 
@@ -26,8 +26,8 @@
 
 ## Current work
 
-Documentation cleanup is merged in [PR104](https://github.com/nero1/onyiy/pull/104); SETUP remains detailed. C010 publication consent, suspension/restoration and activity off/on pass locally across separate processes with unchanged finances. No new bug was found. Continue the remaining product/technical audit; actual provider/hosted acceptance remains open.
+P1-112 fixes unnamed native gift-card keyboard targets. EN/FR mobile/desktop keyboard, portfolio and financial-integrity checks pass locally. Continue C007/C010 and the remaining independent technical audit; actual provider/device/hosted acceptance remains open.
 
 Create and merge substantial batches after both CI events pass the exact final head. Continue without milestone approval pauses. Never treat local checks, configuration or fixed-bug counts as 100% production acceptance.
 
-v106
+v107

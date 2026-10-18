@@ -1,4 +1,4 @@
-# LLM handover v106
+# LLM handover v107
 
 ## Owner instructions
 
@@ -9,11 +9,12 @@
 - Rename status, handover and bug report together; update their links. SETUP uses beginner-friendly web UI steps and manually pasted SQL, without terminal/localhost instructions.
 - Reuse provider accounts and database names. One active financial mode per shared database; Preview has public-only credentials.
 - Named isolated manual procedures and mandatory checks are authorized; broad automated suites remain deferred. Preserve original/failed financial fixtures, packets and keys. Correct mistakes in fresh copies.
+- Do not stop merely because a batch/PR is complete. Resume the next independent task; only a concrete missing input may block its dependent work.
 - Both push and pull_request CI must pass the exact final head before merge. No direct main pushes; no subagents unless explicitly authorized.
 
 ## Resume
 
-Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/publication-activity-review`, based on merged PR104 (`c6c22225fe4523f8a376d963a916955acab205fc`). Check this PR's state: finish/merge it if open; otherwise continue from current main. Publication consent/status/feature checks pass locally across separate processes; no product fix was needed. Current manual files: `/workspace/work/public-activity-v106`; preserve all copies. Next: remaining C010 public/member/admin/profile cases and independent tasks in [status](PROJECT-STATUS_v106.md). Full completion remains blocked by the listed real acceptance work, not milestone approval.
+Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/native-keyboard-focus`, based on merged PR105 (`7aa47216430cb0eb427d121023d1854a94c03036`). Check this PR's state: finish/merge it if open; otherwise continue from current main. P1-112 local native keyboard/portfolio/integrity checks pass. Manual files: `/workspace/work/native-keyboard-v107`; preserve all copies. Continue C007/C010 and the independent tasks in [status](PROJECT-STATUS_v107.md). Do not stop after merge or request deferred launch inputs.
 
 ## Environment
 
@@ -33,4 +34,4 @@ Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/publication-activity
 - Four mainnets/eight protocols; seven member currencies, TRX operating-only. Real JAGA stays disabled without provenance. Generated providers/contracts/keys are not live evidence.
 - Mainnet needs transparent settings, reviewed readiness, verified registry, configuration approvals and recent signed alert acknowledgement. Client wire1/min-client0/min-server1; do not weaken compatibility or financial gates.
 
-v106
+v107
