@@ -1,6 +1,6 @@
-# Bug report — Rounds One/Two/Three v101
+# Bug report — Rounds One/Two/Three v102
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v101.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v102.md).
 
 Updated: **18 October2026 (Africa/Lagos)**.
 
@@ -11,6 +11,8 @@ Historical numbered migration paths below identify the original fixes in Git his
 PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the three fresh Round Two findings below; The same batch includes the Round Three recovery fix below; Phase Two transparency implementation/local review was completed in v54; full-product work remains open.
 
 ## Findings at a glance
+
+- **P1-107:** readable account/case/role and shared balance-purpose labels implemented; actual EN/FR browser/API-value and financial-integrity checks passed.
 
 - **P1-106:** simulation gift card/tile keyboard focus implemented; actual EN/FR keyboard, visible-focus and financial-integrity checks passed.
 
@@ -130,7 +132,7 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 - “Defect” means a source/contract failure; “requirement gap” means missing requested behavior; “hardening” means a conditional defensive improvement; “maintenance” means structural/dependency risk.
 - Initial audit ratings (current → projected after fixes): money/recovery 5 → 8; security/privacy 6.5 → 8.5; performance 5 → 8; maintainability 6 → 8; product/accessibility/SEO 6 → 8, out of 10. These were qualitative judgments, not measured guarantees or updated release ratings.
 - Original audit: 70 findings; four more were found during remediation. Three analysis passes were one audit round. CRON frequency and test-only issues were excluded.
-- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v101.md).
+- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v102.md).
 
 ## Original evidence by finding
 
@@ -596,7 +598,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v101.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v102.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -616,7 +618,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v101.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v102.md).
 
 
 
@@ -637,7 +639,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Current completion and delivery
 
-Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v101.md) and [handover](LLM-HANDOVER_v101.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-report_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
+Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v102.md) and [handover](LLM-HANDOVER_v102.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-report_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
 
 ### P1-075 — Solana v1 reads
 
@@ -788,3 +790,9 @@ The native URL mapped every non-mainnet mode to testnet, including GIV simulatio
 Tile links scrolled to nonfocusable cards and the global return control targeted the tile section rather than the selected tile. Add stable tile IDs, named focusable card/section targets, an accessible cost/name label and a remembered in-memory return target with a first-visible fallback. Clear that selection on identity changes. Keep ordinary hash navigation and payment handlers intact.
 
 `keyboard-v101/baseline-r1` reproduces both failures with real keyboard Enter in production Chromium. Fresh `fixed-r2` verifies the chosen second tile → accessibility-tree-named card → same tile flow, visible focus and390px EN/FR layout with unchanged financial/point hashes. `integrity-r2` independently checks seven tables against the retained original source. Required/build/bundle checks pass; broader physical-device/WCAG acceptance remains open.
+
+### P1-107 — Account/case screens expose internal status and balance labels
+
+French account and case views displayed `suspended`, `resolved` and `held_payable`. Add bilingual account/case/role display labels without changing enum values or comparisons. Reuse the existing history-purpose formatter instead of a partial balance-only map; add its incoming-balance label.
+
+`account-copy-v102/baseline-r1` reproduces the issue on an actual resolved-case/suspended-member fixture. Fresh `fixture-r2` / `fixed-r1` verify production390px EN/FR copy, exact ETH amount, unchanged API status and layout. `integrity-r1` confirms original-source/two-copy financial equality. No API/schema/permission change; required/build/bundle checks pass. Private authored case content remains unchanged.

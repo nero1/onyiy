@@ -1,8 +1,8 @@
-# LLM handover v101
+# LLM handover v102
 
 ## Owner direction
 
-Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v101.md).
+Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v102.md).
 
 - Keep five core guides plus the two explicitly requested bug trackers. Rename the four versioned files together; fold new human guidance into these guides. SETUP stays concise, newbie-friendly, web UI only, with manual SQL paste.
 - Reuse existing provider accounts/resources and database names; one financially active mode per shared database. Preview uses public-only credentials.
@@ -11,7 +11,7 @@ Complete every Phase One/Two requirement, including real-money support and bugs.
 
 ## Repository and tooling
 
-`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/simulation-keyboard-focus`, base PR99 merge `e5878d984804d06ceda749e1c9d05255133ad468`. PR99 head173205d passed push39154926593 / PR39154949616. P1-096–105 are merged.
+`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/account-status-copy`, base PR100 merge `70945b0ace90aa2799b054c8f2b8b131cbae5e31`. PR100 head8d44d87 passed push39155857306 / PR39155904818. P1-096–106 are merged.
 
 - Read AGENTS and relevant Next16 documentation before relevant code edits. Node22: `/workspace/work/tooling/node-v22.23.3-linux-x64/bin`; PostgreSQL tools: `/workspace/work/tooling/pg-tls/bin`.
 - Owned PostgreSQL:55450, data `/workspace/work/shared-hosting-v50/pgdata`; public CA `server.crt` in that directory. Never read its private TLS key. Owner/runtime roles: `gw_v50_owner` / `gw_v50_runtime`. Preserve original failed `gw_v27_native_refund_isolated`; stopped cross-host55455/55456 retain data.
@@ -49,12 +49,12 @@ Use status's compact audit table for account/privacy/exports/priority/notificati
 
 ## Continue
 
-Current P1-106 repairs GIV keyboard focus: stable tile IDs, named focusable cards, ordinary hash links, remembered selected-tile return/first-visible fallback and identity reset. Payment handlers/API/schema remain unchanged.
+Current P1-107 localizes account/case/role labels and uses shared `historyEntryLabel` for balances, including incoming balances. Raw enum values, API/status comparisons, permissions, amounts and authored case content stay unchanged.
 
-`keyboard-v101/baseline-r1` reproduces missing card/return focus with actual keyboard Enter. Fresh `fixed-r2` passes production Chromium390px EN/FR chosen second tile → accessibility-tree-named card → same tile, visible outline and no overflow. Six in-procedure hashes and independent seven-table original-source comparison (`integrity-r2`) pass. Retain original simulation source `gw_v78_product_simulation_r3` and all audit copies. Named keyboard navigation is not whole-device/WCAG acceptance.
+`account-copy-v102/fixture-r1` / `baseline-r1` reproduce French raw suspended/resolved/held_payable. Fresh `fixture-r2` / production390px EN/FR `fixed-r1` verify readable copy, exact0.000029 ETH, layout and raw API status. `integrity-r1` compares original source `gw_v81_eth_support_r1` and both retained copies. Required/build/bundle checks pass. Preserve all sources/failed copies/packets/keys.
 
-Check this batch's GitHub PR state before resuming. If unmerged, finish final release/docs/secrets/whitespace checks and merge the reviewed v101 tree only after both exact-head CI events. If merged, continue C001–C017 from current main; never claim100% from local evidence. Native-route three-mode evidence remains under `wallet-route-v100`; staff-role/TOTP/read-only preview evidence remains under `staff-permissions-v99`. Preserve every source/failed copy/packet/key.
+Check this batch's GitHub PR state before resuming. If unmerged, finish release/docs/secrets/whitespace checks and merge reviewed v102 only after both exact-head CI events. If merged, continue C001–C017 from current main. Never claim100% from local evidence. Keyboard accessibility-tree proof remains under `keyboard-v101`; native three-mode route checks under `wallet-route-v100`; staff-role/TOTP/read-only previews under `staff-permissions-v99`.
 
 Owner inputs remain deferred. Actual provider/custody/Google/CAPTCHA/devices/alerts/hosting/costs and14+14-day observation remain unverified. Historical295-row/current392-keyword scratch files are not whole-product acceptance.
 
-v101
+v102
