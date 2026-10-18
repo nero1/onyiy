@@ -528,6 +528,10 @@ export async function resolveRecoveryOutflow(
     .where(eq(recoveryOutflows.id, input.outflow_id))
     .limit(1);
   if (!outflow || outflow.status !== "review") throw new Error("NOT_FOUND");
+  const [run] = await tx.select().from(chainRecoveryRuns)
+    .where(eq(chainRecoveryRuns.id, outflow.runId)).limit(1);
+  if (!run || run.bindingFingerprint !== await binding(tx))
+    throw new Error("RECOVERY_TARGET_MISMATCH");
   if (input.confirmation !== `loss:${outflow.id}:${outflow.amountBaseUnits}`)
     throw new Error("INVALID_INPUT");
   await tx.execute(
@@ -557,17 +561,14 @@ export async function resolveRecoveryOutflow(
       rescan_required: true,
     };
   }
-  const [run] = await tx
-      .select()
-      .from(chainRecoveryRuns)
-      .where(eq(chainRecoveryRuns.id, outflow.runId))
-      .limit(1),
-    [checkpoint] = await tx
+  const [checkpoint] = await tx
       .select()
       .from(chainCheckpoints)
       .where(eq(chainCheckpoints.id, run.checkpointId))
-      .limit(1),
-    registry = checkpoint.registrySnapshot as AssetRegistry,
+      .limit(1);
+  if (!checkpoint || checkpoint.bindingFingerprint !== run.bindingFingerprint)
+    throw new Error("RECOVERY_TARGET_MISMATCH");
+  const registry = checkpoint.registrySnapshot as AssetRegistry,
     chain = await adapter(registry),
     proof = await chain.verifyTransfer({
       asset: registry,
