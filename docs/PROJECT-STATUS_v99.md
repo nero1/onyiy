@@ -1,4 +1,4 @@
-# Project status v98
+# Project status v99
 
 **Phase One/Two remains incomplete.** Four mainnets/eight asset protocols are implemented. Seven member assets pass local incoming/refund/withdrawal/company/sweep procedures. Public RPC identities match; hosted payments and observation periods are unverified. Continue without milestone approval pauses. Owner launch inputs remain deferred to final testing.
 
@@ -14,7 +14,7 @@
 | C006 | Prices/fees | Signed-feed rejection/replay, seven-asset gas changes and three-family quote expiry pass locally. Actual feed and wider price/cost variants remain. |
 | C007 | UI/wallets | Eight protocol preparations/seven wallet sends, narrow EN/FR, preferences and wallet-safe reload pass locally. Shared receipt/history/error/offline-language fixes pass locally; finish physical devices/wallets/accessibility. |
 | C008 | Recovery | Exact encrypted restore, matching releases and database-bound approvals work. Retained pending ETH/SOL/SPL/TRC20 hashes recover locally. All seven member assets pass generated post-backup unknown-transfer reconciliation and fresh approved resumption. Conservative registered-wallet/no-intent handling and intake-only pause also pass. Chosen incident/closure and hosted drills remain. |
-| C009 | Identity | Mainnet session/TOTP/recovery/refresh/logout, closed MFA limit and ingress checks pass locally. Finish actual Google/CAPTCHA, physical authenticator and broader permissions/rate/hosted acceptance. |
+| C009 | Identity | Mainnet sessions/TOTP/recovery, fresh-MFA staff-role/API/feature boundaries, closed MFA limit and ingress checks pass locally. Actual Google/CAPTCHA, physical authenticators and wider rate/hosted acceptance remain. |
 | C010 | Product | History, public activity, own-case paging, privacy exports and notification ownership/paging/priority-adjustment checks pass locally. Continue the full current-PRD/public/admin/flags/accessibility audit. |
 | C011 | Operations | Protected signing/scheduling and opt-in policy-bound automatic encrypted backups exist. Verify real alert receiver, schedule/storage monitoring and incidents/closure. |
 | C012 | Capacity/cost | Local build/bundle budgets pass. Measure hosted/mobile latency, quotas and operating costs. |
@@ -26,9 +26,12 @@
 
 ## Current delivery
 
-Branch `feat/dashboard-retention-and-currency`, base [PR96](https://github.com/nero1/onyiy/pull/96) merge `5284a89`. PR96 headdc5c6fa passed push39152380636 / PR39152403835. P1-102 excludes retired notices from the GIV dashboard, matching the inbox. No currency-separation defect was reproduced; environment security correctly rejected the wrong-mode fixtures.
+Branch `feat/staff-permission-acceptance`, base [PR97](https://github.com/nero1/onyiy/pull/97) merge `b62f916`. PR97 heade6fe832 passed push39152969193 / PR39153003961. P1-103 restores administrator read-only previews for disabled staff features through account settings. Normal disabled feature URLs remain404; private reads require real admin authentication/MFA and writes remain blocked.
 
 ## Current verification
+
+`staff-permissions-v99/contract-r1`/`contract-r2` pass genuine-session/CSRF TOTP enrollment, fresh staff authentication, member/moderator/admin read access, moderator privileged-write denial, actual suspend/restore/admin ban/restore, session revocation and feature off/on rules. `baseline-r3`/`browser-baseline-r1` reproduce blocked admin moderation reads and missing disabled-feature preview access. Fresh `fixed-r4` verifies admin-only read exceptions with all disabled writes/moderator reads still denied. `browser-fixed-r1` passes production Chromium390px EN/FR real settings/case reads, disabled valid-input controls, normal feature404s and no member preview navigation/data. `integrity-r1` confirms source/four-copy financial equality. Generated TOTP/session evidence does not prove real Google, physical authenticators or hosted acceptance. Required/build/bundle checks pass locally; GitHub records final CI/merge.
+
 
 `dashboard-retention-v98/baseline-r4` reproduces a retained `[expired]` notification in the dashboard but not the inbox. Fresh `fixed-r1` verifies identical visible pages, preserved retirement body/hash, feature off/on behavior and unchanged finances. The new operational fixture is explicitly aged; no financial timestamp or elapsed observation is fabricated. `integrity-r1` independently compares seven financial/point tables with original simulation source `gw_v78_product_simulation_r3`. Required/build/bundle checks pass locally; GitHub records final CI/merge. Preserve r1–r3: missing GIV, environment-scoped GIV invisibility and correct payment-mode denial respectively.
 
@@ -94,9 +97,9 @@ Public read-only evidence in `public-network-v79`: four expected network identit
 ## Release and preservation rules
 
 - Fresh install: paste only `packages/db/fresh-install.sql`. Seven receipts; immutable SQL000–005; SQL006 queue fix. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 standalone indexes. No DDL in this batch.
-- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v98.md) retain references/key-handling rules.
+- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v99.md) retain references/key-handling rules.
 - Hashes bind actual database identity. Keep historical obligation/attempt snapshots. Rotate request/auth keys on restore, retain original MFA/custody/payload keys, reconcile chains and obtain fresh approvals/alert acknowledgements before publication.
 - Preserve all failed/successful financial fixtures, archives and keys. Corrections use fresh targets. SPL’s inherited console captions contain an old amount typo; integer assertions/rows are authoritative. Prior failed harness/transport/index/cache attempts remain in their original roots.
 - Five core guides plus two requested versioned trackers. Keep current facts concise; history is in Git. Both CI events must pass the exact final head before merge. Named manual procedures/required checks are authorized; broad automated suite remains deferred. Continue without approval pauses; do not claim100%.
 
-v98
+v99
