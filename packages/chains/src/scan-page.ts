@@ -1,4 +1,4 @@
-import {solanaGenesis,tronChainId} from './network';
+import {solanaGenesis,tronChainId,solanaMaxSupportedTransactionVersion as maxSupportedTransactionVersion} from './network';
 import {getAddress,Interface,id} from 'ethers';
 import {TronWeb} from 'tronweb';
 import {base58} from '@scure/base';
@@ -44,7 +44,7 @@ export async function scanTransferPage(asset:AssetRegistry,rpc:DualRpc,address:s
       producedSlots=slots.map((v:unknown)=>integer(v).toString());
       if(!slots.length){if(position.transaction||position.event||position.blockHash)throw new Error('RPC_SCAN_CONTRADICTION');return {...next(rangeEnd,'',0,0,0),producedSlots}}
       if(integer(slots[0])>height){if(position.transaction||position.event||position.blockHash)throw new Error('RPC_SCAN_CONTRADICTION');return {through:integer(slots[0])-1n,cursor:{height:integer(slots[0]).toString(),transaction:0,event:0},transfers:[],producedSlots}}
-      block=await rpc.request(side,'getBlock',[number(height),{commitment:'finalized',transactionDetails:'signatures',rewards:false,maxSupportedTransactionVersion:0}]);
+      block=await rpc.request(side,'getBlock',[number(height),{commitment:'finalized',transactionDetails:'signatures',rewards:false,maxSupportedTransactionVersion}]);
       if(!block||base58.decode(block.blockhash).length!==32||!Array.isArray(block.signatures))throw new Error('RPC_EVIDENCE_INVALID');
       hash=block.blockhash;transactions=block.signatures;
     }else{
@@ -66,7 +66,7 @@ export async function scanTransferPage(asset:AssetRegistry,rpc:DualRpc,address:s
       if(!record||String(asset.kind==='native'?record.hash:record.transactionHash).toLowerCase()!==selectedHash||String(record.blockHash).toLowerCase()!==hash||quantity(record.blockNumber)!==height||quantity(record.transactionIndex)!==BigInt(position.transaction))throw new Error('SCAN_INCOMPLETE');
     }else if(asset.chain==='sol'){
       selectedHash=canonicalTransactionHash('sol',item);
-      record=await rpc.request(side,'getTransaction',[selectedHash,{commitment:'finalized',encoding:'jsonParsed',maxSupportedTransactionVersion:0}]);
+      record=await rpc.request(side,'getTransaction',[selectedHash,{commitment:'finalized',encoding:'jsonParsed',maxSupportedTransactionVersion}]);
       if(!record||integer(record.slot)!==height||record.transaction?.signatures?.[0]!==selectedHash)throw new Error('SCAN_INCOMPLETE');
     }else{
       selectedHash=canonicalTransactionHash('tron',item.txID);
