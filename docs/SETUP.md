@@ -175,7 +175,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v73.md](PROJECT-STATUS_v73.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v74.md](PROJECT-STATUS_v74.md).
 
 ## 10. Read-only preview using the same database
 
@@ -422,7 +422,7 @@ Code supports Ethereum `1`, BNB `56`, Solana `mainnet-beta` and TRON `mainnet`. 
 17. Redeploy Production, then run the isolated signer workflow once. Check its run result and the site's signer heartbeat. A changed policy, registry, address or alert binding needs new hashes/probes; never reuse an unrelated approval.
 18. With the owner present, fund only the approved treasury/reserve amounts, activate the intended per-currency plans and perform the final tests with small limits. Confirm actual wallet approval, chain receipts, balances, fees, refunds, alerts and restore reconciliation. Complete the required observation periods before public launch.
 
-Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v73.md).
+Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v74.md).
 
 ## If something fails
 
@@ -621,3 +621,5 @@ References: [download workflow artifacts](https://docs.github.com/en/actions/how
 1. Finish any open wallet connection, ownership-signature or payment confirmation. Do not send the payment again.
 2. If a transaction hash appears, click **Copy hash and reload** and keep it for the original payment. If copying fails, copy it manually before using your browser’s reload button.
 3. Otherwise click **Reload app**. Ordinary compatible updates do not block payments. An incompatible update blocks new actions until reload; it never queues or resends them.
+
+**Pending send labels:** “Signed; submission pending” means bytes are retained but no network submission is recorded. “Submitted to network” still needs confirmation. Save the recorded hash if shown; do not create another payment to clear either state.

@@ -739,7 +739,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
           {data?.withdrawals?.map((row) => (
             <article className="card" key={row.id}>
               <p>
-                {paymentStateLabel(row.status,locale)} · {row.asset} · {row.network}
+                {paymentStateLabel(row.display_status??row.status,locale)} · {row.asset} · {row.network}
               </p>
               <p>
                 {t.gross}:{" "}
@@ -749,6 +749,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
                 {t.net}:{" "}
                 {formatBaseUnits(BigInt(row.net_base_units), row.decimals)}
               </p>
+              {row.tx_hash&&<p>{fr?"Transaction enregistrée":"Recorded transaction"}: <code className="wallet-address">{row.tx_hash}</code></p>}
               {!row.completed_at &&
                 [
                   "quoted",

@@ -43,8 +43,9 @@ export default function MemberRecords(props:Props){
   {error&&<p role="alert">{error}</p>}
   {page?.rows.length===0&&<p>{fr?'Aucun élément dans cette vue.':'No items in this view.'}</p>}
   {page?.rows.map(row=><article className="card" key={row.id}>
-   <h3>{row.name??row.asset} · {row.asset} · {row.network}</h3><p>{paymentStateLabel(row.under_review?'exception':row.status,locale)}</p>
+   <h3>{row.name??row.asset} · {row.asset} · {row.network}</h3><p>{paymentStateLabel(row.under_review?'exception':(row.display_status??row.status),locale)}</p>
    <code>{row.id}</code>
+   {row.tx_hash&&<p>{fr?"Transaction enregistrée":"Recorded transaction"}: <code className="wallet-address">{row.tx_hash}</code></p>}
    {collection==='cycles'&&row.completed_at&&<p>{fr?'Clôture enregistrée':'Recorded completion'}: <time dateTime={new Date(row.completed_at).toISOString()}>{formatDisplayDate(row.completed_at,locale,zone)}</time></p>}
    {collection==='cycles'&&row.status==='completed'&&!row.under_review&&row.cooldown_ends_at&&<CycleCooldown until={new Date(row.cooldown_ends_at).toISOString()} locale={locale}/>}
 

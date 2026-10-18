@@ -1220,7 +1220,7 @@ uj*****p3 just received $9.5 referral commission
 - Collect owner credentials securely and record actual external alerts, chain transactions, restore reconciliation, capacity and the observation periods in §30. Do not manufacture approval, elapsed time or provider evidence.
 - Both exact-final-head push and pull-request CI must pass before each merge. No direct main pushes. Keep five core docs and two versioned trackers. Existing no-automated-test-suite instructions remain binding; named isolated manual verification continues.
 
-The current gap list and acceptance evidence belong in [status](PROJECT-STATUS_v73.md) and the [report](custom-bugs-report_v73.md)/[plan](custom-bugs-fix-plan_v73.md). Continue until all requirements have actual verification; report any owner-dependent blocker precisely.
+The current gap list and acceptance evidence belong in [status](PROJECT-STATUS_v74.md) and the [report](custom-bugs-report_v74.md)/[plan](custom-bugs-fix-plan_v74.md). Continue until all requirements have actual verification; report any owner-dependent blocker precisely.
 
 ### Fresh installation and historical compatibility
 
@@ -1243,7 +1243,7 @@ The owner explicitly approved P1-065 on **14 October 2026 at 02:25:24 PM WAT**, 
 - Closed signed-archive dependencies accept pgcrypto-only older packets or an additional pg_trgm declaration; unknown names, duplicates, versions and schemas fail.
 - Signatures/checksums, empty-target verification and exact post-restore inventories remain mandatory. Search approval does not activate financial gates.
 
-Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v73.md](PROJECT-STATUS_v73.md). Current bug evidence/tasks: [report](custom-bugs-report_v73.md) and [plan](custom-bugs-fix-plan_v73.md).
+Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v74.md](PROJECT-STATUS_v74.md). Current bug evidence/tasks: [report](custom-bugs-report_v74.md) and [plan](custom-bugs-fix-plan_v74.md).
 
 ### Retention implementation clarification (v52)
 
@@ -1252,7 +1252,7 @@ Use the same database for online monthly archives of ledger postings, scan pages
 
 ### Phase Two presentation baseline — PR53
 
-P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v73.md).
+P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v74.md).
 
 P2.4 external assessment remains **not_reviewed** until actual owner/provider evidence is recorded. Mainnet runtime, encrypted signing and local financial procedures are implemented in v67. Remaining evidence includes live registry/provider/custody operation, funding/refund/closure review, countries and terms, budget, hosted capacity/alerts/restore and observation periods. Local implementation does not approve public launch.
 
@@ -1271,3 +1271,5 @@ Native launch scheduling stores per-currency USD/fixed-price intents for one UTC
 Financial activation approvals must bind the actual database identity shared by web and signer connections. Restored copies must obtain fresh reviewed hashes/acknowledgements without rewriting retained financial snapshots. Browser recovery must use protected credentials, authenticated encrypted archives, trusted matching-release code, an empty target and exact verification; it must never automatically deploy or resume financial work. Retention must remain usable after temporary workflow artifacts expire.
 
 Automatic backup operation may use the existing GitHub protected recovery workflow, explicitly enabled by repository variables. Read authoritative policy and actual database identity; only retained archives from successful trusted runs count toward cadence. Verify actual upload retention before checkpointing; reject unsupported policy rather than shortening it. Preserve manual protected restore, separate archive keys and matching-release validation. GitHub schedule delays, storage quotas, public encrypted artifact access and restore drills must remain explicit setup/acceptance requirements.
+
+Member send progress must distinguish preparation, durably signed/unsubmitted and network-submitted attempts. Derive display from retained attempts without rewriting internal obligation status or relaxing cancellation/recovery rules. Keep the response additive and tolerate its absence on older compatible servers. Local generated seven-asset procedures are separate from actual contract/provider, hosted recovery and observation acceptance.
