@@ -1,4 +1,4 @@
-# Project status v101
+# Project status v102
 
 **Phase One/Two remains incomplete.** Four mainnets/eight asset protocols are implemented. Seven member assets pass local incoming/refund/withdrawal/company/sweep procedures. Public RPC identities match; hosted payments and observation periods are unverified. Continue without milestone approval pauses. Owner launch inputs remain deferred to final testing.
 
@@ -26,23 +26,18 @@
 
 ## Current delivery
 
-Branch `feat/simulation-keyboard-focus`, base [PR99](https://github.com/nero1/onyiy/pull/99) merge `e5878d9`. PR99 head173205d passed push39154926593 / PR39154949616. P1-106 repairs GIV gift tile/card/return focus with named focusable targets and ordinary hash links. No financial/API/schema change.
+Branch `feat/account-status-copy`, base [PR100](https://github.com/nero1/onyiy/pull/100) merge `70945b0`. PR100 head8d44d87 passed push39155857306 / PR39155904818. P1-107 renders readable account/case/role labels and reuses shared balance-purpose copy. API values, permissions, numbers and financial rules are unchanged.
 
 ## Current verification
 
-`keyboard-v101/baseline-r1` reproduces both missing card focus and failed return-to-tile focus with real Chromium keyboard Enter. Fresh `fixed-r2` passes the chosen second tile → accessibility-tree-named card → same tile sequence in production390px EN/FR, visible focus outline and no overflow. Six in-procedure financial/point hashes stay unchanged; `integrity-r2` independently compares seven financial/point tables against original simulation source `gw_v78_product_simulation_r3`. No payment, API response substitution or new dependency. Required/build/bundle checks pass locally. This is the named navigation flow, not whole-device/WCAG acceptance; preserve all audit copies and original source.
-
-
-`wallet-route-v100/baseline-r1` reproduces disabled `/wallet`/history404 while the native path returns200; `simulation-baseline-r1` reproduces its incorrect Testnet wallet heading in simulation. Final production `fixed-r2` verifies all three native-mode wallet paths404 when disabled and200 after actual restricted admin-service enablement. `simulation-fixed-r1` keeps the GIV wallet200 and native URL404. `testnet-fixture-r1` preserves the historical six-receipt source, upgrades only a fresh clone with reviewed006 and verifies seven receipts; `testnet-route-r1` verifies all enabled wallet paths200 and correct testnet heading. `integrity-r1` confirms mainnet source/two-copy and testnet source/upgraded-copy financial equality. All original fixtures/keys remain retained. Required/build/bundle checks pass locally; no live provider/sending acceptance is inferred.
-
-
-`staff-permissions-v99/contract-r1`/`contract-r2` pass genuine-session/CSRF TOTP enrollment, fresh staff authentication, member/moderator/admin read access, moderator privileged-write denial, actual suspend/restore/admin ban/restore, session revocation and feature off/on rules. `baseline-r3`/`browser-baseline-r1` reproduce blocked admin moderation reads and missing disabled-feature preview access. Fresh `fixed-r4` verifies admin-only read exceptions with all disabled writes/moderator reads still denied. `browser-fixed-r1` passes production Chromium390px EN/FR real settings/case reads, disabled valid-input controls, normal feature404s and no member preview navigation/data. `integrity-r1` confirms source/four-copy financial equality. Generated TOTP/session evidence does not prove real Google, physical authenticators or hosted acceptance. Required/build/bundle checks pass locally; GitHub records final CI/merge.
-
-
-`dashboard-retention-v98/baseline-r4` reproduces a retained `[expired]` notification in the dashboard but not the inbox. Fresh `fixed-r1` verifies identical visible pages, preserved retirement body/hash, feature off/on behavior and unchanged finances. The new operational fixture is explicitly aged; no financial timestamp or elapsed observation is fabricated. `integrity-r1` independently compares seven financial/point tables with original simulation source `gw_v78_product_simulation_r3`. Required/build/bundle checks pass locally; GitHub records final CI/merge. Preserve r1–r3: missing GIV, environment-scoped GIV invisibility and correct payment-mode denial respectively.
+`account-copy-v102/fixture-r1` creates a resolved own case and suspended member with unchanged finances; `baseline-r1` reproduces raw `suspended`, `resolved` and `held_payable` in French. Fresh `fixture-r2` / `fixed-r1` pass production Chromium390px EN/FR readable status/case/reserved-balance copy, exact0.000029 ETH, no overflow and unchanged raw API status. `integrity-r1` independently compares original source and both retained copies. Required/build/bundle checks pass locally. This verifies the named screens; full physical-device/hosted acceptance remains open.
 
 | Recent audit root | Verified local procedures |
 |---|---|
+| `keyboard-v101` | `baseline-r1` / `fixed-r2`: actual EN/FR390px keyboard focus to accessibility-tree-named card and back to the selected tile; `integrity-r2`: unchanged financial/point records. |
+| `wallet-route-v100` | `fixed-r2`: three wallet paths off/on. `simulation-fixed-r1`: GIV/native separation. `testnet-route-r1`: current-schema testnet heading/routes. Fresh-copy-only006 upgrade and grouped `integrity-r1` preserve original sources. |
+| `staff-permissions-v99` | Genuine HTTP/CSRF/TOTP role/moderation/flag contracts; `baseline-r3` / `fixed-r4` and EN/FR390px `browser-fixed-r1`: disabled staff previews with actual admin reads, blocked writes and member denial. `integrity-r1`: source/four-copy equality. |
+| `dashboard-retention-v98` | `baseline-r4` / `fixed-r1`: retired notices excluded consistently, retirement hash/body retained and notification off/on gates. `integrity-r1`: seven unchanged financial/point tables. Wrong-mode fixture refusals remain retained. |
 | `account-notices-v97` | Actual suspend/restore delivery; `browser-baseline-r2` / `browser-fixed-r2` raw-JSON/readable EN/FR status; `profile-baseline-r1` / `profile-fixed-r2` saved French/current-language display; `integrity-r2` preserves source finances and original bodies. |
 | `own-data-v96` | `contract-r1`: twelve own-data sections, encrypted JSON/CSV export, replay, foreign denial, suspended access and deleted-account chunk cleanup. `priority-fixed-r4`: bump/revoke/bootstrap changes, rollback, stable joining numbers and eight safe EN/FR notices delivered once. `priority-disabled-r1`, production390px `browser-priority-r1` and original-source/seven-copy `integrity-r2` pass. |
 | `account-permissions-v95` | `contract-fixed-r1`: sessions, suspension/ban/restore, own appeals, moderator limits, deactivated-state restoration and deletion. `deleted-support-r3` / `deleted-integrity-r2`: deleted-member original-wallet recovery/private receipt without identity restoration; unused-fee liability remains. `publication-fixed-r1` / `browser-fixed-r1`: suspended opt-out and exact ETH balances; opt-in/new money actions denied. |
@@ -103,9 +98,9 @@ Public read-only evidence in `public-network-v79`: four expected network identit
 ## Release and preservation rules
 
 - Fresh install: paste only `packages/db/fresh-install.sql`. Seven receipts; immutable SQL000–005; SQL006 queue fix. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 standalone indexes. No DDL in this batch.
-- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v101.md) retain references/key-handling rules.
+- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v102.md) retain references/key-handling rules.
 - Hashes bind actual database identity. Keep historical obligation/attempt snapshots. Rotate request/auth keys on restore, retain original MFA/custody/payload keys, reconcile chains and obtain fresh approvals/alert acknowledgements before publication.
 - Preserve all failed/successful financial fixtures, archives and keys. Corrections use fresh targets. SPL’s inherited console captions contain an old amount typo; integer assertions/rows are authoritative. Prior failed harness/transport/index/cache attempts remain in their original roots.
 - Five core guides plus two requested versioned trackers. Keep current facts concise; history is in Git. Both CI events must pass the exact final head before merge. Named manual procedures/required checks are authorized; broad automated suite remains deferred. Continue without approval pauses; do not claim100%.
 
-v101
+v102
