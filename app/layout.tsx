@@ -1,4 +1,4 @@
-import {isReadOnlyPreview} from '@gifters/config';
+import {isReadOnlyPreview,selectedPaymentEnvironment} from '@gifters/config';
 import ProductFooter from '@/components/product-footer';
 import AppearanceProvider from '@/components/appearance-provider';
 import NavigationFrame from '@/components/navigation-frame';
@@ -14,7 +14,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const policy=await publicPolicy(),preview=isReadOnlyPreview();
   return (
     <html lang={locale} suppressHydrationWarning>
-      <body><AppearanceProvider locale={locale}><NavigationFrame policy={policy} readOnlyPreview={preview}/>{preview?<p className="card" role="status">{locale==='fr'?'Aperçu en lecture seule. Connexion, données privées et paiements indisponibles.':'Read-only preview. Sign-in, private records and payments are unavailable.'}</p>:<PublicInformation/>}{children}<ProductFooter content={policy.product_content} help={policy.feature_help}/></AppearanceProvider></body>
+      <body><AppearanceProvider locale={locale}><NavigationFrame policy={policy} readOnlyPreview={preview}/>{preview?<p className="card" role="status">{locale==='fr'?'Aperçu en lecture seule. Connexion, données privées et paiements indisponibles.':'Read-only preview. Sign-in, private records and payments are unavailable.'}</p>:<PublicInformation environment={selectedPaymentEnvironment()} minimumProfileRevision={policy.profile_revision}/>}{children}<ProductFooter content={policy.product_content} help={policy.feature_help}/></AppearanceProvider></body>
     </html>
   );
 }

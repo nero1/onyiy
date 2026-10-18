@@ -1,8 +1,8 @@
-# LLM handover v102
+# LLM handover v103
 
 ## Owner direction
 
-Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v102.md).
+Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v103.md).
 
 - Keep five core guides plus the two explicitly requested bug trackers. Rename the four versioned files together; fold new human guidance into these guides. SETUP stays concise, newbie-friendly, web UI only, with manual SQL paste.
 - Reuse existing provider accounts/resources and database names; one financially active mode per shared database. Preview uses public-only credentials.
@@ -11,7 +11,7 @@ Complete every Phase One/Two requirement, including real-money support and bugs.
 
 ## Repository and tooling
 
-`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/account-status-copy`, base PR100 merge `70945b0ace90aa2799b054c8f2b8b131cbae5e31`. PR100 head8d44d87 passed push39155857306 / PR39155904818. P1-096–106 are merged.
+`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/public-widget-protocol`, base PR101 merge `9815cc76316e2422254c3dc692ccd5c97a3df790`. PR101 headb92ffec passed push39156864259 / PR39156912073. P1-096–107 are merged.
 
 - Read AGENTS and relevant Next16 documentation before relevant code edits. Node22: `/workspace/work/tooling/node-v22.23.3-linux-x64/bin`; PostgreSQL tools: `/workspace/work/tooling/pg-tls/bin`.
 - Owned PostgreSQL:55450, data `/workspace/work/shared-hosting-v50/pgdata`; public CA `server.crt` in that directory. Never read its private TLS key. Owner/runtime roles: `gw_v50_owner` / `gw_v50_runtime`. Preserve original failed `gw_v27_native_refund_isolated`; stopped cross-host55455/55456 retain data.
@@ -49,12 +49,8 @@ Use status's compact audit table for account/privacy/exports/priority/notificati
 
 ## Continue
 
-Current P1-107 localizes account/case/role labels and uses shared `historyEntryLabel` for balances, including incoming balances. Raw enum values, API/status comparisons, permissions, amounts and authored case content stay unchanged.
+Current P1-108–110: public-widget wire headers/cache namespace and incompatible-response closure; server-bound payment mode/minimum profile revision; neutral EN/FR terms metadata. Public query namespaces are not authorization. Financial gates, schema, legal body and wire constants are unchanged.
 
-`account-copy-v102/fixture-r1` / `baseline-r1` reproduce French raw suspended/resolved/held_payable. Fresh `fixture-r2` / production390px EN/FR `fixed-r1` verify readable copy, exact0.000029 ETH, layout and raw API status. `integrity-r1` compares original source `gw_v81_eth_support_r1` and both retained copies. Required/build/bundle checks pass. Preserve all sources/failed copies/packets/keys.
+`public-wire-v103/baseline-r1` / final `fixed-r2` pass controlled header compatibility checks retaining real bodies. Both `mainnet-cache-*` and `profile-cache-*` baseline/fixed procedures verify cold stale simulation response rejection and normal recovery, EN/FR390px. These are nonfinancial response-replay models, not live-provider evidence. `terms-*-r1` verify actual mainnet HTTP metadata. `integrity-r1` compares five financial/point tables across original simulation/mainnet sources and six retained copies. Profile fixture r1 had a misspelled unused deployment env key; preserve it and use corrected fresh `profile-fixture-r2` / `profile-r2-web.env.json` for final evidence. All generated env files remain0600, without owner credentials. Required/build/bundle checks pass.
 
-Check this batch's GitHub PR state before resuming. If unmerged, finish release/docs/secrets/whitespace checks and merge reviewed v102 only after both exact-head CI events. If merged, continue C001–C017 from current main. Never claim100% from local evidence. Keyboard accessibility-tree proof remains under `keyboard-v101`; native three-mode route checks under `wallet-route-v100`; staff-role/TOTP/read-only previews under `staff-permissions-v99`.
-
-Owner inputs remain deferred. Actual provider/custody/Google/CAPTCHA/devices/alerts/hosting/costs and14+14-day observation remain unverified. Historical295-row/current392-keyword scratch files are not whole-product acceptance.
-
-v102
+Check this batch's GitHub PR state before resuming. If unmerged, finish release/docs/secrets/whitespace checks and merge reviewed v103 only after both exact-head CI events. If merged, continue C001–C017 from current main. Never claim100% from local evidence. Preserve every original/failed fixture, source, packet and key. Continue the current-PRD audit, including public policy propagation and feature boundaries; these cold-page fixes do not prove hosted propagation or all already-open-page switch cases.
