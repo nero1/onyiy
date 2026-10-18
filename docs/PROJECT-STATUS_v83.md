@@ -1,4 +1,4 @@
-# Project status v82
+# Project status v83
 
 **Phase One/Two remains incomplete.** Four mainnets/eight asset protocols are implemented. Seven member assets pass local incoming/refund/withdrawal/company/sweep procedures. Public RPC identities match; hosted payments and observation periods are unverified. Continue without milestone approval pauses. Owner launch inputs remain deferred to final testing.
 
@@ -26,17 +26,20 @@
 
 ## Current delivery
 
-Branch `feat/recovery-earnings-projections`, base PR80 merge `30ab691c0ce666e6998117d93fa16d72da353c0b`. PR80 headb1f7498 passed push39105876065 / PR39105882828 before merge. PR79 receipt/history/offline-language fixes are also merged.
+Branch `feat/phase-two-recovery-matrix`, base PR81 merge `dc3c325e1baf93789c877e1cb32cf12af8759119`. PR81 head365186d passed push39106278519 / PR39106287179 before merge; P1-080 receipt/activity/statistic recovery inclusion is merged. PR79/80 are also merged.
 
-**P1-080:** confirmed admin-reviewed earnings recovery now appears in own receipts and verified activity/statistics. Only settled withdrawal/recovery from `available_payable` qualifies; existing consent, real-account, canonical settlement and reorg checks remain. Refunds and company transfers do not become member earnings. No financial records or schema are changed.
+**P1-081:** recent native wallet now includes admin-reviewed earnings recovery with its type, exact amount and hash. EN/FR labels distinguish it from ordinary withdrawals; ordinary cancel/requote controls exclude support recovery. Existing reviewed support actions remain authoritative. No financial/schema changes.
 
 ## Current verification
 
-`product-audit-v81/eth-support-r1` completes the actual ETH lifecycle with an admin-reviewed original-wallet recovery instead of the final normal withdrawal: reviewed quote, wallet signature, encrypted signer and separate authenticated settlement. It reproduces missing receipt/totals before the read fix and also completes company/sweep checks. `recovery-earnings-reads-r1` then passes the corrected exact receipt/hash, once-only USD1.65 historical totals and opt-in/revocation reads with unchanged event/obligation/attempt/ledger hashes. All use generated isolated keys/providers; hosted/live acceptance remains open.
+Under `product-audit-v81`:
 
-The preceding v81 activity eligibility/exclusion audit passed through restricted service queries on generated mainnet data with a validated policy supplied directly (stored activity stayed off): gifts/internal credits/withdrawals, opaque IDs, actual amounts/network, cap, disabled reads, test exclusion and mainnet demo denial. The suspected member-count alias issue was ruled out by independent SQL. Preserve failed setup/r1 logs and every original financial fixture.
+- `eth-support-r1` reproduces P1-080 using actual recovery quote, original-wallet signature, encrypted signer and separate authenticated settlement; corrected `recovery-earnings-reads-r2` passes receipt/hash, historical USD1.65 totals, activity opt-in/revocation and unchanged financial hashes.
+- `{bnb,usdt_bnb,jaga_bnb,sol,usdt_sol,usdt_tron}-support-r1` all pass actual recovery settlement, wrong-wallet rejection, proof replay/body conflict and exact receipts. Existing incoming/refund/company/sweep checks also pass. ETH has the positive support flow; the other six also exercise negative proof/replay cases.
+- `recovery-matrix-integrity-r1` independently checks all seven: five attempts and gas journals, four settled obligations, balanced journals, saved wallet proof, one exact recovery receipt/hash and correctly priced public totals; financial event/obligation/attempt/ledger hashes stay unchanged. All contracts/keys/providers are generated, including JAGA; no real provenance or hosted acceptance is inferred. The inherited SPL console caption has an old underpayment typo; asserted database values remain authoritative.
+- `recovery-wallet-baseline-r1` reproduces P1-081; `recovery-wallet-reads-r1` passes corrected recent-list kind/amount/hash and unchanged financial evidence. `recovery-wallet-browser-r1` passes production Chromium390px EN/FR: localized recovery type, exact amount/hash, no ordinary recovery buttons and no overflow. `wallet-check-all-r1`, `wallet-build-r1` and `wallet-bundle-r1` pass.
 
-PR79 production Chromium checks cover EN/FR390px receipts/PNG/history and offline locale/error recovery; its current read procedures retain exact values, page bounds and financial hashes. See Git history for the named earlier evidence. Required checks, production build, bundle budgets and the ordinary six-section history regression pass locally. The recovery reads were repeated after company/sweep completion with unchanged financial hashes.
+The preceding v81 activity audit covered real-event sources, consent withdrawal, opaque IDs, caps, disabled reads and test/demo exclusion. PR79 production Chromium checks cover EN/FR390px receipts/PNG/history and offline locale/error recovery. Preserve original/failed fixtures and logs; see earlier Git versions for named evidence. Hosted feeds, devices, independent configured providers and the full product audit remain open.
 
 ## Financial evidence
 
@@ -68,9 +71,9 @@ Public read-only evidence in `public-network-v79`: four expected network identit
 ## Release and preservation rules
 
 - Fresh install: paste only `packages/db/fresh-install.sql`. Seven receipts; immutable SQL000–005; SQL006 queue fix. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 standalone indexes. No DDL in this batch.
-- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v82.md) retain references/key-handling rules.
+- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v83.md) retain references/key-handling rules.
 - Hashes bind actual database identity. Keep historical obligation/attempt snapshots. Rotate request/auth keys on restore, retain original MFA/custody/payload keys, reconcile chains and obtain fresh approvals/alert acknowledgements before publication.
 - Preserve all failed/successful financial fixtures, archives and keys. Corrections use fresh targets. SPL’s inherited console captions contain an old amount typo; integer assertions/rows are authoritative. Prior failed harness/transport/index/cache attempts remain in their original roots.
 - Five core guides plus two requested versioned trackers. Keep current facts concise; history is in Git. Both CI events must pass the exact final head before merge. Named manual procedures/required checks are authorized; broad automated suite remains deferred. Continue without approval pauses; do not claim100%.
 
-v82
+v83

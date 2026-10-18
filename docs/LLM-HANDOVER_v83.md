@@ -1,8 +1,8 @@
-# LLM handover v82
+# LLM handover v83
 
 ## Owner direction
 
-Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v82.md).
+Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v83.md).
 
 - Keep five core guides plus the two explicitly requested bug trackers. Rename the four versioned files together; fold new human guidance into these guides. SETUP stays concise, newbie-friendly, web UI only, with manual SQL paste.
 - Reuse existing provider accounts/resources and database names; one financially active mode per shared database. Preview uses public-only credentials.
@@ -11,7 +11,7 @@ Complete every Phase One/Two requirement, including real-money support and bugs.
 
 ## Repository and tooling
 
-`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/recovery-earnings-projections`, base PR80 merge `30ab691c0ce666e6998117d93fa16d72da353c0b`. PR72 exact headf92f96e passed push39072511492 / PR39072520501. PR70/71/72 are merged; implementation/evidence summaries are in status and Git history.
+`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/phase-two-recovery-matrix`, base PR81 merge `dc3c325e1baf93789c877e1cb32cf12af8759119`. PR72 exact headf92f96e passed push39072511492 / PR39072520501. PR70/71/72 are merged; implementation/evidence summaries are in status and Git history.
 
 - Read AGENTS and relevant Next16 documentation before relevant code edits. Node22: `/workspace/work/tooling/node-v22.23.3-linux-x64/bin`; PostgreSQL tools: `/workspace/work/tooling/pg-tls/bin`.
 - Owned PostgreSQL:55450, data `/workspace/work/shared-hosting-v50/pgdata`; public CA `server.crt` in that directory. Never read its private TLS key. Owner/runtime roles: `gw_v50_owner` / `gw_v50_runtime`. Preserve original failed `gw_v27_native_refund_isolated`; stopped cross-host55455/55456 retain data.
@@ -30,13 +30,13 @@ Complete every Phase One/Two requirement, including real-money support and bugs.
 
 ## Current work/evidence
 
-Use [status](PROJECT-STATUS_v82.md) for the concise current evidence matrix and C001–C017 remaining list. Detailed historical delivery is in Git, not repeated here.
+PR79 (`f1af8d7`), PR80 (`30ab691`) and PR81 (`dc3c325`) are merged after both exact-head CI events. PR81 head365186d passed push39106278519 / PR39106287179. It fixes P1-080: settled original-wallet earnings recovery appears in own receipts and verified activity/statistics, with `available_payable`, consent, historical-price, settlement and reorg checks retained.
 
-PR78 merged at head4a9fb86 after push39090744721 / PR39090751758 passed. Solana v1 reads now share maximum1 across network/adapter/bounded scanner; recorded-public-data and local financial regressions pass. Actual public network identities match; public-secondary403/executor direct transport failures are not hosted acceptance.
+Seven support-flow procedures in `product-audit-v81` pass actual quotes/proofs, encrypted worker/separate authenticated settlement and receipts. ETH uses `eth-support-r1`; the six other keys use `KEY-support-r1` and additionally reject wrong-wallet proof and changed confirmation body while accepting exact replay. All also complete refund/company/sweep checks. `recovery-matrix-integrity-r1` independently verifies five attempts/gas journals, four settlements, balanced journals, recorded recovery proof, exact receipt/hash and public totals with unchanged financial hashes. Generated JAGA is not real provenance. Preserve all generated databases/keys; do not reset.
 
-Current P1-076–079 changes: default receipt mode from authenticated metadata; bounded history display enrichment without portable-export changes; exact currency/network amounts, native terminology, recorded progress/hash; render-time localized errors with identity/read guards. Next16 use-client documentation was read before component edits. Offline locale navigation also uses the native History API so it cannot discard a loaded page when a server navigation fails. The Next16 linking/navigation guide was read before editing this. Source is frozen after successful `member-history-build-r5`.
+Current P1-081 fixes recent-wallet omission of support recovery: include its kind/amount/hash and EN/FR label; suppress ordinary cancel/requote buttons for recovery. Baseline and corrected reads pass. Production Chromium390px EN/FR `recovery-wallet-browser-r1`, `wallet-check-all-r1`, `wallet-build-r1` and `wallet-bundle-r1` pass. Finish docs/secrets/whitespace checks and require both exact-head CI events before merge. Read Next16 use-client docs before further component edits.
 
-Under `product-audit-v78`, old production-browser baselines reproduce mode/units/labels and stale error language. ETH `member-history-reads-r2`, GIV `simulation-history-reads-r1` and `history-pending-r3` pass read-only checks, including existing joined views and unchanged financial hashes. Browser r1 passed all happy-path EN/FR390px/PNG checks. Final `member-history-browser-r5` passes network failure, an offline locale change that preserves the loaded page/translated error, and recovery. Required check-allr2/buildr5/bundle pass. Preserve prior failed browser scripts/logs and the pending r1 correlation failure; do not alter financial fixtures to satisfy an assertion. Final docs/secrets/whitespace checks run before publication.
+The v81 activity eligibility/exclusion audit passed; the suspected member-count alias bug was ruled out by independent SQL. Generated `gw_v81_activity_r1/r2/r3` are retained. Owned PostgreSQL is running with TLS on55450 after environment restart; restarting must explicitly retain port/TLS options. Earlier receipt/history/offline browser and archive evidence remains in Git/status.
 
 ## Archive/schema essentials
 
@@ -51,8 +51,8 @@ P1-080 adds settled `recovery` earnings to receipt/activity/statistic reads, res
 
 ## Continue
 
-Publish the current concise evidence update after docs/secrets/whitespace checks and both exact-head CI events. Then continue C004/C008 remaining variants and C010 full current-PRD/public/admin/flags/accessibility audit. The historical295-row and current392-keyword scratch files are not whole-product acceptance.
+Finish the current wallet browser/required/build/bundle/docs checks, publish the fix and merge after both exact-head CI events. Then continue C004/C008 remaining variants and C010 full current-PRD/public/admin/flags/accessibility audit. The historical295-row and current392-keyword scratch files are not whole-product acceptance.
 
 Owner inputs remain deferred. Continue independent work without asking again; actual provider/custody/Google/CAPTCHA/devices/alerts/hosting/costs/post-backup reconciliation and14+14-day observation remain unverified. Do not stop after a checked merge or claim production100%.
 
-v82
+v83

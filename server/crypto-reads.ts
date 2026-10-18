@@ -211,6 +211,7 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
   const withdrawals = await tx
     .select({
       id: cryptoObligations.id,
+      kind: cryptoObligations.kind,
       previous_obligation_id: cryptoObligations.previousObligationId,
       asset: assets.symbol,
       network: assets.chainId,
@@ -230,7 +231,8 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
     .where(
       and(
         eq(cryptoObligations.userId, userId),
-        eq(cryptoObligations.kind, "withdrawal"),
+        inArray(cryptoObligations.kind, ["withdrawal", "recovery"]),
+        eq(cryptoObligations.sourcePurpose, "available_payable"),
       ),
     )
     .orderBy(desc(cryptoObligations.createdAt), desc(cryptoObligations.id))
