@@ -34,8 +34,21 @@ if (denied.status!==403) throw new Error('Member read staff jobs');
 const staff=await fetch(origin+'/api/v1/admin/jobs',{headers:{'x-sim-user':'sim_admin'}});
 if (!staff.ok) throw new Error('Staff jobs unavailable');
 const jobs=(await staff.json()).data;
-if (!jobs.counts.some(item=>item.status==='done' && BigInt(item.count)>0n) || jobs.counts.some(item=>item.status!=='done')) throw new Error('Expected all fresh notification jobs done');
-if (jobs.rows.some(row=>Object.hasOwn(row,'payload') || Object.hasOwn(row,'lease_token'))) throw new Error('Staff DTO exposed payload/lease credential');
+if (!Array.isArray(jobs.rows) || jobs.rows.length || jobs.next_cursor) throw new Error('Expected no unfinished fresh notification jobs');
+// Completed work lives in the paginated history view, not the current queue.
+let cursor,completed=0;const seen=new Set();
+do {
+ const query=new URLSearchParams({view:'history'});if(cursor)query.set('cursor',cursor);
+ const response=await fetch(origin+'/api/v1/admin/jobs?'+query,{headers:{'x-sim-user':'sim_admin'}});
+ if(!response.ok)throw new Error('Staff job history unavailable');
+ const page=(await response.json()).data;
+ if(!Array.isArray(page.rows)||page.rows.some(row=>row.status!=='done'))throw new Error('Expected all fresh notification jobs done');
+ if(page.rows.some(row=>Object.hasOwn(row,'payload')||Object.hasOwn(row,'lease_token')))throw new Error('Staff DTO exposed payload/lease credential');
+ completed+=page.rows.length;cursor=page.next_cursor;
+ if(cursor&&seen.has(cursor))throw new Error('Staff job history repeated its cursor');
+ if(cursor)seen.add(cursor);
+}while(cursor);
+if(!completed)throw new Error('Expected completed notification job history');
 const own=await fetch(origin+'/api/v1/me/dashboard',{headers:{'x-sim-user':'member_01'}});
 const dashboard=(await own.json()).data;
 if (!dashboard.notifications.some(item=>item.title_key==='gift_sent') || !dashboard.notifications.some(item=>item.title_key==='gift_received')) throw new Error('Expected materialized own gift notifications');
