@@ -16,7 +16,6 @@ const docs = path.join(root, 'docs');
 let statusFiles = [];
 let handoverFiles = [];
 let bugReportFiles = [];
-let bugPlanFiles = [];
 
 if (!fs.existsSync(docs)) {
   errors.push('missing required docs directory');
@@ -31,7 +30,7 @@ if (!fs.existsSync(docs)) {
   statusFiles = names.filter((n) => /^PROJECT-STATUS_v\d+\.md$/i.test(n));
   handoverFiles = names.filter((n) => /^LLM-HANDOVER_v\d+\.md$/i.test(n));
   bugReportFiles = names.filter((n) => /^custom-bugs-report_v\d+\.md$/i.test(n));
-  bugPlanFiles = names.filter((n) => /^custom-bugs-fix-plan_v\d+\.md$/i.test(n));
+  if (names.some((n) => /^custom-bugs-fix-plan(?:_v\d+)?\.md$/i.test(n))) errors.push('remove the separate bug-fix plan; use the concise bug report');
   for (const obsolete of ['custom-bugs-report.md', 'custom-bugs-fix-plan.md']) {
     if (names.includes(obsolete)) errors.push(`bug documentation must use a versioned filename: docs/${obsolete}`);
   }
@@ -39,8 +38,12 @@ if (!fs.existsSync(docs)) {
   if (!statusFiles.length) errors.push('missing versioned project status doc: docs/PROJECT-STATUS_vN.md');
   if (!handoverFiles.length) errors.push('missing versioned LLM handover doc: docs/LLM-HANDOVER_vN.md');
 
-  if (statusFiles.length > 1) warnings.push(`multiple project status versions found: ${statusFiles.join(', ')}`);
-  if (handoverFiles.length > 1) warnings.push(`multiple LLM handover versions found: ${handoverFiles.join(', ')}`);
+  if (statusFiles.length > 1) errors.push(`multiple project status versions found: ${statusFiles.join(', ')}`);
+  if (handoverFiles.length > 1) errors.push(`multiple LLM handover versions found: ${handoverFiles.join(', ')}`);
+
+  if (bugReportFiles.length !== 1) errors.push('keep exactly one versioned bug report');
+  const allowed = new Set(['PRD.md', 'SETUP.md', 'HOW-IT-WORKS.md', ...statusFiles, ...handoverFiles, ...bugReportFiles]);
+  for (const name of names.filter((name) => /\.md$/i.test(name))) if (!allowed.has(name)) errors.push(`unexpected guide docs/${name}; use the six existing guides unless the owner requests or an essential need requires a new file`);
 
   for (const entry of entries) {
     if (entry.isDirectory()) warnings.push(`nested docs directory found: docs/${entry.name}`);
@@ -60,16 +63,12 @@ const latestHandover = handoverFiles
   .sort((a, b) => b.version - a.version)[0];
 
 if (latestStatus && latestHandover && latestStatus.version !== latestHandover.version) {
-  warnings.push(`current filename versions differ (${latestStatus.name} vs ${latestHandover.name}); matching versions are preferred but not required`);
+  errors.push(`current filename versions differ (${latestStatus.name} vs ${latestHandover.name}); versions must match`);
 }
 
-if (bugReportFiles.length || bugPlanFiles.length) {
-  for (const [prefix, files] of [['custom-bugs-report', bugReportFiles], ['custom-bugs-fix-plan', bugPlanFiles]]) {
-    const latest = files.map((name) => ({ name, version: versionOf(name, prefix) })).sort((a, b) => b.version - a.version)[0];
-    if (!latest || latest.version !== latestStatus?.version || latest.version !== latestHandover?.version) {
-      errors.push(`current ${prefix} filename version must match current status and handover`);
-    }
-  }
+const latestReport = bugReportFiles.map((name) => ({ name, version: versionOf(name, 'custom-bugs-report') })).sort((a, b) => b.version - a.version)[0];
+if (latestReport && (latestReport.version !== latestStatus?.version || latestReport.version !== latestHandover?.version)) {
+  errors.push('current bug report version must match status and handover');
 }
 
 for (const current of [latestStatus, latestHandover].filter(Boolean)) {
