@@ -1,4 +1,4 @@
-# Project status v77
+# Project status v78
 
 **Phase One/Two is incomplete.** Four mainnets/eight protocols are implemented; all seven member-asset procedures now cover incoming payments, refunds, withdrawals, company settlements and sweeps locally. Generated endpoints/contracts are fixtures. Actual providers, custody, hosted operation and observation periods remain unverified. Continue without milestone approval pauses; owner launch inputs are deferred to final testing.
 
@@ -26,7 +26,7 @@
 
 ## Current delivery
 
-Branch `feat/mainnet-worker-recovery`, based on PR75 merge `156ba5e4fbd538bd72f4e789abe94cdaf61d7098`. PR75 exact heada70853b passed push39088579451 / PR39088586279. PR70 added managed restore/client compatibility; PR71 added policy-bound automatic backups; PR72 protected all wallet prompts from reload. Git history retains their detailed evidence.
+Branch `feat/current-product-audit`, based on PR76 merge `d26dbd9e494262eae53c6aebfe033d5d1a962d92`. PR76 final headad9179b passed push39089205996 / PR39089208186. PR70 added managed restore/client compatibility; PR71 added policy-bound automatic backups; PR72 protected all wallet prompts from reload. Git history retains their detailed evidence.
 
 New read-only correction: an obligation can retain internal `signing` while its durable attempt is signed/broadcast. Recent and paginated member reads add `display_status`; EN/FR displays the recorded progress. Raw financial status, actions, history, wire compatibility and schema remain unchanged. The recorded transaction hash is also shown. `native-lifecycle-v74/send-status-r2` passes funded claim/signed/broadcast progression, old-code baseline, member isolation and unchanged obligation/attempt/ledger hashes. `send-status-browser-r1` passes production Chromium390px EN/FR recent and paginated views with the exact retained hash; no API interception or financial mutations. Required checks, production build and bundle budgets pass locally.
 
@@ -74,7 +74,7 @@ Preserve failed originals. Notable fixture corrections: ETH omitted transport lo
 - `replacement-eth-r2` (native) and `replacement-bnb-r1` (18-decimal token) exercise the actual EVM replacement preparation with generated signatures and amounts above safe JavaScript integer precision. They preserve nonce/recipient/principal/calldata/gas limit, wait30 blocks, bump10% within the approved25% budget, and reject changed destination, contradictory/confirmed evidence and excess fees. No broadcast or replacement persistence is claimed. Preserve ETHr1: it exercised generic token intent on Ethereum, not the intended native case.
 - ETH post-withdrawal reorg procedure `eth-reorg-r2` passes: absence/provider outage cannot book loss; positively replaced canonical block creates one retained review, freezes spending, preserves allocations and rejects evidence rewrite; reconfirmation restores cash/points once. Preserve r1: it correctly hit the asset safety fence, but the harness expected the wrong error name. Its committed review and original financial database remain unchanged; r2 uses a fresh database.
 
-v77
+v78
 
 ## Durable EVM replacement follow-up (v77)
 
@@ -88,4 +88,10 @@ Fresh-process continuation passes on `eth-restart-r3` and `bnb-restart-r1`: an a
 
 `native-lifecycle-v74/mainnet-auth-r2` passes actual restricted-role server authentication methods with generated genuine JWT/session state: origin/CSRF/generation denial, encrypted TOTP enrollment, strict pre-auth, TOTP replay denial, hashed one-use recovery, access rotation, refresh-reuse family revocation, logout-all, sixth-attempt MFA rate denial and ingress-IP normalization/spoof checks. Obligation/attempt/ledger hashes remain unchanged. The earlier r1 narrower pass is preserved. Identity is explicitly generated; actual Google, physical authenticators, CAPTCHA and hosted browser acceptance remain open.
 
-v77
+## Current product audit (v78)
+
+`product-audit-v78/simulation-r3` creates a fresh empty database by executing the single final-state installer, runs the actual seeder, then exercises the current production build through all six existing named procedures:21-gift bootstrap queues, financial integrity/concurrent spending, signed scheduler/jobs, withdrawal recovery, incoming invoice failures and reorg/reconfirmation. All pass locally. This is isolated GIV evidence, not hosted/mainnet acceptance or a full current-PRD audit.
+
+Two manual procedures still expected pre-pagination staff DTOs. The jobs check now verifies no unfinished current jobs and pages completed history, preserving payload/lease privacy checks and repeated-cursor denial. Reorg verification filters its recorded review in paginated history and checks retained resolution after reconfirmation. No financial endpoint, schema or settlement rule changes. Required checks, script syntax and whitespace checks pass locally; the production application build is unchanged from the previously checked code. Preserve r1 (old jobs summary assertion) and r2 (old nested reorg-history assertion), including all committed financial/scheduler state; r3 uses a new database.
+
+v78
