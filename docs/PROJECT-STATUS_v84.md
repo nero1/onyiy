@@ -1,4 +1,4 @@
-# Project status v83
+# Project status v84
 
 **Phase One/Two remains incomplete.** Four mainnets/eight asset protocols are implemented. Seven member assets pass local incoming/refund/withdrawal/company/sweep procedures. Public RPC identities match; hosted payments and observation periods are unverified. Continue without milestone approval pauses. Owner launch inputs remain deferred to final testing.
 
@@ -26,11 +26,15 @@
 
 ## Current delivery
 
-Branch `feat/phase-two-recovery-matrix`, base PR81 merge `dc3c325e1baf93789c877e1cb32cf12af8759119`. PR81 head365186d passed push39106278519 / PR39106287179 before merge; P1-080 receipt/activity/statistic recovery inclusion is merged. PR79/80 are also merged.
+Branch `feat/oauth-callback-cleanup`, base PR82 merge `f37a1eb6e861582a671b3973b20c3e5142a2333d`. PR82 head6edee0b passed push39106801210 / PR39106811717 before merge. P1-080/081 recovery receipts/activity/statistics/recent-wallet fixes are merged in PR81/82.
 
-**P1-081:** recent native wallet now includes admin-reviewed earnings recovery with its type, exact amount and hash. EN/FR labels distinguish it from ordinary withdrawals; ordinary cancel/requote controls exclude support recovery. Existing reviewed support actions remain authoritative. No financial/schema changes.
+**P1-082:** failed Google GET callbacks now expire their temporary OAuth state even when rate limiting/configuration errors bypass normal redirect cleanup. Original error status/body and session cookies remain. No schema/financial changes.
+
+**P1-083:** bot-check now uses the shared validated CAPTCHA provider default, so the documented mainnet setup with unset overrides correctly selects Turnstile rather than rejecting dummy. Explicit provider overrides retain their existing checks.
 
 ## Current verification
+
+`auth-callback-v84/limited-callback-baseline-r1` reproduces missing state-cookie cleanup on429. `limited-callback-fixed-r2` passes invalid-state302, rate-limit429, configuration503, secure/HttpOnly/path attributes and unrelated-route isolation with generated settings, no Google token requests and no financial writes. `captcha-default-baseline-r1` also reproduces the mainnet default mismatch; `captcha-default-fixed-r1` passes default Turnstile challenge creation plus dummy rejection/none. `captcha-simulation-regression-r2` passes dummy generation/proof/replay behavior. These are generated settings without Google/Cloudflare verification requests. Combined `check-all-r2`, `build-r2` and `bundle-r2` pass locally.
 
 Under `product-audit-v81`:
 
@@ -71,9 +75,9 @@ Public read-only evidence in `public-network-v79`: four expected network identit
 ## Release and preservation rules
 
 - Fresh install: paste only `packages/db/fresh-install.sql`. Seven receipts; immutable SQL000–005; SQL006 queue fix. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 standalone indexes. No DDL in this batch.
-- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v83.md) retain references/key-handling rules.
+- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v84.md) retain references/key-handling rules.
 - Hashes bind actual database identity. Keep historical obligation/attempt snapshots. Rotate request/auth keys on restore, retain original MFA/custody/payload keys, reconcile chains and obtain fresh approvals/alert acknowledgements before publication.
 - Preserve all failed/successful financial fixtures, archives and keys. Corrections use fresh targets. SPL’s inherited console captions contain an old amount typo; integer assertions/rows are authoritative. Prior failed harness/transport/index/cache attempts remain in their original roots.
 - Five core guides plus two requested versioned trackers. Keep current facts concise; history is in Git. Both CI events must pass the exact final head before merge. Named manual procedures/required checks are authorized; broad automated suite remains deferred. Continue without approval pauses; do not claim100%.
 
-v83
+v84

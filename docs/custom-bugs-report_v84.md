@@ -1,6 +1,6 @@
-# Bug report — Rounds One/Two/Three v83
+# Bug report — Rounds One/Two/Three v84
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v83.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v84.md).
 
 Updated: **18 October2026 (Africa/Lagos)**.
 
@@ -95,6 +95,8 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 79. **P1-079 — Offline language switching discards the loaded page.** (Medium; defect) — Implemented and locally verified; GitHub tracks final CI/merge status.
 80. **P1-080 — Confirmed earnings recovery is missing from receipts and public payouts.** (Medium; defect) — Implemented and locally verified; GitHub tracks final CI/merge status.
 81. **P1-081 — Recent wallet omits earnings recovery and lacks its action distinction.** (Medium; defect) — Implemented and locally verified; GitHub tracks final CI/merge status.
+82. **P1-082 — Early OAuth callback failures retain transient state.** (Low; defect) — Implemented and locally verified; GitHub tracks final CI/merge status.
+83. **P1-083 — Mainnet CAPTCHA ignores the shared default provider.** (High; defect) — Implemented and locally verified; GitHub tracks final CI/merge status.
 
 ## How to read this report
 
@@ -102,7 +104,7 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 - “Defect” means a source/contract failure; “requirement gap” means missing requested behavior; “hardening” means a conditional defensive improvement; “maintenance” means structural/dependency risk.
 - Initial audit ratings (current → projected after fixes): money/recovery 5 → 8; security/privacy 6.5 → 8.5; performance 5 → 8; maintainability 6 → 8; product/accessibility/SEO 6 → 8, out of 10. These were qualitative judgments, not measured guarantees or updated release ratings.
 - Original audit: 70 findings; four more were found during remediation. Three analysis passes were one audit round. CRON frequency and test-only issues were excluded.
-- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v83.md).
+- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v84.md).
 
 ## Original evidence by finding
 
@@ -568,7 +570,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v83.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v84.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -588,7 +590,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v83.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v84.md).
 
 
 
@@ -609,7 +611,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Current completion and delivery
 
-Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v83.md) and [handover](LLM-HANDOVER_v83.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-report_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
+Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v84.md) and [handover](LLM-HANDOVER_v84.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-report_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
 
 ### P1-075 — Solana v1 reads
 
@@ -640,3 +642,11 @@ Admin-reviewed recovery pays an existing member earnings balance to the original
 ### P1-081 — Recent wallet recovery visibility
 
 The recent native wallet list excluded admin-reviewed earnings recovery even after settlement, while full history retained it. Include withdrawal/recovery from `available_payable`, expose the kind and label it in EN/FR. Recovery rows remain read-only in the ordinary member actions; cancellation/requote still follows its reviewed support path. `product-audit-v81/recovery-wallet-baseline-r1` reproduces the omission; `recovery-wallet-reads-r1` verifies its exact saved amount/hash with unchanged financial records. No schema change.
+
+### P1-082 — OAuth callback error cleanup
+
+Rate limiting and configuration errors occur before the normal Google callback redirect/cleanup. The final API response now expires only `gw_oauth_state` on failed GET callbacks, retaining the original status/body and session cookies. Cleanup uses the request protocol so broken origin configuration cannot mask the original error. `auth-callback-v84/limited-callback-baseline-r1` reproduces the missing429 cleanup. `limited-callback-fixed-r2` verifies invalid-state302, rate-limit429, configuration503, secure/HttpOnly/path attributes and unrelated-route isolation. It uses generated settings and makes no Google token request or financial mutation.
+
+### P1-083 — Mainnet CAPTCHA provider default
+
+SETUP correctly leaves provider overrides unset so `APP_ENV` supplies matching defaults. Configuration selected Turnstile for mainnet, but bot-check independently selected prohibited dummy, blocking required consent checks. Use `runtimeProviders().CAPTCHA_PROVIDER` as the single default source. `auth-callback-v84/captcha-default-baseline-r1` reproduces the failure; `captcha-default-fixed-r1` verifies mainnet Turnstile challenge creation without a dummy token, explicit dummy rejection and explicit none. `captcha-simulation-regression-r2` preserves simulation dummy proof/generation/replay behavior. Generated settings only; real Cloudflare/device acceptance remains open.
