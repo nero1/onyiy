@@ -1,6 +1,6 @@
-# Bug report — Rounds One/Two/Three v85
+# Bug report — Rounds One/Two/Three v86
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v85.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v86.md).
 
 Updated: **18 October2026 (Africa/Lagos)**.
 
@@ -100,6 +100,8 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 84. **P1-084 — Members cannot reach older reports/appeals.** (Medium; defect) — Implemented and locally verified; GitHub tracks final CI/merge status.
 85. **P1-085 — Private GETs use action quotas instead of read limits.** (Medium; defect) — Implemented and locally verified; GitHub tracks final CI/merge status.
 86. **P1-086 — Account errors retain an old language/session scope.** (Low; defect) — Implemented and locally verified; GitHub tracks final CI/merge status.
+87. **P1-087 — Other portals retain translated exception notices.** (Low; defect) — Implemented and locally verified; GitHub tracks final CI/merge status.
+88. **P1-088 — Native wallet retains a recovered read error.** (Low; defect) — Implemented and locally verified; GitHub tracks final CI/merge status.
 
 ## How to read this report
 
@@ -107,7 +109,7 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 - “Defect” means a source/contract failure; “requirement gap” means missing requested behavior; “hardening” means a conditional defensive improvement; “maintenance” means structural/dependency risk.
 - Initial audit ratings (current → projected after fixes): money/recovery 5 → 8; security/privacy 6.5 → 8.5; performance 5 → 8; maintainability 6 → 8; product/accessibility/SEO 6 → 8, out of 10. These were qualitative judgments, not measured guarantees or updated release ratings.
 - Original audit: 70 findings; four more were found during remediation. Three analysis passes were one audit round. CRON frequency and test-only issues were excluded.
-- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v85.md).
+- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v86.md).
 
 ## Original evidence by finding
 
@@ -573,7 +575,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v85.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v86.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -593,7 +595,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v85.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v86.md).
 
 
 
@@ -614,7 +616,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Current completion and delivery
 
-Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v85.md) and [handover](LLM-HANDOVER_v85.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-report_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
+Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v86.md) and [handover](LLM-HANDOVER_v86.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-report_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
 
 ### P1-075 — Solana v1 reads
 
@@ -665,3 +667,11 @@ Own report/appeal reads used the five-per-hour report-action policy, blocking or
 ### P1-086 — Account error language and scope
 
 Account/moderation errors were stored as already-translated text; an offline language change kept the old language, and initial failures could show a raw code. Retain ephemeral error values and translate at render time. Clear failures on identity changes; reject superseded page/bootstrap/action results while still loading public bootstrap data. `member-cases-v85/browser-language-baseline-r2` reproduces French error text after switching to English offline. `browser-language-fixed-r1` verifies translation, retained case data and completed reconnection refresh in production Chromium390px; final build/check-all/bundle pass. No private responses are cached offline and no mutations are queued.
+
+### P1-087 — Shared operation notice language
+
+The native wallet reproduced the same frozen-language exception pattern across other portal components. Use an ephemeral localized-notice hook in15 components; the simulation dashboard renders stored exceptions and known notice keys in its current language, including its loading fallback. Native proof/payment status copy also follows current language. Requests, guards and financial state are unchanged. `notices-v86/native-baseline-r1` reproduces French text after an offline English switch; simulation/native production browser procedures verify the fix. This is sampled browser acceptance plus source-wide adoption, not physical testing of every staff workflow.
+
+### P1-088 — Recovered native read errors
+
+A successful owned-portfolio read did not clear an earlier read error. Keep read errors separate from operation notices: a fresh owned response clears only read errors; identity/new operations clear their scoped state. Payment/proof warnings remain visible across ordinary refreshes. The initial native recovery procedure is retained, including transient database deadline errors; `notices-v86/native-fixed-r2` observes successful portfolio responses and verifies recovery plus operation-warning retention; financial fingerprints remain unchanged. No monetary request is queued or retried.

@@ -39,7 +39,7 @@ type User = { id: string; username: string; role: string; status: string; locale
 type Plan = { id: string; name: string; slug: string; usd_reference: string; receipts_required: number; status: string; amount_base_units: string; amount_giv: string; expected_giv: string;profile_revision?:number;queue_disclosure?:PublicQueueDisclosure|null;plan?:PlanFinancialPresentation };
 type Notification = {id:string;title_key:string;body:string;created_at:string;read_at:string | null};
 type Dashboard = DashboardDto;
-type Notice = { kind: 'error' | 'ok'; text: string } | null;
+type Notice = { kind: 'error' | 'ok'; text: string; error?:unknown; key?:'offline'|'incomingPending'|'incomingReview'|'incomingRejected'|'done'|'reconciliationPassed'|'reconciliationReview' } | null;
 type GiftQuote={id:string;expected_base_units:string;expires_at:string;status:string;owner:string;profile_revision?:number;presentation?:ProfilePresentation;queue_disclosure?:PublicQueueDisclosure|null;plan?:PlanFinancialPresentation};
 type WithdrawalQuote = SimulationWithdrawalQuote;
 
@@ -78,6 +78,7 @@ export default function DashboardApp() {
   const currentUser = useRef(username);
   const [busy, setBusy] = useState(false);
   const t = {...copy[locale],tagline:manifest?.product_content?.tagline?.[locale]??copy[locale].tagline};
+  const noticeText=notice?('error'in notice?errorMessage(notice.error,locale):notice.key?t[notice.key]:notice.text):null;
 
   useEffect(() => {
     const initialUser = preference('sim_user') ?? 'member_01';
@@ -170,7 +171,7 @@ export default function DashboardApp() {
     setAuthUser(value.user);setSessionGeneration(value.generation??'');
     if(value.user){currentUser.current=value.user.username;setUsername(value.user.username);activateUserScope(value.user.username,value.generation??'');if(same)void refresh();}
   }
-  async function switchAccount(next:string){if(busy)return;setBusy(true);try{receiveSession(await mutation<SessionResult>('/auth/simulation/session','',{username:next}));}catch(error){setNotice({kind:'error',text:errorMessage(error, locale)});}finally{setBusy(false)}}
+  async function switchAccount(next:string){if(busy)return;setBusy(true);try{receiveSession(await mutation<SessionResult>('/auth/simulation/session','',{username:next}));}catch(error){setNotice({kind:'error',text:'',error});}finally{setBusy(false)}}
 
   function applyDashboard(fresh:Dashboard){
     setDash(fresh);if(fresh.manifest)setManifest(old=>old?latestPublicManifest(old,{...old,...fresh.manifest}):old);setAuthUser(old=>old?{...old,...fresh.user}:old);
@@ -195,7 +196,7 @@ export default function DashboardApp() {
     } catch (error) {
       if (generation!==refreshGeneration.current || username!==currentUser.current) return;
       if (error instanceof ApiError && error.code==='UNAUTHENTICATED') {setDash(null);setGiftQuote(null);setAuthUser(null);setSessionGeneration('');}
-      setNotice({ kind: 'error', text: errorMessage(error, locale) });
+      setNotice({ kind: 'error', text:'',error });
     }
   }
 
@@ -209,26 +210,26 @@ export default function DashboardApp() {
 
   async function act(fn: () => Promise<unknown>) {
     if (!online) {
-      setNotice({ kind: 'error', text: t.offline });
+      setNotice({ kind: 'error', text:'',key:'offline' });
       return;
     }
     setBusy(true);
     try {
       const result=await fn() as {status?:string;expected_base_units?:string}|undefined;
       await Promise.all([refresh(),refreshCatalog()]);
-      setNotice({ kind:result?.expected_base_units && ['exception','failed'].includes(result.status??'')?'error':'ok',text:result?.expected_base_units && result.status==='submitted'?t.incomingPending:result?.expected_base_units && result.status==='exception'?t.incomingReview:result?.expected_base_units && result.status==='failed'?t.incomingRejected:t.done });
+      setNotice({ kind:result?.expected_base_units && ['exception','failed'].includes(result.status??'')?'error':'ok',text:'',key:result?.expected_base_units && result.status==='submitted'?'incomingPending':result?.expected_base_units && result.status==='exception'?'incomingReview':result?.expected_base_units && result.status==='failed'?'incomingRejected':'done' });
     } catch (error) {
-      setNotice({ kind: 'error', text: errorMessage(error, locale) });
+      setNotice({ kind: 'error', text:'',error });
     } finally {
       setBusy(false);
     }
   }
 
-  async function openGiftReview(id:string){const owner=username;if(busy||!online)return;setBusy(true);try{const quote=await api<Omit<GiftQuote,'owner'>>(`/gifts/invoices/${id}/review`,owner);if(owner===currentUser.current)setGiftQuote({...quote,owner});}catch(error){if(owner===currentUser.current)setNotice({kind:'error',text:errorMessage(error,locale)});}finally{setBusy(false);}}
+  async function openGiftReview(id:string){const owner=username;if(busy||!online)return;setBusy(true);try{const quote=await api<Omit<GiftQuote,'owner'>>(`/gifts/invoices/${id}/review`,owner);if(owner===currentUser.current)setGiftQuote({...quote,owner});}catch(error){if(owner===currentUser.current)setNotice({kind:'error',text:'',error});}finally{setBusy(false);}}
   async function requestGift(planId:string){
     if(!online || busy)return;const existing=dash?.pending_invoices?.find(item=>item.plan_id===planId && item.status==='quoted' && new Date(item.expires_at).getTime()>Date.now());if(existing){await openGiftReview(existing.id);return}const owner=username;setBusy(true);setGiftQuote(null);
     try{const quote=await mutation<Omit<GiftQuote,'owner'>>('/gifts/invoices',owner,{plan_id:planId,profile_revision:manifest?.profile_revision,...(botProof?{bot_proof:botProof}:{})});if(owner===currentUser.current && navigator.onLine){setGiftQuote({...quote,owner});setBotReset(v=>v+1);}}
-    catch(error){if(owner===currentUser.current)setNotice({kind:'error',text:errorMessage(error, locale)});}
+    catch(error){if(owner===currentUser.current)setNotice({kind:'error',text:'',error});}
     finally{setBusy(false);}
   }
 
@@ -239,9 +240,9 @@ export default function DashboardApp() {
       const result=await api<{balanced:boolean;consistent:boolean;lineage_complete:boolean}>('/admin/reconcile',actor);
       if (actor!==currentUser.current) return;
       const passed=result.balanced && result.consistent && result.lineage_complete;
-      setNotice({kind:passed?'ok':'error',text:passed?t.reconciliationPassed:t.reconciliationReview});
+      setNotice({kind:passed?'ok':'error',text:'',key:passed?'reconciliationPassed':'reconciliationReview'});
     } catch {
-      if (actor===currentUser.current) setNotice({kind:'error',text:t.reconciliationReview});
+      if (actor===currentUser.current) setNotice({kind:'error',text:'',key:'reconciliationReview'});
     } finally {setBusy(false);}
   }
 
@@ -260,7 +261,7 @@ export default function DashboardApp() {
   if(!authReady)return <main className="center"><p role="status">{t.loading}</p></main>;
   if(!authUser||requiresMfa||authUser.status==='pending_consent')return <main className="auth-page">{publicNavigation}<h1>{t.brand}</h1><button aria-label={t.language} onClick={()=>setLocale(locale==='en'?'fr':'en')}>{locale.toUpperCase()}</button><AuthPanel scope={sessionGeneration} locale={locale} user={authUser} requiresMfa={requiresMfa} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/>{manifest?.feature_gifts&&<section className="plan-list" aria-label={t.gifts}>{visiblePlans.map(plan=><article className="card plan" key={plan.id}><div><h3>{plan.name}</h3><p>{plan.amount_giv} GIV · ≈ ${plan.usd_reference}</p><strong>{potentialLabel}: {plan.expected_giv} GIV</strong><p className="muted">{t.status}: {plan.status}</p><ProfileDisclosure presentation={manifest?.presentation} locale={locale} queue={plan.queue_disclosure} plan={plan.plan}/></div></article>)}</section>}</main>;
   if(authUser.status==='suspended')return <main className="auth-page">{publicNavigation}<a href={'/settings/account?locale='+locale}>{locale==='fr'?'Compte et recours':'Account and appeals'}</a><AuthPanel scope={sessionGeneration} locale={locale} user={authUser} requiresMfa={false} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/></main>;
-  if(!dash||!manifest||dash.user.username!==username)return <main className="center"><div><p role="status">{notice?.text??t.loading}</p><button disabled={!online||busy} onClick={()=>void refresh()}>{t.retry}</button><AuthPanel scope={sessionGeneration} securityReady={false} locale={locale} user={authUser} requiresMfa={false} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/></div></main>;
+  if(!dash||!manifest||dash.user.username!==username)return <main className="center"><div><p role="status">{noticeText??t.loading}</p><button disabled={!online||busy} onClick={()=>void refresh()}>{t.retry}</button><AuthPanel scope={sessionGeneration} securityReady={false} locale={locale} user={authUser} requiresMfa={false} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/></div></main>;
 
   return (
     <div className="app">
@@ -283,7 +284,7 @@ export default function DashboardApp() {
       {publicNavigation}
 
       {dash.financial_review && <section className="card" role="alert"><p>{t.financialReview}</p></section>}
-      {notice && <div role={notice.kind==='error'?'alert':'status'} className={`notice ${notice.kind}`}>{notice.text}</div>}
+      {notice && <div role={notice.kind==='error'?'alert':'status'} className={`notice ${notice.kind}`}>{noticeText}</div>}
 
       <main>
         <AuthPanel scope={sessionGeneration} locale={locale} user={authUser} requiresMfa={false} provider={authProvider} accounts={users} manifest={manifest} onSession={receiveSession}/>

@@ -1,4 +1,5 @@
 "use client";
+import {useLocalizedNotice} from './use-localized-notice';
 import {historyEntryLabel,paymentStateLabel} from '@/lib/payment-state';
 import {useCurrencyPreview} from './use-currency-preview';
 import {currencyCopy} from '@/lib/currency-copy';
@@ -11,7 +12,7 @@ import type {ProfilePresentation,PublicQueueDisclosure,PlanFinancialPresentation
 import type {PublicManifestDto,NativePortfolioDto,NativeWithdrawalQuote,NativeWithdrawalReview,NativeWithdrawalRow} from '@/lib/financial-contracts';
 import type {MemberRecord} from '@/lib/member-records';
 import {useAppearance,useNavigationIdentity} from './appearance-provider';
-import {errorMessage} from "@/lib/error-messages";
+
 import {loadSession} from '@/lib/auth-client';
 import {rememberPayment,pendingPayment,forgetPayment,beginPayment,endPayment} from '@/lib/payment-receipts';
 import { useEffect, useState, useRef } from "react";
@@ -67,7 +68,8 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
     [manifest, setManifest] = useState<PublicManifestDto|null>(null),
     [data, setData] = useState<NativePortfolioDto|null>(null),
     [busy, setBusy] = useState(false),
-    [notice, setNotice] = useState("");
+    [notice,setNotice]=useLocalizedNotice(locale);
+  const [readNotice,setReadNotice]=useLocalizedNotice(locale);
   const [botReady,setBotReady]=useState(false),[botProof,setBotProof]=useState<BotProof|undefined>(),[botReset,setBotReset]=useState(0);
   const [payment, setPayment] = useState<PreparedPayment | null>(null),
     [sentHash,setSentHash]=useState(''),
@@ -115,7 +117,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
     setGross("");
     setExistingInvoice('');setExistingHash('');
     setBotReady(false);setBotProof(undefined);setBotReset(v=>v+1);
-    setNotice("");
+    setNotice("");setReadNotice("");
     setBusy(false);
     setSession(value);
   }
@@ -132,11 +134,11 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
           setManifest(old=>latestPublicManifest(old,m));
           setCatalog(c??{mode:s.environment??m.payment_environment??"unavailable",profile_revision:0,execution_enabled:false,assets:[],plans:[]});
           receive(s);
-          if(!c)setNotice(t.error);
+          if(!c)setNotice({error:new Error('PROVIDER_UNAVAILABLE')});
         }
       })
       .catch(() => {
-        if (mounted.current && epoch.current === active) setNotice(t.error);
+        if (mounted.current && epoch.current === active) setNotice({error:new Error('PROVIDER_UNAVAILABLE')});
       });
     const changed = () => {
       const version = ++epoch.current;
@@ -146,7 +148,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
       setWithdrawal(null);
       setGross("");
       setBotReady(false);setBotProof(undefined);setBotReset(v=>v+1);
-      setNotice("");
+      setNotice("");setReadNotice("");
       setBusy(false);
       void loadSession()
         .then((value) => {
@@ -183,7 +185,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
-  function applyPortfolio(value:NativePortfolioDto){setData(value);if(value.manifest)setManifest(old=>old?latestPublicManifest(old,{...old,...value.manifest}):old);if(value.user)setSession(old=>old?.user?{...old,user:{...old.user,...value.user}}:old);}
+  function applyPortfolio(value:NativePortfolioDto){setData(value);setReadNotice("");if(value.manifest)setManifest(old=>old?latestPublicManifest(old,{...old,...value.manifest}):old);if(value.user)setSession(old=>old?.user?{...old,user:{...old.user,...value.user}}:old);}
   async function load() {
     if (!user || session?.requires_mfa || user.status === "pending_consent")
       return;
@@ -192,7 +194,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
       const result = await api<NativePortfolioDto>("/me/crypto", user.username);
       if (mounted.current && epoch.current === active&&serial===readGeneration.current) applyPortfolio(result);
     } catch (error) {
-      if (epoch.current === active&&serial===readGeneration.current) setNotice(errorMessage(error,locale));
+      if (epoch.current === active&&serial===readGeneration.current) setReadNotice({error});
     }
   }
   useEffect(() => {
@@ -209,7 +211,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
         epoch.current === active &&
         clientSessionMatches(owner, generation);
     setBusy(true);
-    setNotice("");
+    setNotice("");setReadNotice("");
     try {
       const wallet = await import("@/lib/native-wallet"),
         address = await wallet.connectNativeWallet(currency);
@@ -237,20 +239,12 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
         signature,
       });
       if (valid()) {
-        setNotice(
-          fr
-            ? "Adresse vérifiée. Aucun transfert effectué."
-            : "Address verified. No transfer was made.",
-        );
+        setNotice({copy:{fr:"Adresse vérifiée. Aucun transfert effectué.",en:"Address verified. No transfer was made."}});
         await load();
       }
     } catch {
       if (valid())
-        setNotice(
-          fr
-            ? "La connexion ou la preuve a échoué. Aucun transfert n’a été demandé."
-            : "Connection or proof failed. No transfer was requested.",
-        );
+        setNotice({copy:{fr:"La connexion ou la preuve a échoué. Aucun transfert n’a été demandé.",en:"Connection or proof failed. No transfer was requested."}});
     } finally {
       if (valid()) setBusy(false);
     }
@@ -261,11 +255,11 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
     financialFlight.current=true;
     const active = epoch.current;
     setBusy(true);
-    setNotice("");
+    setNotice("");setReadNotice("");
     try {
       await action();
     } catch (error) {
-      if (mounted.current && epoch.current === active)setNotice(errorMessage(error,locale));
+      if (mounted.current && epoch.current === active)setNotice({error:error});
     } finally {
       financialFlight.current=false;
       if (epoch.current === active) setBusy(false);
@@ -324,11 +318,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
       if (epoch.current === active) {
         forgetPayment(user.id,prepared.invoice_id);setSentHash('');
         setPayment(null);
-        setNotice(
-          fr
-            ? "Paiement soumis — confirmation réseau en attente."
-            : "Payment submitted — awaiting network confirmation.",
-        );
+        setNotice({copy:{fr:"Paiement soumis — confirmation réseau en attente.",en:"Payment submitted — awaiting network confirmation."}});
         await load();
       }
       }finally{endPayment(user.id);}
@@ -426,7 +416,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
           ? "Les monnaies et les soldes ci-dessous sont identifiés par réseau de test."
           : "Currencies and balances below identify their test network."}
       </p>
-      <p role="status">{notice}</p>
+      <p role="status">{readNotice||notice}</p>
       {!catalog?.execution_enabled && (
         <p className="card">
           {fr
