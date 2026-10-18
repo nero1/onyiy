@@ -31,7 +31,7 @@ export async function accountChange(tx:DbExecutor,actorId:string,input:z.infer<t
  if(input.action==='reset_mfa'){if(actor.role!=='admin'||!input.proof_reference)throw new Error('FORBIDDEN');await eraseFactors(tx,target.id);patch.sessionVersion=target.sessionVersion+1;await tx.update(authSessions).set({revokedAt:sql`coalesce(${authSessions.revokedAt},clock_timestamp())`}).where(eq(authSessions.userId,target.id));}
  if(input.action==='delete'){
   if(actor.role!=='admin'||input.confirmation!==`delete:${target.id}`||!input.proof_reference)throw new Error('FORBIDDEN');
-  patch.status='deleted';patch.username='deleted_'+target.id.replaceAll('-','');patch.email=null;patch.locale='en';patch.ageConfirmedAt=null;patch.ageMinimumAccepted=null;patch.suspensionUntil=null;patch.suspensionPreviousStatus=null;
+  patch.status='deleted';patch.username='deleted_'+target.id.replaceAll('-','');patch.email=null;patch.locale='en';patch.ageConfirmedAt=null;patch.ageDobVerifiedAt=null;patch.ageMinimumAccepted=null;patch.suspensionUntil=null;patch.suspensionPreviousStatus=null;
   // UUID financial references, journals, cycles, payouts and wallet snapshots remain intact.
   await eraseFactors(tx,target.id);await tx.delete(userIdentities).where(eq(userIdentities.userId,target.id));await tx.delete(referralCodes).where(eq(referralCodes.userId,target.id));
   const families=await tx.select({id:authSessions.id}).from(authSessions).where(eq(authSessions.userId,target.id));if(families.length){await tx.delete(authRefreshTokens).where(inArray(authRefreshTokens.sessionId,families.map(r=>r.id)));await tx.delete(authSessions).where(eq(authSessions.userId,target.id));}
