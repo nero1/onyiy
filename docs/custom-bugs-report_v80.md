@@ -1,6 +1,6 @@
-# Bug report — Rounds One/Two/Three v79
+# Bug report — Rounds One/Two/Three v80
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v79.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v80.md).
 
 Updated: **18 October2026 (Africa/Lagos)**.
 
@@ -87,7 +87,12 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 73. **P1-073 — Testnet identity and rate infrastructure remains simulation-only.** (High; requirement gap) — Implemented and locally verified in v43.
 74. **P1-074 — TRON reconciliation accepts live balances beyond the declared scan cutoff.** (Medium; defect) — Implemented and locally verified in v45.
 
-75. **P1-075 — Solana v1 transactions block receipt and recovery reads.** (High; defect) — Implemented; public baseline, recorded-data scanner and local financial regression pass; required checks/build/bundle passed; exact-head CI/merge pending.
+75. **P1-075 — Solana v1 transactions block receipt and recovery reads.** (High; defect) — Implemented; public baseline, recorded-data scanner and local financial regression pass; Merged in PR78 after both exact-head CI events passed.
+
+76. **P1-076 — Receipt sharing defaults to simulation on native deployments.** (Medium; defect) — Implemented and locally verified; GitHub tracks final CI/merge status.
+77. **P1-077 — Shared history uses raw units, testnet labels and incomplete send state.** (Medium; defect) — Implemented and locally verified; data/isolation and browser checks pass.
+78. **P1-078 — Shared-page errors retain an old language or superseded scope.** (Low; defect) — Implemented and locally verified; GitHub tracks final CI/merge status.
+79. **P1-079 — Offline language switching discards the loaded page.** (Medium; defect) — Implemented and locally verified; GitHub tracks final CI/merge status.
 
 ## How to read this report
 
@@ -95,7 +100,7 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 - “Defect” means a source/contract failure; “requirement gap” means missing requested behavior; “hardening” means a conditional defensive improvement; “maintenance” means structural/dependency risk.
 - Initial audit ratings (current → projected after fixes): money/recovery 5 → 8; security/privacy 6.5 → 8.5; performance 5 → 8; maintainability 6 → 8; product/accessibility/SEO 6 → 8, out of 10. These were qualitative judgments, not measured guarantees or updated release ratings.
 - Original audit: 70 findings; four more were found during remediation. Three analysis passes were one audit round. CRON frequency and test-only issues were excluded.
-- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v79.md).
+- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v80.md).
 
 ## Original evidence by finding
 
@@ -561,7 +566,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v79.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v80.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -581,7 +586,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v79.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v80.md).
 
 
 
@@ -600,204 +605,28 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 - **P2-B008:** Receipt masking depended on a potentially stale/unavailable profile, and changing language during a publication save could leave controls busy. Receipt images always mask identity; publication scope resets controls and prevents an old request from releasing a newer request’s lock.
 
 
-## Full-product completion audit v55
+## Current completion and delivery
 
-The new owner directive reopens overall product completion, including mainnet. Earlier completion statements concern their named batches only. Current gaps and dependencies:
+Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v80.md) and [handover](LLM-HANDOVER_v80.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-report_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
 
-- **C001 — Mainnet registry/configuration:** Testnet-only validation and provider assumptions; staged registry foundations in progress.
-- **C002 — Shared database and preview isolation:** Mainnet namespace/promotion fence, non-sending preview role, stale-build retirement and production-reset denial need implementation and proof.
-- **C003 — Signer and custody:** Both implementation gates remain false; environment-bound keys, scoped worker access and verified activation remain open.
-- **C004 — Payment/fee/recovery matrix:** Every enabled asset needs inflow, withdrawal, business/refund/operating settlement, reorg, replacement/expiry and restart evidence.
-- **C005 — Asset and RPC provenance:** Verify all §30 assets/networks, two independent RPCs, token decimals/contracts/mints; JAGA needs owner input.
-- **C006 — Pricing modes:** Native fixed-token activation is explicitly rejected despite §9.3; amount/asset binding and safe USD reference remain to implement.
-- **C007 — Production UI and wallet support:** Remove testnet-only catalog/wallet/history assumptions; verify all EN/FR disclosures, receipts and actual mainnet wallet approval.
-- **C008 — Mainnet backup and recovery:** Recovery currently accepts simulation/testnet only; verify exact production restore, chain reconciliation and no resend.
-- **C009 — Hosted identity/access:** Actual OAuth/MFA, restrictive roles, rate limits, CAPTCHA and account/financial recovery need hosted evidence.
-- **C010 — Complete product acceptance:** Check every feature/flag, queues, cooldowns, referrals/points, admin/moderation, exports/deletion, accessibility/PWA/offline and errors against §§1–29.
-- **C011 — Deployment and operations:** Secure hosted setup, external alerts, signer/scheduler heartbeats and incident/closure controls need actual operation evidence.
-- **C012 — Capacity and cost:** Measure mobile/latency/quota targets and select commercially permitted hosting within owner budget.
-- **C013 — Observation periods:** §30 requires14-day beta stability and14-day initial-cap mainnet observation; no elapsed evidence recorded.
-- **C014 — Owner launch decisions:** Launch countries/review, approved financial terms, funding/refund/closure model, custody and budget remain unresolved.
+### P1-075 — Solana v1 reads
 
-- **C015 — Age eligibility:** Consent currently accepts an adult checkbox; §5 requires full-date-of-birth age calculation using server time.
-- **C016 — Display time zones:** User/default Lagos and admin_timezone settings are not wired into the date formatting surfaces.
-- **C017 — Product navigation/idle preview:** Verify and finish §18 currency browsing/idle rotation, focus-safe behaviour and all scheduled-plan presentation; current native portal has no currency rotation implementation.
+Merged in PR78 after exact-head push39090744721 / PR39090751758 passed. Integer maximum1 is shared by adapter/scanner receipt, block, event and expiry reads. Public -32015 reproduction, recorded public-data bounded-scan regression, strict local SPL account-setup/native SOL expiry and required release checks pass. No signing/schema change or live dual-provider acceptance is inferred.
 
-Owner update: all launch details are deferred to final testing. Document the fields in SETUP and continue code without waiting for them. C006 fixed-token pricing is implemented and passed an isolated rollback-only activation/replay/immutability procedure; final release/schema verification remains pending.
+### P1-076 — Receipt mode default
 
-## v56 findings and delivery
+Shared receipt pages defaulted to simulation on mainnet despite settled native payouts. Initialize from authenticated environment; preserve explicit historical selection and correct PNG environment/asset/privacy labels. Actual production-browser baseline reproduced the defect.
 
-- **C003 / key custody foundation:** version2 AEAD binds exact environment, network, chain and public address. Legacy files remain testnet-only. Generated eight-network packaging/tamper procedures pass; mainnet execution is still unfinished.
-- **C017 / currency browsing:** implemented enabled-only selectors, idle preview pause, focus/reduced-motion/financial-state guards and tile/card keyboard return. Browser acceptance is being checked; scheduled plans and broader dashboard requirements remain open.
-- **C016 follow-up:** changing the display zone left verified activity text cached in the old zone. Include the zone in the formatting dependencies.
-- **Key-file race:** checking a path and reading it later could read a different file. Inspect/read the same descriptor and reject symlinks, preserving private-file permissions and zeroing buffers.
+### P1-077 — History currency and send state
 
-## v57 findings and delivery
+History displayed unformatted base units, used testnet-only native labels and omitted recorded send progress/hash. Add bounded display metadata and render exact currency/network/status, with original private/export fields preserved. Explicitly qualified correlated IDs prevent single-table Drizzle queries from accidentally referring to an attempt’s own ID. Restricted-role ETH/GIV/isolation/unchanged-data checks and retained-pending joined/shared reads pass.
 
-- **C002/C003 — Signer promotion race:** isolated signer transactions lacked the shared profile/mode fence held by web transactions. Add the same lock order before signer data access, bind configuration and saved attempts to the captured environment, and reject retired workers before writes. Fresh actual restricted-login/owner contention and preserved-row checks pass.
-- **C003 — Browser custody preparation:** manual trusted-main workflow prepares new independent encrypted keys without any financial/provider credentials. Both-environment generation/address/overwrite/secret-scope checks pass. This is preparation only; full mainnet custody/runtime remains unfinished.
-- **C010 final installer:** preserve installed/signed histories, but deliver the owner's requested single final-state fresh installer when schema work is complete. The v60 one-file installer now supplies that final state; regenerate and reverify it after future schema changes.
+### P1-078 — Shared-page error language/scope
 
-## v58 findings and delivery
+Error strings captured an old locale and initial failures exposed an internal code. Keep ephemeral error objects, localize during render, clear on identity change and ignore superseded read failures. A production-browser offline baseline reproduces the old-language notice; localized recovery checks pass as recorded in status.
 
-- **C001/C005 — Network observation:** explicit read-only mainnet adapters support closed native network identities without enabling financial execution. Facade and transport prevent construction/broadcast and deny unknown mutation methods before dispatch. Live provider/token provenance remains pending.
-- **C004 — Stale adapter execution gate:** transfer build/broadcast previously relied on construction-time validation. Recheck the current execution gate immediately before preparing/sending.
-- **C004 — TRON outage misclassification:** when both identity providers failed, WRONG_NETWORK could make a transient outage permanent. Preserve RPC_UNAVAILABLE; actual wrong IDs remain rejected.
-- **C001 — Solana devnet literals:** explicit observation used closed mainnet metadata, but constructor/balance checks still required devnet. Bind those reads to the validated registry network; active mainnet sending remains denied.
+### P1-079 — Offline language navigation
 
-## Wallet scope and worker binding (v59)
+Changing language while disconnected attempted server navigation and lost the loaded private view. Use Next’s supported native History API for offline locale URL changes while retaining online server navigation. No private response caching or queued actions are introduced. Final production-browser checks pass for the loaded history, translated failure and reconnection.
 
-- Fixed a reproduced TRON wallet-proof bug: a Nile challenge could silently create a Shasta link after registry changes. Proofs now recheck the exact original domain, environment, network, account and session; changed destinations receive an atomic audit record.
-- Shared the existing v1 worker-signature format across receiver, signer and scheduler. Environment, purpose, route and exact body bytes are authenticated; signer inputs must match the captured worker scope. Mainnet execution remains disabled.
-- Named isolated procedures in `/workspace/work/financial-v59`: `wallet-before-fix-r1` reproduces the old bug; fresh `wallet-scope-r2` proves rejection, successful fresh linking, two exact audit/archive identities and unchanged financial hashes; `worker-binding-r2` proves compatibility, byte binding, replay/clock/scope rejection and unchanged financial hashes. Failed r1 harness fixtures are preserved. No RPC transfer or real funds.
-
-## One-paste fresh installation (v60)
-
-- `packages/db/fresh-install.sql` creates the final schema directly. The six historical migration files remain immutable for installed databases and recovery compatibility; new owners paste only the fresh installer. SETUP now says so.
-- Fresh unseeded reference and single-file target match all4222 schema/security metadata entries, including column grants. Named `final-installer-v60` procedures prove atomic installation, exact receipts, rerun/nonempty rejection without data loss and complete rollback after a late failure. The unchanged migration runner skips all six receipts; actual seeding and restricted-login verification pass. A second target with broad unknown-role defaults matches all4088 application/security entries; provider extension ACLs are deliberately preserved. The first migration-state comparator failure counted those extension grants and is preserved. Required checks pin the installer checksum and exact historical lineage. Current verified schema contract is `schema-contract_v60.json`; model counts are unchanged.
-- PR58 merged at a736083d6425bc22f9e1e973700b796ccea0e1e6 after exact-head push39023906817 and PR39023923825 passed. This installer batch does not complete mainnet execution, preview wiring or overall product acceptance. Continue C001–C017 without milestone pauses.
-
-## Read-only preview foundation (v61)
-
-- Added a bounded, read-only repeatable-snapshot transaction for a separate login holding only `gw_preview`. It rejects owner/service memberships, unsafe roles, ownership, private table/column grants and application-function execution before calling domain code.
-- Public configuration is parsed independently. Private/staff values are rejected; no private deployment-file defaults enter preview results. Fresh restricted-login procedures `public-preview-v61/boundary-r4` and `r5` verify public projection parity, simulation/mainnet public scopes, user/write/escalation denial and grant-drift rejection. The r1 harness failure checked wrapped error text instead of PostgreSQL code; its database/log remain preserved.
-- PR59 merged at7e15ff1155720e43516e733927dd88411f5603a0 after push39024411492 and PR39024431447 passed for c33abc41f9700f97607b11b441938e525333a327. The one-paste installer is now merged.
-- **Preview application routing, deployment settings and browser acceptance remain unfinished.** Mainnet sending remains disabled. Continue the full C001–C017 list without pausing after this foundation.
-
-## Read-only preview app evidence (v62)
-
-`/workspace/work/public-preview-app-v62`: `api-r2` proves actual mainnet public reads,39 private/auth/job route denials, write/signing denial and unchanged retained hashes. `browser-r1` and final `browser-r2` prove actual production Chromium390px EN/FR catalogue/help/search, banner, public-only navigation, unavailable private pages/API and noindex; no response interception. `credential-scope-r1` rejects21 private credential names; `hosted-preflight-r1` accepts the restricted login and rejects owner login/mode mismatch. r1 API harness failure used the unsupported mainnet recovery inventory; preserved, then r2 hashes the unchanged simulation fixture outside request execution. The archive gap from that release is addressed by v63; chain reconciliation remains unfinished. PR60 passed push39024849840 / PR39024875695 before merging.
-
-## Mainnet archive evidence (v63)
-
-`/workspace/work/mainnet-recovery-v63`: `readonly-boundary-r1` verifies binding, read-only scope, write/downgrade denial and unchanged hashes; `archive-r2` backs up/restores/verifies83 retained tables. `testnet-and-final-mainnet-r1` verifies fresh testnet backup/restore plus the original mainnet packet on another fresh target. `legacy-and-guards-r2` restores/verifies the original v55 packet and rejects retired scope, signed environment mismatch and wrong-database binding. Its failed r1 target/logs remain preserved; proof-backend shutdown is now awaited without terminating other clients or weakening target guards. `worker-regression-r1` verifies ordinary worker/context behavior after extracting the unchanged role checks. No RPC, signer, broadcast or real funds.
-
-Original mainnet packet/key: `mainnet-isolated-r2.gwbackup` / `mainnet-isolated-r2.key` (raw32-byte key; its harness encodes it only inside the protected process); original v55 packet/key remain at their handover paths. Browser recovery workflow and mainnet chain reconciliation/no-resend remain open. PR61 merged after push39025742213 and PR39025758110 passed for a7e16c713f9fa3b35f0cfe02dfafd22c6b2e6049. Continue the full product after the next checked merge.
-
-## Native plan and read-scope fixes (v64)
-
-Fixed two reproduced issues: native plan creation required an RLS-hidden GIV asset, and native read models silently rewrote transaction scope. Native metadata now saves disabled without activating prices; simulation retains its GIV version. Captured-scope catalogue/portfolio/records/receipt reads reject mismatches and include saved timezone in the user projection. `/workspace/work/native-read-v64/plan-and-scope-r3.mts` and `simulation-regression-r1.mts` pass actual restricted-login/replay/stale/role/namespace/financial-hash checks; failed r1 registry fixture is preserved. Mainnet activation remains closed. Still pending: native scheduled launch uses the GIV-only generic launcher, and saved server locale needs restoration on login. PR62 merged after push39026765895 / PR39026798890 passed.
-
-## Transaction preparation and signer fixes (v65)
-
-Reproduced historical acceptance of mismatched EVM gas fields, extra Solana account metadata and unapproved SPL account creation. Pure canonical-intent checks now reject these before key access. TRON network verification precedes key-file access and retains RPC failure classification; unsigned builders reject attached assets, permissions, pre-signatures and changed fee limits. SOL rejects increased rent after quotation.
-
-`unsigned-mainnet-v65/preparation-r5`, `signer-validation-r2`, `tron-reference-before-key-r1`, `evm-execution-regression-r1` and `observation-regression-r1` pass isolated procedures. Preserve failed first signer import harness and generated unfunded encrypted key fixtures. Mainnet unsigned preparation covers eight generated protocol cases without custody files or sending authority; token provenance/live acceptance and actual mainnet signing remain pending. PR63 merged after exact-head push39028197593 / PR39028338335 passed. No schema changes.
-
-## Native write and operational namespaces (v66)
-
-Reproduced withdrawal balance reads and recovery scans silently replacing the selected database scope. Native writes now validate it before working; filters, invoices/events/obligations, fee claims, retained keys, reserve-funding statements, sweeps and liability recovery keep captured scope. Signed prices must match it. Alerts, reminders and daily business scheduling use selected scopes rather than testnet literals; registry iteration selects matching assets. Execution gates remain unchanged.
-
-`native-write-v66/scope-and-prices-r5` passes39 restricted-login boundary rejections with unchanged retained hashes, one42-unit fee bill with replay/conflict checks, valid signed-price replay/cross-environment rejection and testnet alert namespace/deduplication. Failed r1 import and r2 argument/order fixtures remain preserved. No schema changes. PR64 merged after push39044213842 / PR39044236038 passed for83896035ab64f43693dfe1c738ef025c0037cca4. Continue actual mainnet runtime/signing and full product acceptance without milestone pauses.
-
-Simulation alert regression: `native-write-v66/simulation-alerts-r1.mts` passes actual restricted-login simulation payload/budget selection, signed local HTTP delivery and acknowledgement, no duplicate dispatch, and a forged acknowledgement retained as failed. Financial hashes remain unchanged. Generated local webhook/key only.
-
-## Mainnet implementation and review fixes (v67)
-
-| Finding | Fix and local evidence |
-|---|---|
-| Mainnet runtime/authentication/core/UI were testnet-only | Closed mainnet mode, issuer, native credit/checkout/history/wallet paths and accurate labels implemented;32 configuration/policy/approval guards pass. |
-| One approval hash could not activate several networks | Reviewed approval/fingerprint lists support distinct network hashes; legacy singular settings remain compatible and cannot be mixed. Actual signed alert receipts remain required. |
-| Worker had only one key file | Four-key map, authenticated encrypted bundle, private pre-write-validated installation and opt-in protected GitHub worker added; package/scope/tamper/nonempty-target procedures pass. |
-| Client transaction validation omitted setup/attached-token checks | Canonical Solana reconstruction, approved setup cost, exact EVM gas and TRON attached-asset/permission/signature/expiry/energy checks pass wallet procedures. |
-| An unavailable catalogue blocked identity restoration | Sign-in/session state can load while the currency catalogue safely remains unavailable. |
-| Capability was confused with financial readiness | Catalogue publishes per-currency readiness; protected policy/hash/recent-alert gates still control new sends. Mainnet presentation rejects simulation/demo settings. |
-
-`mainnet-runtime-v67/mainnet-wallets-r2` passes eight protocol cases and seven member-currency wallet sends (TRX operating-only), using generated unfunded addresses and isolated transport. `financial-mainnet-r7` passes actual restricted-role funding, wallet proof, exact/underpayment, failed refund rights and an actual worker→separate web settlement exactly once. Web has no signer/owner credentials. `configuration-guards-r1` and `key-package-r1` pass. Preserve failed r1/r2 profile-actor fixtures and r4 child-transport-map fixture; no reset or real public broadcast occurred.
-
-Mainnet support is implemented, not externally accepted. Full C001–C017, remaining lifecycle/device/product work, hosted provider/custody/recovery checks and real observation periods remain. PR65 merged after exact-head push39044887939 / PR39044911887 passed. SQL006 fixes the discovered public-queue parameter ambiguity; the one-file final-state installer and pinned schema contract are refreshed. Historical SQL000–005 bytes remain unchanged. Continue after each checked merge.
-
-Admin setup fix: the alert-probe response was previously discarded. Native payment administration now shows its asset, alert ID and selectable configuration hash, with acknowledgement guidance. This makes the documented multi-network approval setup actionable.
-
-SQL/browser review: SQL006 resolves the ambiguous public queue `version` parameter. `mainnet-runtime-v67/queue-migration-r2` reproduces42702, verifies the corrected read-only mainnet result and retired-asset null result, preserves all95 non-receipt root-table hashes and function privileges, and proves late-failure rollback. `compare-schema-r1` matches4222 schema/security entries between seven-migration reference and the direct final-state installer. The first migration-state comparator failure was a result-array prototype mismatch; original targets/logs remain.
-
-`browser-mainnet-r4` passes the actual local production build in Chromium390px EN/FR, genuine signed-session/MFA procedures and the selectable alert configuration hash (HTTP200), without response interception. Earlier browser targets remain: r1 exposed SQL42702; r2/r3 targeted another nested Reason field in the procedure. Source queues, financial records and original archives were not reset.
-
-Contract4 packets created before SQL006 require their matching pre-006 release (PR65 `0ea4cf5e62a0ef7e7f83c26c1a512d6935775ac3` for the current six-file lineage), then a separately reviewed forward upgrade. Keep original packets/keys; never re-sign or rewrite them.
-
-Follow-up UI acceptance: identify the background request/cancellation path that logged a bounded database deadline around MFA/reload. The selected alert-probe request returned200 and its hash displayed correctly; do not treat this as completed whole-app reliability acceptance.
-
-## Preference and native schedule fixes (v68)
-
-- C016: saved language was ignored on login; restore it unless the member explicitly selects a language. Keep English explicit across reload/full navigation.
-- C017: native schedules incorrectly used GIV activation. Stage per-currency intents, recheck database deadlines/current approvals/fresh prices, release atomically and keep early checkout disabled. Roll back failures before warning/backoff; retain fairness, cancellation and replay fences.
-- Public mainnet copy incorrectly claimed payments were unavailable, and catalogue cards overflowed narrow screens. Correct the label and responsive grid.
-- Named restricted-role/native/simulation and actual production-browser evidence: [status](PROJECT-STATUS_v79.md). Whole-product/live acceptance remains open; continue after checked merge.
-
-## Browser recovery and restore activation fixes (v69)
-
-- C008/C011: add a protected GitHub browser flow for encrypted backup, empty-target restore and independent exact verification, plus permanent encrypted ZIP release selection after short-term artifacts expire. Run only the selected trusted backup release; reject extra files, wrong confirmation, occupied targets and mixed signer/web credentials.
-- Financial approval hashes lacked database identity, so a restored copy could retain apparently valid source approvals/acknowledgements. Bind web/signer hashes to the actual database nonce/name/OID; require fresh approval without modifying retained financial snapshots.
-- Exact seven-migration archive roundtrip, full restricted-role worker/web regression, controller denials, copied-ack activation denial and bounded ZIP checks pass locally. [Status](PROJECT-STATUS_v79.md) distinguishes this evidence from hosted acceptance and remaining chain/lifecycle work.
-
-## Cycle history and idle-preview fixes (v70)
-
-- Transparent paginated cycle positions incorrectly used legacy display rank. Select actual serving rank consistently, retaining the legacy profile’s rule.
-- Completed history omitted completion/cooldown and a Completed view. Add the entitled filter, original completion time, localized live cooldown and member status labels; preserve financial records.
-- A recent30-row window could miss an older active cycle and allow currency rotation. Use a separate bounded scoped existence flag; keep unresolved chain-review cycles in Current.
-- Baseline reproduction, restricted-service reads,35 declared synthetic historical rows, user isolation, unchanged ledger totals and actual390px EN/FR browser checks pass locally. Evidence/remaining build-client, managed-recovery and full-product work: [status](PROJECT-STATUS_v79.md).
-
-## Managed recovery and client compatibility (v71)
-
-- Recovery now permits only known Supabase client roles that are idle, outside a transaction and accompanied by both provider schemas. Active/open-transaction/unknown sessions or hidden metadata still block; no session is terminated. Foreign tables also make a target occupied.
-- API responses declare wire compatibility; clients send their supported range. Incompatible writes fail before processing, and the browser blocks subsequent mutations before sending. Legacy clients remain supported; additive deployments do not force reloads. Worker authentication and logout retain their existing paths.
-- Native and simulation routes share PWA controls. The worker observes public manifest headers only; private reads and all writes bypass it. EN/FR reload notices wait for wallet interaction and offer to copy an existing returned hash. No automatic resend or stored pending request body.
-- Local evidence: `managed-recovery-v71/provider-sessions-r1` passes idle-provider restore/exact verification and active/transaction/unknown/missing-marker denials; `foreign-target-r2` rejects a handlerless foreign table without modifying it. Preserve the old-guard baseline and failed unavailable-extension r1 fixtures. `financial-regression-r1` passes actual encrypted worker→separate web settlement through authenticated callbacks using generated isolated endpoints.
-- `client-compatibility-v71/protocol-and-api-r2`, `client-lock-r2` and `worker-protocol-r2` pass API range validation, pre-fetch mutation lock, logout/401 handling, memory-only owner/invoice receipt scoping and public-only worker observation. Future peer messages are explicit fixtures, not hosted upgrade acceptance.
-- Final production build, required checks and actual390px Chromium EN/FR pass (`browser-compatibility-r2`): native PWA registration, real manifest metadata, stale worker tuple ignored, explicit future-peer banner, pre-POST mutation lock, unchanged saved locale and manual reload. The earlier r1 browser run also passes; fresh r2 verifies the final legacy0/server1 range.
-- Still open: hosted provider metadata/restore, all-asset reconciliation, full product audit, automatic backup cadence/external alerts, device/provider acceptance and real observation periods. No schema, receipt or financial-history rewrite.
-
-## Automatic encrypted backups (v72)
-
-- PR70 merged as `f9cef683c35c59dca5d565648aa7476f3420d39d`; exact head4df5402 passed push39070856823 / PR39070866948. New branch: `feat/scheduled-encrypted-backups`.
-- Recovery workflow has an opt-in hourly wake-up using the existing protected backup environment. It reads the authoritative policy through the restricted runtime and verifies owner/runtime namespace identity before deciding whether a backup is due. No signing, restoration, deployment or application-table writes.
-- Successful checkpoints are bound to the actual database identity. Missing/deleted/expired archives, failed/untrusted runs, short retention or a changed database cannot suppress a backup. A new checkpoint requires the upload’s actual retention to satisfy policy. Unsupported retention above90days or inconsistent interval/RPO/retention fails rather than silently weakening policy.
-- Start up to one hour early to allow the hourly wake-up. GitHub can delay or disable schedules: owner monitoring, real restore drills and measured RPO/RTO remain required. Artifact quota/paid storage must be reviewed; a public repository’s retained encrypted backups are downloadable by readers, so keys stay separately protected.
-- `scheduled-backup-v72/policy-and-history-r2`: actual restricted database policy/binding plus11 explicit GitHub metadata fixtures. `retention-r1`: actual checkpoint writer accepts adequate retention and rejects5 missing/short/expired/invalid/API cases. YAML and embedded shell syntax pass. These fixtures do not prove hosted scheduling/upload.
-- `archive-r1` creates a real encrypted archive/current signed inventory through the schedule-triggered controller with no payment credentials. `selection-r2` accepts trusted scheduled/manual backups and denies foreign events/branches/failed runs using real Git ancestry plus explicit metadata. The r1 selector attempt hit sandbox child-process EPERM; preserve its log. Script typecheck r1 lacked scratch typeRoots; fresh r2 passes. Required checks, production build and bundle budgets pass. Original archives/keys and source financial rows remain untouched.
-- Continue external alert receiver setup, the full all-asset lifecycle/product audit, hosted/device acceptance and real observation periods. Automatic backup implementation is separate from operational acceptance.
-
-## Native lifecycle and wallet prompts (v73)
-
-- PR71 merged as `b143dcc938845931c436093b50cd86dc7ba71a88`; exact head187895f passed push39071509866 / PR39071530871. Current branch: `feat/native-lifecycle-verification`.
-- Reload protection missed wallet connection and ownership-signature prompts outside payment sends, including logged-out recovery. All native wallet entry points now share a memory-only interaction guard; success/rejection releases its own token without clearing concurrent prompts or an outer payment guard. No signature/transaction storage or automatic resend.
-- `native-lifecycle-v73/eth-native-r4`, `bnb-native-r2`, `usdt-bnb18-r2` and `jaga-bnb18-r1` pass actual restricted-role funding, wallet proof, exact/underpaid incoming, original-sender refund despite ban, failed-refund gas/principal preservation and renewed worker→separate web settlement. Receiver allocations also fund a member withdrawal: quote replay/body conflict, wrong-generation denial, hold/cancel replay, encrypted worker signing and authenticated settlement, exact unused-fee return and replay without duplicate gas.
-- These are generated, correctly scaled native/18-decimal token procedures with isolated endpoints. They do not verify real contracts, public funds/providers or hosted identity. Failed originals remain: ETH r1/r2 omitted the transport loader and correctly failed outbound policy; USDT18 r1 retained a6-decimal fixture’s insufficient mock token liquidity and paused. Fresh corrected targets pass; no failed database was reset.
-- `wallet-flight-r1` covers actual module connection/ownership success/rejection, overlap, outer payment guard and failed-send cleanup. `wallets-r1` repeats all8 protocol/signing cases and7 member canonical-wallet sends, including configuration/intent denials. An accidental original-harness rerun stopped at exclusive-file creation before changing any original key; all evidence is retained.
-- Actual production390px EN/FR `browser-wallet-r4` passes: pending connection disables reload, rejection releases it, and explicit reload succeeds without API response interception. Provider/future-peer messages are fixtures. Earlier browser r1 selected a disabled matching button; r2/r3 lacked an active injected provider. Preserve those logs/targets. Required checks, build and bundle budgets pass; final documentation checks run before publication.
-- Remaining C004 work includes funded SOL/SPL/TRC20 lifecycle cases, business/sweeps, reorg/replacement/expiry/restart, chain reconciliation after restore and hosted/live-provider acceptance. Keep unverified assets disabled. Continue all C001–C017 and the full product audit without milestone pauses.
-
-## Seven-asset operations and send progress (v75)
-
-- All seven local member-asset procedures now pass incoming/refund/member withdrawal plus company settlement/surplus sweep. Independent retained-database reads verify five attempts/gas journals per full case, settled obligations and zero unbalanced journals. Generated contracts/RPCs are not actual provenance or hosted acceptance.
-- A pending signed ETH refund survives encrypted backup/empty-target restore/exact verification. The target rejects source approvals/worker keys, preserves the hold while index evidence is missing, and settles the retained hash once without custody/new signature/broadcast. Original source/packet remain unchanged. Unknown post-backup history remains a separate reconciliation requirement.
-- Recorded sends could still display “Preparing signature.” Add `display_status` from durable attempt evidence to recent/paginated reads, keeping raw financial status and action rules. No DDL or historical rewrite. Funded staged/baseline/isolation/read-integrity procedure `send-status-r2` and production390px EN/FR recent/paginated status/hash procedure `send-status-browser-r1` pass. Required checks, production build and bundle budgets pass locally.
-- [Status](PROJECT-STATUS_v79.md) and [handover](LLM-HANDOVER_v79.md) now consolidate current evidence/remaining work; detailed history stays in Git. Continue recovery edge cases, the current PRD audit and external acceptance without milestone pauses.
-
-v79
-
-## Recovery families and live transaction hashes (v75)
-
-Pending SOL/SPL/TRC20 refund archive/restore procedures pass locally without new signatures/broadcasts, with source/packet preservation and source approvals/authentication rejected. Prefer live broadcast/signed hashes over earlier failed attempts while keeping confirmed winners first; five actual-helper temporary scenarios pass (`hash-priority-r2`). Details and outstanding work: [status](PROJECT-STATUS_v79.md). Hosted/unknown-history recovery and whole-product completion remain open.
-
-## Mainnet expiry and replacement preparation (v76)
-
-SOL/SPL/TRC20 pending refunds retain principal before expiry and close only after dual-provider positive expiry through actual worker/separate authenticated web. Original-sender liability returns once without additional gas/signature/broadcast; independent retained-database accounting reads pass. ETH post-withdrawal reorg also passes absence/outage denial, retained review/asset fence, immutable allocations and once-only cash/point reconfirmation. Native ETH and18-decimal BNB token replacement preparation preserves exact intent and rejects unsafe fee/evidence changes. This does not establish complete replacement persistence/restart or hosted-chain acceptance. Evidence and remaining work: [status](PROJECT-STATUS_v79.md).
-
-v79
-
-## Durable EVM replacement follow-up (v77)
-
-Actual encrypted worker ETH and18-decimal BNB token replacement persistence/broadcast/settlement pass locally, with exact immutable transfer intent, linked lineage, principal held until the canonical winner and once-only settlement/gas. Failed fixture originals remain intact. Fresh-process continuation passes for ETH and BNB tokens, with independent accounting checks across all four retained databases; results and remaining scope: [status](PROJECT-STATUS_v79.md). No public-chain or hosted acceptance is inferred.
-
-Mainnet identity follow-up: `mainnet-auth-r2` passes actual restricted-role session/TOTP/recovery/refresh/logout methods, closed sixth MFA attempt and ingress-IP spoof checks without changing financial hashes. Generated identity is not actual Google or hosted/physical-authenticator acceptance. See [status](PROJECT-STATUS_v79.md).
-
-## Current product audit and manual tooling repair (v78)
-
-The six existing simulation procedures pass through the current production build on a fresh single-installer/actual-seeder database: bootstrap/queue, integrity/concurrent spending, scheduler/jobs, withdrawal recovery, incoming failures and reorg/reconfirmation. Repair stale manual job-summary/nested-review assertions to use current paginated staff DTOs; retain privacy and once-only settlement/reconciliation checks. Earlier failed financial fixtures remain intact. These tooling defects do not change production financial behavior or establish full-product/live acceptance. Details: [status](PROJECT-STATUS_v79.md).
-
-## P1-075 — Solana v1 read compatibility (v79)
-
-Actual public RPC returns -32015 when v1 records are requested with maximum0. Share integer maximum1 across adapter and bounded-scanner receipt/block/header/event/expiry requests, retaining existing validation and signing formats. Recorded public-data replay reproduces the old scanner failure and verifies corrected bounded progress/observation-only denial; strict maximum1 SPL refund/ATA/withdrawal and SOL expiry regressions pass. Public network identities were read successfully, but hosted dual-provider/token-provenance acceptance remains open. [Status](PROJECT-STATUS_v79.md) records exact procedures and preserved failed diagnostics.
-
-v79
+v80

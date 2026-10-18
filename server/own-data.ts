@@ -1,4 +1,5 @@
 import {exportTemporal,ownExportCsv,withExportTemporal} from './export-format';
+import {nativeSendDisplayStatus,nativeSendTransactionHash} from './native-send-state';
 import {and,asc,desc,eq,gt,inArray,lte,or,sql} from 'drizzle-orm';
 import {z} from 'zod';
 import {cryptoInvoices,cryptoEvents,cryptoObligations,assets,users,walletLinks,cycles,giftInvoices,pointEvents,notifications,ledgerAccounts,ledgerPostings,ledgerJournals,withdrawals,referralCodes,dataExports,exportChunks,outbox,operationKeys,readManifest,type DbExecutor} from '@gifters/db';
@@ -23,6 +24,16 @@ export async function ownRows(tx:DbExecutor,userId:string,section:ExportSection,
  if(section==='payouts')return tx.select({id:withdrawals.id,asset_id:withdrawals.assetId,status:withdrawals.status,gross_base_units:withdrawals.grossBaseUnits,fee_base_units:withdrawals.feeBaseUnits,net_base_units:withdrawals.netBaseUnits,destination:withdrawals.destination,created_at:withdrawals.createdAt,settled_at:withdrawals.settledAt}).from(withdrawals).where(and(eq(withdrawals.userId,userId),after?gt(withdrawals.id,after):undefined,lte(withdrawals.createdAt,stamp))).orderBy(asc(withdrawals.id)).limit(limit);
  if(section==='referrals'){if(after)return [];const [code]=await tx.select({code:referralCodes.code}).from(referralCodes).where(eq(referralCodes.userId,userId)).limit(1);const [count]=await tx.select({signups:sql<string>`count(*) filter(where ${users.consentedAt} is not null)::text`}).from(users).where(and(eq(users.referrerUserId,userId),lte(users.createdAt,stamp)));return [{id:userId,code:code?.code??null,consented_signups:count.signups}]}
  throw new Error('INVALID_INPUT');
+}
+/** Add display currency to the already bounded, own-account history page.
+ * Portable exports keep their original projection. */
+export async function ownHistoryRows(tx:DbExecutor,userId:string,section:ExportSection,after?:string){
+ const rows=await ownRows(tx,userId,section,after);
+ const ids=[...new Set(rows.flatMap(row=>'asset_id' in row&&typeof row.asset_id==='string'?[row.asset_id]:[]))];
+ const currencies=ids.length?await tx.select({id:assets.id,asset:assets.symbol,decimals:assets.decimals,environment:assets.environment,network:assets.chainId}).from(assets).where(inArray(assets.id,ids)):[];
+ const progress=section==='native_payouts'&&rows.length?await tx.select({id:cryptoObligations.id,display_status:nativeSendDisplayStatus(),tx_hash:nativeSendTransactionHash()}).from(cryptoObligations).where(and(eq(cryptoObligations.userId,userId),inArray(cryptoObligations.id,rows.map(row=>row.id)))):[];
+ const byId=new Map(progress.map(row=>[row.id,row]));
+ return rows.map(row=>{if(!('asset_id' in row))return {...row,...byId.get(row.id)};const currency=currencies.find(value=>value.id===row.asset_id);if(!currency)throw new Error('CONFIGURATION_INVALID');return {...row,asset:currency.asset,decimals:currency.decimals,environment:'environment' in row?row.environment:currency.environment,network:currency.network};});
 }
 export async function readOwnSection(tx:DbExecutor,userId:string,section:string,after?:string,cutoff?:string){const policy=await readManifest(tx);if(!policy.feature_portability)throw new Error('FEATURE_DISABLED');if(after)z.string().uuid().parse(after);if(cutoff)z.string().datetime().parse(cutoff);const parsed=sectionSchema.parse(section);const [user]=await tx.select({status:users.status}).from(users).where(eq(users.id,userId)).limit(1);if(!user||['pending_consent','banned','deleted'].includes(user.status))throw new Error('ACCOUNT_RESTRICTED');const started=await clock(tx),effectiveCutoff=cutoff??started.toISOString();const rows=await ownRows(tx,userId,parsed,after,effectiveCutoff),captured=await clock(tx);if(Buffer.byteLength(JSON.stringify(rows))>1048576)throw new Error('EXPORT_LIMIT_EXCEEDED');return {section:parsed,captured_at:captured.toISOString(),temporal:exportTemporal(effectiveCutoff,started,captured),rows,next_after:rows.length===100?String(rows.at(-1)!.id):null}}
 export async function requestExport(tx:DbExecutor,userId:string,requestKey:string){
