@@ -175,7 +175,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v92.md](PROJECT-STATUS_v92.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v93.md](PROJECT-STATUS_v93.md).
 
 ## 10. Read-only preview using the same database
 
@@ -422,7 +422,7 @@ Code supports Ethereum `1`, BNB `56`, Solana `mainnet-beta` and TRON `mainnet`. 
 17. Redeploy Production, then run the isolated signer workflow once. Check its run result and the site's signer heartbeat. A changed policy, registry, address or alert binding needs new hashes/probes; never reuse an unrelated approval.
 18. With the owner present, fund only the approved treasury/reserve amounts, activate the intended per-currency plans and perform the final tests with small limits. Confirm actual wallet approval, chain receipts, balances, fees, refunds, alerts and restore reconciliation. Complete the required observation periods before public launch.
 
-Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v92.md).
+Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v93.md).
 
 ## If something fails
 
@@ -620,13 +620,23 @@ Keep signing/schedulers off and the target private while reviewing it.
 1. In the app’s admin area, open **Recovery from a checkpoint**. Enter the asset key and click **Load receiving addresses**. Include historical addresses.
 2. Obtain an agreed finalized block height/hash from both configured providers. For each retained address, enter a fresh checkpoint, case reference and reason; copy the displayed confirmation into **Exact confirmation**, then click **Register and pause**. Copied source checkpoints cannot authorize work on the restored database.
 3. Enter the common final height, click **Start reconciliation**, then repeat **Process one bounded page** until complete. Missing or contradictory proof means stop and investigate; never resend a saved transaction to clear the warning.
-4. For an unknown outgoing transfer, investigate its actual chain evidence and missing records. **Record company loss, then rescan** explicitly charges the company; it does not prove a member was paid or reconstruct a missing withdrawal request. Use it only after review, then start a fresh complete scan.
+4. For an unknown outgoing transfer, investigate its actual chain evidence and missing records. **Record company loss, then rescan** explicitly charges the company; it does not prove a member was paid or reconstruct a missing withdrawal request. A saved member wallet address alone does not prove that the person requested that transfer. Use it only after review, then start a fresh complete scan.
 5. Unknown incoming funds remain owed to their original sender. Use **Return to the original sender** with the original wallet’s signature; do not assign the funds to a guessed member.
 6. Confirm every address reconciles at the common finalized cutoff. Old reviewed scans remain under **All history**. Obtain fresh target approvals/alert acknowledgement, restore the protected custody keys, and perform a small newly confirmed payout before public activation. If missing off-chain records remain unexplained, keep the asset paused.
 
 **Upgrading from an earlier release:** verify old archives with their matching release first. Then deploy the current reviewed app/signer release before monitoring current Solana activity; older readers cannot read v1 transactions. Financial hashes now include database identity. Refresh reviewed hashes/alert acknowledgements even on the original database. Keep existing obligation/signed-attempt snapshots intact and use the recovery/requote controls for unresolved old configuration. Historical archives predating this browser workflow still require their matching supervised recovery release.
 
 References: [download workflow artifacts](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts) · [create releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository) · [PostgreSQL Ubuntu packages](https://www.postgresql.org/download/linux/ubuntu/).
+
+### Pause new checkout during an incident
+
+Use a plan pause to close checkout while keeping valid payouts available. Global wallet/mainnet switches also pause payments and change approval requirements.
+
+1. On the active financial site, open **Admin → Plans → Load**. Complete administrator verification if asked, then select a plan.
+2. Enter a reason, choose **State → Pause**, and click **Change state**. Repeat for each plan that must stop accepting new payments.
+3. Check that new checkout is closed. Keep the approved signer, wallet access, signed prices and healthy providers running to process valid payouts. Inspect their actual receipts and payment alerts.
+4. For an unresolved chain/custody discrepancy, follow **Recovery from a checkpoint** above. Keep saved hashes and liabilities intact; investigate before resuming that asset.
+5. After review, use **Payment administration → Resume the existing price unchanged** for the selected plan/currency. Confirm current approvals and prices before reopening checkout.
 
 ### When the app asks you to reload
 
