@@ -1,4 +1,4 @@
-# Project status v97
+# Project status v98
 
 **Phase One/Two remains incomplete.** Four mainnets/eight asset protocols are implemented. Seven member assets pass local incoming/refund/withdrawal/company/sweep procedures. Public RPC identities match; hosted payments and observation periods are unverified. Continue without milestone approval pauses. Owner launch inputs remain deferred to final testing.
 
@@ -26,28 +26,21 @@
 
 ## Current delivery
 
-Branch `feat/readable-account-notices`, base [PR95](https://github.com/nero1/onyiy/pull/95) merge `6b34d38`. PR95 heade91df14 passed push39151673015 / PR39151693398. P1-100 renders moderation status as readable EN/FR copy; P1-101 translates retained profile-change templates in both directions. Stored messages/API/schema/finances are unchanged.
+Branch `feat/dashboard-retention-and-currency`, base [PR96](https://github.com/nero1/onyiy/pull/96) merge `5284a89`. PR96 headdc5c6fa passed push39152380636 / PR39152403835. P1-102 excludes retired notices from the GIV dashboard, matching the inbox. No currency-separation defect was reproduced; environment security correctly rejected the wrong-mode fixtures.
 
 ## Current verification
 
-`account-notices-v97/fixture-r1` generates actual suspend/restore notices through real jobs, restoring active access with unchanged financial fingerprints. `browser-baseline-r2` reproduces English raw action/status JSON; `browser-fixed-r2` verifies readable EN/FR moderation state in production Chromium390px. `profile-baseline-r1` reproduces a French-authored profile notice under English display; `profile-fixed-r2` verifies both selected languages, narrow layout and preservation of authored staff/unknown messages. `integrity-r2` confirms original-source financial hashes and retained raw JSON/French bodies. Preserve baseline r1's fixture mistake: it selected a gift notice rather than the account notice. Required/build/bundle checks pass locally; GitHub records final CI/merge.
+`dashboard-retention-v98/baseline-r4` reproduces a retained `[expired]` notification in the dashboard but not the inbox. Fresh `fixed-r1` verifies identical visible pages, preserved retirement body/hash, feature off/on behavior and unchanged finances. The new operational fixture is explicitly aged; no financial timestamp or elapsed observation is fabricated. `integrity-r1` independently compares seven financial/point tables with original simulation source `gw_v78_product_simulation_r3`. Required/build/bundle checks pass locally; GitHub records final CI/merge. Preserve r1–r3: missing GIV, environment-scoped GIV invisibility and correct payment-mode denial respectively.
 
+| Recent audit root | Verified local procedures |
+|---|---|
+| `account-notices-v97` | Actual suspend/restore delivery; `browser-baseline-r2` / `browser-fixed-r2` raw-JSON/readable EN/FR status; `profile-baseline-r1` / `profile-fixed-r2` saved French/current-language display; `integrity-r2` preserves source finances and original bodies. |
+| `own-data-v96` | `contract-r1`: twelve own-data sections, encrypted JSON/CSV export, replay, foreign denial, suspended access and deleted-account chunk cleanup. `priority-fixed-r4`: bump/revoke/bootstrap changes, rollback, stable joining numbers and eight safe EN/FR notices delivered once. `priority-disabled-r1`, production390px `browser-priority-r1` and original-source/seven-copy `integrity-r2` pass. |
+| `account-permissions-v95` | `contract-fixed-r1`: sessions, suspension/ban/restore, own appeals, moderator limits, deactivated-state restoration and deletion. `deleted-support-r3` / `deleted-integrity-r2`: deleted-member original-wallet recovery/private receipt without identity restoration; unused-fee liability remains. `publication-fixed-r1` / `browser-fixed-r1`: suspended opt-out and exact ETH balances; opt-in/new money actions denied. |
+| `notification-audit-v94` | `contract-r1`:201 exact-timestamp notices, ownership/cursor/feature gates, once-only read and viewed/read distinction. `browser-fixed-r1`: actual HTTP200 read/page recovery, EN/FR and390px. `integrity-r1`: unchanged finances. |
+| `post-backup-v87` | `eth-missing-intent-r3` / `missing-intent-incident-integrity-r1`: no inferred payment from a registered wallet; explicit company loss; original sender liability; one later authorized receipt; intake pause blocks new checkout while approved payout settles. Original source/archive stay intact. |
 
-`own-data-v96/contract-r1` passes all twelve personal-data sections, genuine-session/CSRF encrypted export/replay, foreign download denial, bounded JSON/CSV capture metadata, suspended access and deleted-account chunk cleanup. Four financial fingerprints remain unchanged.
-
-`priority-baseline-r2` reproduces correct serving-order changes with no member notice. `priority-fixed-r4` passes bump/revoke, no-op/exact retry/changed-body conflict, priority bootstrap creation/removal, transaction rollback and eight EN/FR notices delivered once through actual jobs. Joining numbers stay fixed; private staff reasons stay out. `priority-disabled-r1` queues nothing for disabled priority. `browser-priority-r1` passes actual delivered notices and current-language rendering in production Chromium390px EN/FR. `integrity-r2` compares the original source and seven retained audit copies: all four financial table fingerprints match; eight notices exist exactly once in the final target. Baseline r1 failed only because it requested an ownership-protected rank as admin; fresh r2 uses each real beneficiary's context. All fixtures remain retained. Required/build/bundle checks pass locally; GitHub records final CI/merge.
-
-
-`account-permissions-v95/contract-r1` reproduces deletion's paired-age constraint failure; fresh `contract-fixed-r1` passes suspension/session revocation, own balances/cases/appeals, ban/restore, moderator restrictions, deactivated-state restoration and private-content deletion with unchanged financial fingerprints. `deleted-support-r3` passes actual original-wallet proof, encrypted-worker/separate-web payout and private receipt for a deleted member without restoring login/public identity; residual unused fees remain owed. Failed fixtures remain retained.
-
-`publication-baseline-r1` reproduces suspended own-consent403 and missing balance metadata. Fresh `publication-fixed-r1` passes opt-out/exact replay, changed-replay conflict, denied opt-in/new money actions and unchanged four financial fingerprints. `browser-fixed-r1` passes production Chromium390px EN/FR exact ETH amount/asset/network display. Required/build/bundle checks pass locally; GitHub records final CI/merge.
-
-
-`notification-audit-v94/contract-r1` passes actual restricted paging of201 same-microsecond notices, cursor actor/limit/tamper binding, foreign RLS/read/seen denial, idempotent read, inbox-view/read distinction, monotonic seen markers, new red dot and disabled-feature denial. `browser-baseline-r1` reproduces a stale error after successful mark-read; `browser-fixed-r1` verifies actual HTTP200 read/page retries clear recovered errors, EN/FR translation, retained read/history state and390px layout. `integrity-r1` confirms four financial table fingerprints remain identical to the source across contract/baseline/fixed clones. Required/build/bundle/docs/secrets/whitespace checks pass. Preserve original fixtures.
-
-
-`post-backup-v87/eth-missing-intent-r1` passes an unknown outgoing transfer to an archived registered member wallet: no inferred withdrawal/debit/receipt; explicit company loss preserves member balances/cycles/points; one later freshly approved payout produces exactly one own receipt, excluding the unknown hash. Source/archive remain unchanged. This verifies conservative handling, not reconstruction of a missing request. Fresh `eth-missing-intent-r3` additionally passes normal plan-pause/replay/conflict, unchanged financial rows/configuration hash, blocked new checkout and actual encrypted-worker settlement of the previously approved payout while the plan remains paused. `missing-intent-incident-integrity-r1` independently verifies accounting, one own receipt excluding the unknown hash, preserved raw recovery history/current unresolved separation, original-sender liability and exactly one pause audit. Retain failed r2: a fixture variable shadow stopped its new-intake assertion after the real pause, leaving its payout approved; no reset or application bypass was used.
-
+Preserve all original/failed fixtures and their logs; earlier details remain in the bug trackers and Git history. These procedures do not establish hosted/device/provider acceptance or recover missing off-chain requests.
 
 All procedures below use generated keys/contracts/providers, actual restricted PostgreSQL roles, SDK signatures, encrypted archives and worker→separate web settlement. They do not establish live provider/custody/provenance acceptance.
 
@@ -101,9 +94,9 @@ Public read-only evidence in `public-network-v79`: four expected network identit
 ## Release and preservation rules
 
 - Fresh install: paste only `packages/db/fresh-install.sql`. Seven receipts; immutable SQL000–005; SQL006 queue fix. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 standalone indexes. No DDL in this batch.
-- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v97.md) retain references/key-handling rules.
+- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v98.md) retain references/key-handling rules.
 - Hashes bind actual database identity. Keep historical obligation/attempt snapshots. Rotate request/auth keys on restore, retain original MFA/custody/payload keys, reconcile chains and obtain fresh approvals/alert acknowledgements before publication.
 - Preserve all failed/successful financial fixtures, archives and keys. Corrections use fresh targets. SPL’s inherited console captions contain an old amount typo; integer assertions/rows are authoritative. Prior failed harness/transport/index/cache attempts remain in their original roots.
 - Five core guides plus two requested versioned trackers. Keep current facts concise; history is in Git. Both CI events must pass the exact final head before merge. Named manual procedures/required checks are authorized; broad automated suite remains deferred. Continue without approval pauses; do not claim100%.
 
-v97
+v98
