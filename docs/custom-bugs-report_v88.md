@@ -1,6 +1,6 @@
-# Bug report — Rounds One/Two/Three v87
+# Bug report — Rounds One/Two/Three v88
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v87.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v88.md).
 
 Updated: **18 October2026 (Africa/Lagos)**.
 
@@ -109,7 +109,7 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 - “Defect” means a source/contract failure; “requirement gap” means missing requested behavior; “hardening” means a conditional defensive improvement; “maintenance” means structural/dependency risk.
 - Initial audit ratings (current → projected after fixes): money/recovery 5 → 8; security/privacy 6.5 → 8.5; performance 5 → 8; maintainability 6 → 8; product/accessibility/SEO 6 → 8, out of 10. These were qualitative judgments, not measured guarantees or updated release ratings.
 - Original audit: 70 findings; four more were found during remediation. Three analysis passes were one audit round. CRON frequency and test-only issues were excluded.
-- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v87.md).
+- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v88.md).
 
 ## Original evidence by finding
 
@@ -575,7 +575,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v87.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v88.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -595,7 +595,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v87.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v88.md).
 
 
 
@@ -616,7 +616,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Current completion and delivery
 
-Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v87.md) and [handover](LLM-HANDOVER_v87.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-report_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
+Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v88.md) and [handover](LLM-HANDOVER_v88.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-report_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
 
 ### P1-075 — Solana v1 reads
 
@@ -679,3 +679,7 @@ A successful owned-portfolio read did not clear an earlier read error. Keep read
 ### P1-089 — Superseded recovery reviews remain unresolved
 
 A retained restored ETH fixture reproduces an old reviewed scan in the Unresolved list after a later full scan reconciles the same checkpoint. Exclude it only when a later reconciled scan has the same checkpoint/database binding and covers at least its height. Preserve raw history, unresolved incoming liabilities and all financial fences. Restricted-role `post-backup-v87/recovery-current-fixed-r1` verifies current/history separation on actual restored data; `recovery-current-boundaries-r1` uses a retained fresh clone to verify newer, insufficient-height and other-binding reviews remain current; the original failing procedure remains retained.
+
+### P1-090 — Loss review lacks the recovery target guard
+
+On a retained fresh clone, a copied unresolved loss review reached provider verification (`RPC_UNAVAILABLE`) instead of rejecting the source database binding. Validate the run binding before confirmation/replay/provider access and validate the checkpoint binding before proof verification. A changed database must register a fresh checkpoint and rescan; never rewrite copied evidence. `post-backup-v87/loss-binding-baseline-r1` retains the reproduction; `loss-binding-fixed-r1` rejects with `RECOVERY_TARGET_MISMATCH`. `loss-binding-valid-replay-r1` preserves exact replay and changed-body conflict on the original target. Independent source/target accounting checks remain unchanged. No schema/archive change.
