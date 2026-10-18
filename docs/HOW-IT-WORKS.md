@@ -1,6 +1,6 @@
 # How Gifters World works
 
-For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v88.md).
+For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v89.md).
 
 ## Main parts
 
@@ -95,7 +95,7 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Persist signed bytes before broadcast. After an uncertain broadcast, resolve that hash before constructing another transfer.
 - EVM replacements keep nonce and intent. Solana/TRON rebuilding needs positive expiry/nonsettlement evidence. All attempts retain their lineage.
 - Actual network fees, account-creation costs, reserve contributions, refunds and company losses have separate once-only accounting.
-- Recovery pauses the asset, binds a checkpoint to the actual database, scans bounded pages and reconciles saved attempts and beneficiary custody.
+- Recovery pauses the asset, binds a checkpoint/loss review to the actual database, scans bounded pages and reconciles saved attempts and beneficiary custody. A later covering clean scan removes a superseded review from Unresolved while preserving history. Unknown incoming funds remain original-sender liabilities; reviewed company loss never reconstructs a missing member payout intent.
 - SOL/TRON balance witnesses freeze a common finalized cutoff. A later balance cannot prove that earlier cutoff; contradictory/unknown evidence remains held for review.
 - A permanent address inventory is populated atomically from invoices, checkpoints, obligations and unmatched inflows, including expired invoices. Owner-controlled source triggers capture new addresses before future archival; runtime roles cannot add, change or remove address identities. A scoped owner function advances the least-recently-attempted timestamp, so missed ticks and failed RPC calls cannot starve other addresses. Admin can page the complete inventory and scan an old address. Scheduled monitoring rotates through historical addresses and flags retained funds for review.
 - Recovery records an address balance at one canonical cutoff and requires the full retained address set before comparing combined custody with the ledger. Missing/mismatched evidence stays pending. The database release fence checks the latest checkpoint/run for every known address; one successful current-address scan cannot clear an older review. The full address set is aggregated in PostgreSQL under its query deadline; no first-page cap can report completion.
@@ -131,7 +131,7 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Relevant named manual checks cover rollback/replay, concurrent admission, missing-wallet liabilities, rejected withdrawals, account isolation, cache expiry/outage, signing recovery and exact restore. Use isolated data and preserve failed evidence. Never reset a shared source to repeat a check.
 - Hosted Google, Upstash, RPC, alerts, mobile performance and release readiness require observations on the selected services. Health/compilation alone do not satisfy them.
 - Keep **five core docs** plus the two explicitly requested bug trackers. Use clear lists/tables and short explanations; update current facts instead of appending repeated history. Only add a document when explicitly requested or essential. Prior versions remain in Git.
-- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v88.md) records the exact continuation boundary.
+- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v89.md) records the exact continuation boundary.
 
 - Phase Two recovery uses signed inventory contract4: timestamps retain PostgreSQL microseconds in paging/row checksums, and permission-group attributes/membership are checked. Contract3 archives require release `6c323dc43c45efa1957308e467ce06e7cc0b36c0`. Contract2 archives require their matching release (the preceding release is `25a5073d30974bcf8b02814bc81181e3a147d15c`). Keep original archives, keys and release references.
 - In the transparent profile, platform positions and priority exceptions are labelled or disabled. Joining numbers stay fixed; the displayed receiving position reflects actual order. Potential receipts depend on later confirmed gifts and are never guaranteed. Account publication is optional and revocable; test/simulation records do not become real-payment stories.

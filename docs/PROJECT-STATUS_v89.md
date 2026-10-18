@@ -1,4 +1,4 @@
-# Project status v88
+# Project status v89
 
 **Phase One/Two remains incomplete.** Four mainnets/eight asset protocols are implemented. Seven member assets pass local incoming/refund/withdrawal/company/sweep procedures. Public RPC identities match; hosted payments and observation periods are unverified. Continue without milestone approval pauses. Owner launch inputs remain deferred to final testing.
 
@@ -26,12 +26,15 @@
 
 ## Current delivery
 
-Branch `feat/recovery-loss-target-binding`, base PR86 merge `4bd534ca7fda9d4a1762475d21dbb2d51ff2bfca`. PR86 headb637364 passed push39112528496 / PR39112534581 before merge. P1-089 is merged. Current P1-090 binds loss review to its actual recovery database.
+Branch `feat/recovery-proof-edge-audit`, base PR87 merge `ec5244a6be57e849faaf7f3cc16d181228b5f108`. PR87 head08be758 passed push39112808656 / PR39112814672 before merge. P1-089–090 are merged; this batch records further recovery evidence and owner steps.
 
 - **P1-087:**15 components share render-time exception notices; simulation dashboard errors, fallback and known notices follow current language. Native proof/payment status copy also updates. Requests and financial guards are unchanged.
 - **P1-088:** native read errors are separate from operation warnings. Successful owned reads clear recovered read errors while preserving operation warnings; identity/new-operation transitions clear scoped state.
 
 ## Current verification
+
+`post-backup-v87/eth-unknown-r4` repeats the complete fresh restore/reconciliation/resumption after P1-090. Wrong typed confirmation and unavailable canonical outgoing proof create no resolution, journal or posting; restored provider observations then permit valid review and once-only resumption. `integrity-r4` independently verifies source/target attempts, settled hashes, actual gas, one loss/resolution, full incoming liability and balanced journals. Retain failed r3: the invocation omitted the generated transport loader and stopped at alert setup, before the new cases. No original financial fixture was reset.
+
 
 **P1-090:** copied loss reviews now reject foreign database bindings before provider verification or accounting. The actual retained clone reproduces the missing guard; restricted-role rejection/original-target replay and independent source/target integrity pass. Newly restored databases must use fresh checkpoints/scans.
 
@@ -79,9 +82,9 @@ Public read-only evidence in `public-network-v79`: four expected network identit
 ## Release and preservation rules
 
 - Fresh install: paste only `packages/db/fresh-install.sql`. Seven receipts; immutable SQL000–005; SQL006 queue fix. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 standalone indexes. No DDL in this batch.
-- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v88.md) retain references/key-handling rules.
+- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v89.md) retain references/key-handling rules.
 - Hashes bind actual database identity. Keep historical obligation/attempt snapshots. Rotate request/auth keys on restore, retain original MFA/custody/payload keys, reconcile chains and obtain fresh approvals/alert acknowledgements before publication.
 - Preserve all failed/successful financial fixtures, archives and keys. Corrections use fresh targets. SPL’s inherited console captions contain an old amount typo; integer assertions/rows are authoritative. Prior failed harness/transport/index/cache attempts remain in their original roots.
 - Five core guides plus two requested versioned trackers. Keep current facts concise; history is in Git. Both CI events must pass the exact final head before merge. Named manual procedures/required checks are authorized; broad automated suite remains deferred. Continue without approval pauses; do not claim100%.
 
-v88
+v89

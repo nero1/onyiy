@@ -1,6 +1,6 @@
-# Bug fix plan — Rounds One/Two/Three v88
+# Bug fix plan — Rounds One/Two/Three v89
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v88.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v89.md).
 
 Updated: **18 October2026 (Africa/Lagos)**.
 
@@ -108,11 +108,11 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 1. Finish C004 remaining native failure/account-setup/reorg/restart variants and C008 recovery reconciliation.
 2. Complete C010 current-PRD coverage, including public/admin/flags/accessibility; local financial procedures are partial evidence.
 3. Verify hosted services, custody, identity, provenance, operations/costs and observation periods after the owner supplies deferred launch setup.
-4. Keep substantial batches moving; both exact-head CI events must pass before each merge. Current evidence and remaining scope: [status](PROJECT-STATUS_v88.md).
+4. Keep substantial batches moving; both exact-head CI events must pass before each merge. Current evidence and remaining scope: [status](PROJECT-STATUS_v89.md).
 
 ## Fix and acceptance reference
 
-These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v88.md).
+These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v89.md).
 
 ### 1: BUG P1-001: Expired or dismissed native invoices prevent another checkout
 
@@ -492,7 +492,7 @@ These are named manual checks, not instructions to add an automated test suite. 
 - Use fresh isolated fixtures and rollback-only generated records where possible. Keep original financial sources, failed fixtures, signed bytes, archives and keys.
 - Run relevant verification and required checks; record what actually ran. Both exact-final-head **push** and **pull_request** CI must succeed before merge. No direct pushes to main.
 - Keep five core docs plus these two requested trackers. Rename status, handover, report and plan together. Fold decisions into existing files; keep old versions in Git.
-- See [current status](PROJECT-STATUS_v88.md) for release evidence and [handover](LLM-HANDOVER_v88.md) for the exact stop boundary.
+- See [current status](PROJECT-STATUS_v89.md) for release evidence and [handover](LLM-HANDOVER_v89.md) for the exact stop boundary.
 
 Signed: **16 October 2026 at 09:21:01 PM WAT**.
 
@@ -503,7 +503,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v88.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v89.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -523,7 +523,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v88.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v89.md).
 
 
 
@@ -544,7 +544,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Current completion and delivery
 
-Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v88.md) and [handover](LLM-HANDOVER_v88.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-fix-plan_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
+Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v89.md) and [handover](LLM-HANDOVER_v89.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-fix-plan_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
 
 ### P1-075 — Solana v1 reads
 
@@ -611,3 +611,5 @@ A retained restored ETH fixture reproduces an old reviewed scan in the Unresolve
 ### P1-090 — Loss review lacks the recovery target guard
 
 On a retained fresh clone, a copied unresolved loss review reached provider verification (`RPC_UNAVAILABLE`) instead of rejecting the source database binding. Validate the run binding before confirmation/replay/provider access and validate the checkpoint binding before proof verification. A changed database must register a fresh checkpoint and rescan; never rewrite copied evidence. `post-backup-v87/loss-binding-baseline-r1` retains the reproduction; `loss-binding-fixed-r1` rejects with `RECOVERY_TARGET_MISMATCH`. `loss-binding-valid-replay-r1` preserves exact replay and changed-body conflict on the original target. Independent source/target accounting checks remain unchanged. No schema/archive change.
+
+**Post-merge recovery regression:** `post-backup-v87/eth-unknown-r4` passes the full fresh restore, denies wrong confirmation/missing canonical proof without accounting entries, then reconciles and resumes one newly approved withdrawal. `integrity-r4` independently verifies balances/attempts/loss/liability. Failed r3 is retained; its invocation lacked the generated transport loader and stopped at alert setup. No new defect number is assigned to a fixture invocation mistake.
