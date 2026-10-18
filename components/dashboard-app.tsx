@@ -50,6 +50,7 @@ function cacheMs(manifest:PublicManifestDto|null|undefined,key:keyof PublicManif
 export default function DashboardApp() {
  const timeZone=useDisplayTimeZone();
   const catalogGeneration=useRef(0);
+  const [giftTile,setGiftTile]=useState<string|null>(null);
   const tabId=useRef(crypto.randomUUID());
   const [users, setUsers] = useState<User[]>([]);
   const [username, setUsername] = useState('member_01');
@@ -155,7 +156,7 @@ export default function DashboardApp() {
   },[username,dash?.user.username]);
 
   useEffect(()=>{if(!authUser||!sessionGeneration)return;
-    function purge(){setClientSession('','');refreshGeneration.current++;currentUser.current='';clearActiveUserScope(username);setAuthUser(null);setSessionGeneration('');setDash(null);setGiftQuote(null);setWithdrawalQuote(null);setQueue(null);setRequiresMfa(false);setBotReady(false);setBotProof(undefined);}
+    function purge(){setGiftTile(null);setClientSession('','');refreshGeneration.current++;currentUser.current='';clearActiveUserScope(username);setAuthUser(null);setSessionGeneration('');setDash(null);setGiftQuote(null);setWithdrawalQuote(null);setQueue(null);setRequiresMfa(false);setBotReady(false);setBotProof(undefined);}
     const storage=(event:StorageEvent)=>{if((event.key===null||event.key==='gw:v3:active-user'||event.key==='gw:v3:active-session')&&activeSessionGeneration(username)!==sessionGeneration)purge();};
     let channel:BroadcastChannel|null=null;try{channel=new BroadcastChannel('gw-session-scope-v1');channel.onmessage=event=>{const value=event.data;if(value?.type==='GW_SCOPE'&&value.tab!==tabId.current&&(value.owner!==username||value.generation!==sessionGeneration))purge();};}catch{}
     addEventListener('storage',storage);return()=>{removeEventListener('storage',storage);channel?.close();};
@@ -167,7 +168,7 @@ export default function DashboardApp() {
     try{const channel=new BroadcastChannel('gw-session-scope-v1');channel.postMessage({type:'GW_SCOPE',tab:tabId.current,owner:value.user?.username??'',generation:value.generation??''});channel.close()}catch{}
     setAuthReady(true);setRequiresMfa(value.requires_mfa??false);if(value.provider)setAuthProvider(value.provider);
     const same=value.user?.id===authUser?.id&&value.generation===sessionGeneration;
-    if(!same){setBotReady(false);setBotProof(undefined);setBotReset(v=>v+1);if(!value.user||activeSessionGeneration(value.user.username)!==value.generation)clearActiveUserScope();setDash(null);setGiftQuote(null);setWithdrawalQuote(null);}
+    if(!same){setGiftTile(null);setBotReady(false);setBotProof(undefined);setBotReset(v=>v+1);if(!value.user||activeSessionGeneration(value.user.username)!==value.generation)clearActiveUserScope();setDash(null);setGiftQuote(null);setWithdrawalQuote(null);}
     setAuthUser(value.user);setSessionGeneration(value.generation??'');
     if(value.user){currentUser.current=value.user.username;setUsername(value.user.username);activateUserScope(value.user.username,value.generation??'');if(same)void refresh();}
   }
@@ -299,20 +300,20 @@ export default function DashboardApp() {
         </section>
 
         <section className="card how"><h2>{t.howTitle}</h2>{manifest.presentation?.transparent?<ProfileDisclosure presentation={manifest.presentation} locale={locale} mode="mechanics"/>:<p>{t.howBody}</p>}</section>
-        <section id="gift-tiles">
-          <div className="section-title"><h2>{t.gifts}</h2><span>GIV</span></div>
-          <div className="gift-tiles">{visiblePlans.map((plan) => <a href={`#plan-${plan.id}`} className="gift-tile" key={plan.id}><span>🎁</span><strong>{plan.amount_giv}</strong><small>{potentialLabel}: {plan.expected_giv}</small></a>)}</div>
+        <section id="gift-tiles" tabIndex={-1} aria-labelledby="gift-tiles-title">
+          <div className="section-title"><h2 id="gift-tiles-title">{t.gifts}</h2><span>GIV</span></div>
+          <div className="gift-tiles">{visiblePlans.map((plan) => <a id={`gift-tile-${plan.id}`} href={`#plan-${plan.id}`} className="gift-tile" key={plan.id} onClick={()=>setGiftTile(plan.id)} aria-label={`${plan.name} · ${plan.amount_giv} GIV · ${potentialLabel}: ${plan.expected_giv} GIV`}><span aria-hidden="true">🎁</span><strong>{plan.amount_giv}</strong><small>{potentialLabel}: {plan.expected_giv}</small></a>)}</div>
         </section>
 
         {manifest.feature_gifts&&sessionGeneration&&<BotCheck key={username+sessionGeneration} owner={username} generation={sessionGeneration} surface="suspicious_checkout" locale={locale} reset={botReset} onReady={(ready,value)=>{setBotReady(ready);setBotProof(value)}}/>}
         <section className="plan-list">{visiblePlans.map((plan) => (
-          <article className="card plan" id={`plan-${plan.id}`} key={plan.id}>
-            <div><h3>{plan.name}</h3><p>{plan.amount_giv} GIV · ≈ ${plan.usd_reference}</p><strong>{potentialLabel}: {plan.expected_giv} GIV</strong><p className="muted">{t.status}: {plan.status}</p><ProfileDisclosure presentation={manifest?.presentation} locale={locale} queue={plan.queue_disclosure} plan={plan.plan}/></div>
+          <article className="card plan" id={`plan-${plan.id}`} tabIndex={-1} aria-labelledby={`plan-heading-${plan.id}`} key={plan.id}>
+            <div><h3 id={`plan-heading-${plan.id}`}>{plan.name}</h3><p>{plan.amount_giv} GIV · ≈ ${plan.usd_reference}</p><strong>{potentialLabel}: {plan.expected_giv} GIV</strong><p className="muted">{t.status}: {plan.status}</p><ProfileDisclosure presentation={manifest?.presentation} locale={locale} queue={plan.queue_disclosure} plan={plan.plan}/></div>
             <button className="primary" disabled={busy || plan.profile_revision!==manifest.profile_revision || !botReady || dash.user.status !== 'active' || plan.status !== 'active' || dash.financial_review || dash.cycles.some(cycle=>cycle.plan_id===plan.id && cycle.queue_paused) || manifest.entitlements_member?.send_enabled_gifts===false || !!dash.consent?.required || dash.user.consent_version!==manifest.terms_content.version || !online} onClick={() => requestGift(plan.id)}>{t.send}</button>
           </article>
         ))}</section>
 
-        <a className="back" href="#gift-tiles">↑ {t.backToTop}</a>
+        <a className="back" href={visiblePlans.length?`#gift-tile-${visiblePlans.find(plan=>plan.id===giftTile)?.id??visiblePlans[0].id}`:"#gift-tiles"}>↑ {t.backToTop}</a>
         {sessionGeneration&&(manifest.feature_gifts||manifest.feature_wallets)&&<MemberRecords key={username+sessionGeneration} owner={username} generation={sessionGeneration} environment="simulation" locale={locale} collections={[...(manifest.feature_gifts?['cycles','invoices'] as const:[]),...(manifest.feature_wallets?['withdrawals'] as const:[])]} history={!!manifest.entitlements_member?.history} disabled={busy} revision={dash} onInvoice={row=>void openGiftReview(row.id)} onCancelInvoice={row=>void act(()=>mutation(`/gifts/invoices/${row.id}/cancel`,username,{}))} onWithdrawal={row=>void act(()=>mutation(`/me/withdrawals/${row.id}/cancel`,username,{}))}/>}
         <div className="two-col">
           <section><h2>{t.active}</h2>{active.length ? active.map((cycle) => <Cycle key={cycle.id} c={cycle} t={t} locale={locale} presentation={manifest.presentation} />) : <p className="muted">{t.noCycles}</p>}</section>
