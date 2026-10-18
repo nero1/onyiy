@@ -1,4 +1,4 @@
-# Project status v94
+# Project status v95
 
 **Phase One/Two remains incomplete.** Four mainnets/eight asset protocols are implemented. Seven member assets pass local incoming/refund/withdrawal/company/sweep procedures. Public RPC identities match; hosted payments and observation periods are unverified. Continue without milestone approval pauses. Owner launch inputs remain deferred to final testing.
 
@@ -26,9 +26,14 @@
 
 ## Current delivery
 
-Branch `feat/product-permission-history-audit`, base PR92 merge `3c781f00d3fcd18280387c76254d61411af8d41b`. PR92 headfba81e0 passed push39132713886 / PR39132721134 before merge. P1-095 clears recovered notification read/page errors and fences older error responses; no API/schema/financial changes.
+Branch `feat/verified-account-deletion`, base [PR93](https://github.com/nero1/onyiy/pull/93) merge `aad890b`. PR93 head00f1e58 passed push39133832926 / PR39133843081. P1-096 fixes age-verified deletion; P1-097 adds exact asset/network balance display; P1-098 permits suspended members to withdraw publication consent. No schema or financial-rule change.
 
 ## Current verification
+
+`account-permissions-v95/contract-r1` reproduces deletion's paired-age constraint failure; fresh `contract-fixed-r1` passes suspension/session revocation, own balances/cases/appeals, ban/restore, moderator restrictions, deactivated-state restoration and private-content deletion with unchanged financial fingerprints. `deleted-support-r3` passes actual original-wallet proof, encrypted-worker/separate-web payout and private receipt for a deleted member without restoring login/public identity; residual unused fees remain owed. Failed fixtures remain retained.
+
+`publication-baseline-r1` reproduces suspended own-consent403 and missing balance metadata. Fresh `publication-fixed-r1` passes opt-out/exact replay, changed-replay conflict, denied opt-in/new money actions and unchanged four financial fingerprints. `browser-fixed-r1` passes production Chromium390px EN/FR exact ETH amount/asset/network display. Required/build/bundle checks pass locally; GitHub records final CI/merge.
+
 
 `notification-audit-v94/contract-r1` passes actual restricted paging of201 same-microsecond notices, cursor actor/limit/tamper binding, foreign RLS/read/seen denial, idempotent read, inbox-view/read distinction, monotonic seen markers, new red dot and disabled-feature denial. `browser-baseline-r1` reproduces a stale error after successful mark-read; `browser-fixed-r1` verifies actual HTTP200 read/page retries clear recovered errors, EN/FR translation, retained read/history state and390px layout. `integrity-r1` confirms four financial table fingerprints remain identical to the source across contract/baseline/fixed clones. Required/build/bundle/docs/secrets/whitespace checks pass. Preserve original fixtures.
 
@@ -88,9 +93,9 @@ Public read-only evidence in `public-network-v79`: four expected network identit
 ## Release and preservation rules
 
 - Fresh install: paste only `packages/db/fresh-install.sql`. Seven receipts; immutable SQL000–005; SQL006 queue fix. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 standalone indexes. No DDL in this batch.
-- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v94.md) retain references/key-handling rules.
+- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v95.md) retain references/key-handling rules.
 - Hashes bind actual database identity. Keep historical obligation/attempt snapshots. Rotate request/auth keys on restore, retain original MFA/custody/payload keys, reconcile chains and obtain fresh approvals/alert acknowledgements before publication.
 - Preserve all failed/successful financial fixtures, archives and keys. Corrections use fresh targets. SPL’s inherited console captions contain an old amount typo; integer assertions/rows are authoritative. Prior failed harness/transport/index/cache attempts remain in their original roots.
 - Five core guides plus two requested versioned trackers. Keep current facts concise; history is in Git. Both CI events must pass the exact final head before merge. Named manual procedures/required checks are authorized; broad automated suite remains deferred. Continue without approval pauses; do not claim100%.
 
-v94
+v95

@@ -1,8 +1,8 @@
-# LLM handover v94
+# LLM handover v95
 
 ## Owner direction
 
-Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v94.md).
+Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v95.md).
 
 - Keep five core guides plus the two explicitly requested bug trackers. Rename the four versioned files together; fold new human guidance into these guides. SETUP stays concise, newbie-friendly, web UI only, with manual SQL paste.
 - Reuse existing provider accounts/resources and database names; one financially active mode per shared database. Preview uses public-only credentials.
@@ -11,7 +11,7 @@ Complete every Phase One/Two requirement, including real-money support and bugs.
 
 ## Repository and tooling
 
-`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/product-permission-history-audit`, base PR92 merge `3c781f00d3fcd18280387c76254d61411af8d41b`. PR92 headfba81e0 passed push39132713886 / PR39132721134 before merge.
+`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/verified-account-deletion`, base PR93 merge `aad890b84ffd2ff18263f36d433f03e840a8057c`. PR93 head00f1e58 passed push39133832926 / PR39133843081 before merge.
 
 - Read AGENTS and relevant Next16 documentation before relevant code edits. Node22: `/workspace/work/tooling/node-v22.23.3-linux-x64/bin`; PostgreSQL tools: `/workspace/work/tooling/pg-tls/bin`.
 - Owned PostgreSQL:55450, data `/workspace/work/shared-hosting-v50/pgdata`; public CA `server.crt` in that directory. Never read its private TLS key. Owner/runtime roles: `gw_v50_owner` / `gw_v50_runtime`. Preserve original failed `gw_v27_native_refund_isolated`; stopped cross-host55455/55456 retain data.
@@ -56,10 +56,10 @@ Owned PostgreSQL runs with TLS on55450; restart must explicitly retain port/TLS 
 
 ## Continue
 
-P1-089–094 and the seven-asset/missing-intent/incident-pause evidence are merged through PR92 after both exact-head CI events. Current P1-095 clears notification read/page errors at a new action and guards old error responses with a revision. `notification-audit-v94/contract-r1` passes201 exact-timestamp notification paging, ownership/cursor/feature gates, idempotent read and viewed/read distinction. Production390px baseline/fixed EN/FR read/page recovery and unchanged financial fingerprints pass, as do required/build/bundle/docs/secrets checks.
+P1-095 is merged in PR93. P1-096–098 fix paired age-proof deletion, exact account balances and suspended publication withdrawal. `account-permissions-v95/contract-r1` retains the original deletion failure; `contract-fixed-r1` passes full own-account/session/appeal/moderator/deactivation/deletion checks with unchanged financial fingerprints. `deleted-support-r3` passes original-wallet recovery for a deleted member through encrypted worker/separate web settlement and private receipt without public/login restoration; unused-fee liability remains. r1/r2 fixture consent-guard failures remain retained.
 
-Publish the reviewed v94 tree and merge only after both exact-head CI events. Then continue the full current-PRD/public/admin/flags/accessibility and selected incident/closure acceptance. Generated fixtures do not prove hosted/provider/custody/device acceptance or elapsed launch observations. The historical295-row/current392-keyword scratch files are not whole-product acceptance.
+`publication-baseline-r1` reproduces403/privacy and missing balance metadata. Fresh `publication-fixed-r1` passes own opt-out/idempotency/conflict and denied opt-in/new money actions with unchanged four financial fingerprints. `browser-fixed-r1` passes production Chromium390px EN/FR balance precision/asset/network. Required/build/bundle checks pass. Finish independent deleted-support integrity and docs/secrets/whitespace checks, publish reviewed v95 tree, and merge only after both exact-head CI events. Then continue C001–C017; do not halt after merge or claim100%.
 
-Owner inputs remain deferred. Continue independent work without asking again; actual provider/custody/Google/CAPTCHA/devices/alerts/hosting/costs and wider post-backup recovery and14+14-day observation remain unverified. Do not stop after a checked merge or claim production100%.
+Owner inputs remain deferred. Actual provider/custody/Google/CAPTCHA/devices/alerts/hosting/costs and14+14-day observation remain unverified. Historical295-row/current392-keyword scratch files are not whole-product acceptance.
 
-v94
+v95
