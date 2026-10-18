@@ -1,3 +1,4 @@
+import {queueAdjustmentNotices} from './notifications';
 import crypto from 'node:crypto';
 import {and,asc,eq,sql} from 'drizzle-orm';
 import {z} from 'zod';
@@ -35,6 +36,7 @@ export async function editPriority(tx:DbExecutor,actorId:string,input:z.infer<ty
  let ticket=current.priorityTicket;if(input.enabled&&ticket===null){ticket=partition.nextPriorityTicket;if(ticket>1099511627775)throw new Error('CONFIGURATION_INVALID');await tx.update(queuePartitions).set({nextPriorityTicket:ticket+1}).where(eq(queuePartitions.id,partition.id));}if(!input.enabled)ticket=null;
  await tx.update(queueEntries).set({priorityTicket:ticket,priorityRevision:current.priorityRevision+1}).where(eq(queueEntries.id,current.id));
  await tx.insert(auditEvents).values({actorUserId:actorId,action:input.enabled?'priority_enable':'priority_revoke',targetType:'queue_entry',targetId:current.id,reason:input.reason,beforeState:{priority_ticket:current.priorityTicket?.toString()??null,revision:current.priorityRevision},afterState:{priority_ticket:ticket?.toString()??null,revision:current.priorityRevision+1}});
+ if(ticket!==current.priorityTicket)await queueAdjustmentNotices(tx,partition.id,`priority:${current.id}:${current.priorityRevision+1}`);
  return save(tx,key,saved.digest,{entry_id:current.id,display_ticket:current.ticket.toString(),priority_ticket:ticket?.toString()??null,revision:current.priorityRevision+1});
 }
 export async function editHelp(tx:DbExecutor,actorId:string,input:z.infer<typeof helpInput>,requestKey:string){

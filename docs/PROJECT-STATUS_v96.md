@@ -1,4 +1,4 @@
-# Project status v95
+# Project status v96
 
 **Phase One/Two remains incomplete.** Four mainnets/eight asset protocols are implemented. Seven member assets pass local incoming/refund/withdrawal/company/sweep procedures. Public RPC identities match; hosted payments and observation periods are unverified. Continue without milestone approval pauses. Owner launch inputs remain deferred to final testing.
 
@@ -15,7 +15,7 @@
 | C007 | UI/wallets | Eight protocol preparations/seven wallet sends, narrow EN/FR, preferences and wallet-safe reload pass locally. Shared receipt/history/error/offline-language fixes pass locally; finish physical devices/wallets/accessibility. |
 | C008 | Recovery | Exact encrypted restore, matching releases and database-bound approvals work. Retained pending ETH/SOL/SPL/TRC20 hashes recover locally. All seven member assets pass generated post-backup unknown-transfer reconciliation and fresh approved resumption. Conservative registered-wallet/no-intent handling and intake-only pause also pass. Chosen incident/closure and hosted drills remain. |
 | C009 | Identity | Mainnet session/TOTP/recovery/refresh/logout, closed MFA limit and ingress checks pass locally. Finish actual Google/CAPTCHA, physical authenticator and broader permissions/rate/hosted acceptance. |
-| C010 | Product | History, public activity, own-case pagination/read quotas and notification ownership/paging/view/read checks pass locally. Continue the full current-PRD/public/admin/flags/accessibility audit. |
+| C010 | Product | History, public activity, own-case paging, privacy exports and notification ownership/paging/priority-adjustment checks pass locally. Continue the full current-PRD/public/admin/flags/accessibility audit. |
 | C011 | Operations | Protected signing/scheduling and opt-in policy-bound automatic encrypted backups exist. Verify real alert receiver, schedule/storage monitoring and incidents/closure. |
 | C012 | Capacity/cost | Local build/bundle budgets pass. Measure hosted/mobile latency, quotas and operating costs. |
 | C013 | Observation | Actual14-day beta plus14-day initial-cap mainnet observation; none is recorded as elapsed acceptance. |
@@ -26,9 +26,14 @@
 
 ## Current delivery
 
-Branch `feat/verified-account-deletion`, base [PR93](https://github.com/nero1/onyiy/pull/93) merge `aad890b`. PR93 head00f1e58 passed push39133832926 / PR39133843081. P1-096 fixes age-verified deletion; P1-097 adds exact asset/network balance display; P1-098 permits suspended members to withdraw publication consent. No schema or financial-rule change.
+Branch `feat/own-data-and-priority-audit`, base [PR94](https://github.com/nero1/onyiy/pull/94) merge `4875630`. PR94 head669bafc passed push39136370505 / PR39136391286. P1-099 adds safe, retry-proof member notices for transparent administrative-priority changes, including priority bootstrap creation/removal. Phase One notice behavior, joining tickets and finances are preserved.
 
 ## Current verification
+
+`own-data-v96/contract-r1` passes all twelve personal-data sections, genuine-session/CSRF encrypted export/replay, foreign download denial, bounded JSON/CSV capture metadata, suspended access and deleted-account chunk cleanup. Four financial fingerprints remain unchanged.
+
+`priority-baseline-r2` reproduces correct serving-order changes with no member notice. `priority-fixed-r4` passes bump/revoke, no-op/exact retry/changed-body conflict, priority bootstrap creation/removal, transaction rollback and eight EN/FR notices delivered once through actual jobs. Joining numbers stay fixed; private staff reasons stay out. `priority-disabled-r1` queues nothing for disabled priority. `browser-priority-r1` passes actual delivered notices and current-language rendering in production Chromium390px EN/FR. `integrity-r2` compares the original source and seven retained audit copies: all four financial table fingerprints match; eight notices exist exactly once in the final target. Baseline r1 failed only because it requested an ownership-protected rank as admin; fresh r2 uses each real beneficiary's context. All fixtures remain retained. Required/build/bundle checks pass locally; GitHub records final CI/merge.
+
 
 `account-permissions-v95/contract-r1` reproduces deletion's paired-age constraint failure; fresh `contract-fixed-r1` passes suspension/session revocation, own balances/cases/appeals, ban/restore, moderator restrictions, deactivated-state restoration and private-content deletion with unchanged financial fingerprints. `deleted-support-r3` passes actual original-wallet proof, encrypted-worker/separate-web payout and private receipt for a deleted member without restoring login/public identity; residual unused fees remain owed. Failed fixtures remain retained.
 
@@ -93,9 +98,9 @@ Public read-only evidence in `public-network-v79`: four expected network identit
 ## Release and preservation rules
 
 - Fresh install: paste only `packages/db/fresh-install.sql`. Seven receipts; immutable SQL000–005; SQL006 queue fix. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 standalone indexes. No DDL in this batch.
-- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v95.md) retain references/key-handling rules.
+- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v96.md) retain references/key-handling rules.
 - Hashes bind actual database identity. Keep historical obligation/attempt snapshots. Rotate request/auth keys on restore, retain original MFA/custody/payload keys, reconcile chains and obtain fresh approvals/alert acknowledgements before publication.
 - Preserve all failed/successful financial fixtures, archives and keys. Corrections use fresh targets. SPL’s inherited console captions contain an old amount typo; integer assertions/rows are authoritative. Prior failed harness/transport/index/cache attempts remain in their original roots.
 - Five core guides plus two requested versioned trackers. Keep current facts concise; history is in Git. Both CI events must pass the exact final head before merge. Named manual procedures/required checks are authorized; broad automated suite remains deferred. Continue without approval pauses; do not claim100%.
 
-v95
+v96
