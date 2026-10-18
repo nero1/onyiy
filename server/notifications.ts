@@ -1,7 +1,8 @@
+import {queueAdjustmentCopy} from '../lib/notification-copy';
 import crypto from 'node:crypto';
 import {and,isNull,desc,eq,lt,or,sql} from 'drizzle-orm';
 import {z} from 'zod';
-import {notifications,notificationViews,readManifest,type DbExecutor} from '@gifters/db';
+import {outbox,users,queueEntries,notifications,notificationViews,readManifest,type DbExecutor} from '@gifters/db';
 import {databaseNow} from './auth';
 import {environmentKey,equalText} from './auth-crypto';
 const cursorSchema=z.object({user:z.string().uuid(),at:z.string().datetime(),id:z.string().uuid(),limit:z.number().int().positive().max(100),exp:z.number().int()}).strict();
@@ -15,3 +16,19 @@ export async function seeNotifications(tx:DbExecutor,user:string,newestId:string
  // The timestamp originates only from an owned loaded notice, never client time.
  await tx.insert(notificationViews).select(tx.select({userId:notifications.userId,seenAt:notifications.createdAt,seenId:notifications.id,updatedAt:sql<Date>`clock_timestamp()`.as('updated_at')}).from(notifications).where(and(eq(notifications.id,newestId),eq(notifications.userId,user),isNull(notifications.retiredAt))).limit(1)).onConflictDoUpdate({target:notificationViews.userId,set:{seenAt:sql`excluded.seen_at`,seenId:sql`excluded.seen_id`,updatedAt:sql`excluded.updated_at`},setWhere:sql`(${notificationViews.seenAt},${notificationViews.seenId})<(excluded.seen_at,excluded.seen_id)`});return notificationBadge(tx,user);}
 export async function readNotification(tx:DbExecutor,user:string,id:string){if(!(await readManifest(tx)).feature_notifications)throw new Error('FEATURE_DISABLED');const [row]=await tx.update(notifications).set({readAt:sql`coalesce(${notifications.readAt},clock_timestamp())`}).where(and(eq(notifications.userId,user),eq(notifications.id,id),isNull(notifications.retiredAt))).returning({id:notifications.id,read_at:notifications.readAt,stamp:sql<string>`to_char(${notifications.createdAt} at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`});if(!row)throw new Error('NOT_FOUND');return row;}
+
+/** Queue one safe notice per waiting member in the changed partition. The
+ * caller holds its partition lock; durable identities make retries harmless. */
+export async function queueAdjustmentNotices(tx:DbExecutor,partitionId:string,changeId:string){
+ const policy=await readManifest(tx);if(policy.deployment_profile!=='transparent'||policy.priority_presentation!=='disclosed')return;
+ const prefix=`queue-adjustment:${changeId}:`,environment=process.env.APP_ENV??'simulation';
+ await tx.execute(sql`insert into ${outbox} (business_key,environment,kind,payload)
+  select ${prefix}||${users.id}::text,${environment},'notification',jsonb_build_object(
+   'user_id',${users.id},'title_key','account_update','body',case when ${users.locale}='fr'
+    then ${queueAdjustmentCopy.fr}
+    else ${queueAdjustmentCopy.en} end)
+  from ${users} where ${users.status}<>'deleted' and exists(select 1 from ${queueEntries}
+   where ${queueEntries.partitionId}=${partitionId}::uuid and ${queueEntries.beneficiaryUserId}=${users.id}
+    and ${queueEntries.kind}='member' and ${queueEntries.status}='waiting')
+  on conflict (business_key) do nothing`);
+}

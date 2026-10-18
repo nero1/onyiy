@@ -1,6 +1,6 @@
-# Bug fix plan — Rounds One/Two/Three v95
+# Bug fix plan — Rounds One/Two/Three v96
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v95.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v96.md).
 
 Updated: **18 October2026 (Africa/Lagos)**.
 
@@ -11,6 +11,8 @@ Historical numbered migration paths below identify the original fixes in Git his
 PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the three fresh Round Two findings below; The same batch includes the Round Three recovery fix below; Phase Two transparency implementation/local review was completed in v54; full-product work remains open.
 
 ## Complete task list
+
+- **P1-099:** transparent priority-change member notices implemented; named local delivery, privacy, replay and browser checks passed.
 
 - **P1-096–098:** account deletion age proofs, exact owned balance display and suspended publication opt-out implemented; named local verification passed (details below).
 
@@ -117,11 +119,11 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 1. Finish C004 remaining native failure/account-setup/reorg/restart variants and C008 recovery reconciliation.
 2. Complete C010 current-PRD coverage, including public/admin/flags/accessibility; local financial procedures are partial evidence.
 3. Verify hosted services, custody, identity, provenance, operations/costs and observation periods after the owner supplies deferred launch setup.
-4. Keep substantial batches moving; both exact-head CI events must pass before each merge. Current evidence and remaining scope: [status](PROJECT-STATUS_v95.md).
+4. Keep substantial batches moving; both exact-head CI events must pass before each merge. Current evidence and remaining scope: [status](PROJECT-STATUS_v96.md).
 
 ## Fix and acceptance reference
 
-These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v95.md).
+These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v96.md).
 
 ### 1: BUG P1-001: Expired or dismissed native invoices prevent another checkout
 
@@ -501,7 +503,7 @@ These are named manual checks, not instructions to add an automated test suite. 
 - Use fresh isolated fixtures and rollback-only generated records where possible. Keep original financial sources, failed fixtures, signed bytes, archives and keys.
 - Run relevant verification and required checks; record what actually ran. Both exact-final-head **push** and **pull_request** CI must succeed before merge. No direct pushes to main.
 - Keep five core docs plus these two requested trackers. Rename status, handover, report and plan together. Fold decisions into existing files; keep old versions in Git.
-- See [current status](PROJECT-STATUS_v95.md) for release evidence and [handover](LLM-HANDOVER_v95.md) for the exact stop boundary.
+- See [current status](PROJECT-STATUS_v96.md) for release evidence and [handover](LLM-HANDOVER_v96.md) for the exact stop boundary.
 
 Signed: **16 October 2026 at 09:21:01 PM WAT**.
 
@@ -512,7 +514,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v95.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v96.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -532,7 +534,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v95.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v96.md).
 
 
 
@@ -553,7 +555,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Current completion and delivery
 
-Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v95.md) and [handover](LLM-HANDOVER_v95.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-fix-plan_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
+Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v96.md) and [handover](LLM-HANDOVER_v96.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-fix-plan_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
 
 ### P1-075 — Solana v1 reads
 
@@ -666,3 +668,9 @@ The account view displayed raw purpose/base units with no asset. Add owned asset
 ### P1-098 — Suspension prevents withdrawing publication consent
 
 The suspended-route allowlist blocked the privacy control although the domain permits opt-out. Allow the own publication route; existing domain checks still deny suspended opt-in. Fresh genuine-session/CSRF acceptance verifies read/withdrawal/exact retry, changed-body conflict, denied opt-in/new financial actions and unchanged financial fingerprints. Original baseline retained; hosted acceptance remains separate.
+
+### P1-099 — Transparent priority changes omit member notices
+
+A real bump changed serving ranks1/2 to2/1 without notifying either waiting member, contrary to PRD §32.4. Queue one safe notice per waiting member in the changed partition for bump/revoke and priority bootstrap creation/removal. Durable change/member keys prevent duplicate delivery; unchanged priority queues nothing. Keep staff reasons private and translate the known template at display time. Phase One behavior stays unchanged.
+
+`own-data-v96/priority-baseline-r2` reproduces the omission. `priority-fixed-r4` passes serving/joining order, exact retry/no-op/conflict, bootstrap changes, rollback and actual once-only job delivery. Disabled-profile and production390px EN/FR checks pass. Independent integrity compares the original source and seven retained copies: four financial fingerprints match and the final eight notices are delivered once. Personal-data export/ownership/deletion checks also pass; no additional bug is asserted for that evidence. Required/build/bundle checks pass; hosted acceptance remains separate.

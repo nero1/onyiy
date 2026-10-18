@@ -8,6 +8,7 @@ const titles = {
   account_update: { en: 'Account update', fr: 'Mise à jour du compte' },
   admin_message: { en: 'Staff message', fr: 'Message du personnel' },
 } as const;
+export const queueAdjustmentCopy={en:'Administrative priority adjusted this queue’s receiving order. Check your current receiving position; your joining number is unchanged.',fr:'L’ordre de réception de cette file a été ajusté par une priorité administrative. Consultez votre position actuelle ; votre numéro d’arrivée est conservé.'} as const;
 type Title = keyof typeof titles;
 export function notificationTitle(key: string, locale: Locale) {
   return Object.hasOwn(titles,key) ? titles[key as Title][locale] : locale === 'fr' ? 'Notification' : 'Notification';
@@ -16,6 +17,7 @@ export function notificationTitle(key: string, locale: Locale) {
 /** Translate known product templates at display time, preserving immutable
  * messages and exact amounts. Free-form staff content retains its authored text. */
 export function notificationBody(key: string, body: string, locale: Locale) {
+  if(key==='account_update'&&(body===queueAdjustmentCopy.en||body===queueAdjustmentCopy.fr))return queueAdjustmentCopy[locale];
   if (locale === 'en' || key === 'admin_message') return body;
   if (key === 'gift_sent') {
     const match = /^(.*) gift confirmed\. You joined the receiver queue\.$/.exec(body);
