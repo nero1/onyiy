@@ -1,6 +1,6 @@
 # How Gifters World works
 
-For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v76.md).
+For installation, use [SETUP](SETUP.md). Requirements live in [PRD](PRD.md); progress belongs in [current status](PROJECT-STATUS_v77.md).
 
 ## Main parts
 
@@ -131,7 +131,7 @@ Native flows are staged behind **disabled web and signer financial-readiness gat
 - Relevant named manual checks cover rollback/replay, concurrent admission, missing-wallet liabilities, rejected withdrawals, account isolation, cache expiry/outage, signing recovery and exact restore. Use isolated data and preserve failed evidence. Never reset a shared source to repeat a check.
 - Hosted Google, Upstash, RPC, alerts, mobile performance and release readiness require observations on the selected services. Health/compilation alone do not satisfy them.
 - Keep **five core docs** plus the two explicitly requested bug trackers. Use clear lists/tables and short explanations; update current facts instead of appending repeated history. Only add a document when explicitly requested or essential. Prior versions remain in Git.
-- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v76.md) records the exact continuation boundary.
+- Application work has resumed through Phase Two and final fixes. [LLM handover](LLM-HANDOVER_v77.md) records the exact continuation boundary.
 
 - Phase Two recovery uses signed inventory contract4: timestamps retain PostgreSQL microseconds in paging/row checksums, and permission-group attributes/membership are checked. Contract3 archives require release `6c323dc43c45efa1957308e467ce06e7cc0b36c0`. Contract2 archives require their matching release (the preceding release is `25a5073d30974bcf8b02814bc81181e3a147d15c`). Keep original archives, keys and release references.
 - In the transparent profile, platform positions and priority exceptions are labelled or disabled. Joining numbers stay fixed; the displayed receiving position reflects actual order. Potential receipts depend on later confirmed gifts and are never guaranteed. Account publication is optional and revocable; test/simulation records do not become real-payment stories.

@@ -1,4 +1,4 @@
-# Project status v76
+# Project status v77
 
 **Phase One/Two is incomplete.** Four mainnets/eight protocols are implemented; all seven member-asset procedures now cover incoming payments, refunds, withdrawals, company settlements and sweeps locally. Generated endpoints/contracts are fixtures. Actual providers, custody, hosted operation and observation periods remain unverified. Continue without milestone approval pauses; owner launch inputs are deferred to final testing.
 
@@ -9,7 +9,7 @@
 | C001 | Mainnet | Runtime, wallet/signing and seven-asset local lifecycle work. Finish edge cases and actual launch acceptance. |
 | C002 | Shared database/preview | One active financial mode and public-only Preview pass locally. Verify hosted promotion/permissions. |
 | C003 | Custody | Encrypted four-key package and isolated worker→separate web settlement work. Verify the actual protected host and keys. |
-| C004 | Payment matrix | All seven basic lifecycles, company settlements and sweeps pass. SOL/SPL/TRC20 refund expiry and EVM replacement preparation now pass locally. Finish full replacement persistence/restart, wider reorg and failure/account-setup variants. |
+| C004 | Payment matrix | All seven basic lifecycles, company settlements and sweeps pass. SOL/SPL/TRC20 refund expiry and EVM replacement preparation now pass locally. ETH/BNB-token replacement persistence and fresh-process settlement also pass locally. Finish wider family/asset reorg, restart and failure/account-setup variants. |
 | C005 | Provenance | Owner must verify real contracts/mints/decimals and independent RPCs. Generated JAGA is not real provenance; keep unverified assets disabled. |
 | C006 | Pricing | Fixed/derived activation, replay and signed-price checks pass locally. Verify actual feed operation and full price-change scenarios. |
 | C007 | UI/wallets | Seven canonical sends/eight protocols, saved locale, narrow EN/FR and wallet-safe updates pass locally. Finish devices, actual wallets and accessibility review. |
@@ -26,7 +26,7 @@
 
 ## Current delivery
 
-Branch `feat/mainnet-expiry-replacement`, based on PR74 merge `15588830f57b7d13572082c7d748b7905132d527`. PR74 exact headfe99e83 passed push39088138512 / PR39088144256. PR70 added managed restore/client compatibility; PR71 added policy-bound automatic backups; PR72 protected all wallet prompts from reload. Git history retains their detailed evidence.
+Branch `feat/mainnet-worker-recovery`, based on PR75 merge `156ba5e4fbd538bd72f4e789abe94cdaf61d7098`. PR75 exact heada70853b passed push39088579451 / PR39088586279. PR70 added managed restore/client compatibility; PR71 added policy-bound automatic backups; PR72 protected all wallet prompts from reload. Git history retains their detailed evidence.
 
 New read-only correction: an obligation can retain internal `signing` while its durable attempt is signed/broadcast. Recent and paginated member reads add `display_status`; EN/FR displays the recorded progress. Raw financial status, actions, history, wire compatibility and schema remain unchanged. The recorded transaction hash is also shown. `native-lifecycle-v74/send-status-r2` passes funded claim/signed/broadcast progression, old-code baseline, member isolation and unchanged obligation/attempt/ledger hashes. `send-status-browser-r1` passes production Chromium390px EN/FR recent and paginated views with the exact retained hash; no API interception or financial mutations. Required checks, production build and bundle budgets pass locally.
 
@@ -74,4 +74,14 @@ Preserve failed originals. Notable fixture corrections: ETH omitted transport lo
 - `replacement-eth-r2` (native) and `replacement-bnb-r1` (18-decimal token) exercise the actual EVM replacement preparation with generated signatures and amounts above safe JavaScript integer precision. They preserve nonce/recipient/principal/calldata/gas limit, wait30 blocks, bump10% within the approved25% budget, and reject changed destination, contradictory/confirmed evidence and excess fees. No broadcast or replacement persistence is claimed. Preserve ETHr1: it exercised generic token intent on Ethereum, not the intended native case.
 - ETH post-withdrawal reorg procedure `eth-reorg-r2` passes: absence/provider outage cannot book loss; positively replaced canonical block creates one retained review, freezes spending, preserves allocations and rejects evidence rewrite; reconfirmation restores cash/points once. Preserve r1: it correctly hit the asset safety fence, but the harness expected the wrong error name. Its committed review and original financial database remain unchanged; r2 uses a fresh database.
 
-v76
+v77
+
+## Durable EVM replacement follow-up (v77)
+
+`native-lifecycle-v74/eth-replacement-r2` and `bnb-replacement-r3` pass actual encrypted worker replacement persistence, broadcast and separate authenticated web settlement. A same-nonce replacement retains recipient/principal/calldata/gas limit, uses a higher approved fee and records its predecessor before broadcast. The pending refund stays held until one canonical winner settles; replays create no further sends/signatures/postings. Three total attempts include the earlier failed-refund attempt, the replaced attempt and its winner; only the failed receipt and winner consume gas. All transports and contracts remain generated fixtures.
+
+Preserve failed originals: ETHr1 hid the pending hash from the block list but failed to recompute its transaction indexes, correctly preventing contradictory settlement. BNB r1/r2 advanced the fixture height before the real5-second height cache expired, so the worker safely rebroadcast instead of creating an early replacement. BNB r3 waits for that cache normally; no application safety rule was weakened.
+
+Fresh-process continuation passes on `eth-restart-r3` and `bnb-restart-r1`: an asynchronous, newly started actual worker observes and settles the durable replacement through the separate authenticated web without another signature/broadcast. The bootstrap maps declared generated transports only; domain gates and API responses are real. Independent `replacement-integrity-r1` reads pass across both regular and both fresh-process databases: exactly one failed/superseded/confirmed attempt each, one linked replacement, two gas journals, one settled refund and zero unbalanced journals. ETH restart r1 used a synchronous child while its parent hosted RPC fixtures; r2 lacked the child’s declared generated transport initialization. Keep both original financial databases/logs; corrections use fresh targets and an asynchronous child with explicit transport bootstrap.
+
+v77
