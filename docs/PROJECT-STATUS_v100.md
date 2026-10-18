@@ -1,4 +1,4 @@
-# Project status v99
+# Project status v100
 
 **Phase One/Two remains incomplete.** Four mainnets/eight asset protocols are implemented. Seven member assets pass local incoming/refund/withdrawal/company/sweep procedures. Public RPC identities match; hosted payments and observation periods are unverified. Continue without milestone approval pauses. Owner launch inputs remain deferred to final testing.
 
@@ -26,9 +26,12 @@
 
 ## Current delivery
 
-Branch `feat/staff-permission-acceptance`, base [PR97](https://github.com/nero1/onyiy/pull/97) merge `b62f916`. PR97 heade6fe832 passed push39152969193 / PR39153003961. P1-103 restores administrator read-only previews for disabled staff features through account settings. Normal disabled feature URLs remain404; private reads require real admin authentication/MFA and writes remain blocked.
+Branch `feat/native-wallet-route-gate`, base [PR98](https://github.com/nero1/onyiy/pull/98) merge `20ac3de`. PR98 head418a551 passed push39153944046 / PR39153964977. P1-104 applies the wallet feature gate to `/wallet/crypto`; P1-105 restricts that native route to testnet/mainnet rather than showing testnet in simulation. No schema or financial-rule change.
 
 ## Current verification
+
+`wallet-route-v100/baseline-r1` reproduces disabled `/wallet`/history404 while the native path returns200; `simulation-baseline-r1` reproduces its incorrect Testnet wallet heading in simulation. Final production `fixed-r2` verifies all three native-mode wallet paths404 when disabled and200 after actual restricted admin-service enablement. `simulation-fixed-r1` keeps the GIV wallet200 and native URL404. `testnet-fixture-r1` preserves the historical six-receipt source, upgrades only a fresh clone with reviewed006 and verifies seven receipts; `testnet-route-r1` verifies all enabled wallet paths200 and correct testnet heading. `integrity-r1` confirms mainnet source/two-copy and testnet source/upgraded-copy financial equality. All original fixtures/keys remain retained. Required/build/bundle checks pass locally; no live provider/sending acceptance is inferred.
+
 
 `staff-permissions-v99/contract-r1`/`contract-r2` pass genuine-session/CSRF TOTP enrollment, fresh staff authentication, member/moderator/admin read access, moderator privileged-write denial, actual suspend/restore/admin ban/restore, session revocation and feature off/on rules. `baseline-r3`/`browser-baseline-r1` reproduce blocked admin moderation reads and missing disabled-feature preview access. Fresh `fixed-r4` verifies admin-only read exceptions with all disabled writes/moderator reads still denied. `browser-fixed-r1` passes production Chromium390px EN/FR real settings/case reads, disabled valid-input controls, normal feature404s and no member preview navigation/data. `integrity-r1` confirms source/four-copy financial equality. Generated TOTP/session evidence does not prove real Google, physical authenticators or hosted acceptance. Required/build/bundle checks pass locally; GitHub records final CI/merge.
 
@@ -97,9 +100,9 @@ Public read-only evidence in `public-network-v79`: four expected network identit
 ## Release and preservation rules
 
 - Fresh install: paste only `packages/db/fresh-install.sql`. Seven receipts; immutable SQL000–005; SQL006 queue fix. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 standalone indexes. No DDL in this batch.
-- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v99.md) retain references/key-handling rules.
+- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v100.md) retain references/key-handling rules.
 - Hashes bind actual database identity. Keep historical obligation/attempt snapshots. Rotate request/auth keys on restore, retain original MFA/custody/payload keys, reconcile chains and obtain fresh approvals/alert acknowledgements before publication.
 - Preserve all failed/successful financial fixtures, archives and keys. Corrections use fresh targets. SPL’s inherited console captions contain an old amount typo; integer assertions/rows are authoritative. Prior failed harness/transport/index/cache attempts remain in their original roots.
 - Five core guides plus two requested versioned trackers. Keep current facts concise; history is in Git. Both CI events must pass the exact final head before merge. Named manual procedures/required checks are authorized; broad automated suite remains deferred. Continue without approval pauses; do not claim100%.
 
-v99
+v100
