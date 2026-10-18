@@ -1,4 +1,4 @@
-# Project status v91
+# Project status v92
 
 **Phase One/Two remains incomplete.** Four mainnets/eight asset protocols are implemented. Seven member assets pass local incoming/refund/withdrawal/company/sweep procedures. Public RPC identities match; hosted payments and observation periods are unverified. Continue without milestone approval pauses. Owner launch inputs remain deferred to final testing.
 
@@ -13,7 +13,7 @@
 | C005 | Provenance/RPCs | Public network IDs match. Real contracts/mints/decimals and independent configured RPCs require verification; generated JAGA is not provenance. Unverified assets stay disabled. |
 | C006 | Prices/fees | Signed-feed rejection/replay, seven-asset gas changes and three-family quote expiry pass locally. Actual feed and wider price/cost variants remain. |
 | C007 | UI/wallets | Eight protocol preparations/seven wallet sends, narrow EN/FR, preferences and wallet-safe reload pass locally. Shared receipt/history/error/offline-language fixes pass locally; finish physical devices/wallets/accessibility. |
-| C008 | Recovery | Exact encrypted restore, matching releases and database-bound approvals work. Retained pending ETH/SOL/SPL/TRC20 hashes recover locally. Generated ETH/BNB post-backup unknown transfers and fresh approved resumption pass. Finish other families, missing off-chain intent cases and hosted drills. |
+| C008 | Recovery | Exact encrypted restore, matching releases and database-bound approvals work. Retained pending ETH/SOL/SPL/TRC20 hashes recover locally. All seven member assets pass generated post-backup unknown-transfer reconciliation and fresh approved resumption. Missing off-chain intent cases, wider incidents and hosted drills remain. |
 | C009 | Identity | Mainnet session/TOTP/recovery/refresh/logout, closed MFA limit and ingress checks pass locally. Finish actual Google/CAPTCHA, physical authenticator and broader permissions/rate/hosted acceptance. |
 | C010 | Product | History, public activity and own-case pagination/read quotas pass locally. Continue the full current-PRD/public/admin/flags/accessibility audit. |
 | C011 | Operations | Protected signing/scheduling and opt-in policy-bound automatic encrypted backups exist. Verify real alert receiver, schedule/storage monitoring and incidents/closure. |
@@ -26,40 +26,31 @@
 
 ## Current delivery
 
-Branch `feat/plan-read-notice-errors`, base PR89 merge `f4e99b2abaf9a76d6c4d1b44e178a07ef4ce89a2`. PR89 headd048414 passed push39128923985 / PR39128932771 before merge. P1-091–092 are merged.
-
-- **P1-093:** plan reads preserve their real error instead of inventing raw `STEP_UP_REQUIRED`; starting a new read clears the old notice.
-- **P1-094:** six existing success/expiry notices in five portal components retain bilingual copy and render in the current language.
+Branch `feat/remaining-phase-two-audit`, base PR90 merge `9c804c6ca2cb12eb74a35dc46f77180f022e1e78`. PR90 head0b0d4c0 passed push39129344339 / PR39129353472 before merge. P1-089–094 are merged. Current work extends post-backup recovery evidence; it does not imply hosted acceptance.
 
 ## Current verification
 
-`plan-notices-v91/baseline-r1` reproduces raw invented `STEP_UP_REQUIRED` after an actual offline plan read in production Chromium390px; it remains raw after changing language. `fixed-r1` verifies current-language offline errors, immediate language change and real server step-up denial in production Chromium390px. `integrity-r1` confirms all four financial table fingerprints match the retained source. Required/build/bundle and final docs/secrets/whitespace checks pass. The fix uses the existing ephemeral notice hook; no authentication/API/financial policy changes. Success-copy adoption covers plan manager, native admin, operations, publication consent and release profiles; compilation/source review is distinct from acceptance of every successful staff workflow.
+All procedures below use generated keys/contracts/providers, actual restricted PostgreSQL roles, SDK signatures, encrypted archives and worker→separate web settlement. They do not establish live provider/custody/provenance acceptance.
 
+| Member asset | Full post-backup procedure under `post-backup-v87` | Independent integrity |
+|---|---|---|
+| ETH | `eth-unknown-r4` | `integrity-r4` |
+| BNB | `bnb-unknown-r3` | `bnb-integrity-r3` |
+| USDT BNB18 | `usdt-bnb-unknown-r2` | `usdt_bnb-integrity-check-r1` |
+| Generated JAGA BNB18 | `jaga-bnb-unknown-r1` | `jaga_bnb-integrity-check-r1` |
+| SOL | `sol-unknown-r2` | `sol-integrity-r2` |
+| USDT SOL | `spl-unknown-r1` | `spl-integrity-r1` |
+| USDT TRON | `tron-unknown-r1` | `tron-integrity-r1` |
 
-`post-backup-v87/bnb-unknown-r3` passes the full fresh encrypted restore, saved-hash/no-custody recovery, unknown outgoing/incoming review, proof-denial/no-write checks, full reconciliation at height146/tip160/depth15, fresh target approvals/alert/price/custody and one newly confirmed withdrawal at nonce3. `bnb-integrity-r3` independently verifies source/target attempts, gas, one loss/resolution, incoming liability and balanced journals. Source/archive remain unchanged. Retain r1 (finalized-tag model), r2 (actual old depth-cutoff failure), and all original keys/packets. Final `scan-check-all-r1`, `scan-build-r1`, `scan-bundle-r1`, docs/secrets/whitespace checks pass.
+**All seven pass:** pending encrypted-refund archive, fresh empty-target restore/exact verification, changed database/source-approval and old worker-key denial, unavailable-custody/missing-index holds, once-only saved-hash settlement without rebroadcast, unknown outgoing/incoming review, invalid confirmation/missing proof without accounting entries, typed company loss, full custody reconciliation, retained original-sender liability and one newly confirmed payout only after fresh target approvals/alert/price/custody. Source/archive remain unchanged. Independent reads verify attempts, gas, one loss/resolution, incoming liability and balanced journals; token cases also verify separate native-fee and token cash balances. Missing off-chain member intents are not reconstructed or marked paid.
 
+- BNB/token models: archive tip128, new events129, depth15 cutoff146/tip160; fresh payout nonce3. Failed BNB r2 reproduces the old cutoff defect; r3 passes without resetting it.
+- SOL/SPL: archive tip112, new signed events113, common finalized balance witness125; new payout126/finalized138. Existing ATAs are used for SPL; separate ATA creation/rent evidence remains below.
+- TRC20: archive latest112/solid100, saved refund113, new events114, common solid witness125; fresh payout127/solid138, with valid earlier reference blocks.
+- `sol-balance-boundaries-r1` passes13 SOL/SPL witness cases; `tron-balance-boundaries-r1` passes15 TRX/TRC20 cases. Sending stays disabled. Cases cover common newer cutoffs, differing heights/slots/balances/hashes, stale context, movement during TRON reads, malformed token balances and SPL decimals. A later balance cannot impersonate an earlier legacy cutoff.
+- Retain every failed/weaker source and packet. Sol r1 was rejected on an occupied source name before mutation; USDT BNB r1 incorrectly expected one heartbeat pause instead of two registered assets. Corrected runs use fresh databases. Harness mistakes are not application defects.
 
-`post-backup-v87/bnb-depth-scan-baseline-r1` reproduces exact-depth canonical acceptance versus scan rejection; `empty-block-quorum-baseline-r1` reproduces advancement despite different provider block hashes. Corrected depth15 and depth1 boundary procedures reject too-early/lagging/wrong-network/different-hash evidence and accept exactly15 confirmations. `empty-block-families-r1` passes matching/mismatched SOL/SPL/TRX/TRC20 blocks plus agreed/contradictory Solana skipped slots, preserving read-only page contracts and Solana v1 reads. No schema/archive or public response changes.
-
-
-`post-backup-v87/eth-unknown-r4` repeats the complete fresh restore/reconciliation/resumption after P1-090. Wrong typed confirmation and unavailable canonical outgoing proof create no resolution, journal or posting; restored provider observations then permit valid review and once-only resumption. `integrity-r4` independently verifies source/target attempts, settled hashes, actual gas, one loss/resolution, full incoming liability and balanced journals. Retain failed r3: the invocation omitted the generated transport loader and stopped at alert setup, before the new cases. No original financial fixture was reset.
-
-
-**P1-090:** copied loss reviews now reject foreign database bindings before provider verification or accounting. The actual retained clone reproduces the missing guard; restricted-role rejection/original-target replay and independent source/target integrity pass. Newly restored databases must use fresh checkpoints/scans.
-
-
-`post-backup-v87/eth-unknown-r2` passes an actual encrypted pending-refund restore, missing-index hold, later once-only known-hash settlement, and generated post-backup unknown outgoing/incoming reconciliation. Typed company-loss review books principal/gas once; incoming funds remain an original-sender liability. A fresh full scan reconciles independently modeled custody, then fresh database-bound approvals, alert acknowledgement, price and encrypted custody permit one newly confirmed withdrawal at nonce3. Source/archive bytes stay unchanged; no saved transfer is rebroadcast. The model uses archive tip112, new events113 and finalized125; retained r1 used a weaker timeline/nonce model. This does not reconstruct missing off-chain intents or prove hosted providers. P1-089 fixes the resulting stale unresolved review display; raw history is preserved. Restricted-role baseline/fixed and fresh-clone boundary checks pass; newer, insufficient-height and other-binding reviews remain visible. Required checks and production build are recorded in `post-backup-v87`.
-
-
-Under `notices-v86`, `native-baseline-r1` reproduces stale French error text after an offline English switch. `simulation-fixed-r2` passes production Chromium390px error translation/completed reconnection with unchanged financial/point fingerprints, using a blocked read without response substitution. `native-fixed-r2` observes successful portfolio responses, passes offline language/recovery and preserves operation warnings after a successful refresh; malformed existing-payment input is rejected without a send. `financial-integrity-r1` verifies unchanged native financial fingerprints against retained source copies. Final `check-all-r4`, `build-r4` and `bundle-r4` pass. Preserve failed/intermediate logs; sampled browser checks do not replace physical staff/device acceptance.
-
-Under `fee-variance-v86` (generated keys/contracts/providers only):
-
-- `{eth,bnb,usdt_bnb,jaga_bnb,sol,usdt_sol,usdt_tron}-r1` all pass above-tolerance pre-sign fee changes: unchanged original approved amounts, held `awaiting_requote`, no old signature/gas charge, once-only release, linked fresh quote, explicit confirmation and actual settlement/unused-fee return. Existing refund/company/sweep checks also pass. `integrity-r1` independently verifies zero old attempts, one final confirmed attempt, one release/new hold, five total attempts/gas journals and balanced ledgers.
-- `expiry-{eth,usdt_sol,usdt_tron}-r1` pass an actual elapsed one-minute quote under a deliberately short isolated policy. Financial timestamps remain untouched; fresh signed prices remove stale-rate ambiguity. Unsigned expired quotes pause with amounts/holds intact; linked fresh quotes need confirmation before settlement. `expiry-integrity-r1` verifies renewal after old expiry, preserved costs/net, once-only journals and balances. Production quote settings and rollout observation periods are unchanged.
-- `price-contract-r1` rejects wrong key/environment/network, native-rate mismatch, stale/future/expired documents; exact valid replay returns one immutable quote. Financial fingerprints stay unchanged. No external price source or real JAGA provenance is approved by these cases.
-
-Earlier `member-cases-v85` browser/rate/cursor checks and unchanged-financial fingerprints passed before PR84 merge. Their detailed evidence remains in Git.
+PR90 required/build/bundle and production browser checks passed before merge. Earlier fee-variance, quote-expiry, signed-price, support-recovery and UI evidence remains in the [merged v91 status](https://github.com/nero1/onyiy/blob/9c804c6ca2cb12eb74a35dc46f77180f022e1e78/docs/PROJECT-STATUS_v91.md). This evidence-only batch needs docs/secrets/whitespace checks and both exact-head CI events before merge.
 
 ## Financial evidence
 
@@ -91,9 +82,9 @@ Public read-only evidence in `public-network-v79`: four expected network identit
 ## Release and preservation rules
 
 - Fresh install: paste only `packages/db/fresh-install.sql`. Seven receipts; immutable SQL000–005; SQL006 queue fix. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 standalone indexes. No DDL in this batch.
-- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v91.md) retain references/key-handling rules.
+- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v92.md) retain references/key-handling rules.
 - Hashes bind actual database identity. Keep historical obligation/attempt snapshots. Rotate request/auth keys on restore, retain original MFA/custody/payload keys, reconcile chains and obtain fresh approvals/alert acknowledgements before publication.
 - Preserve all failed/successful financial fixtures, archives and keys. Corrections use fresh targets. SPL’s inherited console captions contain an old amount typo; integer assertions/rows are authoritative. Prior failed harness/transport/index/cache attempts remain in their original roots.
 - Five core guides plus two requested versioned trackers. Keep current facts concise; history is in Git. Both CI events must pass the exact final head before merge. Named manual procedures/required checks are authorized; broad automated suite remains deferred. Continue without approval pauses; do not claim100%.
 
-v91
+v92

@@ -1,8 +1,8 @@
-# LLM handover v91
+# LLM handover v92
 
 ## Owner direction
 
-Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v91.md).
+Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v92.md).
 
 - Keep five core guides plus the two explicitly requested bug trackers. Rename the four versioned files together; fold new human guidance into these guides. SETUP stays concise, newbie-friendly, web UI only, with manual SQL paste.
 - Reuse existing provider accounts/resources and database names; one financially active mode per shared database. Preview uses public-only credentials.
@@ -11,7 +11,7 @@ Complete every Phase One/Two requirement, including real-money support and bugs.
 
 ## Repository and tooling
 
-`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/plan-read-notice-errors`, base PR89 merge `f4e99b2abaf9a76d6c4d1b44e178a07ef4ce89a2`. PR89 headd048414 passed push39128923985 / PR39128932771 before merge.
+`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/remaining-phase-two-audit`, base PR90 merge `9c804c6ca2cb12eb74a35dc46f77180f022e1e78`. PR90 head0b0d4c0 passed push39129344339 / PR39129353472 before merge.
 
 - Read AGENTS and relevant Next16 documentation before relevant code edits. Node22: `/workspace/work/tooling/node-v22.23.3-linux-x64/bin`; PostgreSQL tools: `/workspace/work/tooling/pg-tls/bin`.
 - Owned PostgreSQL:55450, data `/workspace/work/shared-hosting-v50/pgdata`; public CA `server.crt` in that directory. Never read its private TLS key. Owner/runtime roles: `gw_v50_owner` / `gw_v50_runtime`. Preserve original failed `gw_v27_native_refund_isolated`; stopped cross-host55455/55456 retain data.
@@ -49,15 +49,17 @@ Owned PostgreSQL runs with TLS on55450; restart must explicitly retain port/TLS 
 
 ## Archive/schema essentials
 
-- Current direct installer records seven receipts; SQL000–005 bytes are immutable, SQL006 only fixes queue parameter ambiguity. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 indexes. No DDL is needed for the current display fix.
+- Current direct installer records seven receipts; SQL000–005 bytes are immutable, SQL006 only fixes queue parameter ambiguity. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 indexes. No DDL in the current audit.
 - Recovery contract4 also checks migration fingerprints. Pre-006 contract4 requires matching PR65 `0ea4cf5e62a0ef7e7f83c26c1a512d6935775ac3`, then reviewed forward upgrade. Older v3: PR53 `6c323dc`; v2: `25a507`. Never rewrite/re-sign packets.
 - Preserve `production-v55/production-foundation-v55-r1.gwbackup` and `cross-host-r1/archive.key`; `mainnet-recovery-v63/mainnet-isolated-r2.gwbackup` / `.key`; current-seven `browser-recovery-v69/mainnet-seven-migrations-r1.gwbackup` / `.key`. Keys in the last two pairs are raw32 bytes; the original cross-host key is encoded text. New packets/keys stay under their named procedure roots.
 - Request replay state is excluded; fresh request/auth keys are needed before publication. Retained MFA/custody/payload encryption keys remain necessary. `archive_record_keys` audit additions are expected; compare exact additions, not a blanket unchanged-table assertion.
 
 ## Continue
 
-P1-089/090 merged in PR86/87 after both exact-head CI events. Full fresh `post-backup-v87/eth-unknown-r4` passes denial without accounting changes, then valid reconciliation and fresh approved resumption; `integrity-r4` independently passes. Failed r3 omitted the generated transport loader; retain its source/log untouched. P1-091 aligns depth-mode scan finality with canonical verification; P1-092 compares provider hashes even for empty/exhausted blocks. Boundary and SOL/SPL/TRX/TRC20 empty/skip procedures pass; retain all baselines under `post-backup-v87`. BNB r1 uses finalized-tag modeling; r2 uses depth15 and reproduces the old cutoff failure. Fresh r3 passes full restore/reconciliation and a newly confirmed nonce3 withdrawal at the exact depth15 cutoff, without resetting either source. Independent `bnb-integrity-r3`, required/build/bundle and final docs/secrets checks pass. PR89 is merged after both exact-head CI events. Current P1-093 fixes invented plan read errors; P1-094 preserves six bilingual success/expiry notices across five components. Production browser baseline is under `plan-notices-v91`; corrected production browser and four-table financial integrity pass, as do required/build/bundle/docs/secrets/whitespace checks. Publish the reviewed tree and require both exact-head CI events before merge, then continue the remaining audit. Continue C004/C008 other chain families, missing off-chain intent handling and C010 full current-PRD/public/admin/flags/accessibility audit. The historical295-row/current392-keyword scratch files are not whole-product acceptance.
+P1-089–094 are merged through PR90 after both exact-head CI events. All seven full post-backup procedures and independent integrity checks now pass under `post-backup-v87`; use the compact matrix in status for exact names. Token checks separately verify native gas and token cash. Thirteen SOL/SPL and15 TRX/TRC20 read-only balance-witness boundaries pass. Keep every original/failed source, packet, key and log; Sol r1 source-name and token r1 pause-count errors are retained harness mistakes, with fresh corrected fixtures.
+
+Publish this evidence-only v92 batch after docs/secrets/whitespace checks and both exact-head CI events. Then continue missing off-chain intent/incident handling and the full current-PRD/public/admin/flags/accessibility audit. No owner/provider/device/hosting acceptance or elapsed observation follows from generated fixtures. The historical295-row/current392-keyword scratch files are not whole-product acceptance.
 
 Owner inputs remain deferred. Continue independent work without asking again; actual provider/custody/Google/CAPTCHA/devices/alerts/hosting/costs and wider post-backup recovery and14+14-day observation remain unverified. Do not stop after a checked merge or claim production100%.
 
-v91
+v92
