@@ -1,6 +1,6 @@
-# Bug fix plan — Rounds One/Two/Three v93
+# Bug fix plan — Rounds One/Two/Three v94
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v93.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v94.md).
 
 Updated: **18 October2026 (Africa/Lagos)**.
 
@@ -108,17 +108,18 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 92. **P1-092 — Empty scan pages hide provider block-hash disagreement.** (High; defect) — Fixed; local cross-family checks pass; full release evidence is tracked in status.
 93. **P1-093 — Plan read failures invent raw reauthentication errors.** (Medium; defect) — Fixed; baseline/corrected production browser and unchanged financial fingerprints pass; final CI/merge is tracked in GitHub.
 94. **P1-094 — Completed portal notices retain the old language.** (Low; defect) — Bilingual copy retained for current-language rendering; source/compilation acceptance is tracked separately from every staff workflow.
+95. **P1-095 — Notification retry retains its old read/page error.** (Low; defect) — Fixed; production EN/FR browser, restricted contracts and unchanged financial fingerprints pass; GitHub tracks final CI/merge.
 
 ## Current implementation order
 
 1. Finish C004 remaining native failure/account-setup/reorg/restart variants and C008 recovery reconciliation.
 2. Complete C010 current-PRD coverage, including public/admin/flags/accessibility; local financial procedures are partial evidence.
 3. Verify hosted services, custody, identity, provenance, operations/costs and observation periods after the owner supplies deferred launch setup.
-4. Keep substantial batches moving; both exact-head CI events must pass before each merge. Current evidence and remaining scope: [status](PROJECT-STATUS_v93.md).
+4. Keep substantial batches moving; both exact-head CI events must pass before each merge. Current evidence and remaining scope: [status](PROJECT-STATUS_v94.md).
 
 ## Fix and acceptance reference
 
-These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v93.md).
+These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v94.md).
 
 ### 1: BUG P1-001: Expired or dismissed native invoices prevent another checkout
 
@@ -498,7 +499,7 @@ These are named manual checks, not instructions to add an automated test suite. 
 - Use fresh isolated fixtures and rollback-only generated records where possible. Keep original financial sources, failed fixtures, signed bytes, archives and keys.
 - Run relevant verification and required checks; record what actually ran. Both exact-final-head **push** and **pull_request** CI must succeed before merge. No direct pushes to main.
 - Keep five core docs plus these two requested trackers. Rename status, handover, report and plan together. Fold decisions into existing files; keep old versions in Git.
-- See [current status](PROJECT-STATUS_v93.md) for release evidence and [handover](LLM-HANDOVER_v93.md) for the exact stop boundary.
+- See [current status](PROJECT-STATUS_v94.md) for release evidence and [handover](LLM-HANDOVER_v94.md) for the exact stop boundary.
 
 Signed: **16 October 2026 at 09:21:01 PM WAT**.
 
@@ -509,7 +510,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v93.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v94.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -529,7 +530,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v93.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v94.md).
 
 
 
@@ -550,7 +551,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Current completion and delivery
 
-Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v93.md) and [handover](LLM-HANDOVER_v93.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-fix-plan_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
+Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v94.md) and [handover](LLM-HANDOVER_v94.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-fix-plan_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
 
 ### P1-075 — Solana v1 reads
 
@@ -647,3 +648,7 @@ Six status/success notices still stored an already translated string. Retain bil
 **Missing-intent safeguard:** `post-backup-v87/eth-missing-intent-r1` verifies that a known member wallet alone creates no inferred withdrawal, debit or payout receipt. Reviewed company loss remains separate from one subsequently authorized payout; original member/cycle/point state is preserved during review and the source/archive stay unchanged. This is conservative handling, not lost-request reconstruction. Combined incident-pause acceptance is tracked in status; no new application defect is asserted.
 
 **Combined incident acceptance:** fresh `eth-missing-intent-r3` passes plan-pause/replay/conflict, blocked checkout, unchanged financial rows/configuration hash during pause and settlement of the already approved payout while intake stays paused. `missing-intent-incident-integrity-r1` verifies balances, one authorized own receipt, retained raw history/current unresolved separation and one pause audit. Failed r2 remains intact; it stopped on a fixture variable shadow. Runtime/schema are unchanged.
+
+### P1-095 — Recovered notification errors remain visible
+
+A successful retry marked the notice read but left the earlier error visible. Clear the notice for new open/read/page actions and ignore older error responses after a newer action or identity reset. Preserve server read/view semantics and all request bodies. `notification-audit-v94/browser-baseline-r1` reproduces the error; corrected production Chromium390px verifies actual HTTP200 read/page recovery and EN/FR translation. Restricted `contract-r1` verifies201 same-microsecond rows, ownership/cursor/feature gates and distinct viewed/read behavior. `integrity-r1` confirms unchanged financial fingerprints. Required/build/bundle/docs/secrets checks pass; original fixtures remain retained.

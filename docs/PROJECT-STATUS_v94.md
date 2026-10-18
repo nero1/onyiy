@@ -1,4 +1,4 @@
-# Project status v93
+# Project status v94
 
 **Phase One/Two remains incomplete.** Four mainnets/eight asset protocols are implemented. Seven member assets pass local incoming/refund/withdrawal/company/sweep procedures. Public RPC identities match; hosted payments and observation periods are unverified. Continue without milestone approval pauses. Owner launch inputs remain deferred to final testing.
 
@@ -15,7 +15,7 @@
 | C007 | UI/wallets | Eight protocol preparations/seven wallet sends, narrow EN/FR, preferences and wallet-safe reload pass locally. Shared receipt/history/error/offline-language fixes pass locally; finish physical devices/wallets/accessibility. |
 | C008 | Recovery | Exact encrypted restore, matching releases and database-bound approvals work. Retained pending ETH/SOL/SPL/TRC20 hashes recover locally. All seven member assets pass generated post-backup unknown-transfer reconciliation and fresh approved resumption. Conservative registered-wallet/no-intent handling and intake-only pause also pass. Chosen incident/closure and hosted drills remain. |
 | C009 | Identity | Mainnet session/TOTP/recovery/refresh/logout, closed MFA limit and ingress checks pass locally. Finish actual Google/CAPTCHA, physical authenticator and broader permissions/rate/hosted acceptance. |
-| C010 | Product | History, public activity and own-case pagination/read quotas pass locally. Continue the full current-PRD/public/admin/flags/accessibility audit. |
+| C010 | Product | History, public activity, own-case pagination/read quotas and notification ownership/paging/view/read checks pass locally. Continue the full current-PRD/public/admin/flags/accessibility audit. |
 | C011 | Operations | Protected signing/scheduling and opt-in policy-bound automatic encrypted backups exist. Verify real alert receiver, schedule/storage monitoring and incidents/closure. |
 | C012 | Capacity/cost | Local build/bundle budgets pass. Measure hosted/mobile latency, quotas and operating costs. |
 | C013 | Observation | Actual14-day beta plus14-day initial-cap mainnet observation; none is recorded as elapsed acceptance. |
@@ -26,9 +26,12 @@
 
 ## Current delivery
 
-Branch `feat/missing-intent-incident-audit`, base PR91 merge `e5c7c7eba12119dbd4a4c4b5a3a9b9f57d32c913`. PR91 head951d4de passed push39131356781 / PR39131364287 before merge. P1-089–094 are merged; this evidence/guide batch changes no runtime or schema.
+Branch `feat/product-permission-history-audit`, base PR92 merge `3c781f00d3fcd18280387c76254d61411af8d41b`. PR92 headfba81e0 passed push39132713886 / PR39132721134 before merge. P1-095 clears recovered notification read/page errors and fences older error responses; no API/schema/financial changes.
 
 ## Current verification
+
+`notification-audit-v94/contract-r1` passes actual restricted paging of201 same-microsecond notices, cursor actor/limit/tamper binding, foreign RLS/read/seen denial, idempotent read, inbox-view/read distinction, monotonic seen markers, new red dot and disabled-feature denial. `browser-baseline-r1` reproduces a stale error after successful mark-read; `browser-fixed-r1` verifies actual HTTP200 read/page retries clear recovered errors, EN/FR translation, retained read/history state and390px layout. `integrity-r1` confirms four financial table fingerprints remain identical to the source across contract/baseline/fixed clones. Required/build/bundle/docs/secrets/whitespace checks pass. Preserve original fixtures.
+
 
 `post-backup-v87/eth-missing-intent-r1` passes an unknown outgoing transfer to an archived registered member wallet: no inferred withdrawal/debit/receipt; explicit company loss preserves member balances/cycles/points; one later freshly approved payout produces exactly one own receipt, excluding the unknown hash. Source/archive remain unchanged. This verifies conservative handling, not reconstruction of a missing request. Fresh `eth-missing-intent-r3` additionally passes normal plan-pause/replay/conflict, unchanged financial rows/configuration hash, blocked new checkout and actual encrypted-worker settlement of the previously approved payout while the plan remains paused. `missing-intent-incident-integrity-r1` independently verifies accounting, one own receipt excluding the unknown hash, preserved raw recovery history/current unresolved separation, original-sender liability and exactly one pause audit. Retain failed r2: a fixture variable shadow stopped its new-intake assertion after the real pause, leaving its payout approved; no reset or application bypass was used.
 
@@ -85,9 +88,9 @@ Public read-only evidence in `public-network-v79`: four expected network identit
 ## Release and preservation rules
 
 - Fresh install: paste only `packages/db/fresh-install.sql`. Seven receipts; immutable SQL000–005; SQL006 queue fix. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 standalone indexes. No DDL in this batch.
-- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v93.md) retain references/key-handling rules.
+- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v94.md) retain references/key-handling rules.
 - Hashes bind actual database identity. Keep historical obligation/attempt snapshots. Rotate request/auth keys on restore, retain original MFA/custody/payload keys, reconcile chains and obtain fresh approvals/alert acknowledgements before publication.
 - Preserve all failed/successful financial fixtures, archives and keys. Corrections use fresh targets. SPL’s inherited console captions contain an old amount typo; integer assertions/rows are authoritative. Prior failed harness/transport/index/cache attempts remain in their original roots.
 - Five core guides plus two requested versioned trackers. Keep current facts concise; history is in Git. Both CI events must pass the exact final head before merge. Named manual procedures/required checks are authorized; broad automated suite remains deferred. Continue without approval pauses; do not claim100%.
 
-v93
+v94
