@@ -1,6 +1,6 @@
-# Bug fix plan — Rounds One/Two/Three v90
+# Bug fix plan — Rounds One/Two/Three v91
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v90.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v91.md).
 
 Updated: **18 October2026 (Africa/Lagos)**.
 
@@ -106,17 +106,19 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 90. **P1-090 — Copied loss review lacks a database-target guard.** (High; defect) — Fixed, locally verified and merged in PR87.
 91. **P1-091 — Bounded scan requires an extra confirmation.** (Medium; defect) — Fixed; local boundary checks pass; full release evidence is tracked in status.
 92. **P1-092 — Empty scan pages hide provider block-hash disagreement.** (High; defect) — Fixed; local cross-family checks pass; full release evidence is tracked in status.
+93. **P1-093 — Plan read failures invent raw reauthentication errors.** (Medium; defect) — Fixed; baseline/corrected production browser and unchanged financial fingerprints pass; final CI/merge is tracked in GitHub.
+94. **P1-094 — Completed portal notices retain the old language.** (Low; defect) — Bilingual copy retained for current-language rendering; source/compilation acceptance is tracked separately from every staff workflow.
 
 ## Current implementation order
 
 1. Finish C004 remaining native failure/account-setup/reorg/restart variants and C008 recovery reconciliation.
 2. Complete C010 current-PRD coverage, including public/admin/flags/accessibility; local financial procedures are partial evidence.
 3. Verify hosted services, custody, identity, provenance, operations/costs and observation periods after the owner supplies deferred launch setup.
-4. Keep substantial batches moving; both exact-head CI events must pass before each merge. Current evidence and remaining scope: [status](PROJECT-STATUS_v90.md).
+4. Keep substantial batches moving; both exact-head CI events must pass before each merge. Current evidence and remaining scope: [status](PROJECT-STATUS_v91.md).
 
 ## Fix and acceptance reference
 
-These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v90.md).
+These are named manual checks, not instructions to add an automated test suite. Completed entries retain their intended fix and acceptance for future review. Files and original failures are in [the report](custom-bugs-report_v91.md).
 
 ### 1: BUG P1-001: Expired or dismissed native invoices prevent another checkout
 
@@ -496,7 +498,7 @@ These are named manual checks, not instructions to add an automated test suite. 
 - Use fresh isolated fixtures and rollback-only generated records where possible. Keep original financial sources, failed fixtures, signed bytes, archives and keys.
 - Run relevant verification and required checks; record what actually ran. Both exact-final-head **push** and **pull_request** CI must succeed before merge. No direct pushes to main.
 - Keep five core docs plus these two requested trackers. Rename status, handover, report and plan together. Fold decisions into existing files; keep old versions in Git.
-- See [current status](PROJECT-STATUS_v90.md) for release evidence and [handover](LLM-HANDOVER_v90.md) for the exact stop boundary.
+- See [current status](PROJECT-STATUS_v91.md) for release evidence and [handover](LLM-HANDOVER_v91.md) for the exact stop boundary.
 
 Signed: **16 October 2026 at 09:21:01 PM WAT**.
 
@@ -507,7 +509,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v90.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v91.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -527,7 +529,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v90.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v91.md).
 
 
 
@@ -548,7 +550,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Current completion and delivery
 
-Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v90.md) and [handover](LLM-HANDOVER_v90.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-fix-plan_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
+Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v91.md) and [handover](LLM-HANDOVER_v91.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-fix-plan_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
 
 ### P1-075 — Solana v1 reads
 
@@ -627,3 +629,13 @@ Canonical verification counts the block itself, but bounded scanning required on
 Empty/exhausted pages omit block hashes from their public cursors. Comparing only page results could advance despite different provider block hashes. Compare the separately retained hashes before returning any page, including SOL/SPL/TRX/TRC20 empty blocks; preserve the public page shape and agreed Solana skipped-slot behavior. `empty-block-quorum-baseline-r1`, corrected boundary cases and `empty-block-families-r1` reproduce/verify the fix. No accounting entry or final activation is inferred from an empty page.
 
 **Full corrected BNB procedure:** `post-backup-v87/bnb-unknown-r3` reaches the exact depth15 cutoff, reconciles unknown incoming/outgoing and resumes one fresh confirmed nonce3 withdrawal. `bnb-integrity-r3` independently passes. Original r1/r2 and all sources/packets/keys remain retained. Required checks, production build and bundle budgets pass; GitHub records final CI/merge.
+
+### P1-093 — Plan reads fabricate reauthentication errors
+
+Both Load and Load queue discarded the actual failure and displayed literal `STEP_UP_REQUIRED`, including for an offline request. Preserve the caught exception through the existing localized notice hook and clear old messages when a new read starts. `plan-notices-v91/baseline-r1` reproduces the raw code and frozen language in production Chromium390px using a genuine generated admin session. Actual server step-up requirements remain intact.
+
+### P1-094 — Success/expiry notices freeze their language
+
+Six status/success notices still stored an already translated string. Retain bilingual copy until render in plan manager, native admin, operations, publication consent and release profiles. Financial/API behavior and existing hooks stay unchanged. This is source-wide adoption with compilation checks, not a claim that every successful staff workflow has received physical/hosted acceptance.
+
+`plan-notices-v91/fixed-r1` verifies a real offline plan failure, immediate EN/FR error rendering and a genuine server step-up denial without bypassing authentication. `integrity-r1` verifies unchanged financial fingerprints. Required/build/bundle/docs/secrets/whitespace checks pass; original baseline/session fixture is retained.

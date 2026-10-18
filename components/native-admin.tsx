@@ -64,7 +64,7 @@ export default function NativeAdmin({
     setMessage("");
     try {
       await fn();
-      setMessage(fr ? "Action enregistrée." : "Action recorded.");
+      setMessage({copy:{fr:"Action enregistrée.",en:"Action recorded."}});
     } catch (e) {
       setMessage({error:e});
     } finally {

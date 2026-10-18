@@ -1,4 +1,4 @@
-# Project status v90
+# Project status v91
 
 **Phase One/Two remains incomplete.** Four mainnets/eight asset protocols are implemented. Seven member assets pass local incoming/refund/withdrawal/company/sweep procedures. Public RPC identities match; hosted payments and observation periods are unverified. Continue without milestone approval pauses. Owner launch inputs remain deferred to final testing.
 
@@ -26,12 +26,15 @@
 
 ## Current delivery
 
-Branch `feat/recovery-asset-variants`, base PR88 merge `91d22f5ddaee809e08eaab662120183ef7088a0b`. PR88 head666bf99 passed push39127864873 / PR39127872650 before merge. Current P1-091–092 correct scan confirmation counting and empty-block provider agreement.
+Branch `feat/plan-read-notice-errors`, base PR89 merge `f4e99b2abaf9a76d6c4d1b44e178a07ef4ce89a2`. PR89 headd048414 passed push39128923985 / PR39128932771 before merge. P1-091–092 are merged.
 
-- **P1-091:** depth-mode bounded scanning now uses the same confirmation count as canonical verification.
-- **P1-092:** scans compare provider block hashes even when no matching transfers appear, preserving the public page/cursor shape.
+- **P1-093:** plan reads preserve their real error instead of inventing raw `STEP_UP_REQUIRED`; starting a new read clears the old notice.
+- **P1-094:** six existing success/expiry notices in five portal components retain bilingual copy and render in the current language.
 
 ## Current verification
+
+`plan-notices-v91/baseline-r1` reproduces raw invented `STEP_UP_REQUIRED` after an actual offline plan read in production Chromium390px; it remains raw after changing language. `fixed-r1` verifies current-language offline errors, immediate language change and real server step-up denial in production Chromium390px. `integrity-r1` confirms all four financial table fingerprints match the retained source. Required/build/bundle and final docs/secrets/whitespace checks pass. The fix uses the existing ephemeral notice hook; no authentication/API/financial policy changes. Success-copy adoption covers plan manager, native admin, operations, publication consent and release profiles; compilation/source review is distinct from acceptance of every successful staff workflow.
+
 
 `post-backup-v87/bnb-unknown-r3` passes the full fresh encrypted restore, saved-hash/no-custody recovery, unknown outgoing/incoming review, proof-denial/no-write checks, full reconciliation at height146/tip160/depth15, fresh target approvals/alert/price/custody and one newly confirmed withdrawal at nonce3. `bnb-integrity-r3` independently verifies source/target attempts, gas, one loss/resolution, incoming liability and balanced journals. Source/archive remain unchanged. Retain r1 (finalized-tag model), r2 (actual old depth-cutoff failure), and all original keys/packets. Final `scan-check-all-r1`, `scan-build-r1`, `scan-bundle-r1`, docs/secrets/whitespace checks pass.
 
@@ -88,9 +91,9 @@ Public read-only evidence in `public-network-v79`: four expected network identit
 ## Release and preservation rules
 
 - Fresh install: paste only `packages/db/fresh-install.sql`. Seven receipts; immutable SQL000–005; SQL006 queue fix. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 standalone indexes. No DDL in this batch.
-- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v90.md) retain references/key-handling rules.
+- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v91.md) retain references/key-handling rules.
 - Hashes bind actual database identity. Keep historical obligation/attempt snapshots. Rotate request/auth keys on restore, retain original MFA/custody/payload keys, reconcile chains and obtain fresh approvals/alert acknowledgements before publication.
 - Preserve all failed/successful financial fixtures, archives and keys. Corrections use fresh targets. SPL’s inherited console captions contain an old amount typo; integer assertions/rows are authoritative. Prior failed harness/transport/index/cache attempts remain in their original roots.
 - Five core guides plus two requested versioned trackers. Keep current facts concise; history is in Git. Both CI events must pass the exact final head before merge. Named manual procedures/required checks are authorized; broad automated suite remains deferred. Continue without approval pauses; do not claim100%.
 
-v90
+v91
