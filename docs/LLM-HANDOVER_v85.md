@@ -1,8 +1,8 @@
-# LLM handover v84
+# LLM handover v85
 
 ## Owner direction
 
-Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v84.md).
+Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v85.md).
 
 - Keep five core guides plus the two explicitly requested bug trackers. Rename the four versioned files together; fold new human guidance into these guides. SETUP stays concise, newbie-friendly, web UI only, with manual SQL paste.
 - Reuse existing provider accounts/resources and database names; one financially active mode per shared database. Preview uses public-only credentials.
@@ -11,7 +11,7 @@ Complete every Phase One/Two requirement, including real-money support and bugs.
 
 ## Repository and tooling
 
-`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/oauth-callback-cleanup`, base PR82 merge `f37a1eb6e861582a671b3973b20c3e5142a2333d`. PR72 exact headf92f96e passed push39072511492 / PR39072520501. PR70/71/72 are merged; implementation/evidence summaries are in status and Git history.
+`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/member-case-pagination`, base PR83 merge `c606f4cc6c94a7aca2c290c8b499989d91c3e1f6`. PR72 exact headf92f96e passed push39072511492 / PR39072520501. PR70/71/72 are merged; implementation/evidence summaries are in status and Git history.
 
 - Read AGENTS and relevant Next16 documentation before relevant code edits. Node22: `/workspace/work/tooling/node-v22.23.3-linux-x64/bin`; PostgreSQL tools: `/workspace/work/tooling/pg-tls/bin`.
 - Owned PostgreSQL:55450, data `/workspace/work/shared-hosting-v50/pgdata`; public CA `server.crt` in that directory. Never read its private TLS key. Owner/runtime roles: `gw_v50_owner` / `gw_v50_runtime`. Preserve original failed `gw_v27_native_refund_isolated`; stopped cross-host55455/55456 retain data.
@@ -30,15 +30,13 @@ Complete every Phase One/Two requirement, including real-money support and bugs.
 
 ## Current work/evidence
 
-PR79 (`f1af8d7`), PR80 (`30ab691`) and PR81 (`dc3c325`) are merged after both exact-head CI events. PR81 head365186d passed push39106278519 / PR39106287179. It fixes P1-080: settled original-wallet earnings recovery appears in own receipts and verified activity/statistics, with `available_payable`, consent, historical-price, settlement and reorg checks retained.
+PR79–83 are merged after both exact-head CI events. Latest PR83 merge `c606f4c`, head0f50536: push39107336149 / PR39107344071. P1-080/081 restore settled support-recovery earnings to receipts/activity/statistics/recent wallet; seven-asset actual isolated recovery and independent journal/receipt/total checks pass. P1-082 clears transient OAuth state on failed302/429/503 paths without changing session/error status. P1-083 uses shared CAPTCHA defaults, fixing mainnet consent when overrides are unset. Generated settings/local checks are not real Google/Cloudflare/provider acceptance.
 
-Seven support-flow procedures in `product-audit-v81` pass actual quotes/proofs, encrypted worker/separate authenticated settlement and receipts. ETH uses `eth-support-r1`; the six other keys use `KEY-support-r1` and additionally reject wrong-wallet proof and changed confirmation body while accepting exact replay. All also complete refund/company/sweep checks. `recovery-matrix-integrity-r1` independently verifies five attempts/gas journals, four settlements, balanced journals, recorded recovery proof, exact receipt/hash and public totals with unchanged financial hashes. Generated JAGA is not real provenance. Preserve all generated databases/keys; do not reset.
+Current P1-084 adds own report/appeal pagination to fix newest100-only access. `ownCasesInput` is parsed on `/me/reports`; explicit own predicates remain; cursors use existing authenticated cursor utilities with separate own-collection scopes and exact timestamp/ID positions. Full microsecond cursor values are kept internal, not emitted in rows. Account UI pages collections independently and guards stale failures. No schema/financial change.
 
-Current P1-081 fixes recent-wallet omission of support recovery: include its kind/amount/hash and EN/FR label; suppress ordinary cancel/requote buttons for recovery. Baseline and corrected reads pass. Production Chromium390px EN/FR `recovery-wallet-browser-r1`, `wallet-check-all-r1`, `wallet-build-r1` and `wallet-bundle-r1` pass. Finish docs/secrets/whitespace checks and require both exact-head CI events before merge. Read Next16 use-client docs before further component edits.
+`member-cases-v85/baseline-r1` reproduces inaccessible older reports. `pagination-r1` verifies101 reports; `pagination-r3` verifies101 reports/101 appeals at tied microsecond timestamps, cursor account/collection/filter isolation, foreign-case exclusion and older-case token access. Failed r2 correctly hit immutable-case creation-time protection; retain it and all source fixtures. Fresh r3 inserts intended generated rows rather than rewriting old timestamps. The initial browser attempts exposed action quotas on GETs; retain their logs. The first error-language baseline did not reach its assertion; corrected `browser-language-baseline-r2` reproduced P1-086. Account errors now translate at render time, clear on identity changes and reject stale bootstrap/page/action results while preserving public bootstrap data. P1-085 classifies nonstaff GETs as reads before mutation categories. `read-quota-baseline-r1` reproduces sixth-read429 and `read-quota-fixed-r1` passes six reads while the sixth CSRF-protected report POST remains429. `browser-r2` passes EN/FR390px pagination/privacy and `integrity-r1` verifies unchanged financial hashes across all case/rate fixtures. Final `browser-language-fixed-r1` passes pagination plus offline error translation/data preservation and completed reconnection refresh. `check-all-r4`, `build-r4` and `bundle-r4` pass. Finish docs/secrets/whitespace checks, publish and require both exact-head CI events before merge. Relevant Next16 client/route guides have been read.
 
-The v81 activity eligibility/exclusion audit passed; the suspected member-count alias bug was ruled out by independent SQL. Generated `gw_v81_activity_r1/r2/r3` are retained. Owned PostgreSQL is running with TLS on55450 after environment restart; restarting must explicitly retain port/TLS options. Earlier receipt/history/offline browser and archive evidence remains in Git/status.
-
-PR82 merged (`f37a1eb`) after head6edee0b passed push39106801210 / PR39106811717. Current P1-082 expires OAuth state on failed GET callbacks at the final API response, preserving rate-limit/error status/body and session cookies. `auth-callback-v84/limited-callback-baseline-r1` reproduces the old429 omission; `limited-callback-fixed-r2` verifies302/429/503 cleanup and unrelated-route isolation with generated settings and no token exchange/financial changes. Source read the Next16 route-handler guide first. P1-083 also replaces bot-check's divergent provider fallback with shared `runtimeProviders()`: unset mainnet now selects Turnstile, matching SETUP. Baseline/fixed mainnet procedures and `captcha-simulation-regression-r2` pass. The first simulation script used a wrong generated username and is retained; r2 selects an actual generated active member without changing financial data. Final combined check-allr2/buildr2/bundler2 pass. Finish docs/secrets/whitespace checks, publish and require both exact-head CI events before merge. Do not treat this as real Google/CAPTCHA acceptance.
+Owned PostgreSQL is running with TLS on55450 after environment restart; restarting must explicitly retain port/TLS options. All generated financial databases/packets/keys remain intact. See status/Git history for earlier named browser, archive, lifecycle and auth evidence; no public funds were sent.
 
 ## Archive/schema essentials
 
@@ -53,8 +51,8 @@ P1-080 adds settled `recovery` earnings to receipt/activity/statistic reads, res
 
 ## Continue
 
-Finish the combined OAuth/CAPTCHA required/build/bundle/docs checks, publish the fixes and merge after both exact-head CI events. Then continue C004/C008 remaining variants and C010 full current-PRD/public/admin/flags/accessibility audit. The historical295-row and current392-keyword scratch files are not whole-product acceptance.
+Finish the member-case browser/required/build/bundle/docs checks, publish the fix and merge after both exact-head CI events. Then continue C004/C008 remaining variants and C010 full current-PRD/public/admin/flags/accessibility audit. The historical295-row and current392-keyword scratch files are not whole-product acceptance.
 
 Owner inputs remain deferred. Continue independent work without asking again; actual provider/custody/Google/CAPTCHA/devices/alerts/hosting/costs/post-backup reconciliation and14+14-day observation remain unverified. Do not stop after a checked merge or claim production100%.
 
-v84
+v85
