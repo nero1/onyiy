@@ -1,4 +1,4 @@
-import {solanaGenesis} from './network';
+import {solanaGenesis,solanaMaxSupportedTransactionVersion as maxSupportedTransactionVersion} from './network';
 import {scanTransferPage as boundedScanPage} from './scan-page';
 import type {TransferScanCursor} from './types';
 import { canonicalTransactionHash } from "./hash";
@@ -78,7 +78,7 @@ export class SolanaAdapter implements ChainAdapter {
     const results=await Promise.all(([0,1] as const).map(async side=>{
       if(await this.rpc.request(side,"getGenesisHash",[])!==solanaGenesis(this.asset.environment))throw new Error("WRONG_NETWORK");if(integer(await this.rpc.request(side,"getSlot",[{commitment:"finalized"}]))<through)throw new Error("FINALITY_UNAVAILABLE");
       const slots=await this.rpc.request(side,"getBlocks",[parseInt((after+1n).toString(),10),parseInt(through.toString(),10),{commitment:"finalized"}]);if(!Array.isArray(slots)||slots.length>5)throw new Error("RPC_EVIDENCE_INVALID");const transfers:ScannedTransfer[]=[],blocks:{height:string;hash:string}[]=[];
-      for(const slot of slots){const height=integer(slot);if(height<=after||height>through)throw new Error("RPC_EVIDENCE_INVALID");const block=await this.rpc.request(side,"getBlock",[slot,{commitment:"finalized",encoding:"jsonParsed",transactionDetails:"full",rewards:false,maxSupportedTransactionVersion:0}]);if(!block||base58.decode(block.blockhash).length!==32||!Array.isArray(block.transactions)||block.transactions.length>1000)throw new Error("SCAN_CAPACITY_EXCEEDED");
+      for(const slot of slots){const height=integer(slot);if(height<=after||height>through)throw new Error("RPC_EVIDENCE_INVALID");const block=await this.rpc.request(side,"getBlock",[slot,{commitment:"finalized",encoding:"jsonParsed",transactionDetails:"full",rewards:false,maxSupportedTransactionVersion}]);if(!block||base58.decode(block.blockhash).length!==32||!Array.isArray(block.transactions)||block.transactions.length>1000)throw new Error("SCAN_CAPACITY_EXCEEDED");
         blocks.push({height:height.toString(),hash:block.blockhash});for(const record of block.transactions){if(record.meta?.err)continue;const tx=record.transaction,hash=canonicalTransactionHash("sol",tx.signatures?.[0]);const instructions=tx.message.instructions;if(!Array.isArray(instructions)||instructions.length>1000)throw new Error("SCAN_CAPACITY_EXCEEDED");
           for(const [index,instruction] of instructions.entries()){const info=instruction.parsed?.info;let sender:string,destination:string,amount:bigint;
             if(this.asset.kind==="native"){if(instruction.programId!==SystemProgram.programId.toBase58()||instruction.parsed?.type!=="transfer")continue;sender=normalized(info.source);destination=normalized(info.destination);amount=integer(info.lamports)}
@@ -167,7 +167,7 @@ export class SolanaAdapter implements ChainAdapter {
               commitment: "finalized",
               transactionDetails: "none",
               rewards: false,
-              maxSupportedTransactionVersion: 0,
+              maxSupportedTransactionVersion,
             },
           ]);
         if (
@@ -478,7 +478,7 @@ export class SolanaAdapter implements ChainAdapter {
         {
           encoding: "jsonParsed",
           commitment: "confirmed",
-          maxSupportedTransactionVersion: 0,
+          maxSupportedTransactionVersion,
         },
       ]),
       this.rpc.request(side, "getSignatureStatuses", [
@@ -498,6 +498,7 @@ export class SolanaAdapter implements ChainAdapter {
           commitment: finalized ? "finalized" : "confirmed",
           transactionDetails: "signatures",
           rewards: false,
+          maxSupportedTransactionVersion,
         },
       ]);
       if (!block.signatures?.includes(hash))
@@ -564,6 +565,7 @@ export class SolanaAdapter implements ChainAdapter {
         commitment: final ? "finalized" : "confirmed",
         transactionDetails: "signatures",
         rewards: false,
+        maxSupportedTransactionVersion,
       },
     ]);
     if (!block.signatures?.includes(hash))
@@ -602,7 +604,7 @@ export class SolanaAdapter implements ChainAdapter {
         {
           encoding: "jsonParsed",
           commitment: "confirmed",
-          maxSupportedTransactionVersion: 0,
+          maxSupportedTransactionVersion,
         },
       ]);
     return selectEventIndex(
@@ -677,7 +679,7 @@ export class SolanaAdapter implements ChainAdapter {
             {
               encoding: "jsonParsed",
               commitment: "finalized",
-              maxSupportedTransactionVersion: 0,
+              maxSupportedTransactionVersion,
             },
           ]),
           this.rpc.request(side, "getBlockHeight", [

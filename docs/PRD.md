@@ -927,6 +927,8 @@ Chain adapter must implement `validateAddress`, `normalizeAddress`, `verifyOwner
 
 Each live chain must have two independently configured RPC endpoints. Failover must occur on timeout/transient error; contradictory observations must hold finality pending, not select the convenient answer. Cache block height/confirmation reads using `RPC_HEIGHT_CACHE_SECONDS=5`, balance reads with `RPC_BALANCE_CACHE_SECONDS=30`. These release constants govern adapter batching. Server throttle/timeout must follow `crypto_monitor_policy`, lowered to a provider's documented quota at setup. Public RPC must be last resort, warning in logs and alert after the named public-RPC window. Use HTTP polling; no blockchain WebSocket subscriptions in MVP.
 
+Solana receipt, block, recovery-page and expiry reads must request integer `maxSupportedTransactionVersion: 1` to read legacy, v0 and v1 records. Keep transfer, fee, finality and contradictory-evidence checks; this read compatibility must not rewrite signed payloads. See [Solana’s version guidance](https://solana.com/docs/core/transactions/versioned-transactions).
+
 ### §30.3 Signing, gas, and transaction recovery
 
 Scheduled signer must run outside API request paths. Passphrase-encrypted key material must be stored separately from its decryption secret; decrypt only in the signer process. For managed production, owner must provision stronger custody if the free profile cannot meet the required isolation/recovery. Every signer must verify environment, approved obligation, destination snapshot, maximum per-send/daily limits (daily spend reservations keyed to the UTC signing date and treasury/asset), available asset balance, and native gas reserve. Signer must refuse mainnet when simulation/testnet mode is active.
@@ -1220,7 +1222,7 @@ uj*****p3 just received $9.5 referral commission
 - Collect owner credentials securely and record actual external alerts, chain transactions, restore reconciliation, capacity and the observation periods in §30. Do not manufacture approval, elapsed time or provider evidence.
 - Both exact-final-head push and pull-request CI must pass before each merge. No direct main pushes. Keep five core docs and two versioned trackers. Existing no-automated-test-suite instructions remain binding; named isolated manual verification continues.
 
-The current gap list and acceptance evidence belong in [status](PROJECT-STATUS_v78.md) and the [report](custom-bugs-report_v78.md)/[plan](custom-bugs-fix-plan_v78.md). Continue until all requirements have actual verification; report any owner-dependent blocker precisely.
+The current gap list and acceptance evidence belong in [status](PROJECT-STATUS_v79.md) and the [report](custom-bugs-report_v79.md)/[plan](custom-bugs-fix-plan_v79.md). Continue until all requirements have actual verification; report any owner-dependent blocker precisely.
 
 ### Fresh installation and historical compatibility
 
@@ -1243,7 +1245,7 @@ The owner explicitly approved P1-065 on **14 October 2026 at 02:25:24 PM WAT**, 
 - Closed signed-archive dependencies accept pgcrypto-only older packets or an additional pg_trgm declaration; unknown names, duplicates, versions and schemas fail.
 - Signatures/checksums, empty-target verification and exact post-restore inventories remain mandatory. Search approval does not activate financial gates.
 
-Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v78.md](PROJECT-STATUS_v78.md). Current bug evidence/tasks: [report](custom-bugs-report_v78.md) and [plan](custom-bugs-fix-plan_v78.md).
+Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v79.md](PROJECT-STATUS_v79.md). Current bug evidence/tasks: [report](custom-bugs-report_v79.md) and [plan](custom-bugs-fix-plan_v79.md).
 
 ### Retention implementation clarification (v52)
 
@@ -1252,7 +1254,7 @@ Use the same database for online monthly archives of ledger postings, scan pages
 
 ### Phase Two presentation baseline — PR53
 
-P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v78.md).
+P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v79.md).
 
 P2.4 external assessment remains **not_reviewed** until actual owner/provider evidence is recorded. Mainnet runtime, encrypted signing and local financial procedures are implemented in v67. Remaining evidence includes live registry/provider/custody operation, funding/refund/closure review, countries and terms, budget, hosted capacity/alerts/restore and observation periods. Local implementation does not approve public launch.
 

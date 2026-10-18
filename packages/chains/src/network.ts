@@ -11,6 +11,9 @@ export function chainEnvironmentSuffix(chain:Chain,environment:FinancialEnvironm
  return ({eth:'ETH',bnb:'BNB',sol:'SOL',tron:'TRON'} as const)[chain]+'_'+environment.toUpperCase();
 }
 
+// RPC readers must opt in to v1, including blocks containing legacy payments.
+// https://solana.com/docs/core/transactions/versioned-transactions
+export const solanaMaxSupportedTransactionVersion = 1;
 export function solanaGenesis(environment:FinancialEnvironment){
  return environment==='mainnet'?'5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d':'EtWTRABZaYq6iMfeYKouRu166VU2xqa1';
 }

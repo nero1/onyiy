@@ -175,7 +175,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v78.md](PROJECT-STATUS_v78.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v79.md](PROJECT-STATUS_v79.md).
 
 ## 10. Read-only preview using the same database
 
@@ -422,7 +422,7 @@ Code supports Ethereum `1`, BNB `56`, Solana `mainnet-beta` and TRON `mainnet`. 
 17. Redeploy Production, then run the isolated signer workflow once. Check its run result and the site's signer heartbeat. A changed policy, registry, address or alert binding needs new hashes/probes; never reuse an unrelated approval.
 18. With the owner present, fund only the approved treasury/reserve amounts, activate the intended per-currency plans and perform the final tests with small limits. Confirm actual wallet approval, chain receipts, balances, fees, refunds, alerts and restore reconciliation. Complete the required observation periods before public launch.
 
-Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v78.md).
+Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v79.md).
 
 ## If something fails
 
@@ -612,7 +612,7 @@ grant connect on database postgres to gw_runtime;
 6. Run again with action **verify**, the same archive selection and target settings. This independently checks the restored data without restoring again.
 7. Before publication, reconcile every retained financial attempt against the real chains, preserve sender/refund rights, set fresh auth/scheduler/worker request keys and retain the original MFA/custody/payload keys. Obtain new per-network configuration hashes and signed alert acknowledgements. A restored database has a new identity, so source approvals cannot enable it. Reconcile old attempts; never overwrite their hashes or resend to clear a warning.
 
-**Upgrading from an earlier release:** financial hashes now include database identity. Refresh reviewed hashes/alert acknowledgements even on the original database. Keep existing obligation/signed-attempt snapshots intact and use the recovery/requote controls for unresolved old configuration. Historical archives predating this browser workflow still require their matching supervised recovery release.
+**Upgrading from an earlier release:** verify old archives with their matching release first. Then deploy the current reviewed app/signer release before monitoring current Solana activity; older readers cannot read v1 transactions. Financial hashes now include database identity. Refresh reviewed hashes/alert acknowledgements even on the original database. Keep existing obligation/signed-attempt snapshots intact and use the recovery/requote controls for unresolved old configuration. Historical archives predating this browser workflow still require their matching supervised recovery release.
 
 References: [download workflow artifacts](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts) · [create releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository) · [PostgreSQL Ubuntu packages](https://www.postgresql.org/download/linux/ubuntu/).
 

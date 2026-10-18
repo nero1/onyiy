@@ -1,4 +1,4 @@
-# Project status v78
+# Project status v79
 
 **Phase One/Two is incomplete.** Four mainnets/eight protocols are implemented; all seven member-asset procedures now cover incoming payments, refunds, withdrawals, company settlements and sweeps locally. Generated endpoints/contracts are fixtures. Actual providers, custody, hosted operation and observation periods remain unverified. Continue without milestone approval pauses; owner launch inputs are deferred to final testing.
 
@@ -26,7 +26,7 @@
 
 ## Current delivery
 
-Branch `feat/current-product-audit`, based on PR76 merge `d26dbd9e494262eae53c6aebfe033d5d1a962d92`. PR76 final headad9179b passed push39089205996 / PR39089208186. PR70 added managed restore/client compatibility; PR71 added policy-bound automatic backups; PR72 protected all wallet prompts from reload. Git history retains their detailed evidence.
+Branch `feat/native-account-setup-audit`, based on PR77 merge `4cd41f419873424c8636b4a1583d124efc68e5e3`. PR77 exact head09f4633 passed push39089620137 / PR39089626136. PR70 added managed restore/client compatibility; PR71 added policy-bound automatic backups; PR72 protected all wallet prompts from reload. Git history retains their detailed evidence.
 
 New read-only correction: an obligation can retain internal `signing` while its durable attempt is signed/broadcast. Recent and paginated member reads add `display_status`; EN/FR displays the recorded progress. Raw financial status, actions, history, wire compatibility and schema remain unchanged. The recorded transaction hash is also shown. `native-lifecycle-v74/send-status-r2` passes funded claim/signed/broadcast progression, old-code baseline, member isolation and unchanged obligation/attempt/ledger hashes. `send-status-browser-r1` passes production Chromium390px EN/FR recent and paginated views with the exact retained hash; no API interception or financial mutations. Required checks, production build and bundle budgets pass locally.
 
@@ -74,7 +74,7 @@ Preserve failed originals. Notable fixture corrections: ETH omitted transport lo
 - `replacement-eth-r2` (native) and `replacement-bnb-r1` (18-decimal token) exercise the actual EVM replacement preparation with generated signatures and amounts above safe JavaScript integer precision. They preserve nonce/recipient/principal/calldata/gas limit, wait30 blocks, bump10% within the approved25% budget, and reject changed destination, contradictory/confirmed evidence and excess fees. No broadcast or replacement persistence is claimed. Preserve ETHr1: it exercised generic token intent on Ethereum, not the intended native case.
 - ETH post-withdrawal reorg procedure `eth-reorg-r2` passes: absence/provider outage cannot book loss; positively replaced canonical block creates one retained review, freezes spending, preserves allocations and rejects evidence rewrite; reconfirmation restores cash/points once. Preserve r1: it correctly hit the asset safety fence, but the harness expected the wrong error name. Its committed review and original financial database remain unchanged; r2 uses a fresh database.
 
-v78
+v79
 
 ## Durable EVM replacement follow-up (v77)
 
@@ -94,4 +94,13 @@ Fresh-process continuation passes on `eth-restart-r3` and `bnb-restart-r1`: an a
 
 Two manual procedures still expected pre-pagination staff DTOs. The jobs check now verifies no unfinished current jobs and pages completed history, preserving payload/lease privacy checks and repeated-cursor denial. Reorg verification filters its recorded review in paginated history and checks retained resolution after reconfirmation. No financial endpoint, schema or settlement rule changes. Required checks, script syntax and whitespace checks pass locally; the production application build is unchanged from the previously checked code. Preserve r1 (old jobs summary assertion) and r2 (old nested reorg-history assertion), including all committed financial/scheduler state; r3 uses a new database.
 
-v78
+## Solana v1 reads and account setup (v79)
+
+**P1-075:** public mainnet probes reproduced `-32015` for v1 transactions with the old maximum0. Official [Solana guidance](https://solana.com/docs/core/transactions/versioned-transactions) confirms the opt-in. The adapter and bounded scanner now share integer maximum1 for receipt, block/header, event lookup and expiry reads. No SDK/signing format, financial/schema rule or archive contract changes. Required checks, production build, bundle budgets, final documentation/secret checks and whitespace checks pass locally.
+
+- `public-network-v79/recorded-v1-scan-r2` replays the unchanged recorded public v1 transaction and960-signature block through two declared local endpoints. Actual old scanner code fails; corrected adapter advances its bounded cursor, ignores unrelated/zero-self transfers, requests integer1 throughout and retains observation-only send denial. This is recorded-data replay, not two live providers’ acceptance.
+- `product-audit-v78/spl-setup-r2` verifies a sender closing its empty ATA after deposit: the refund recreates it, quotes2039280 lamports rent and books2044280 total company cost including5000 network fee, preserving full principal. `spl-v1-reads-r1` repeats the full SPL lifecycle/account-setup case while rejecting every receipt/block request without maximum1. `sol-expiry-v1-r1` passes the native SOL expiry/held-principal procedure with the same strict request check. Inherited SPL console captions still contain the old incorrect amount; integer assertions and rows are authoritative.
+- `public-network-v79/identity-r1` makes actual read-only public RPC calls: ETH1, BNB56, Solana mainnet genesis and TRON728126428 match. A queried Solana mint returns standard SPL ownership/six decimals; this is metadata observation, not token provenance/approval. No public funds are sent.
+- Live dual-provider adapter acceptance remains open. Direct pinned transport was unavailable in this executor; a public secondary returned403/Cloudflare1010. Preserve those logs rather than weakening network guards. The recorded replay’s two endpoints are explicit fixtures. Initial replay r1 used an invalid100RPS harness setting; r2 uses20. Preserve earlier registry-shape/disabled-entry diagnostic runs too.
+
+v79
