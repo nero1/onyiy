@@ -14,7 +14,7 @@
 | C006 | Pricing | Fixed/derived activation, replay and signed-price checks pass locally. Verify actual feed operation and full price-change scenarios. |
 | C007 | UI/wallets | Seven canonical sends/eight protocols, saved locale, narrow EN/FR and wallet-safe updates pass locally. Finish devices, actual wallets and accessibility review. |
 | C008 | Recovery | Encrypted exact restore, matching releases, managed idle-session guard and database-bound approvals work. Known pending ETH recovery passes locally; known pending SOL/SPL/TRC20 cases now pass too; finish broader restart/expiry/reorg cases, post-backup history reconciliation and hosted drills. |
-| C009 | Identity/access | Verify real Google/MFA/CAPTCHA, permissions, rate limits and recovery end to end. |
+| C009 | Identity/access | Mainnet session/TOTP/recovery/refresh/logout and closed MFA limit pass locally; finish actual Google/CAPTCHA, physical authenticator, broader permissions/rates and hosted browser acceptance. |
 | C010 | Product audit | Complete a current-PRD audit of queues/points/referrals/admin/data controls/flags/PWA/accessibility. Historical295-row checklist is not full current acceptance. |
 | C011 | Operations | Protected signer/schedulers and opt-in automatic encrypted backups are implemented. Finish actual external alerts, schedule/storage monitoring and incident/closure acceptance. |
 | C012 | Capacity/cost | Local bundle budgets pass. Measure hosted latency, mobile performance, quotas and compliant operating costs. |
@@ -83,5 +83,9 @@ v77
 Preserve failed originals: ETHr1 hid the pending hash from the block list but failed to recompute its transaction indexes, correctly preventing contradictory settlement. BNB r1/r2 advanced the fixture height before the real5-second height cache expired, so the worker safely rebroadcast instead of creating an early replacement. BNB r3 waits for that cache normally; no application safety rule was weakened.
 
 Fresh-process continuation passes on `eth-restart-r3` and `bnb-restart-r1`: an asynchronous, newly started actual worker observes and settles the durable replacement through the separate authenticated web without another signature/broadcast. The bootstrap maps declared generated transports only; domain gates and API responses are real. Independent `replacement-integrity-r1` reads pass across both regular and both fresh-process databases: exactly one failed/superseded/confirmed attempt each, one linked replacement, two gas journals, one settled refund and zero unbalanced journals. ETH restart r1 used a synchronous child while its parent hosted RPC fixtures; r2 lacked the child’s declared generated transport initialization. Keep both original financial databases/logs; corrections use fresh targets and an asynchronous child with explicit transport bootstrap.
+
+## Mainnet identity procedure
+
+`native-lifecycle-v74/mainnet-auth-r2` passes actual restricted-role server authentication methods with generated genuine JWT/session state: origin/CSRF/generation denial, encrypted TOTP enrollment, strict pre-auth, TOTP replay denial, hashed one-use recovery, access rotation, refresh-reuse family revocation, logout-all, sixth-attempt MFA rate denial and ingress-IP normalization/spoof checks. Obligation/attempt/ledger hashes remain unchanged. The earlier r1 narrower pass is preserved. Identity is explicitly generated; actual Google, physical authenticators, CAPTCHA and hosted browser acceptance remain open.
 
 v77

@@ -788,4 +788,6 @@ v77
 
 Actual encrypted worker ETH and18-decimal BNB token replacement persistence/broadcast/settlement pass locally, with exact immutable transfer intent, linked lineage, principal held until the canonical winner and once-only settlement/gas. Failed fixture originals remain intact. Fresh-process continuation passes for ETH and BNB tokens, with independent accounting checks across all four retained databases; results and remaining scope: [status](PROJECT-STATUS_v77.md). No public-chain or hosted acceptance is inferred.
 
+Mainnet identity follow-up: `mainnet-auth-r2` passes actual restricted-role session/TOTP/recovery/refresh/logout methods, closed sixth MFA attempt and ingress-IP spoof checks without changing financial hashes. Generated identity is not actual Google or hosted/physical-authenticator acceptance. See [status](PROJECT-STATUS_v77.md).
+
 v77
