@@ -1,4 +1,4 @@
-# Project status v86
+# Project status v87
 
 **Phase One/Two remains incomplete.** Four mainnets/eight asset protocols are implemented. Seven member assets pass local incoming/refund/withdrawal/company/sweep procedures. Public RPC identities match; hosted payments and observation periods are unverified. Continue without milestone approval pauses. Owner launch inputs remain deferred to final testing.
 
@@ -13,7 +13,7 @@
 | C005 | Provenance/RPCs | Public network IDs match. Real contracts/mints/decimals and independent configured RPCs require verification; generated JAGA is not provenance. Unverified assets stay disabled. |
 | C006 | Prices/fees | Signed-feed rejection/replay, seven-asset gas changes and three-family quote expiry pass locally. Actual feed and wider price/cost variants remain. |
 | C007 | UI/wallets | Eight protocol preparations/seven wallet sends, narrow EN/FR, preferences and wallet-safe reload pass locally. Shared receipt/history/error/offline-language fixes pass locally; finish physical devices/wallets/accessibility. |
-| C008 | Recovery | Exact encrypted restore, matching releases and database-bound approvals work. Retained pending ETH/SOL/SPL/TRC20 hashes recover locally. Finish wider cases, unknown post-backup reconciliation and hosted drills. |
+| C008 | Recovery | Exact encrypted restore, matching releases and database-bound approvals work. Retained pending ETH/SOL/SPL/TRC20 hashes recover locally. Generated ETH post-backup unknown transfers and fresh approved resumption pass. Finish other families, missing off-chain intent cases and hosted drills. |
 | C009 | Identity | Mainnet session/TOTP/recovery/refresh/logout, closed MFA limit and ingress checks pass locally. Finish actual Google/CAPTCHA, physical authenticator and broader permissions/rate/hosted acceptance. |
 | C010 | Product | History, public activity and own-case pagination/read quotas pass locally. Continue the full current-PRD/public/admin/flags/accessibility audit. |
 | C011 | Operations | Protected signing/scheduling and opt-in policy-bound automatic encrypted backups exist. Verify real alert receiver, schedule/storage monitoring and incidents/closure. |
@@ -26,12 +26,15 @@
 
 ## Current delivery
 
-Branch `feat/localized-operation-notices`, base PR84 merge `30efd43a7bbd9afe33cbfab0293154895d3b3b36`. PR84 head1405aed passed push39108470457 / PR39108477898 before merge. P1-084–086 case pagination/read quotas/error language are merged.
+Branch `feat/post-backup-recovery-audit`, base PR85 merge `9591dc5218aec55e4db101b032952d4f89d2861c`. PR85 head8b4612f passed push39110625115 / PR39110632956 before merge. P1-087–088 are merged. Current P1-089 corrects the unresolved recovery list without changing history or financial gates.
 
 - **P1-087:**15 components share render-time exception notices; simulation dashboard errors, fallback and known notices follow current language. Native proof/payment status copy also updates. Requests and financial guards are unchanged.
 - **P1-088:** native read errors are separate from operation warnings. Successful owned reads clear recovered read errors while preserving operation warnings; identity/new-operation transitions clear scoped state.
 
 ## Current verification
+
+`post-backup-v87/eth-unknown-r2` passes an actual encrypted pending-refund restore, missing-index hold, later once-only known-hash settlement, and generated post-backup unknown outgoing/incoming reconciliation. Typed company-loss review books principal/gas once; incoming funds remain an original-sender liability. A fresh full scan reconciles independently modeled custody, then fresh database-bound approvals, alert acknowledgement, price and encrypted custody permit one newly confirmed withdrawal at nonce3. Source/archive bytes stay unchanged; no saved transfer is rebroadcast. The model uses archive tip112, new events113 and finalized125; retained r1 used a weaker timeline/nonce model. This does not reconstruct missing off-chain intents or prove hosted providers. P1-089 fixes the resulting stale unresolved review display; raw history is preserved. Restricted-role baseline/fixed and fresh-clone boundary checks pass; newer, insufficient-height and other-binding reviews remain visible. Required checks and production build are recorded in `post-backup-v87`.
+
 
 Under `notices-v86`, `native-baseline-r1` reproduces stale French error text after an offline English switch. `simulation-fixed-r2` passes production Chromium390px error translation/completed reconnection with unchanged financial/point fingerprints, using a blocked read without response substitution. `native-fixed-r2` observes successful portfolio responses, passes offline language/recovery and preserves operation warnings after a successful refresh; malformed existing-payment input is rejected without a send. `financial-integrity-r1` verifies unchanged native financial fingerprints against retained source copies. Final `check-all-r4`, `build-r4` and `bundle-r4` pass. Preserve failed/intermediate logs; sampled browser checks do not replace physical staff/device acceptance.
 
@@ -73,9 +76,9 @@ Public read-only evidence in `public-network-v79`: four expected network identit
 ## Release and preservation rules
 
 - Fresh install: paste only `packages/db/fresh-install.sql`. Seven receipts; immutable SQL000–005; SQL006 queue fix. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 standalone indexes. No DDL in this batch.
-- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v86.md) retain references/key-handling rules.
+- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v87.md) retain references/key-handling rules.
 - Hashes bind actual database identity. Keep historical obligation/attempt snapshots. Rotate request/auth keys on restore, retain original MFA/custody/payload keys, reconcile chains and obtain fresh approvals/alert acknowledgements before publication.
 - Preserve all failed/successful financial fixtures, archives and keys. Corrections use fresh targets. SPL’s inherited console captions contain an old amount typo; integer assertions/rows are authoritative. Prior failed harness/transport/index/cache attempts remain in their original roots.
 - Five core guides plus two requested versioned trackers. Keep current facts concise; history is in Git. Both CI events must pass the exact final head before merge. Named manual procedures/required checks are authorized; broad automated suite remains deferred. Continue without approval pauses; do not claim100%.
 
-v86
+v87
