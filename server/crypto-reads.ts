@@ -1,3 +1,4 @@
+import {nativeSendDisplayStatus,nativeSendTransactionHash} from './native-send-state';
 import {presentationFromManifest,planFinancialPresentation,type QueueDisclosure,type PublicQueueDisclosure} from './presentation';
 import {planConfigSchema} from '../packages/config/src/policies';
 import {publicManifest} from '@gifters/config';
@@ -215,6 +216,7 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
       network: assets.chainId,
       decimals: assets.decimals,
       status: cryptoObligations.status,
+      display_status:nativeSendDisplayStatus(),tx_hash:nativeSendTransactionHash(),
       gross_base_units: cryptoObligations.grossBaseUnits,
       charge_base_units: cryptoObligations.chargeBaseUnits,
       net_base_units: cryptoObligations.netBaseUnits,
