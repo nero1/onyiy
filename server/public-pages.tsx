@@ -35,7 +35,7 @@ export async function publicMetadata(path: string, locale: Locale, title?: strin
   const actualDescription = description ?? policy.product_content.short_description[locale];
   const languages: Record<string, string> = { en: origin + path, fr: origin + localizedPath(path, 'fr') };
   const slug = path.startsWith('/help/') ? path.slice(6) : path === '/how-it-works' ? 'mechanics' : path === '/privacy' ? 'privacy' : null;
-  if (slug && policy.feature_help) {
+  if (slug && policy.feature_help && !(path==='/how-it-works'&&policy.presentation?.transparent)) {
     for (const language of ['en', 'fr'] as const) if (!(await publishedArticles(language)).some(row => row.slug === slug)) delete languages[language];
   }
   return {

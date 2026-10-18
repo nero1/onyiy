@@ -1,4 +1,4 @@
-# Project status v107
+# Project status v108
 
 **Phase One/Two is incomplete.** Four mainnets/eight protocols are implemented; seven member currencies have local financial checks. Configured-provider acceptance, hosted operation and observation periods remain. Owner launch inputs are deferred to final testing.
 
@@ -11,7 +11,7 @@
 | C003 Custody | Verify protected key installation, signer limits and real worker operation. |
 | C004 Payments | Complete remaining account-setup, failure, replacement and recovery cases. |
 | C005 Asset/RPC review | Verify real contracts/mints, decimals, provenance and independent RPCs. Leave unverified assets disabled. |
-| C006 Prices/fees | Verify the chosen signed feed and remaining price/cost cases. |
+| C006 Prices/fees | P1-115: implement CoinMarketCap pricing with signed fallback; verify provider/failure cases and live setup later. |
 | C007 Devices | Finish physical-wallet, mobile, accessibility and update checks. |
 | C008 Recovery | Run the chosen hosted incident/restore/closure drills; reconcile unknown transfers without inventing payment intent. |
 | C009 Identity | Verify actual Google, CAPTCHA, authenticators and hosted rate limits. |
@@ -26,8 +26,8 @@
 
 ## Current work
 
-P1-112 fixes unnamed native gift-card keyboard targets. EN/FR mobile/desktop keyboard, portfolio and financial-integrity checks pass locally. Continue C007/C010 and the remaining independent technical audit; actual provider/device/hosted acceptance remains open.
+P1-112 is merged in PR106. P1-113–114 fix transparent mechanics sitemap/language links and offline route-error language. Named local checks pass. Continue the remaining independent technical audit; actual provider/device/hosted acceptance remains open.
 
 Create and merge substantial batches after both CI events pass the exact final head. Continue without milestone approval pauses. Never treat local checks, configuration or fixed-bug counts as 100% production acceptance.
 
-v107
+v108

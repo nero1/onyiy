@@ -1,4 +1,4 @@
-# LLM handover v107
+# LLM handover v108
 
 ## Owner instructions
 
@@ -14,7 +14,7 @@
 
 ## Resume
 
-Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/native-keyboard-focus`, based on merged PR105 (`7aa47216430cb0eb427d121023d1854a94c03036`). Check this PR's state: finish/merge it if open; otherwise continue from current main. P1-112 local native keyboard/portfolio/integrity checks pass. Manual files: `/workspace/work/native-keyboard-v107`; preserve all copies. Continue C007/C010 and the independent tasks in [status](PROJECT-STATUS_v107.md). Do not stop after merge or request deferred launch inputs.
+Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/public-page-consistency`, based on merged PR106 (`035160c4251c63dfba3875769e894d81ccaccc40`). Check this PR's state: finish/merge it if open; otherwise continue from current main. P1-113–114 local checks pass. Manual files: `/workspace/work/mechanics-metadata-v108`; preserve all copies. Next prioritize P1-115: required CoinMarketCap adapter is missing; only manual signed prices exist. Preserve signed-price verification and financial gates. Then continue C007/C010 and independent tasks in [status](PROJECT-STATUS_v108.md). Do not stop after merge or request deferred launch inputs.
 
 ## Environment
 
@@ -34,4 +34,4 @@ Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/native-keyboard-focu
 - Four mainnets/eight protocols; seven member currencies, TRX operating-only. Real JAGA stays disabled without provenance. Generated providers/contracts/keys are not live evidence.
 - Mainnet needs transparent settings, reviewed readiness, verified registry, configuration approvals and recent signed alert acknowledgement. Client wire1/min-client0/min-server1; do not weaken compatibility or financial gates.
 
-v107
+v108
