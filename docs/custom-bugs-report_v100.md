@@ -1,6 +1,6 @@
-# Bug report — Rounds One/Two/Three v99
+# Bug report — Rounds One/Two/Three v100
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v99.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v100.md).
 
 Updated: **18 October2026 (Africa/Lagos)**.
 
@@ -11,6 +11,8 @@ Historical numbered migration paths below identify the original fixes in Git his
 PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the three fresh Round Two findings below; The same batch includes the Round Three recovery fix below; Phase Two transparency implementation/local review was completed in v54; full-product work remains open.
 
 ## Findings at a glance
+
+- **P1-104–105:** native wallet route feature/mode gates implemented; production simulation/testnet/mainnet routing and independent financial-integrity checks passed.
 
 - **P1-103:** disabled staff-feature admin previews implemented; actual TOTP/role/flag API, production EN/FR browser and financial-integrity checks passed.
 
@@ -126,7 +128,7 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 - “Defect” means a source/contract failure; “requirement gap” means missing requested behavior; “hardening” means a conditional defensive improvement; “maintenance” means structural/dependency risk.
 - Initial audit ratings (current → projected after fixes): money/recovery 5 → 8; security/privacy 6.5 → 8.5; performance 5 → 8; maintainability 6 → 8; product/accessibility/SEO 6 → 8, out of 10. These were qualitative judgments, not measured guarantees or updated release ratings.
 - Original audit: 70 findings; four more were found during remediation. Three analysis passes were one audit round. CRON frequency and test-only issues were excluded.
-- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v99.md).
+- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v100.md).
 
 ## Original evidence by finding
 
@@ -592,7 +594,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v99.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v100.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -612,7 +614,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v99.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v100.md).
 
 
 
@@ -633,7 +635,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Current completion and delivery
 
-Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v99.md) and [handover](LLM-HANDOVER_v99.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-report_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
+Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v100.md) and [handover](LLM-HANDOVER_v100.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-report_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
 
 ### P1-075 — Solana v1 reads
 
@@ -770,3 +772,11 @@ The inbox excluded retired notices, but the dashboard's initial notification que
 Disabled moderation rejected administrator reads; disabled administration/moderation pages disappeared without a preview entry point, contrary to PRD §3. Provide administrator-only read-only previews through account settings and navigation. Allow admin moderation reads through the existing fresh-MFA gate; moderator/disabled writes remain denied. Render cases in the disabled preview and disable mutation controls even with valid input. Normal disabled feature URLs stay404; preview parameters grant no authority.
 
 `staff-permissions-v99/baseline-r3` and production `browser-baseline-r1` reproduce the gap. Fresh `fixed-r4` passes full genuine-session/CSRF TOTP/role/moderation/flag checks. `browser-fixed-r1` verifies actual data, EN/FR390px layout, disabled controls, normal404s and member denial. `integrity-r1` independently compares original source and four retained copies. No financial/schema/auth-cookie change; required/build/bundle checks pass. Real Google/device/hosted acceptance remains separate.
+
+### P1-104 — Native wallet URL bypasses the wallet feature toggle
+
+`/wallet` and history returned404 when wallets were off, but `/wallet/crypto` still served the application. Add the same authoritative feature check. Production HTTP baseline/fixed checks under `wallet-route-v100` verify all three paths disabled/enabled through the real admin setting service. Existing API/financial gates stay intact.
+
+### P1-105 — Simulation exposes a misleading testnet wallet page
+
+The native URL mapped every non-mainnet mode to testnet, including GIV simulation. Require an actual native mode before rendering and pass its narrowed value unchanged. Actual production baseline/fixed checks verify simulation keeps its normal GIV wallet and returns404 for the native URL; current-schema testnet and mainnet routes remain available when enabled. A fresh retained testnet clone receives only reviewed006, preserving its original six-receipt source. Independent grouped financial comparisons and required/build/bundle checks pass. No original financial record, archive or key is reset.
