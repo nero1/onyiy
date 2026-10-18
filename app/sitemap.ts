@@ -8,6 +8,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (policy.feature_gifts) paths.add('/gifts');
   if (policy.feature_help) {
     paths.add('/help');paths.add('/terms');
+    if(policy.presentation?.transparent)paths.add('/how-it-works');
     for (const locale of ['en', 'fr'] as const) {
       for (const article of articles[locale]) {
         paths.add('/help/' + article.slug);
@@ -20,7 +21,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   for (const path of paths) {
     const slug = path.startsWith('/help/') ? path.slice(6) : path === '/privacy' ? 'privacy' : path === '/how-it-works' ? 'mechanics' : null;
     const languages: Record<string, string> = {};
-    for (const locale of ['en', 'fr'] as const) if (!slug || articles[locale].some(row => row.slug === slug)) languages[locale] = origin + localizedPath(path, locale);
+    for (const locale of ['en', 'fr'] as const) if (!slug || path==='/how-it-works'&&policy.presentation?.transparent || articles[locale].some(row => row.slug === slug)) languages[locale] = origin + localizedPath(path, locale);
     for (const locale of ['en', 'fr'] as const) {
       // A locale's missing translation is not advertised as a working URL.
       if (!languages[locale]) continue;
