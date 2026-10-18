@@ -1,6 +1,6 @@
-# Bug report — Rounds One/Two/Three v91
+# Bug report — Rounds One/Two/Three v92
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v91.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v92.md).
 
 Updated: **18 October2026 (Africa/Lagos)**.
 
@@ -115,7 +115,7 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 - “Defect” means a source/contract failure; “requirement gap” means missing requested behavior; “hardening” means a conditional defensive improvement; “maintenance” means structural/dependency risk.
 - Initial audit ratings (current → projected after fixes): money/recovery 5 → 8; security/privacy 6.5 → 8.5; performance 5 → 8; maintainability 6 → 8; product/accessibility/SEO 6 → 8, out of 10. These were qualitative judgments, not measured guarantees or updated release ratings.
 - Original audit: 70 findings; four more were found during remediation. Three analysis passes were one audit round. CRON frequency and test-only issues were excluded.
-- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v91.md).
+- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v92.md).
 
 ## Original evidence by finding
 
@@ -581,7 +581,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v91.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v92.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -601,7 +601,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v91.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v92.md).
 
 
 
@@ -622,7 +622,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Current completion and delivery
 
-Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v91.md) and [handover](LLM-HANDOVER_v91.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-report_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
+Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v92.md) and [handover](LLM-HANDOVER_v92.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-report_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
 
 ### P1-075 — Solana v1 reads
 
@@ -711,3 +711,7 @@ Both Load and Load queue discarded the actual failure and displayed literal `STE
 Six status/success notices still stored an already translated string. Retain bilingual copy until render in plan manager, native admin, operations, publication consent and release profiles. Financial/API behavior and existing hooks stay unchanged. This is source-wide adoption with compilation checks, not a claim that every successful staff workflow has received physical/hosted acceptance.
 
 `plan-notices-v91/fixed-r1` verifies a real offline plan failure, immediate EN/FR error rendering and a genuine server step-up denial without bypassing authentication. `integrity-r1` verifies unchanged financial fingerprints. Required/build/bundle/docs/secrets/whitespace checks pass; original baseline/session fixture is retained.
+
+**Further post-backup acceptance:** generated SOL `post-backup-v87/sol-unknown-r2` and independent `sol-integrity-r2` pass encrypted restore, unknown outgoing/incoming, no-write invalid review, common-slot custody reconciliation and one fresh approved payout. Thirteen SOL/SPL balance-witness provider cases also pass with sending disabled. Original sources/packets/keys remain retained; failed source-name and fixture pause-count assertions are not application defects. Missing off-chain intents and hosted acceptance remain open.
+
+**Seven-asset post-backup matrix:** ETH/BNB, USDT BNB, generated JAGA BNB, SOL, USDT SOL and USDT TRON all pass encrypted restore, unknown-transfer review, no-write invalid review, custody reconciliation and one fresh approved payout. Independent checks verify token/native cash separately, once-only fees/loss, original-sender liability and balanced journals. Thirteen SOL/SPL plus15 TRX/TRC20 read-only balance-witness cases also pass. Exact procedure names and retained failures are in current status. No additional application bug was found in this evidence batch; no real JAGA approval, missing off-chain intent reconstruction or hosted acceptance is inferred.
