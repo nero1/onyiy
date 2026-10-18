@@ -1,8 +1,8 @@
-# LLM handover v97
+# LLM handover v98
 
 ## Owner direction
 
-Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v97.md).
+Complete every Phase One/Two requirement, including real-money support and bugs. Continue substantial batches without M1/M2 or milestone approval pauses. Owner launch details are deferred to final testing: document protected setup, continue independent work and do not ask again now. **The product is incomplete; never invent hosted/live evidence or elapsed observation periods.** Use the [remaining list](PROJECT-STATUS_v98.md).
 
 - Keep five core guides plus the two explicitly requested bug trackers. Rename the four versioned files together; fold new human guidance into these guides. SETUP stays concise, newbie-friendly, web UI only, with manual SQL paste.
 - Reuse existing provider accounts/resources and database names; one financially active mode per shared database. Preview uses public-only credentials.
@@ -11,7 +11,7 @@ Complete every Phase One/Two requirement, including real-money support and bugs.
 
 ## Repository and tooling
 
-`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/readable-account-notices`, base PR95 merge `6b34d384d1bc7d063a1b247ca5610beae7bf045c`. PR95 heade91df14 passed push39151673015 / PR39151693398. P1-096–099 are merged.
+`/workspace/onyiy`, GitHub `nero1/onyiy`, branch `feat/dashboard-retention-and-currency`, base PR96 merge `5284a89b7abfa89b23cf52c9477837f24b5a0574`. PR96 headdc5c6fa passed push39152380636 / PR39152403835. P1-096–101 are merged.
 
 - Read AGENTS and relevant Next16 documentation before relevant code edits. Node22: `/workspace/work/tooling/node-v22.23.3-linux-x64/bin`; PostgreSQL tools: `/workspace/work/tooling/pg-tls/bin`.
 - Owned PostgreSQL:55450, data `/workspace/work/shared-hosting-v50/pgdata`; public CA `server.crt` in that directory. Never read its private TLS key. Owner/runtime roles: `gw_v50_owner` / `gw_v50_runtime`. Preserve original failed `gw_v27_native_refund_isolated`; stopped cross-host55455/55456 retain data.
@@ -19,12 +19,9 @@ Complete every Phase One/Two requirement, including real-money support and bugs.
 - Injected gh CLI credential expired. Connected GitHub Git Data/PR tools work. Build a remote tree from reviewed public files, assert its SHA equals the local reviewed tree, create commit/ref/PR and verify both exact-head CI events. Public unauthenticated fetch works with credential helpers/extra headers disabled. Align the clean local branch only after identical-tree verification.
 - Use `/workspace/work` for scratch. Never print secret JSON/key files. Only generated allowlisted web env is saved0600 for browser procedures; no owner/signer credentials enter the web child. One earlier automatic approval review timed out; its retry passed, with no pending rejection/approval.
 
-## Current recovery audit
+## Recovery evidence
 
-P1-089 merged in PR86 after both exact-head CI events passed. P1-090, merged in PR87, adds the same database-target fence to loss resolution before replay/provider access, plus checkpoint/run consistency. Baseline/fixed/original-target replay and independent integrity evidence remain under `post-backup-v87`; cloned `gw_v87_loss_binding_r1` is retained.
-
-
-`post-backup-v87/eth-unknown-r2` passes coherent post-backup unknown ETH incoming/outgoing, typed loss review, full custody reconciliation and a new withdrawal after fresh target approvals/alert/price/custody. Preserve both r1 and stronger r2 sources/targets/packets/keys; r1 had a simplified timeline/nonce model. Restricted-role current/history proof reproduces then fixes P1-089. Other families, missing off-chain intents and hosted drills remain open; do not infer complete disaster recovery.
+All seven member assets pass generated post-backup unknown incoming/outgoing reconciliation and fresh approved resumption, with independent accounting. Exact procedures are in status. `post-backup-v87/eth-missing-intent-r3` additionally proves no inferred withdrawal from a member wallet, reviewed company loss, original-sender liability and intake pause while an approved payout settles. Missing off-chain intent is not reconstructed. Hosted/chosen incident/closure acceptance remains open. Preserve every original/failed source, target, packet and key, including `gw_v87_loss_binding_r1` and the earlier simplified ETH models.
 
 ## Capability and constraints
 
@@ -35,17 +32,13 @@ P1-089 merged in PR86 after both exact-head CI events passed. P1-090, merged in 
 - Cycle position uses actual serving order in transparent mode. Completed history/cooldowns/status localization and bounded active-cycle detection are implemented; recent30 rows cannot re-enable idle rotation.
 - Protected manual recovery and opt-in automatic backup cadence are implemented. Known idle Supabase roles outside transactions are allowed only with provider markers; unknown/active/hidden metadata/occupied targets still block. No session termination. GitHub timing/storage/restore drills are unverified operational dependencies.
 
-## Current work/evidence
+## Recent evidence
 
-PR79–84 are merged after both exact-head events. Latest PR84 merge `30efd43`, head1405aed: push39108470457 / PR39108477898. P1-080–086 recovery displays, CAPTCHA default/callback cleanup and own-case pagination/read quotas/error language are merged. Earlier named evidence is in status/Git; actual hosted/provider/device acceptance remains open.
+Use status's compact audit table for account/privacy/exports/priority/notifications and exact procedure names. Earlier proofs remain in the bug trackers and Git history.
 
-Current P1-087 introduces `useLocalizedNotice` in15 components and render-time dashboard exception/notice keys, fixing frozen-language errors. Native proof/payment copy follows locale too. P1-088 separates native read errors from operation notices so successful owned reads clear recovered read errors without erasing payment warnings. Source requests, mutation guards and financial rules are unchanged. Read relevant Next16 client docs before further component edits.
-
-`notices-v86/native-baseline-r1` reproduces stale native error language. Final `simulation-fixed-r2` passes production Chromium390px translation/reconnection and unchanged financial/point fingerprints. `native-fixed-r2` observes actual successful portfolio responses, verifies read-error recovery/translation and operation-warning retention, and rejects malformed payment input without a send. `financial-integrity-r1` checks unchanged native financial hashes against retained copies. The first native procedure/deadline logs remain intact. Final check-allr4/buildr4/bundler4 pass; finish docs/secrets/whitespace checks, publish and require both exact-head CI events before merge.
-
-`fee-variance-v86/KEY-r1` passes all seven assets: above-tolerance fee change pauses unsigned holds without changing old amounts or signing; fresh linked quotes require confirmation, then actual worker/separate web settle once. `integrity-r1` independently checks five attempts/gas journals, one old release/new hold and balanced ledgers. `expiry-{eth,usdt_sol,usdt_tron}-r1` actually waits a configured one-minute quote, refreshes signed prices and proves held pause/requote; `expiry-integrity-r1` verifies renewal after expiry with preserved costs/net. No timestamp rewrites or elapsed launch-period claims. `price-contract-r1` verifies signed-feed denials/exact replay with unchanged financial fingerprints. All contracts/keys/providers are generated, including JAGA; not real provenance/live approval.
-
-Owned PostgreSQL runs with TLS on55450; restart must explicitly retain port/TLS options. Preserve every generated source/failed fixture/packet/key. Never reset financial evidence. Current code/schema does not need new DDL.
+- `notices-v86/simulation-fixed-r2` / `native-fixed-r2`: production390px EN/FR error translation/reconnection and retained operation warnings; financial/point fingerprints unchanged.
+- `fee-variance-v86/KEY-r1`: all seven fee-change/requote/confirmation lifecycles and independent `integrity-r1`. Three-family `expiry-KEY-r1` actually waits a configured one-minute quote; `expiry-integrity-r1` and `price-contract-r1` pass. No timestamp rewrites or elapsed launch-period claims.
+- Fixtures use generated contracts/keys/providers, including JAGA; they are not real provenance/live approval. Owned PostgreSQL must keep TLS/port55450 on restart; do not reset evidence.
 
 ## Archive/schema essentials
 
@@ -56,12 +49,10 @@ Owned PostgreSQL runs with TLS on55450; restart must explicitly retain port/TLS 
 
 ## Continue
 
-Current P1-100–101 fixes English raw moderation JSON and saved-language profile notices. `account-notices-v97/fixture-r1` delivers real suspend/restore notices through jobs without financial changes; `browser-baseline-r2` reproduces raw JSON and `browser-fixed-r2` verifies readable EN/FR account state. `profile-baseline-r1`/`profile-fixed-r2` reproduce/verify a French-authored actual profile notice under both display languages at390px. Authored staff/unknown messages remain readable and unchanged; `integrity-r2` verifies original-source financial equality plus retained raw JSON/French bodies. Baseline r1 selected a gift notice by mistake; retain it.
+Current P1-102 adds the missing retired-notification filter to the GIV dashboard. `dashboard-retention-v98/baseline-r4` reproduces the mismatch; fresh `fixed-r1` passes genuine-session dashboard/inbox agreement, retained retirement body/hash and feature off/on checks. `integrity-r1` compares seven financial/point tables against original simulation source `gw_v78_product_simulation_r3`. The new operational fixture is explicitly aged; no financial date is changed. Preserve r1–r3: mainnet template missing GIV, correct environment-scoped asset hiding and correct financial-mode denial. No cross-currency defect was reproduced.
 
-Finish docs/secrets/whitespace/final release checks, publish reviewed v97 tree and merge only after both exact-head CI events. Continue C001–C017 after merge; do not claim100% from local procedures.
-
-P1-099 and twelve-section private-export evidence remain under `own-data-v96`; final `priority-fixed-r4`/`integrity-r2` include actual EN/FR once-only delivery, rollback, bump/revoke, bootstrap creation/removal and original-source/seven-copy financial equality. P1-096–098 evidence stays under `account-permissions-v95`, including actual deleted-member original-wallet recovery without identity restoration and suspended privacy withdrawal. All source/failed fixtures/packets/keys remain intact.
+Finish final release/docs/secrets/whitespace checks, publish reviewed v98 tree and merge only after both exact-head CI events. Continue C001–C017 after merge; do not claim100% from local evidence.
 
 Owner inputs remain deferred. Actual provider/custody/Google/CAPTCHA/devices/alerts/hosting/costs and14+14-day observation remain unverified. Historical295-row/current392-keyword scratch files are not whole-product acceptance.
 
-v97
+v98
