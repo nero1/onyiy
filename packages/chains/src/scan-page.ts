@@ -26,12 +26,15 @@ export async function scanTransferPage(asset:AssetRegistry,rpc:DualRpc,address:s
   const position=cursor??{height:(after+1n).toString(),transaction:0,event:0};
   if(!/^(0|[1-9][0-9]{0,77})$/.test(position.height)||BigInt(position.height)!==after+1n||!Number.isSafeInteger(position.transaction)||position.transaction<0||position.transaction>100000||!Number.isSafeInteger(position.event)||position.event<0||position.event>100000)throw new Error('SCAN_CURSOR_INVALID');
   const account=normalize(asset,address),height=BigInt(position.height);
+  // Empty/exhausted pages omit block hashes from their public cursor. Compare
+  // provider anchors separately before allowing any cursor advancement.
+  const blockHashes:[string|undefined,string|undefined]=[undefined,undefined];
   const results=await Promise.all(([0,1] as const).map(async side=>{
     let block:any,hash:string,transactions:any[],record:any,selectedHash:string,producedSlots:string[]|undefined;
     if(asset.chain==='eth'||asset.chain==='bnb'){
       if(quantity(await rpc.request(side,'eth_chainId',[]))!==BigInt(asset.network))throw new Error('WRONG_NETWORK');
       const tip=await rpc.request(side,'eth_getBlockByNumber',[asset.finality.mode==='depth'?'latest':'finalized',false]);
-      if(!tip||quantity(tip.number)<height+(asset.finality.mode==='depth'?BigInt(asset.finality.depth??0):0n))throw new Error('FINALITY_UNAVAILABLE');
+      if(!tip||quantity(tip.number)<height+(asset.finality.mode==='depth'?BigInt(asset.finality.depth!)-1n:0n))throw new Error('FINALITY_UNAVAILABLE');
       block=await rpc.request(side,'eth_getBlockByNumber',[hex(height),false]);
       if(!block||quantity(block.number)!==height||!/^0x[0-9a-f]{64}$/i.test(block.hash)||!Array.isArray(block.transactions))throw new Error('RPC_EVIDENCE_INVALID');
       hash=block.hash.toLowerCase();transactions=block.transactions;
@@ -56,6 +59,7 @@ export async function scanTransferPage(asset:AssetRegistry,rpc:DualRpc,address:s
       if(integer(block?.block_header?.raw_data?.number)!==height||!/^[0-9a-f]{64}$/i.test(block.blockID)||!Array.isArray(block.transactions??[]))throw new Error('RPC_EVIDENCE_INVALID');
       hash=block.blockID.toLowerCase();transactions=block.transactions??[];
     }
+    blockHashes[side]=hash;
     if(position.blockHash&&position.blockHash!==hash)throw new Error('RPC_SCAN_CONTRADICTION');
     if(transactions.length>100000||position.transaction>transactions.length)throw new Error('SCAN_CURSOR_INVALID');
     if(position.transaction===transactions.length)return {...next(height,hash,position.transaction,0,transactions.length),...(producedSlots?{producedSlots}:{})};
@@ -95,5 +99,5 @@ export async function scanTransferPage(asset:AssetRegistry,rpc:DualRpc,address:s
     const page=event>=events.length?next(height,hash,position.transaction+1,0,transactions.length):next(height,hash,position.transaction,event,transactions.length);
     if(candidate)page.transfers.push(candidate);if(producedSlots)page.producedSlots=producedSlots;return page;
   }));
-  if(digest(results[0])!==digest(results[1]))throw new Error('RPC_SCAN_CONTRADICTION');return results[0];
+  if(blockHashes[0]!==blockHashes[1]||digest(results[0])!==digest(results[1]))throw new Error('RPC_SCAN_CONTRADICTION');return results[0];
 }
