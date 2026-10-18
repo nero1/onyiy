@@ -1,4 +1,4 @@
-# Project status v96
+# Project status v97
 
 **Phase One/Two remains incomplete.** Four mainnets/eight asset protocols are implemented. Seven member assets pass local incoming/refund/withdrawal/company/sweep procedures. Public RPC identities match; hosted payments and observation periods are unverified. Continue without milestone approval pauses. Owner launch inputs remain deferred to final testing.
 
@@ -26,9 +26,12 @@
 
 ## Current delivery
 
-Branch `feat/own-data-and-priority-audit`, base [PR94](https://github.com/nero1/onyiy/pull/94) merge `4875630`. PR94 head669bafc passed push39136370505 / PR39136391286. P1-099 adds safe, retry-proof member notices for transparent administrative-priority changes, including priority bootstrap creation/removal. Phase One notice behavior, joining tickets and finances are preserved.
+Branch `feat/readable-account-notices`, base [PR95](https://github.com/nero1/onyiy/pull/95) merge `6b34d38`. PR95 heade91df14 passed push39151673015 / PR39151693398. P1-100 renders moderation status as readable EN/FR copy; P1-101 translates retained profile-change templates in both directions. Stored messages/API/schema/finances are unchanged.
 
 ## Current verification
+
+`account-notices-v97/fixture-r1` generates actual suspend/restore notices through real jobs, restoring active access with unchanged financial fingerprints. `browser-baseline-r2` reproduces English raw action/status JSON; `browser-fixed-r2` verifies readable EN/FR moderation state in production Chromium390px. `profile-baseline-r1` reproduces a French-authored profile notice under English display; `profile-fixed-r2` verifies both selected languages, narrow layout and preservation of authored staff/unknown messages. `integrity-r2` confirms original-source financial hashes and retained raw JSON/French bodies. Preserve baseline r1's fixture mistake: it selected a gift notice rather than the account notice. Required/build/bundle checks pass locally; GitHub records final CI/merge.
+
 
 `own-data-v96/contract-r1` passes all twelve personal-data sections, genuine-session/CSRF encrypted export/replay, foreign download denial, bounded JSON/CSV capture metadata, suspended access and deleted-account chunk cleanup. Four financial fingerprints remain unchanged.
 
@@ -98,9 +101,9 @@ Public read-only evidence in `public-network-v79`: four expected network identit
 ## Release and preservation rules
 
 - Fresh install: paste only `packages/db/fresh-install.sql`. Seven receipts; immutable SQL000–005; SQL006 queue fix. `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 standalone indexes. No DDL in this batch.
-- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v96.md) retain references/key-handling rules.
+- Recovery contract4 checks exact schema/security/data and migration fingerprints. Old packets need matching original releases, then reviewed upgrades; never edit/re-sign packets. [SETUP](SETUP.md) and [handover](LLM-HANDOVER_v97.md) retain references/key-handling rules.
 - Hashes bind actual database identity. Keep historical obligation/attempt snapshots. Rotate request/auth keys on restore, retain original MFA/custody/payload keys, reconcile chains and obtain fresh approvals/alert acknowledgements before publication.
 - Preserve all failed/successful financial fixtures, archives and keys. Corrections use fresh targets. SPL’s inherited console captions contain an old amount typo; integer assertions/rows are authoritative. Prior failed harness/transport/index/cache attempts remain in their original roots.
 - Five core guides plus two requested versioned trackers. Keep current facts concise; history is in Git. Both CI events must pass the exact final head before merge. Named manual procedures/required checks are authorized; broad automated suite remains deferred. Continue without approval pauses; do not claim100%.
 
-v96
+v97

@@ -1,6 +1,6 @@
-# Bug report — Rounds One/Two/Three v96
+# Bug report — Rounds One/Two/Three v97
 
-**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v96.md).
+**Full product remains incomplete.** Earlier completion statements below refer to their named bug/transparency batches. Current work is tracked as C001–C017 in [status](PROJECT-STATUS_v97.md).
 
 Updated: **18 October2026 (Africa/Lagos)**.
 
@@ -11,6 +11,8 @@ Historical numbered migration paths below identify the original fixes in Git his
 PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the three fresh Round Two findings below; The same batch includes the Round Three recovery fix below; Phase Two transparency implementation/local review was completed in v54; full-product work remains open.
 
 ## Findings at a glance
+
+- **P1-100–101:** readable bilingual moderation/profile notifications implemented; actual delivery, browser and integrity checks passed.
 
 - **P1-099:** transparent priority-change member notices implemented; named local delivery, privacy, replay and browser checks passed.
 
@@ -120,7 +122,7 @@ PR51 completed Round One and incidental R2-001–003. The v53 batch fixes the th
 - “Defect” means a source/contract failure; “requirement gap” means missing requested behavior; “hardening” means a conditional defensive improvement; “maintenance” means structural/dependency risk.
 - Initial audit ratings (current → projected after fixes): money/recovery 5 → 8; security/privacy 6.5 → 8.5; performance 5 → 8; maintainability 6 → 8; product/accessibility/SEO 6 → 8, out of 10. These were qualitative judgments, not measured guarantees or updated release ratings.
 - Original audit: 70 findings; four more were found during remediation. Three analysis passes were one audit round. CRON frequency and test-only issues were excluded.
-- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v96.md).
+- Paths are repository-relative. Fix instructions and acceptance checks are in [the fix plan](custom-bugs-fix-plan_v97.md).
 
 ## Original evidence by finding
 
@@ -586,7 +588,7 @@ Signed: **16 October 2026 at 09:21:01 PM WAT**.
 - **R2-002 fixed/local checks passed:** real PostgreSQL lock timeout `55P03` is transient, preserving retry eligibility instead of marking work permanently failed.
 - **R2-003 fixed/local checks passed:** a real timeout opens admission cooldown; failure recording now waits once (at most two seconds), respects the remaining execution budget and rechecks job/run leases before retrying. Immediate durable retry passed on a fresh fixture.
 
-Evidence and remaining release checks: [current status](PROJECT-STATUS_v96.md). Original finding descriptions and acceptance conditions remain above.
+Evidence and remaining release checks: [current status](PROJECT-STATUS_v97.md). Original finding descriptions and acceptance conditions remain above.
 
 ## Fresh Round Two findings (v53)
 
@@ -606,7 +608,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Phase Two transition finding (v54)
 
-**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v96.md).
+**P2-B001 — Queue revisions omit administrative entry changes.** Profile preview validation could miss a priority/bootstrap edit because only selected gift paths advanced the partition revision. SQL004 now increments it on every entry insertion/change and bounds it to an exact JavaScript integer. A fresh fixture reproduced stale-priority preview rejection while retaining actual balances/tickets. Phase Two implementation/local verification is complete; exact-head CI/merge is tracked in see [status](PROJECT-STATUS_v97.md).
 
 
 
@@ -627,7 +629,7 @@ Fresh review covered request/worker admission, public configuration/cache bounda
 
 ## Current completion and delivery
 
-Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v96.md) and [handover](LLM-HANDOVER_v96.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-report_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
+Current C001–C017 scope, release evidence and remaining acceptance are maintained in [status](PROJECT-STATUS_v97.md) and [handover](LLM-HANDOVER_v97.md). The detailed v55–v79 delivery chronology remains in [the merged v79 record](https://github.com/nero1/onyiy/blob/61adf9375e0c534cad9e52d841df31702d61677b/docs/custom-bugs-report_v79.md). Original numbered findings and Round Two/Three/Phase Two review details above remain unchanged.
 
 ### P1-075 — Solana v1 reads
 
@@ -746,3 +748,11 @@ The suspended-route allowlist blocked the privacy control although the domain pe
 A real bump changed serving ranks1/2 to2/1 without notifying either waiting member, contrary to PRD §32.4. Queue one safe notice per waiting member in the changed partition for bump/revoke and priority bootstrap creation/removal. Durable change/member keys prevent duplicate delivery; unchanged priority queues nothing. Keep staff reasons private and translate the known template at display time. Phase One behavior stays unchanged.
 
 `own-data-v96/priority-baseline-r2` reproduces the omission. `priority-fixed-r4` passes serving/joining order, exact retry/no-op/conflict, bootstrap changes, rollback and actual once-only job delivery. Disabled-profile and production390px EN/FR checks pass. Independent integrity compares the original source and seven retained copies: four financial fingerprints match and the final eight notices are delivered once. Personal-data export/ownership/deletion checks also pass; no additional bug is asserted for that evidence. Required/build/bundle checks pass; hosted acceptance remains separate.
+
+### P1-100 — English account notifications expose raw JSON
+
+Moderation stores immutable action/status JSON. The renderer returned English early, so members saw implementation data while French received readable status. Render recognized status in the selected language before the language fallback; preserve unknown payloads and authored staff messages. Actual suspend/restore/job delivery and production390px baseline/fixed EN/FR checks pass under `account-notices-v97`. No stored message or account state is rewritten.
+
+### P1-101 — Profile-change notices retain their saved language
+
+A notice saved for a French-speaking member stayed French after selecting English. Recognize both existing profile templates and render the selected EN/FR copy, as for priority notices. Actual delivered French notice baseline/fixed production-browser checks pass. Independent original-source comparisons preserve financial fingerprints and original JSON/French bodies. Required/build/bundle checks pass; this is local acceptance, not hosted/device completion.
