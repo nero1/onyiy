@@ -1,4 +1,4 @@
-# Project status v105
+# Project status v106
 
 **Phase One/Two is incomplete.** Four mainnets/eight protocols are implemented; seven member currencies have local financial checks. Configured-provider acceptance, hosted operation and observation periods remain. Owner launch inputs are deferred to final testing.
 
@@ -26,8 +26,8 @@
 
 ## Current work
 
-Documentation cleanup follows merged PR103. Keep five core guides and one concise [bug report](custom-bugs-report_v105.md); the separate fix plan is removed. Resume C010 and the remaining independent technical work after this PR merges.
+Documentation cleanup is merged in [PR104](https://github.com/nero1/onyiy/pull/104); SETUP remains detailed. C010 publication consent, suspension/restoration and activity off/on pass locally across separate processes with unchanged finances. No new bug was found. Continue the remaining product/technical audit; actual provider/hosted acceptance remains open.
 
 Create and merge substantial batches after both CI events pass the exact final head. Continue without milestone approval pauses. Never treat local checks, configuration or fixed-bug counts as 100% production acceptance.
 
-v105
+v106

@@ -1,4 +1,4 @@
-# LLM handover v105
+# LLM handover v106
 
 ## Owner instructions
 
@@ -13,7 +13,7 @@
 
 ## Resume
 
-Repository `/workspace/onyiy` (`nero1/onyiy`). Current documentation branch: `docs/concise-single-bug-tracker`, based on merged PR103. Check this PR's state: finish/merge it if open; otherwise continue from current main. Next: C010 public/member/admin/profile audit, then remaining independent tasks in [status](PROJECT-STATUS_v105.md). Full completion remains blocked by the listed real acceptance work, not milestone approval.
+Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/publication-activity-review`, based on merged PR104 (`c6c22225fe4523f8a376d963a916955acab205fc`). Check this PR's state: finish/merge it if open; otherwise continue from current main. Publication consent/status/feature checks pass locally across separate processes; no product fix was needed. Current manual files: `/workspace/work/public-activity-v106`; preserve all copies. Next: remaining C010 public/member/admin/profile cases and independent tasks in [status](PROJECT-STATUS_v106.md). Full completion remains blocked by the listed real acceptance work, not milestone approval.
 
 ## Environment
 
@@ -33,4 +33,4 @@ Repository `/workspace/onyiy` (`nero1/onyiy`). Current documentation branch: `do
 - Four mainnets/eight protocols; seven member currencies, TRX operating-only. Real JAGA stays disabled without provenance. Generated providers/contracts/keys are not live evidence.
 - Mainnet needs transparent settings, reviewed readiness, verified registry, configuration approvals and recent signed alert acknowledgement. Client wire1/min-client0/min-server1; do not weaken compatibility or financial gates.
 
-v105
+v106
