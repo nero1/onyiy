@@ -26,7 +26,7 @@
 
 ## Current work
 
-PR112 is merged. P1-121–122 align account/member/recovery navigation with feature flags and preserve recovery language. Production EN/FR mobile/desktop and offline checks pass; original financial records remain unchanged. Merge this batch after both exact-head CI runs, then continue the independent technical audit.
+PR112 is merged. P1-121–123 align portal feature flags, preserve recovery language and provide 44px navigation/action targets. Production EN/FR mobile/desktop, offline and touch-target checks pass; original financial records remain unchanged. Merge this batch after both exact-head CI runs, then continue the independent technical audit.
 
 Create and merge substantial batches after both CI events pass the exact final head. Continue without milestone approval pauses. Never treat local checks, configuration or fixed-bug counts as 100% production acceptance.
 

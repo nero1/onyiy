@@ -4,7 +4,7 @@ Updated: 19 October 2026.
 
 ## Fixed
 
-- **P1-001–P1-122:** fixed.
+- **P1-001–P1-123:** fixed.
 - **R2-001–R2-006:** fixed.
 - **R3-001:** fixed.
 - Phase Two presentation/recovery review fixes: fixed.
