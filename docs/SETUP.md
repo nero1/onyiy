@@ -175,7 +175,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v108.md](PROJECT-STATUS_v108.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v109.md](PROJECT-STATUS_v109.md).
 
 ## 10. Read-only preview using the same database
 
@@ -192,7 +192,7 @@ grant connect on database postgres to gw_preview_runtime;
 ```
 
 3. Delete the saved password-bearing query. In **Connect → Transaction pooler**, copy the URI. Keep the same project, host, port and database name. Change its username to `gw_preview_runtime.PROJECT_REF` and use the **preview** password. Save this as **Preview DATABASE_URL**.
-4. In Vercel **Settings → Environment Variables**, edit account, Redis, signing, scheduler, export and owner credentials so they apply to **Production only**. In particular, Preview must have no `AUTH_ACCESS_KEY`, `MFA_ENCRYPTION_KEY`, `GOOGLE_CLIENT_SECRET`, `DATABASE_MIGRATION_URL`, signer keys, worker keys, `UPSTASH_REDIS_REST_TOKEN`, `REDIS_URL` or `SUPABASE_SERVICE_ROLE_KEY`. Keep their Production values.
+4. In Vercel **Settings → Environment Variables**, edit account, Redis, signing, scheduler, export and owner credentials so they apply to **Production only**. In particular, Preview must have no `AUTH_ACCESS_KEY`, `MFA_ENCRYPTION_KEY`, `GOOGLE_CLIENT_SECRET`, `DATABASE_MIGRATION_URL`, signer keys, worker keys (including `PRICE_FEED_AUTH_KEY`), `UPSTASH_REDIS_REST_TOKEN`, `REDIS_URL` or `SUPABASE_SERVICE_ROLE_KEY`. Keep their Production values.
 5. Add these values for **Preview only**:
 
 | Name | Value |
@@ -373,7 +373,7 @@ Start with **Solana devnet** to avoid needing a test token contract. Solana's se
 Use the UTC format `YYYY-MM-DDTHH:MM:SSZ`. `verified=true` records a real network review, not permission to send. This registry entry does not itself create or activate the database asset.
 
 7. Redeploy `main` and `preview`. Have the verified administrator open **Admin → Testnet administration**, select **sol**, enter a reason, and use **Stage disabled** when those controls are available. Do not select enable/activate to bypass the readiness pause. RPC/balance access is still required for staging.
-8. Prepare the reviewed signed-price verification key (`PRICE_FEED_PUBLIC_KEY`), actual fee/gas limits and HTTPS alert receiver through the owner/maintainer. These are financial activation inputs, not values the guide can invent. For new encrypted keys, use the browser custody-preparation steps below. Follow the custody, isolated-signer and background-job steps below; actual hosted acceptance remains required.
+8. Prepare the pricing key using **Configure prices and manual fallback** below, plus reviewed fee/gas limits and an HTTPS alert receiver. These are financial activation inputs, not values the guide can invent. For new encrypted keys, use the browser custody-preparation steps below. Follow the custody, isolated-signer and background-job steps below; actual hosted acceptance remains required.
 9. Complete the provider, readiness, custody and signer checks below before controlled testnet sending. Record actual results; configuration alone does not prove payments work.
 
 Other supported test-network registry values: Ethereum Sepolia `11155111`, BNB testnet `97`, and reviewed TRON `nile`/`shasta`. Token assets additionally need independently verified contract/mint and decimals; do not copy a mainnet token address into a test registry. [Official Solana network details](https://solana.com/docs/references/clusters).
@@ -422,7 +422,7 @@ Code supports Ethereum `1`, BNB `56`, Solana `mainnet-beta` and TRON `mainnet`. 
 17. Redeploy Production, then run the isolated signer workflow once. Check its run result and the site's signer heartbeat. A changed policy, registry, address or alert binding needs new hashes/probes; never reuse an unrelated approval.
 18. With the owner present, fund only the approved treasury/reserve amounts, activate the intended per-currency plans and perform the final tests with small limits. Confirm actual wallet approval, chain receipts, balances, fees, refunds, alerts and restore reconciliation. Complete the required observation periods before public launch.
 
-Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v108.md).
+Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v109.md).
 
 ## If something fails
 
@@ -553,7 +553,7 @@ grant gw_signer to gw_signer_runtime;
 
 Use the existing database's connection details with that login, following the connection-format instructions above. Never grant it `gw_service`, `gw_read` or owner membership. Do not recreate an existing login merely to clear an error.
 
-4. Under this environment's **Environment variables → Add variable**, copy the matching website values: `ASSET_REGISTRY_JSON`, `ALERT_WEBHOOK_URL`, `OUTBOUND_ALLOWED_HOSTS`, both approval JSON lists, `FINANCIAL_ACTIVATION`, the enabled network RPC values and all configured platform addresses. Set `FINANCIAL_API_ORIGIN` to the website's exact HTTPS origin. Copy any non-default signer hard limits and custom database CA setting too.
+4. Under this environment's **Environment variables → Add variable**, copy the matching website values: `ASSET_REGISTRY_JSON`, `PRICE_PROVIDER`, `COINMARKETCAP_IDS_JSON`, `PRICE_FEED_PUBLIC_KEY`, `ALERT_WEBHOOK_URL`, `OUTBOUND_ALLOWED_HOSTS`, both approval JSON lists, `FINANCIAL_ACTIVATION`, the enabled network RPC values and all configured platform addresses. Set `FINANCIAL_API_ORIGIN` to the website's exact HTTPS origin. Copy any non-default signer hard limits and custom database CA setting too.
 5. Keep website authentication, Google, MFA and migration credentials out of this environment. The workflow installs all four encrypted files into a new private runner directory and keeps the decryption secret separate.
 6. Open **Settings → Secrets and variables → Actions → Variables**. Add repository variable `SIGNER_PAYMENT_ENVIRONMENT` with `testnet` or `mainnet`. Add `ENABLE_SIGNER_WORKER` with `true` when ready to run. This also enables the five-minute schedule.
 7. Open **Actions → isolated-encrypted-signer → Run workflow**. Choose **main** and the matching payment environment, then **Run workflow**. Inspect the completed run and signer heartbeat. A paused result requires investigation; it never proves that a payment succeeded.
@@ -661,3 +661,58 @@ Use a plan pause to close checkout while keeping valid payouts available. Global
 3. Otherwise click **Reload app**. Ordinary compatible updates do not block payments. An incompatible update blocks new actions until reload; it never queues or resends them.
 
 **Pending send labels:** “Signed; submission pending” means bytes are retained but no network submission is recorded. “Submitted to network” still needs confirmation. Save the recorded hash if shown; do not create another payment to clear either state.
+
+
+## Configure prices and manual fallback
+
+Use this for testnet and mainnet after custody/RPC setup. Simulation needs no external feed. Prices are USD reference rates; testnet coins have no promised cash value. Keep payment plans disabled while setting this up.
+
+### Prepare a separate pricing key
+
+1. In GitHub, open **onyiy → Settings → Environments → New environment**. Create `prices-testnet` or `prices-mainnet` to match the website. Restrict deployment branches to **main**. Add required reviewers if your GitHub plan supports them.
+2. In Supabase, open **SQL Editor → New query**. Run:
+
+```sql
+select
+  rtrim(translate(encode(gen_random_bytes(32), 'base64'), '+/', '-_'), '=')
+    as price_feed_auth_key,
+  rtrim(translate(encode(gen_random_bytes(32), 'base64'), '+/', '-_'), '=')
+    as price_feed_decryption_secret;
+```
+
+3. Save the two different results privately. Do not replace existing application, MFA or custody keys.
+4. In the GitHub pricing environment, choose **Environment secrets → Add environment secret**. Add `PRICE_FEED_AUTH_KEY` and `PRICE_FEED_DECRYPTION_SECRET` using the matching results.
+5. In Vercel **Settings → Environment Variables**, add the same `PRICE_FEED_AUTH_KEY` for **Production only**. The decryption secret stays in GitHub.
+6. In GitHub, open **Actions → protected-price-feed → Run workflow**. Select **main**, the matching payment environment and operation **prepare_key**. Leave the manual-price fields blank. Run it.
+7. Open the successful run. Under **Artifacts**, download the encrypted pricing archive within one day. Save it privately, separately from its decryption secret. Extract it: there should be `encrypted-price-key.json` and `price-feed-public-key.txt`.
+8. In the GitHub pricing environment, add secret `PRICE_FEED_KEY_PACKAGE_JSON`: paste the complete encrypted JSON file. Do not paste it into the website.
+9. In Vercel Production, add `PRICE_FEED_PUBLIC_KEY`: paste the public text file's single value. This public key cannot sign payments or rates.
+
+### Select the provider and reviewed currencies
+
+1. In Vercel Production, set `PRICE_PROVIDER=coinmarketcap`. This is the native-mode default. If upgrading an existing manual-rate installation, explicitly retain `PRICE_PROVIDER=manual_signed` until ready to change providers.
+2. Add `COINMARKETCAP_IDS_JSON` with reviewed market IDs for **every enabled registry asset and its native gas currency**. For a SOL-only setup, use `{"sol":5426}`. For the seven supported ETH/BNB/SOL/TRON native/USDT entries, excluding JAGA, use:
+
+```json
+{"eth":1027,"bnb":1839,"sol":5426,"trx":1958,"usdt_bnb":825,"usdt_sol":825,"usdt_tron":825}
+```
+
+3. Compare each ID with its current CoinMarketCap listing. USDT uses the same market ID on its three supported chains, but each chain's contract/mint still needs separate verification. Market IDs never establish on-chain provenance. Keep JAGA disabled until both its actual BNB contract and market mapping are reviewed; do not invent an ID. If a required asset has no usable listing, use the explicitly reviewed manual provider instead.
+4. In the GitHub pricing environment, choose **Environment variables → Add variable**. Add `PRICE_FEED_API_ORIGIN` as the website's exact HTTPS origin, with no trailing slash or path. Add `OUTBOUND_ALLOWED_HOSTS` as the website hostname and `pro-api.coinmarketcap.com`, separated by a comma; omit `https://` and paths.
+5. CoinMarketCap's current v3 public endpoint supports keyless requests. If your existing account/plan uses a Pro API key, add `COINMARKETCAP_API_KEY` as a **pricing-environment secret only**. Obtain it from the [CoinMarketCap API dashboard](https://pro.coinmarketcap.com/). Review the chosen plan's quotas and usage terms. Never put that key in Vercel or public browser variables.
+6. In the matching `signer-testnet` or `signer-mainnet` environment, copy `PRICE_PROVIDER`, `COINMARKETCAP_IDS_JSON` and `PRICE_FEED_PUBLIC_KEY` as variables, identical to the website. The signer receives no pricing private key/decryption secret.
+7. Redeploy Vercel Production. On the website, open native payment administration and provision the reviewed assets **disabled**. The registry entries must be enabled/verified to be available to the feed; the database payment plans remain disabled. Provisioning checks the configured RPC and receiving address.
+8. Run **Actions → protected-price-feed → Run workflow** again, this time with operation **refresh** and the matching environment. Inspect its result: `published` should cover the enabled reviewed registry entries. Missing mappings, invalid responses, stale data or unavailable providers stop publication; no fake rate replaces them.
+9. Continue the network approval steps above. Provider mapping or public-key changes alter financial configuration hashes: obtain fresh hashes and alert acknowledgements before activation. Do not overwrite old obligation or signed-attempt snapshots.
+10. To schedule refreshes, open **Settings → Secrets and variables → Actions → Variables**. Add repository variables `ENABLE_PRICE_FEED=true` and `PRICE_FEED_PAYMENT_ENVIRONMENT=testnet` or `mainnet`, matching the active website. Check actual successful runs and fresh stored rates. GitHub's five-minute schedule can be delayed; expired rates close affected price-dependent actions. Set the enable variable to `false` to pause automatic refreshes.
+
+### Publish a reviewed manual fallback
+
+1. Keep the encrypted pricing package, public key and pricing authentication settings above. A manual fallback also works during a CoinMarketCap cooldown; it does not erase that cooldown.
+2. To use manual rates exclusively, set `PRICE_PROVIDER=manual_signed` in Vercel and the signer environment, redeploy and repeat changed-configuration approvals. Automatic **refresh** is then disabled. Keep the other financial gates intact.
+3. Open **Actions → protected-price-feed → Run workflow**. Select **main**, the matching environment and operation **manual**.
+4. Fill `asset_key` with one enabled registry key, such as `sol` or `usdt_bnb`. Fill `asset_usd` with the reviewed USD price per token/unit, and `native_usd` with the reviewed USD price of its gas currency. Native assets require identical values. Use plain positive decimals with at most18 decimal places; never assume a stablecoin peg.
+5. Fill `observed_at` with the actual recent UTC observation time, such as `2026-10-19T12:30:00Z`, replacing the example with the real time. Fill `source` with its public HTTPS evidence URL, without login credentials or query parameters. Run immediately: quotes expire five minutes after their observation. GitHub queue delays can make the request expire; review a fresh observation rather than changing an old observation's timestamp.
+6. Inspect the result and stored quote. Repeat separately for other currencies if needed. A successful rate publication does not activate plans or prove a financial transfer.
+
+The pricing environment needs no database, Google, MFA, custody or financial-worker keys. Keep all such credentials out of it. See the current [CMC v3 reference](https://coinmarketcap.com/api/documentation/pro-api-reference/cryptocurrency) for provider behavior; hosted refresh/retry acceptance remains part of final setup.

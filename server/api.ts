@@ -35,7 +35,8 @@ import {cancelNativeInvoice,quoteCryptoInvoice,submitCryptoDeposit,verifyCryptoD
 import {withExecutionBudget} from '@gifters/db';
 import {nativeWithdrawalQuote} from './financial-transport';
 import {quoteCryptoWithdrawal,confirmCryptoWithdrawal,cancelCryptoWithdrawal,requoteCryptoWithdrawal,approveCryptoObligation,cryptoWithdrawal} from './crypto-payouts';
-import {authenticateWorker} from './worker-auth';
+import {authenticateWorker,authenticatePriceFeed} from './worker-auth';
+import {priceFeedInput,priceFeedOperation} from './price-feed';
 import {settleCryptoAttempt} from './crypto-settlement';
 import {openFinancialAlert,deliverFinancialAlert} from './financial-alerts';
 import {assertFinancialEnvironment,registryAsset,financialConfiguration} from './financial-config';
@@ -141,6 +142,7 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
     if(method==='GET'&&route==='/crypto/catalog'){const value=await getPublicNativeCatalog(request);return publicOk(value.data,value.ttlSeconds,request);}
     if(method==='GET'&&route==='/me/records'){const actor=await current(request),params=new URL(request.url).searchParams,input=memberRecordInput.parse(Object.fromEntries(params));return ok(await withContext({access:'service',actorId:actor.id,reportSnapshot:true},tx=>ownMemberRecords(tx,actor.id,input)));}
     if(method==='GET'&&route==='/me/crypto'){const actor=await current(request);return ok(await withContext({access:'service',actorId:actor.id,reportSnapshot:true},tx=>ownNativePortfolio(tx,actor.id)));}
+    if(method==='POST'&&route==='/internal/prices'){const input=priceFeedInput.parse(await authenticatePriceFeed(request));return ok(await withContext({access:'service'},tx=>priceFeedOperation(tx,input)));}
     if(method==='POST'&&route==='/internal/financial'){
       const input=z.discriminatedUnion('action',[z.object({action:z.literal('scan'),run_id:z.string().uuid()}).strict(),z.object({action:z.literal('expiry'),attempt_id:z.string().uuid()}).strict(),z.object({action:z.literal('settle'),attempt_id:z.string().uuid(),event_index:z.number().int().min(0).max(1000)}).strict(),z.object({action:z.literal('verify'),user_id:z.string().uuid(),invoice_id:z.string().uuid(),tx_hash:z.string().min(20).max(128),event_index:z.number().int().min(-1).max(1000)}).strict(),z.object({action:z.literal('alerts')}).strict(),z.object({action:z.literal('cleanup')}).strict(),z.object({action:z.literal('monitor_inventory')}).strict(),z.object({action:z.literal('monitor'),asset_key:z.string().max(30).optional()}).strict(),z.object({action:z.literal('business_daily')}).strict(),z.object({action:z.literal('reminders')}).strict()]).parse(await authenticateWorker(request,'financial'));
       if(input.action==='scan')return ok(await withContext({access:'service'},tx=>recoverScanPage(tx,input.run_id)));
@@ -493,7 +495,7 @@ async function routeApiRequest(method:string,path:string[],request:Request){
   if(!['GET','HEAD','OPTIONS'].includes(method)&&!route.startsWith('/internal/')&&route!=='/auth/logout'&&!requestPeerCompatible(request.headers.get('x-gw-client-protocol'),request.headers.get('x-gw-min-server-protocol')))throw new Error('CLIENT_UPDATE_REQUIRED');
   if(route.startsWith('/auth/'))return await handleAuthRequest(method,route,request);
   if(route==='/sim/users'&&(runtimeProviders().AUTH_PROVIDER)!=='simulation')throw new Error('FEATURE_DISABLED');
-  if(['/manifest','/transparency','/activity','/statistics','/plans','/help','/sim/users','/internal/tick','/internal/financial','/crypto/catalog'].includes(route))return await dispatchApiRequest(method,path,request);
+  if(['/manifest','/transparency','/activity','/statistics','/plans','/help','/sim/users','/internal/tick','/internal/financial','/internal/prices','/crypto/catalog'].includes(route))return await dispatchApiRequest(method,path,request);
   const identity=await authenticate(request);
   const account=request.headers.get('x-client-account');const generation=request.headers.get('x-client-session');if(!identity.tool&&((account&&account!==identity.user.username)||(generation&&generation!==identity.session!.generation)))throw new Error('VERSION_CONFLICT');
   if(identity.user.status==='pending_consent'&&!['/me/consent','/me/bot-check','/me/preferences'].includes(route))throw new Error('CONSENT_REQUIRED');

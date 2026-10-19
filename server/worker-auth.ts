@@ -1,10 +1,11 @@
 import {boundedText} from './request-body';
 import {nativePaymentEnvironment} from "@gifters/config";
-import {financialWorkerSignature} from "../packages/config/src/worker-signature.mjs";
+import {financialWorkerSignature,priceFeedSignature} from "../packages/config/src/worker-signature.mjs";
 import { z } from "zod";
 import { workerRequests, withContext } from "@gifters/db";
 import { environmentKey, equalText, hash } from "./auth-crypto";
-export async function authenticateWorker(request: Request, purpose: string) {
+async function authenticateScopedWorker(request:Request,purpose:'financial'|'prices') {
+  const path=purpose==='financial'?'/api/v1/internal/financial':'/api/v1/internal/prices';
   let environment:"testnet"|"mainnet";
   try{environment=nativePaymentEnvironment()}catch{throw new Error("UNAUTHENTICATED")}
   const url = new URL(request.url),
@@ -16,7 +17,7 @@ export async function authenticateWorker(request: Request, purpose: string) {
     signature = request.headers.get("x-worker-signature") ?? "";
   if (
     request.method !== "POST" ||
-    url.search || url.pathname!=="/api/v1/internal/financial" || purpose!=="financial" ||
+    url.search || url.pathname!==path ||
     request.headers.get("content-type")?.split(";")[0] !== "application/json" ||
     !parsedNonce.success ||
     !/^[0-9]{10}$/.test(timestamp) ||
@@ -26,10 +27,10 @@ export async function authenticateWorker(request: Request, purpose: string) {
   )
     throw new Error("UNAUTHENTICATED");
   const body = await boundedText(request,16384),
-    key = environmentKey("FINANCIAL_WORKER_AUTH_KEY");
+    key = environmentKey(purpose==='financial'?'FINANCIAL_WORKER_AUTH_KEY':'PRICE_FEED_AUTH_KEY');
   let expected: string;
   try {
-    expected=financialWorkerSignature({environment,purpose:'financial',method:'POST',path:'/api/v1/internal/financial',timestamp,nonce:parsedNonce.data,bodyHash:hash(body)},key);
+    expected=purpose==='financial'?financialWorkerSignature({environment,purpose:'financial',method:'POST',path:'/api/v1/internal/financial',timestamp,nonce:parsedNonce.data,bodyHash:hash(body)},key):priceFeedSignature({environment,purpose:'prices',method:'POST',path:'/api/v1/internal/prices',timestamp,nonce:parsedNonce.data,bodyHash:hash(body)},key);
   } finally {
     key.fill(0);
   }
@@ -56,3 +57,6 @@ export async function authenticateWorker(request: Request, purpose: string) {
   });
   return parsed;
 }
+
+export function authenticateWorker(request:Request,purpose:string){if(purpose!=='financial')throw new Error('UNAUTHENTICATED');return authenticateScopedWorker(request,'financial');}
+export function authenticatePriceFeed(request:Request){return authenticateScopedWorker(request,'prices');}

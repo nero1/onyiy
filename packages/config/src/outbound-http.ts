@@ -55,7 +55,7 @@ export async function pinnedDestination(url: URL, signal: AbortSignal, fixture =
     return { address: chosen.address, family: chosen.family, hostname: host };
   } finally { if(cancel)signal.removeEventListener('abort',cancel); }
 }
-export async function pinnedPost(url: URL, input: { headers: Record<string,string>; body: string; signal: AbortSignal; maxBytes: number; fixture?: boolean }) {
+async function pinnedRequest(url: URL, input: { method: 'GET'|'POST'; headers: Record<string,string>; body: string; signal: AbortSignal; maxBytes: number; fixture?: boolean }) {
   if (!Number.isSafeInteger(input.maxBytes) || input.maxBytes < 1 || input.maxBytes > 2*1024*1024 || Buffer.byteLength(input.body)>2*1024*1024)
     throw new Error('OUTBOUND_INPUT_INVALID');
   if(active>=32)throw new Error('OUTBOUND_CAPACITY_EXCEEDED');
@@ -65,7 +65,7 @@ export async function pinnedPost(url: URL, input: { headers: Record<string,strin
   try { return await new Promise<Response>((resolve,reject)=>{
     const transport = url.protocol === 'https:' ? https : http;
     const options: https.RequestOptions & {autoSelectFamily:boolean} = {
-      method:'POST',headers:input.headers,signal:input.signal,agent:false,
+      method:input.method,headers:input.headers,signal:input.signal,agent:false,
       servername:pinned.hostname,rejectUnauthorized:true,autoSelectFamily:false,
       // Bypass a second lookup: the socket cannot resolve to a new/private IP.
       lookup:(_hostname,_options,callback)=>callback(null,pinned.address,pinned.family as 4|6),
@@ -86,3 +86,6 @@ export async function pinnedPost(url: URL, input: { headers: Record<string,strin
     request.end(input.body);
   }); } finally {active--}
 }
+
+export function pinnedPost(url:URL,input:{headers:Record<string,string>;body:string;signal:AbortSignal;maxBytes:number;fixture?:boolean}){return pinnedRequest(url,{...input,method:'POST'});}
+export function pinnedGet(url:URL,input:{headers:Record<string,string>;signal:AbortSignal;maxBytes:number;fixture?:boolean}){return pinnedRequest(url,{...input,method:'GET',body:''});}
