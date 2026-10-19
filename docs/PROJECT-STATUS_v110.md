@@ -1,4 +1,4 @@
-# Project status v109
+# Project status v110
 
 **Phase One/Two is incomplete.** Four mainnets/eight protocols are implemented; seven member currencies have local financial checks. Configured-provider acceptance, hosted operation and observation periods remain. Owner launch inputs are deferred to final testing.
 
@@ -26,8 +26,8 @@
 
 ## Current work
 
-PR107 is merged. P1-115 implements isolated CoinMarketCap pricing and signed manual fallback. Named precision, API authentication/replay, durable backoff, key isolation and transport checks pass; public-provider refresh encountered HTTP429. Finish this pricing PR, then continue the independent audit. Continue the remaining independent technical audit; actual provider/device/hosted acceptance remains open.
+PR108 is merged. P1-116–117 correct mainnet Turnstile/TronGrid browser policy. Production browser checks and receipt preview/download checks pass; hosted CAPTCHA and physical-wallet acceptance remain open. Continue the independent technical audit after merging this batch.
 
 Create and merge substantial batches after both CI events pass the exact final head. Continue without milestone approval pauses. Never treat local checks, configuration or fixed-bug counts as 100% production acceptance.
 
-v109
+v110
