@@ -1,4 +1,4 @@
-# Bug report v111
+# Bug report v112
 
 Updated: 19 October 2026.
 
@@ -13,6 +13,6 @@ Updated: 19 October 2026.
 
 No confirmed bug remains open in this batch. Continue the PRD audit and outstanding acceptance work; this does not mean the product is bug-free.
 
-Phase One/Two is still incomplete; follow [status](PROJECT-STATUS_v111.md).
+Phase One/Two is still incomplete; follow [status](PROJECT-STATUS_v112.md).
 
 Add newly confirmed bugs here with **ID, brief problem, next fix and status**. Replace completed entries with a fixed range; omit explanations, implementation details and evidence. Do not recreate a separate fix-plan file. Historical details remain in Git.

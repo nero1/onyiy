@@ -1,4 +1,4 @@
-# LLM handover v111
+# LLM handover v112
 
 ## Owner instructions
 
@@ -14,7 +14,7 @@
 
 ## Resume
 
-Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/unallocated-refund-environment`, based on merged PR109 (`e47bc6c9138e5c555b046a47242f87842064dc21`). Finish/merge its PR if open; otherwise continue from main. P1-118–119 bind original-sender refunds and alert-budget diagnostics to the actual environment. Preserve `/workspace/work/unallocated-refund-v111`: generated sender/treasury keys, original-code copy and all successful/failed fixtures. Mainnet/testnet reservation, wrong-proof/replay, unchanged testnet statements and seven-table integrity checks pass. Restored copies correctly remain fenced until fresh reconciliation; the successful refund procedure uses fresh generated native fixtures, not cleared restore gates. No outgoing signatures/broadcasts or schema changes. Earlier browser/pricing work remains in `receipt-audit-v110` / `coinmarketcap-v109` under `/workspace/work`; provider429 and hosted/device/observation acceptance remain open. Continue C001/C004/C007/C010 and independent tasks in [status](PROJECT-STATUS_v111.md); do not stop after merge or request deferred launch inputs.
+Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/unmatched-refund-settlement`, based on merged PR110 (`90bba6fbabd31856c8695aacb16768b28dd06c2e`). Finish/merge its documentation PR if open; otherwise continue from main. Bugs through P1-119 are fixed. `/workspace/work/unallocated-send-v112` verifies the full unmatched-refund path: protected signer role, encrypted EVM custody key, durable signed bytes, one generated-provider broadcast, verified settlement/replay and retained original seven-table financial history. Preserve its keys, role credentials, signed attempt and generated provider evidence. This is not a live mainnet transaction. Earlier work remains under `/workspace/work/unallocated-refund-v111`, `receipt-audit-v110` and `coinmarketcap-v109`; retain all failed copies. Restored copies still require actual fresh reconciliation/approvals. Provider429 and hosted/device/observation acceptance remain open. Continue C001/C004/C007/C010 and independent tasks in [status](PROJECT-STATUS_v112.md); do not stop after merge or request deferred launch inputs.
 
 ## Environment
 
@@ -34,4 +34,4 @@ Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/unallocated-refund-e
 - Four mainnets/eight protocols; seven member currencies, TRX operating-only. Real JAGA stays disabled without provenance. Generated providers/contracts/keys are not live evidence.
 - Mainnet needs transparent settings, reviewed readiness, verified registry, configuration approvals and recent signed alert acknowledgement. Client wire1/min-client0/min-server1; do not weaken compatibility or financial gates.
 
-v111
+v112
