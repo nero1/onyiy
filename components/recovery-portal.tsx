@@ -1,17 +1,20 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { api, mutation } from "@/lib/api-client";
+import {useAppearance} from './appearance-provider';
+import {useLocalizedNotice} from './use-localized-notice';
 import type { NativeCurrency } from "@/lib/native-wallet";
 export default function RecoveryPortal() {
-  const [fr, setFr] = useState(false),
-    [data, setData] = useState<{
+  const {locale,setLocale}=useAppearance(),fr=locale==='fr';
+  const [helpEnabled,setHelpEnabled]=useState(false);
+  const [message,setMessage]=useLocalizedNotice(locale);
+  const [data, setData] = useState<{
       statement: string;
       destination: string;
       expires_at: string;
       currency: NativeCurrency;
     } | null>(null),
     [signature, setSignature] = useState(""),
-    [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
     mounted = useRef(true);
   useEffect(() => {
@@ -19,9 +22,10 @@ export default function RecoveryPortal() {
     const params = new URLSearchParams(location.hash.slice(1)),
       recovery_id = params.get("id"),
       token = params.get("token");
-    history.replaceState(null, "", location.pathname);
+    const selectedLocale=new URLSearchParams(location.search).get('locale');
+    history.replaceState(null, '', location.pathname+(['en','fr'].includes(selectedLocale??'')?'?locale='+selectedLocale:''));
     if (!recovery_id || !token) {
-      setMessage("Link unavailable · Lien indisponible");
+      setMessage({copy:{en:"Link unavailable",fr:"Lien indisponible"}});
       return;
     }
     void api("/auth/session", "")
@@ -33,14 +37,13 @@ export default function RecoveryPortal() {
       })
       .catch(() => {
         if (mounted.current)
-          setMessage(
-            "Link unavailable or expired · Lien indisponible ou expiré",
-          );
+          setMessage({copy:{en:"Link unavailable or expired",fr:"Lien indisponible ou expiré"}});
       });
     return () => {
       mounted.current = false;
     };
   }, []);
+  useEffect(()=>{let active=true;void api<{feature_help:boolean}>('/manifest','').then(value=>{if(active)setHelpEnabled(value.feature_help===true)}).catch(()=>{});return()=>{active=false;};},[]);
   async function prove() {
     if (!data || busy) return;
     setBusy(true);
@@ -66,19 +69,11 @@ export default function RecoveryPortal() {
       );
       if (mounted.current && Date.now() < Date.parse(data.expires_at)) {
         setSignature(value);
-        setMessage(
-          fr
-            ? "Transmettez cette approbation au support. Aucun transfert ni accès au compte n’a été accordé."
-            : "Give this approval to support. No transfer or account access was granted.",
-        );
+        setMessage({copy:{fr:"Transmettez cette approbation au support. Aucun transfert ni accès au compte n’a été accordé.",en:"Give this approval to support. No transfer or account access was granted."}});
       }
     } catch {
       if (mounted.current)
-        setMessage(
-          fr
-            ? "Signature non confirmée. Vérifiez le portefeuille sélectionné."
-            : "Signature not confirmed. Check the selected wallet.",
-        );
+        setMessage({copy:{fr:"Signature non confirmée. Vérifiez le portefeuille sélectionné.",en:"Signature not confirmed. Check the selected wallet."}});
     } finally {
       if (mounted.current) setBusy(false);
     }
@@ -89,9 +84,9 @@ export default function RecoveryPortal() {
   return (
     <main className="app account-portal">
       <nav>
-        <a href="/">Gifters World</a>
-        <a href="/help">{fr ? "Aide" : "Help"}</a>
-        <button onClick={() => setFr((v) => !v)}>{fr ? "FR" : "EN"}</button>
+        <a href={'/?locale='+locale}>Gifters World</a>
+        {helpEnabled&&<a href={'/help?locale='+locale}>{fr ? 'Aide' : 'Help'}</a>}
+        <button onClick={() => setLocale(fr?'en':'fr')}>{fr ? "FR" : "EN"}</button>
       </nav>
       <h1>{fr ? "Récupération du solde" : "Balance recovery"}</h1>
       <p>
@@ -123,11 +118,7 @@ export default function RecoveryPortal() {
                   void navigator.clipboard
                     .writeText(signature)
                     .catch(() =>
-                      setMessage(
-                        fr
-                          ? "Sélectionnez et copiez l’approbation ci-dessus."
-                          : "Select and copy the approval above.",
-                      ),
+                      setMessage({copy:{fr:"Sélectionnez et copiez l’approbation ci-dessus.",en:"Select and copy the approval above."}}),
                     )
                 }
               >
