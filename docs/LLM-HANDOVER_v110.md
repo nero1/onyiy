@@ -1,4 +1,4 @@
-# LLM handover v109
+# LLM handover v110
 
 ## Owner instructions
 
@@ -14,7 +14,7 @@
 
 ## Resume
 
-Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/coinmarketcap-price-feed`, based on merged PR107 (`829947c5a0b998944061e1b2c76dc55852997cf0`). Check its PR state: finish/merge if open, otherwise continue from main. P1-115 adds isolated CoinMarketCap v3 pricing and signed fallback. Preserve `/workspace/work/coinmarketcap-v109`, including failed API copies and encrypted key material. Named local precision/authentication/replay/cooldown/transport/key/hash checks pass; a public refresh returned429, so hosted provider acceptance remains open. Website and signer must share provider/IDs/public key; pricing private material belongs only in its separate protected environment. No schema changes. Continue C007/C010 and independent tasks in [status](PROJECT-STATUS_v109.md); do not stop after merge or request deferred launch inputs.
+Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/receipt-verification`, based on merged PR108 (`20f40df10a62023b2626ea8e4c62ceb1b8f05b8e`). Finish/merge its PR if open; otherwise continue from main. P1-116–117 correct mainnet default Turnstile and TronGrid CSP. Preserve `/workspace/work/receipt-audit-v110`, including failed browser harness copies. Named production Chromium policy/receipt checks and financial fingerprints pass; these are not hosted CAPTCHA/physical-wallet acceptance. Pricing work remains under `/workspace/work/coinmarketcap-v109`; its public refresh encountered429. Website/signer pricing settings must match; private pricing material stays separate. No schema changes in either batch. Continue C007/C010 and independent tasks in [status](PROJECT-STATUS_v110.md); do not stop after merge or request deferred launch inputs.
 
 ## Environment
 
@@ -34,4 +34,4 @@ Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/coinmarketcap-price-
 - Four mainnets/eight protocols; seven member currencies, TRX operating-only. Real JAGA stays disabled without provenance. Generated providers/contracts/keys are not live evidence.
 - Mainnet needs transparent settings, reviewed readiness, verified registry, configuration approvals and recent signed alert acknowledgement. Client wire1/min-client0/min-server1; do not weaken compatibility or financial gates.
 
-v109
+v110
