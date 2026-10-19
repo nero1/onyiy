@@ -18,6 +18,7 @@ import {
   financialConfiguration,
   platformAddress,
   assertFinancialEnvironment,
+  financialEnvironmentIn,
   assertExternalActivation,
 } from "./financial-config";
 import { account, postJournal, lockUser } from "./core";
@@ -47,7 +48,7 @@ function statement(row: typeof unallocatedInflows.$inferSelect) {
   return [
     "Gifters World — original sender refund v1",
     `Inflow: ${row.id}`,
-    `Network: testnet/${row.chain}/${row.network}`,
+    `Network: ${row.environment}/${row.chain}/${row.network}`,
     `Original sender: ${row.sender}`,
     `Principal base units: ${row.amountBaseUnits}`,
     `Verified transaction: ${row.txHash}:${row.eventIndex}`,
@@ -60,10 +61,11 @@ export async function unmatchedRefundStatement(
   id: string,
 ) {
   await staff(tx, actorId);
+  const environment=await financialEnvironmentIn(tx);
   const [row] = await tx
     .select()
     .from(unallocatedInflows)
-    .where(eq(unallocatedInflows.id, id))
+    .where(and(eq(unallocatedInflows.id, id),eq(unallocatedInflows.environment,environment)))
     .limit(1);
   if (!row) throw new Error("NOT_FOUND");
   return {
@@ -78,14 +80,14 @@ export async function reserveUnmatchedRefund(
   actorId: string,
   input: z.infer<typeof unmatchedRefundInput>,
 ) {
-  const policy = await staff(tx, actorId);
+  const policy = await staff(tx, actorId),environment=await financialEnvironmentIn(tx);
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtextextended(${`unallocated-refund:${input.inflow_id}`},0))`,
   );
   const [row] = await tx
     .select()
     .from(unallocatedInflows)
-    .where(eq(unallocatedInflows.id, input.inflow_id))
+    .where(and(eq(unallocatedInflows.id, input.inflow_id),eq(unallocatedInflows.environment,environment)))
     .limit(1);
   if (!row) throw new Error("NOT_FOUND");
   const registry = row.registrySnapshot as AssetRegistry,
@@ -205,7 +207,7 @@ export async function reserveUnmatchedRefund(
           previous: input.previous_obligation_id,
         }),
       ),
-      environment: "testnet",
+      environment,
       chain: registry.chain,
       treasuryFingerprint: config.treasuryFingerprint,
       treasurySender: sender,
