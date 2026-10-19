@@ -68,7 +68,7 @@ jobs:
       (github.event_name == 'schedule' && vars.ENABLE_PRICE_FEED == 'true'))
     runs-on: ubuntu-latest
     environment: ${{ (inputs.payment_environment || vars.PRICE_FEED_PAYMENT_ENVIRONMENT || 'testnet') == 'mainnet' && 'prices-mainnet' || 'prices-testnet' }}
-    timeout-minutes: 4
+    timeout-minutes: 8
     concurrency:
       group: price-feed-${{ inputs.payment_environment || vars.PRICE_FEED_PAYMENT_ENVIRONMENT || 'testnet' }}
       cancel-in-progress: false
@@ -83,6 +83,7 @@ jobs:
         env:
           APP_ENV: ${{ inputs.payment_environment || vars.PRICE_FEED_PAYMENT_ENVIRONMENT || 'testnet' }}
           PRICE_FEED_OPERATION: ${{ inputs.operation || 'refresh' }}
+          PRICE_FEED_REFRESH_WINDOW: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
           PRICE_FEED_API_ORIGIN: ${{ vars.PRICE_FEED_API_ORIGIN }}
           OUTBOUND_ALLOWED_HOSTS: ${{ vars.OUTBOUND_ALLOWED_HOSTS }}
           COINMARKETCAP_API_KEY: ${{ secrets.COINMARKETCAP_API_KEY }}
