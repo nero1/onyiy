@@ -1,0 +1,97 @@
+name: protected-price-feed
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      payment_environment:
+        description: Must match the website payment mode
+        type: choice
+        default: testnet
+        options: [testnet, mainnet]
+        required: true
+      operation:
+        description: Prepare a new encrypted pricing key, refresh CMC, or sign a reviewed manual fallback
+        type: choice
+        default: refresh
+        options: [prepare_key, refresh, manual]
+        required: true
+      asset_key:
+        description: Manual fallback only; enabled registry key
+        type: string
+      asset_usd:
+        description: Manual fallback only; reviewed USD price per asset unit
+        type: string
+      native_usd:
+        description: Manual fallback only; reviewed USD price per native gas unit
+        type: string
+      observed_at:
+        description: Manual fallback only; actual observation time in UTC ISO format
+        type: string
+      source:
+        description: Manual fallback only; public HTTPS evidence URL without credentials or query
+        type: string
+permissions:
+  contents: read
+jobs:
+  prepare:
+    if: github.repository == 'nero1/onyiy' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.operation == 'prepare_key'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.payment_environment == 'mainnet' && 'prices-mainnet' || 'prices-testnet' }}
+    timeout-minutes: 4
+    concurrency:
+      group: price-feed-${{ inputs.payment_environment }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prepare a separate encrypted oracle key without database or provider access
+        env:
+          APP_ENV: ${{ inputs.payment_environment }}
+          PRICE_FEED_OPERATION: prepare_key
+          PRICE_FEED_DECRYPTION_SECRET: ${{ secrets.PRICE_FEED_DECRYPTION_SECRET }}
+        run: node --import tsx workers/prices/cli.ts "$RUNNER_TEMP/encrypted-price-feed"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: encrypted-price-feed-${{ inputs.payment_environment }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/encrypted-price-feed/
+          if-no-files-found: error
+          retention-days: 1
+  publish:
+    if: >-
+      github.repository == 'nero1/onyiy' && github.ref == 'refs/heads/main' &&
+      ((github.event_name == 'workflow_dispatch' && inputs.operation != 'prepare_key') ||
+      (github.event_name == 'schedule' && vars.ENABLE_PRICE_FEED == 'true'))
+    runs-on: ubuntu-latest
+    environment: ${{ (inputs.payment_environment || vars.PRICE_FEED_PAYMENT_ENVIRONMENT || 'testnet') == 'mainnet' && 'prices-mainnet' || 'prices-testnet' }}
+    timeout-minutes: 4
+    concurrency:
+      group: price-feed-${{ inputs.payment_environment || vars.PRICE_FEED_PAYMENT_ENVIRONMENT || 'testnet' }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Publish one bounded signed price refresh or reviewed fallback
+        env:
+          APP_ENV: ${{ inputs.payment_environment || vars.PRICE_FEED_PAYMENT_ENVIRONMENT || 'testnet' }}
+          PRICE_FEED_OPERATION: ${{ inputs.operation || 'refresh' }}
+          PRICE_FEED_API_ORIGIN: ${{ vars.PRICE_FEED_API_ORIGIN }}
+          OUTBOUND_ALLOWED_HOSTS: ${{ vars.OUTBOUND_ALLOWED_HOSTS }}
+          COINMARKETCAP_API_KEY: ${{ secrets.COINMARKETCAP_API_KEY }}
+          PRICE_FEED_AUTH_KEY: ${{ secrets.PRICE_FEED_AUTH_KEY }}
+          PRICE_FEED_KEY_PACKAGE_JSON: ${{ secrets.PRICE_FEED_KEY_PACKAGE_JSON }}
+          PRICE_FEED_DECRYPTION_SECRET: ${{ secrets.PRICE_FEED_DECRYPTION_SECRET }}
+          PRICE_MANUAL_ASSET: ${{ inputs.asset_key }}
+          PRICE_MANUAL_ASSET_USD: ${{ inputs.asset_usd }}
+          PRICE_MANUAL_NATIVE_USD: ${{ inputs.native_usd }}
+          PRICE_MANUAL_OBSERVED_AT: ${{ inputs.observed_at }}
+          PRICE_MANUAL_SOURCE: ${{ inputs.source }}
+        run: node --import tsx workers/prices/cli.ts

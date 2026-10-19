@@ -1,4 +1,4 @@
-# LLM handover v108
+# LLM handover v109
 
 ## Owner instructions
 
@@ -14,7 +14,7 @@
 
 ## Resume
 
-Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/public-page-consistency`, based on merged PR106 (`035160c4251c63dfba3875769e894d81ccaccc40`). Check this PR's state: finish/merge it if open; otherwise continue from current main. P1-113–114 local checks pass. Manual files: `/workspace/work/mechanics-metadata-v108`; preserve all copies. Next prioritize P1-115: required CoinMarketCap adapter is missing; only manual signed prices exist. Preserve signed-price verification and financial gates. Then continue C007/C010 and independent tasks in [status](PROJECT-STATUS_v108.md). Do not stop after merge or request deferred launch inputs.
+Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/coinmarketcap-price-feed`, based on merged PR107 (`829947c5a0b998944061e1b2c76dc55852997cf0`). Check its PR state: finish/merge if open, otherwise continue from main. P1-115 adds isolated CoinMarketCap v3 pricing and signed fallback. Preserve `/workspace/work/coinmarketcap-v109`, including failed API copies and encrypted key material. Named local precision/authentication/replay/cooldown/transport/key/hash checks pass; a public refresh returned429, so hosted provider acceptance remains open. Website and signer must share provider/IDs/public key; pricing private material belongs only in its separate protected environment. No schema changes. Continue C007/C010 and independent tasks in [status](PROJECT-STATUS_v109.md); do not stop after merge or request deferred launch inputs.
 
 ## Environment
 
@@ -34,4 +34,4 @@ Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/public-page-consiste
 - Four mainnets/eight protocols; seven member currencies, TRX operating-only. Real JAGA stays disabled without provenance. Generated providers/contracts/keys are not live evidence.
 - Mainnet needs transparent settings, reviewed readiness, verified registry, configuration approvals and recent signed alert acknowledgement. Client wire1/min-client0/min-server1; do not weaken compatibility or financial gates.
 
-v108
+v109

@@ -1,3 +1,4 @@
+import {coinMarketCapIds,nativePriceKey,runtimeProviders} from '@gifters/config';
 import {chainEnvironmentSuffix} from './network';
 import crypto from "node:crypto";
 import { chainAdapter } from "./index";
@@ -52,6 +53,13 @@ export async function configurationSnapshot(
       )
       .digest("hex"),
     registry = registryFingerprint(readRegistry());
+  let priceFeed:unknown;
+  if(runtimeProviders().PRICE_PROVIDER==='coinmarketcap'){
+    const ids=coinMarketCapIds(),publicKey=(process.env.PRICE_FEED_PUBLIC_KEY??'').trim();
+    if(!ids[asset.key]||!ids[nativePriceKey(asset.chain)]||publicKey.length>128)throw new Error('PROVIDER_UNAVAILABLE');
+    try{const key=crypto.createPublicKey({key:Buffer.from(publicKey,'base64url'),format:'der',type:'spki'});if(key.asymmetricKeyType!=='ed25519')throw Error();}catch{throw new Error('PROVIDER_UNAVAILABLE');}
+    priceFeed={provider:'coinmarketcap',ids,verificationKey:crypto.createHash('sha256').update(publicKey).digest('hex')};
+  }
   const values = {
     alertBinding,
     environment: asset.environment,
@@ -65,6 +73,8 @@ export async function configurationSnapshot(
       auto: hard("SIGNER_HARD_AUTO_APPROVE_USD", 100),
     },
     effective,
+    // Keep existing manual-provider fingerprints byte-for-byte compatible.
+    ...(priceFeed?{priceFeed}:{}),
   };
   return {
     hash: crypto

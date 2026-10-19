@@ -198,7 +198,7 @@ export function runtimeProviders(env: NodeJS.ProcessEnv = process.env) {
     SIGNER_PROVIDER: env.SIGNER_PROVIDER ?? 'disabled',
     CAPTCHA_PROVIDER: env.CAPTCHA_PROVIDER ?? (native ? 'turnstile' : 'dummy'),
     REALTIME_PROVIDER: env.REALTIME_PROVIDER ?? 'none',
-    PRICE_PROVIDER: env.PRICE_PROVIDER ?? (native ? 'manual_signed' : 'manual_simulation'),
+    PRICE_PROVIDER: env.PRICE_PROVIDER ?? (native ? 'coinmarketcap' : 'manual_simulation'),
     ALERT_PROVIDER: env.ALERT_PROVIDER ?? (native ? 'https_webhook' : 'none'),
     DEPLOYMENT_PROFILE: env.DEPLOYMENT_PROFILE ?? (environment==='mainnet'?'transparent':'test_iteration'),
   };
@@ -214,7 +214,7 @@ export function validateRuntimeEnv(env = process.env) {
     REALTIME_PROVIDER: 'none', PRICE_PROVIDER: 'manual_simulation', ALERT_PROVIDER: 'none',
     DEPLOYMENT_PROFILE: 'test_iteration',
   };
-  const testnetSelectors:Record<string,string[]>={PAYMENT_PROVIDER:['chain_rpc'],WALLET_PROVIDER:['wallet_standard'],SIGNER_PROVIDER:['disabled'],CAPTCHA_PROVIDER:['turnstile','none'],REALTIME_PROVIDER:['none'],PRICE_PROVIDER:['manual_signed'],ALERT_PROVIDER:['https_webhook'],DEPLOYMENT_PROFILE:['test_iteration']};
+  const testnetSelectors:Record<string,string[]>={PAYMENT_PROVIDER:['chain_rpc'],WALLET_PROVIDER:['wallet_standard'],SIGNER_PROVIDER:['disabled'],CAPTCHA_PROVIDER:['turnstile','none'],REALTIME_PROVIDER:['none'],PRICE_PROVIDER:['coinmarketcap','manual_signed'],ALERT_PROVIDER:['https_webhook'],DEPLOYMENT_PROFILE:['test_iteration']};
   if(appEnv==='testnet'){for(const [name,choices]of Object.entries(testnetSelectors))if(!choices.includes(providers[name as keyof typeof providers]))throw new Error('Unsupported testnet provider');if(providers.AUTH_PROVIDER!=='google'||env.SIMULATION_TOOL_AUTH_KEY)throw new Error('Testnet requires verified Google identity and prohibits fixture authority');if(env.CHAIN_FIXTURE_MODE)throw new Error('Fixture mode is simulation only');}
   if(!(appEnv==='simulation'?['dummy','none']:['turnstile','none']).includes(providers.CAPTCHA_PROVIDER))throw new Error('Unsupported CAPTCHA provider');
   for (const [name, supported] of Object.entries(appEnv==='simulation'?simulationSelectors:{})) {
@@ -231,6 +231,7 @@ export function validateRuntimeEnv(env = process.env) {
   const databaseUrl = env.DATABASE_URL;
   if (!databaseUrl) throw new Error('DATABASE_URL is required');
   if (env.VERCEL === '1' && env.DATABASE_MIGRATION_URL) throw new Error('Migration credentials must stay outside the Vercel runtime');
+  for(const name of ['PRICE_FEED_KEY_PACKAGE_JSON','PRICE_FEED_DECRYPTION_SECRET','COINMARKETCAP_API_KEY'])if(env[name])throw new Error('PRICE_FEED_SECRET_SCOPE_MIXED');
   for(const name of ['SIGNER_DATABASE_URL','SIGNER_KEY_FILE','SIGNER_KEY_FILES_JSON','SIGNER_KEY_PACKAGE_JSON','SIGNER_DECRYPTION_SECRET','SIGNED_PAYLOAD_ENCRYPTION_KEY'])if(env[name])throw new Error('SIGNER_SECRET_SCOPE_MIXED');
   if(env.MAINNET_ENABLED!==undefined&&!['true','false'].includes(env.MAINNET_ENABLED))throw new Error('CONFIGURATION_INVALID');
   if (env.MAINNET_ENABLED === "true"&&appEnv!=='mainnet') throw new Error('MAINNET_DENIED');
@@ -251,3 +252,5 @@ export function validateRuntimeEnv(env = process.env) {
   }
   return { appEnv, dbProvider, databaseUrl, cacheProvider, providers };
 }
+
+export {coinMarketCapIds,nativePriceKey,type PriceAssetKey} from './price-feed';

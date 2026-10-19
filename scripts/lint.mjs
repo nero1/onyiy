@@ -39,7 +39,7 @@ for (const file of files) {
   }
   inspect(ast);
 
-  if ((file.includes('/server/')||file.includes('/components/')||file.includes('/app/')||file.includes('/lib/'))&&/from ['"][^'"]*workers\/signer/.test(text)) errors.push(`${file}: web imports isolated signer`);
+  if ((file.includes('/server/')||file.includes('/components/')||file.includes('/app/')||file.includes('/lib/'))&&/from ['"][^'"]*workers\/(?:signer|prices)/.test(text)) errors.push(`${file}: web imports isolated signing/pricing worker`);
   if (file.includes('/packages/domain/') && /(from ['"](postgres|next|react|ioredis|@vercel))/.test(text)) errors.push(`${file}: domain imports vendor SDK`);
   if ((file.includes('/components/') || file.includes('/lib/')) && /(SIGNED_PAYLOAD|PRIVATE_KEY|MFA_ENCRYPTION_KEY|PLATFORM_DEV_ADDRESS)/.test(text)) errors.push(`${file}: client-capable code references server secret name`);
   if (/parseFloat\(|Number\([^\n]*(amount|balance|fee)/i.test(text) && !file.endsWith('dashboard-app.tsx')) errors.push(`${file}: review floating money conversion`);

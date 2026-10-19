@@ -5,39 +5,8 @@ import { z } from "zod";
 import { assets, priceQuotes, type DbExecutor } from "@gifters/db";
 import { priceUnits } from "@gifters/domain";
 import { registryAsset, financialEnvironmentIn } from "./financial-config";
-const decimal = z
-  .string()
-  .max(100)
-  .regex(/^(0|[1-9][0-9]*)(\.[0-9]{1,18})?$/);
-export const signedPrice = z
-  .object({
-    version: z.literal(1),
-    environment: z.enum(["testnet","mainnet"]),
-    asset_key: z.string().max(30),
-    network: z.string().max(100),
-    asset_usd: decimal,
-    native_usd: decimal,
-    observed_at: z.string().datetime(),
-    expires_at: z.string().datetime(),
-    source: z
-      .string()
-      .url()
-      .refine((v) =>
-        (() => {
-          const u = new URL(v);
-          return (
-            u.protocol === "https:" && !u.username && !u.password && !u.search
-          );
-        })(),
-      ),
-  })
-  .strict();
-export const signedPriceInput = z
-  .object({
-    document: signedPrice,
-    signature: z.string().regex(/^[A-Za-z0-9_-]{86}$/),
-  })
-  .strict();
+import {signedPrice,signedPriceInput} from '../packages/config/src/signed-price';
+export {signedPrice,signedPriceInput} from '../packages/config/src/signed-price';
 /** Owner signs externally. Web stores only a public Ed25519 verification key. */
 export async function ingestSignedPrice(
   tx: DbExecutor,
@@ -45,7 +14,7 @@ export async function ingestSignedPrice(
 ) {
   const environment=await financialEnvironmentIn(tx);
   if (
-    runtimeProviders().PRICE_PROVIDER !== "manual_signed" &&
+    !["manual_signed","coinmarketcap"].includes(runtimeProviders().PRICE_PROVIDER) &&
     !(
       process.env.APP_ENV === "simulation" &&
       process.env.CHAIN_FIXTURE_MODE === "isolated"

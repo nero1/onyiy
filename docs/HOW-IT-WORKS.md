@@ -1,6 +1,6 @@
 # How Gifters World works
 
-Use [SETUP](SETUP.md) to install, [PRD](PRD.md) for requirements and [status](PROJECT-STATUS_v108.md) for remaining work.
+Use [SETUP](SETUP.md) to install, [PRD](PRD.md) for requirements and [status](PROJECT-STATUS_v109.md) for remaining work.
 
 ## Code map
 
@@ -70,3 +70,7 @@ Verified activity uses consenting real members and eligible immutable events; te
 - Run mandatory type, import/lint, translation, settings, schema/grant, docs, secret, build and bundle checks. Use named isolated manual procedures; broad automated suites remain deferred.
 - Preserve original/failed financial fixtures, archives and keys. Both CI events must pass the exact final head before merge. Real provider/device/hosted acceptance and observation periods stay separate.
 - Keep five core guides and one concise versioned bug report. Fixed bugs need only ranges; open bugs need problem, next fix and status. Do not recreate the fix plan or append evidence histories. Keep the PRD comprehensive and SETUP detailed for a beginner; shorten status and general explanations. New documents require an owner request or essential need.
+
+## Native reference prices
+
+CoinMarketCap v3 is the native default. A separate protected worker validates exact decimal USD quotes and signs them; the website verifies signatures and five-minute freshness. Provider throttling persists across runs. Reviewed manual signed rates remain available. Website and signer share reviewed market IDs/public key; neither receives the pricing private key. Follow SETUP for key preparation, matching approvals and scheduled refreshes.
