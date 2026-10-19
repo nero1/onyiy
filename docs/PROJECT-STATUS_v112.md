@@ -1,4 +1,4 @@
-# Project status v111
+# Project status v112
 
 **Phase One/Two is incomplete.** Four mainnets/eight protocols are implemented; seven member currencies have local financial checks. Configured-provider acceptance, hosted operation and observation periods remain. Owner launch inputs are deferred to final testing.
 
@@ -26,8 +26,8 @@
 
 ## Current work
 
-PR109 is merged. P1-118–119 correct original-sender refund environment binding and alert-budget diagnostics. Named mainnet/testnet reservation, proof/replay, compatibility and integrity checks pass. Merge this batch after both exact-head CI runs, then continue the independent technical audit.
+PR110 is merged; fixed bugs through P1-119. The mainnet original-sender refund also passes isolated encrypted signing, one generated-provider broadcast, verified settlement and duplicate replay checks. Original financial records remain intact. Continue the independent technical audit; actual hosted/provider/device and observation acceptance remains open.
 
 Create and merge substantial batches after both CI events pass the exact final head. Continue without milestone approval pauses. Never treat local checks, configuration or fixed-bug counts as 100% production acceptance.
 
-v111
+v112
