@@ -1,4 +1,4 @@
-# Project status v110
+# Project status v111
 
 **Phase One/Two is incomplete.** Four mainnets/eight protocols are implemented; seven member currencies have local financial checks. Configured-provider acceptance, hosted operation and observation periods remain. Owner launch inputs are deferred to final testing.
 
@@ -26,8 +26,8 @@
 
 ## Current work
 
-PR108 is merged. P1-116–117 correct mainnet Turnstile/TronGrid browser policy. Production browser checks and receipt preview/download checks pass; hosted CAPTCHA and physical-wallet acceptance remain open. Continue the independent technical audit after merging this batch.
+PR109 is merged. P1-118–119 correct original-sender refund environment binding and alert-budget diagnostics. Named mainnet/testnet reservation, proof/replay, compatibility and integrity checks pass. Merge this batch after both exact-head CI runs, then continue the independent technical audit.
 
 Create and merge substantial batches after both CI events pass the exact final head. Continue without milestone approval pauses. Never treat local checks, configuration or fixed-bug counts as 100% production acceptance.
 
-v110
+v111

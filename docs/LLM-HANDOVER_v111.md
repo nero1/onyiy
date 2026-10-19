@@ -1,4 +1,4 @@
-# LLM handover v110
+# LLM handover v111
 
 ## Owner instructions
 
@@ -14,7 +14,7 @@
 
 ## Resume
 
-Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/receipt-verification`, based on merged PR108 (`20f40df10a62023b2626ea8e4c62ceb1b8f05b8e`). Finish/merge its PR if open; otherwise continue from main. P1-116–117 correct mainnet default Turnstile and TronGrid CSP. Preserve `/workspace/work/receipt-audit-v110`, including failed browser harness copies. Named production Chromium policy/receipt checks and financial fingerprints pass; these are not hosted CAPTCHA/physical-wallet acceptance. Pricing work remains under `/workspace/work/coinmarketcap-v109`; its public refresh encountered429. Website/signer pricing settings must match; private pricing material stays separate. No schema changes in either batch. Continue C007/C010 and independent tasks in [status](PROJECT-STATUS_v110.md); do not stop after merge or request deferred launch inputs.
+Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/unallocated-refund-environment`, based on merged PR109 (`e47bc6c9138e5c555b046a47242f87842064dc21`). Finish/merge its PR if open; otherwise continue from main. P1-118–119 bind original-sender refunds and alert-budget diagnostics to the actual environment. Preserve `/workspace/work/unallocated-refund-v111`: generated sender/treasury keys, original-code copy and all successful/failed fixtures. Mainnet/testnet reservation, wrong-proof/replay, unchanged testnet statements and seven-table integrity checks pass. Restored copies correctly remain fenced until fresh reconciliation; the successful refund procedure uses fresh generated native fixtures, not cleared restore gates. No outgoing signatures/broadcasts or schema changes. Earlier browser/pricing work remains in `receipt-audit-v110` / `coinmarketcap-v109` under `/workspace/work`; provider429 and hosted/device/observation acceptance remain open. Continue C001/C004/C007/C010 and independent tasks in [status](PROJECT-STATUS_v111.md); do not stop after merge or request deferred launch inputs.
 
 ## Environment
 
@@ -34,4 +34,4 @@ Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/receipt-verification
 - Four mainnets/eight protocols; seven member currencies, TRX operating-only. Real JAGA stays disabled without provenance. Generated providers/contracts/keys are not live evidence.
 - Mainnet needs transparent settings, reviewed readiness, verified registry, configuration approvals and recent signed alert acknowledgement. Client wire1/min-client0/min-server1; do not weaken compatibility or financial gates.
 
-v110
+v111

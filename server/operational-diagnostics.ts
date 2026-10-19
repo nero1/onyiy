@@ -26,7 +26,7 @@ export async function captureOperations(tx:DbExecutor,locks:{waiting:number;scop
  const waiting=tx.select({id:chainObservations.id}).from(chainObservations).where(and(eq(chainObservations.businessKey,outbox.businessKey),eq(chainObservations.status,'pending'),sql`${chainObservations.nextObservationAt}>clock_timestamp()`));
  const pending=await tx.select({id:outbox.id}).from(outbox).where(and(eq(outbox.environment,environment),isNull(outbox.dispatchedAt),sql`not exists(${waiting})`)).orderBy(asc(outbox.createdAt)).limit(policy.backlog+1);
  const [oldest]=await tx.select({seconds:sql<string>`greatest(0,extract(epoch from clock_timestamp()-${jobs.dueAt}))::text`}).from(jobs).where(due).orderBy(asc(jobs.dueAt)).limit(1);
- const [clock]=await tx.execute<{now:Date;day:string}>(sql`select clock_timestamp() as now,(clock_timestamp() at time zone 'UTC')::date::text as day`),prefix=`alert-http:testnet:${clock.day}:`;
+ const [clock]=await tx.execute<{now:Date;day:string}>(sql`select clock_timestamp() as now,(clock_timestamp() at time zone 'UTC')::date::text as day`),prefix=`alert-http:${environment}:${clock.day}:`;
  const budget=await tx.select({id:operationKeys.businessKey}).from(operationKeys).where(sql`${operationKeys.businessKey}>=${prefix} and ${operationKeys.businessKey}<${prefix+'~'}`).limit(policy.daily_limit+1);
  const reports=await tx.select().from(providerQuotaReports).where(eq(providerQuotaReports.environment,environment)).limit(4),fraction=BigInt(Math.ceil(policy.quota_warning_fraction*1000000));
  const binding=await quotaBinding(tx);
