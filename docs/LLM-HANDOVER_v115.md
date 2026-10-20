@@ -1,4 +1,4 @@
-# LLM handover v114
+# LLM handover v115
 
 ## Owner instructions
 
@@ -14,7 +14,7 @@
 
 ## Resume
 
-Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/member-navigation-flags`, based on merged PR112 (`d14ad25905e1e9122a77e521fccc82533d625211`). Finish/merge its PR if open; otherwise continue from main. P1-121–123 fix portal feature links, shared recovery language/notices and 44px navigation/standalone-action targets. Recovery still removes fragments/unrelated query fields; only a valid locale survives. Preserve `/workspace/work/member-navigation-v114` and all eleven generated copies, including the failed touch harness. Actual production EN/FR390/1024px flag-on/off, offline-language and touch/layout checks pass; financial/point fingerprints match the original simulation source. No recovery token/wallet proof supplied in these UI checks; canonical statements and financial API unchanged. Earlier price-window/full-refund evidence remains under `/workspace/work/price-refresh-v113` and `unallocated-send-v112`; retain all original/failed fixtures and keys. Hosted/device/provider/observation acceptance remains open. Continue C001/C004/C007/C010 and independent tasks in [status](PROJECT-STATUS_v114.md); do not stop after merge or request deferred launch inputs.
+Repository `/workspace/onyiy` (`nero1/onyiy`). PR113 merged at `eda0790798ebfabb9f5e075d1751d6e2c7513f1c`; current branch `feat/recovery-browser-audit`. P1-124 adds shared, localized clipboard success/manual-copy feedback to referral links, recovery approvals and temporary recovery links. Twelve actual production referral cases pass (EN/FR390/1024, real clipboard success and injected denial/absence, manual selection/offline translation); six financial fingerprints remain unchanged. Preserve failed harness copies too; the final procedure is `fixed-r3.mts`. Merge if open, then continue C001/C004/C007/C010 and independent tasks in [status](PROJECT-STATUS_v115.md). Preserve `/workspace/work/clipboard-v115`, original/failed copies and earlier evidence roots. Its local TLS certificate was renewed after expiry, with the old certificate retained; TLS verification remains enabled. Do not claim recovery financial proof was repeated by referral UI checks. Hosted/device/provider/observation acceptance remains open; do not stop after merge or request deferred launch inputs.
 
 ## Environment
 
@@ -34,4 +34,4 @@ Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/member-navigation-fl
 - Four mainnets/eight protocols; seven member currencies, TRX operating-only. Real JAGA stays disabled without provenance. Generated providers/contracts/keys are not live evidence.
 - Mainnet needs transparent settings, reviewed readiness, verified registry, configuration approvals and recent signed alert acknowledgement. Client wire1/min-client0/min-server1; do not weaken compatibility or financial gates.
 
-v114
+v115

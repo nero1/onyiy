@@ -1,4 +1,5 @@
 "use client";
+import CopyButton from './copy-button';
 import {useLocalizedNotice} from './use-localized-notice';
 import AdminTimeZone from './admin-time-zone';
 
@@ -384,13 +385,9 @@ export default function NativeAdmin({
                   readOnly
                   value={link}
                 />
-                <button
-                  onClick={() =>
-                    void run(() => navigator.clipboard.writeText(link))
-                  }
-                >
+                <CopyButton text={link} locale={locale}>
                   {fr ? "Copier le lien" : "Copy link"}
-                </button>
+                </CopyButton>
               </>
             )}
             <label>

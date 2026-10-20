@@ -1,4 +1,4 @@
-# Project status v114
+# Project status v115
 
 **Phase One/Two is incomplete.** Four mainnets/eight protocols are implemented; seven member currencies have local financial checks. Configured-provider acceptance, hosted operation and observation periods remain. Owner launch inputs are deferred to final testing.
 
@@ -26,8 +26,8 @@
 
 ## Current work
 
-PR112 is merged. P1-121–123 align portal feature flags, preserve recovery language and provide 44px navigation/action targets. Production EN/FR mobile/desktop, offline and touch-target checks pass; original financial records remain unchanged. Merge this batch after both exact-head CI runs, then continue the independent technical audit.
+PR113 is merged. P1-124 fixes unavailable/denied clipboard handling for referral links, recovery approvals and temporary recovery links. Twelve production referral browser cases and required checks pass; financial fingerprints remain unchanged. Merge this batch after both exact-head CI runs, then continue the independent technical audit.
 
 Create and merge substantial batches after both CI events pass the exact final head. Continue without milestone approval pauses. Never treat local checks, configuration or fixed-bug counts as 100% production acceptance.
 
-v114
+v115
