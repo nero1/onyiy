@@ -1,4 +1,5 @@
 "use client";
+import CopyButton from './copy-button';
 import { useEffect, useRef, useState } from "react";
 import { api, mutation } from "@/lib/api-client";
 import {useAppearance} from './appearance-provider';
@@ -113,17 +114,9 @@ export default function RecoveryPortal() {
                 aria-label={fr ? "Approbation signée" : "Signed approval"}
                 value={signature}
               />
-              <button
-                onClick={() =>
-                  void navigator.clipboard
-                    .writeText(signature)
-                    .catch(() =>
-                      setMessage({copy:{fr:"Sélectionnez et copiez l’approbation ci-dessus.",en:"Select and copy the approval above."}}),
-                    )
-                }
-              >
+              <CopyButton text={signature} locale={locale}>
                 {fr ? "Copier l’approbation" : "Copy approval"}
-              </button>
+              </CopyButton>
             </>
           )}
         </section>
