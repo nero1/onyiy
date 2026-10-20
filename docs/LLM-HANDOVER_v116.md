@@ -1,4 +1,4 @@
-# LLM handover v115
+# LLM handover v116
 
 ## Owner instructions
 
@@ -14,12 +14,12 @@
 
 ## Resume
 
-Repository `/workspace/onyiy` (`nero1/onyiy`). PR113 merged at `eda0790798ebfabb9f5e075d1751d6e2c7513f1c`; current branch `feat/recovery-browser-audit`. P1-124 adds shared, localized clipboard success/manual-copy feedback to referral links, recovery approvals and temporary recovery links. Twelve actual production referral cases pass (EN/FR390/1024, real clipboard success and injected denial/absence, manual selection/offline translation); six financial fingerprints remain unchanged. Preserve failed harness copies too; the final procedure is `fixed-r3.mts`. Merge if open, then continue C001/C004/C007/C010 and independent tasks in [status](PROJECT-STATUS_v115.md). Preserve `/workspace/work/clipboard-v115`, original/failed copies and earlier evidence roots. Its local TLS certificate was renewed after expiry, with the old certificate retained; TLS verification remains enabled. Do not claim recovery financial proof was repeated by referral UI checks. Hosted/device/provider/observation acceptance remains open; do not stop after merge or request deferred launch inputs.
+Repository `/workspace/onyiy` (`nero1/onyiy`). PR114 merged at `2ca84b3fd16bbdb7ccea52225e4fefee7b24d1e5`; current branch `feat/wallet-quote-deadline`. P1-125 rechecks expiry/connectivity/session after wallet waits, before signing/broadcast. All76 generated canonical-payload cases pass and cover all seven member currencies in testnet/mainnet, delayed connection/TRON signing and preserving returned hashes after sends. Preserve `/workspace/work/wallet-deadline-v116` and earlier original/failed evidence roots. These client adapter checks use generated wallets and a virtual deadline clock; no DB or external chain transaction. Finish required checks/merge if open, then continue C001/C004/C007/C010 and independent tasks in [status](PROJECT-STATUS_v116.md). Hosted/device/provider/observation acceptance remains open; do not stop after merge or request deferred launch inputs.
 
 ## Environment
 
 - Read AGENTS and relevant Next16 docs before code changes. Node22: `/workspace/work/tooling/node-v22.23.3-linux-x64/bin`; PG tools: `/workspace/work/tooling/pg-tls/bin`.
-- PostgreSQL55450 uses `/workspace/work/shared-hosting-v50/pgdata`, CA `server.crt`, owner/runtime roles `gw_v50_owner` / `gw_v50_runtime`. Keep TLS/port intact; never read the private TLS key.
+- PostgreSQL55450 uses `/workspace/work/shared-hosting-v50/pgdata`, CA `server.crt`, owner/runtime roles `gw_v50_owner` / `gw_v50_runtime`. Keep TLS/port intact; never read the private TLS key. Local certificate renewed20Oct; load current `server.crt` into generated `DATABASE_TLS_CA_PEM` instead of reusing embedded expired PEM. Original certificate retained in `clipboard-v115`.
 - Preserve `gw_v81_eth_support_r1`, `gw_v78_product_simulation_r3`, failed `gw_v27_native_refund_isolated` and stopped clusters55455/55456. Scratch/evidence remains under `/workspace/work`; do not reset sources.
 - Listeners/builds need additional network permission; Git mutations need `.git` write permission. Transport disconnects are infrastructure failures: inspect logs and retry without assuming a command ran.
 - gh CLI credential expired; connected GitHub tools work. Publish committed objects, match the remote tree to the reviewed local tree, and verify both exact-head CI events. Align local main only after an identical-tree check.
@@ -34,4 +34,4 @@ Repository `/workspace/onyiy` (`nero1/onyiy`). PR113 merged at `eda0790798ebfabb
 - Four mainnets/eight protocols; seven member currencies, TRX operating-only. Real JAGA stays disabled without provenance. Generated providers/contracts/keys are not live evidence.
 - Mainnet needs transparent settings, reviewed readiness, verified registry, configuration approvals and recent signed alert acknowledgement. Client wire1/min-client0/min-server1; do not weaken compatibility or financial gates.
 
-v115
+v116

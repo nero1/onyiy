@@ -156,14 +156,13 @@ async function sendPayment(
   try{currency=structuredClone(currency);prepared=structuredClone(prepared)}catch{throw new Error("SIGNED_INTENT_INVALID")}
   const assertCurrent = () => {
     if (!isCurrent()) throw new Error("SESSION_CHANGED");
+    if (!navigator.onLine) throw new Error("OFFLINE");
+    if (
+      !Number.isFinite(Date.parse(prepared.expires_at)) ||
+      Date.now() >= Date.parse(prepared.expires_at)
+    ) throw new Error("QUOTE_EXPIRED");
   };
   assertCurrent();
-  if (
-    !navigator.onLine ||
-    !Number.isFinite(Date.parse(prepared.expires_at)) ||
-    Date.now() >= Date.parse(prepared.expires_at)
-  )
-    throw new Error("QUOTE_EXPIRED");
   if (
     prepared.environment !== currency.environment ||
     prepared.asset_key !== currency.key ||
