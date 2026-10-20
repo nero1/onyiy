@@ -18,6 +18,7 @@ export default function ClientCompatibilityNotice(){
  async function reload(){
   if(paymentInFlight())return;
   if(receipt){try{await navigator.clipboard.writeText(receipt.hash)}catch{setCopyFailed(true);return}}
+  if(paymentInFlight())return;
   location.reload();
  }
  return <aside className="card" role="alert"><p>{fr?'L’application a changé. Rechargez-la avant une nouvelle action.':'The app changed. Reload before another action.'}</p>
