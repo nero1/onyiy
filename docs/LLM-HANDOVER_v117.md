@@ -1,4 +1,4 @@
-# LLM handover v116
+# LLM handover v117
 
 ## Owner instructions
 
@@ -14,7 +14,7 @@
 
 ## Resume
 
-Repository `/workspace/onyiy` (`nero1/onyiy`). PR114 merged at `2ca84b3fd16bbdb7ccea52225e4fefee7b24d1e5`; current branch `feat/wallet-quote-deadline`. P1-125 rechecks expiry/connectivity/session after wallet waits, before signing/broadcast. All76 generated canonical-payload cases pass and cover all seven member currencies in testnet/mainnet, delayed connection/TRON signing and preserving returned hashes after sends. Preserve `/workspace/work/wallet-deadline-v116` and earlier original/failed evidence roots. These client adapter checks use generated wallets and a virtual deadline clock; no DB or external chain transaction. Finish required checks/merge if open, then continue C001/C004/C007/C010 and independent tasks in [status](PROJECT-STATUS_v116.md). Hosted/device/provider/observation acceptance remains open; do not stop after merge or request deferred launch inputs.
+Repository `/workspace/onyiy` (`nero1/onyiy`). PR115 merged at `09db56c5e1848b1c4dd417434cec18649cf26c84`; current branch `feat/update-reload-flight`. P1-126 rechecks active wallet/payment work after clipboard waiting, immediately before update-triggered reload. Preserve `/workspace/work/reload-race-v117`, `wallet-deadline-v116`, `clipboard-v115` and earlier original/failed evidence. EN/FR browser checks pass for blocked reload, clipboard failure/manual hash and permitted real reload after completion. The reload procedure runs actual React/update/flight modules in a generated browser host with explicit appearance/clipboard fixtures; no hosted, financial or API acceptance claim. Finish required checks/merge if open, then continue C001/C004/C007/C010 and independent tasks in [status](PROJECT-STATUS_v117.md). Hosted/device/provider/observation acceptance remains open; do not stop after merge or request deferred launch inputs.
 
 ## Environment
 
@@ -34,4 +34,4 @@ Repository `/workspace/onyiy` (`nero1/onyiy`). PR114 merged at `2ca84b3fd16bbdb7
 - Four mainnets/eight protocols; seven member currencies, TRX operating-only. Real JAGA stays disabled without provenance. Generated providers/contracts/keys are not live evidence.
 - Mainnet needs transparent settings, reviewed readiness, verified registry, configuration approvals and recent signed alert acknowledgement. Client wire1/min-client0/min-server1; do not weaken compatibility or financial gates.
 
-v116
+v117

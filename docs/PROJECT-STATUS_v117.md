@@ -1,4 +1,4 @@
-# Project status v116
+# Project status v117
 
 **Phase One/Two is incomplete.** Four mainnets/eight protocols are implemented; seven member currencies have local financial checks. Configured-provider acceptance, hosted operation and observation periods remain. Owner launch inputs are deferred to final testing.
 
@@ -26,8 +26,8 @@
 
 ## Current work
 
-PR114 is merged. P1-125 rechecks quote expiry, connectivity and session after wallet waits, before signing/broadcast. Generated canonical-payload checks cover seven member currencies in testnet/mainnet, including retaining hashes from already-sent transfers. Finish required checks and merge after both exact-head CI runs, then continue the independent technical audit.
+PR115 is merged. P1-126 prevents update-triggered reload when a wallet/payment starts during clipboard copying. EN/FR browser checks pass: active work blocks reload, denied copying retains the page, and completed work permits reload. Finish required checks and merge after both exact-head CI runs, then continue the independent technical audit.
 
 Create and merge substantial batches after both CI events pass the exact final head. Continue without milestone approval pauses. Never treat local checks, configuration or fixed-bug counts as 100% production acceptance.
 
-v116
+v117
