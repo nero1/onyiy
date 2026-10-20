@@ -1,4 +1,4 @@
-# LLM handover v113
+# LLM handover v114
 
 ## Owner instructions
 
@@ -14,7 +14,7 @@
 
 ## Resume
 
-Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/price-refresh-window`, based on merged PR111 (`cf093f45d7bf2d21d5ed6a42711dfd22c56020ba`). Finish/merge its PR if open; otherwise continue from main. P1-120 covers normal quote expiry between five-minute jobs with up to five minute-spaced refreshes. Manual/key preparation remains single-run. Preserve `/workspace/work/price-refresh-v113`, including protected generated web/pricing env files and `gw_v113_price_window_r1`. Explicit virtual timing models and actual API/DB/cooldown checks pass; no elapsed/hosted acceptance claimed. SETUP states the higher provider/minute quota requirement. Earlier full unmatched-refund signing/settlement evidence and keys remain in `/workspace/work/unallocated-send-v112`; retain other prior fixtures unchanged. Provider429, hosted/device verification and actual observation periods remain open. Continue C001/C004/C007/C010 and independent tasks in [status](PROJECT-STATUS_v113.md); do not stop after merge or request deferred launch inputs.
+Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/member-navigation-flags`, based on merged PR112 (`d14ad25905e1e9122a77e521fccc82533d625211`). Finish/merge its PR if open; otherwise continue from main. P1-121–123 fix portal feature links, shared recovery language/notices and 44px navigation/standalone-action targets. Recovery still removes fragments/unrelated query fields; only a valid locale survives. Preserve `/workspace/work/member-navigation-v114` and all eleven generated copies, including the failed touch harness. Actual production EN/FR390/1024px flag-on/off, offline-language and touch/layout checks pass; financial/point fingerprints match the original simulation source. No recovery token/wallet proof supplied in these UI checks; canonical statements and financial API unchanged. Earlier price-window/full-refund evidence remains under `/workspace/work/price-refresh-v113` and `unallocated-send-v112`; retain all original/failed fixtures and keys. Hosted/device/provider/observation acceptance remains open. Continue C001/C004/C007/C010 and independent tasks in [status](PROJECT-STATUS_v114.md); do not stop after merge or request deferred launch inputs.
 
 ## Environment
 
@@ -34,4 +34,4 @@ Repository `/workspace/onyiy` (`nero1/onyiy`). Branch `feat/price-refresh-window
 - Four mainnets/eight protocols; seven member currencies, TRX operating-only. Real JAGA stays disabled without provenance. Generated providers/contracts/keys are not live evidence.
 - Mainnet needs transparent settings, reviewed readiness, verified registry, configuration approvals and recent signed alert acknowledgement. Client wire1/min-client0/min-server1; do not weaken compatibility or financial gates.
 
-v113
+v114
