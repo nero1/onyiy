@@ -184,7 +184,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v119.md](PROJECT-STATUS_v119.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v120.md](PROJECT-STATUS_v120.md).
 
 ## 10. Read-only preview using the same database
 
@@ -431,7 +431,7 @@ Code supports Ethereum `1`, BNB `56`, Solana `mainnet-beta` and TRON `mainnet`. 
 17. Redeploy Production, then run the isolated signer workflow once. Check its run result and the site's signer heartbeat. A changed policy, registry, address or alert binding needs new hashes/probes; never reuse an unrelated approval.
 18. With the owner present, fund only the approved treasury/reserve amounts, activate the intended per-currency plans and perform the final tests with small limits. Confirm actual wallet approval, chain receipts, balances, fees, refunds, alerts and restore reconciliation. Complete the required observation periods before public launch.
 
-Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v119.md).
+Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v120.md).
 
 ### Financial actions that need review
 
@@ -747,3 +747,5 @@ The pricing environment needs no database, Google, MFA, custody or financial-wor
 2. Use **Next page** to inspect later entries; **Refresh queue / first page** returns to the beginning. Change the plan before loading another plan’s entries.
 3. Priority notices appear through background jobs in pages of100. Check the job backlog if delivery is delayed; do not repeat the priority action to force delivery.
 4. Daily settlement records one attempt per asset/role per UTC day. A dust balance or another deferred account does not prevent later accounts from progressing. An attempt is not a completed settlement. Correct the cause and use the existing manual settlement controls for a same-day retry, or let the next daily run retry.
+
+When changing **Currency** in Payment administration, prepare a new retained-balance recovery or reserve-sweep review. Switching currency clears the previous review and any late response. Check the asset, network, amount and recipient again before confirming.

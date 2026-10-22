@@ -178,7 +178,7 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
        const search=z.string().trim().min(1).max(100).refine(value=>!/[\u0000-\u001f\u007f]/.test(value)).parse(query.get('q')?.normalize('NFKC')).replace(/\s+/g,' ');
        const response=await getPublicHelpSearch(locale,search,request);return publicOk(response.data,response.ttlSeconds,request);
       }
-      if(slug){z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/).parse(slug);const response=await getPublicHelp(locale,request);const canonical=await publicHelpSlug(locale,slug,request);const article=(response.data as any[]).find(article=>article.slug===canonical);if(!article)throw new Error('NOT_FOUND');return publicOk(article,response.ttlSeconds,request);}
+      if(slug){z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/).parse(slug);const response=await getPublicHelp(locale,request);const canonical=await publicHelpSlug(locale,slug,request);const article=(response.data as Pick<typeof helpArticles.$inferSelect,'locale'|'slug'|'title'|'body'|'version'>[]).find(article=>article.slug===canonical);if(!article)throw new Error('NOT_FOUND');return publicOk(article,response.ttlSeconds,request);}
       const response=await getPublicHelp(locale,request);return publicOk(response.data,response.ttlSeconds,request);
     }
     if(route==='/admin/settings'){

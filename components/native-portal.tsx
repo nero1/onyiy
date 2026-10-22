@@ -1,4 +1,7 @@
 "use client";
+import NativePaymentReview from './native-payment-review';
+import {acceptSessionScope} from '@/lib/session-scope';
+import {useSessionInvalidation} from './use-session-invalidation';
 import {useLocalizedNotice} from './use-localized-notice';
 import {historyEntryLabel,paymentStateLabel} from '@/lib/payment-state';
 import {useCurrencyPreview} from './use-currency-preview';
@@ -21,15 +24,9 @@ import {
   api,
   mutation,
   clientSessionMatches,
-  setClientSession,
 } from "@/lib/api-client";
 import { copy, type Locale } from "@/lib/i18n";
 import type { AuthUser, SessionResult } from "@/lib/auth-client";
-import {
-  activateUserScope,
-  activeSessionGeneration,
-  clearActiveUserScope,
-} from "@/lib/storage";
 const ScopedSnapshotPoll=dynamic(()=>import('./scoped-snapshot-poll'),{ssr:false});
 const NotificationInbox=dynamic(()=>import('./notification-inbox'),{ssr:false});
 const MemberRecords=dynamic(()=>import('./member-records'),{ssr:false});
@@ -94,22 +91,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
     epoch.current++;
     const old = current.current;
     current.current = value;
-    const changed = value.user
-      ? activeSessionGeneration(value.user.username) !== value.generation
-      : !!old?.user;
-    setClientSession(value.user?.username ?? "", value.generation ?? "");
-    if (value.user && value.generation)
-      activateUserScope(value.user.username, value.generation);
-    else if (old?.user) clearActiveUserScope(old.user.username, old.generation);
-    if (changed && typeof BroadcastChannel === "function") {
-      const channel = new BroadcastChannel("gw-session-scope-v1");
-      channel.postMessage({
-        type: "GW_SCOPE",
-        owner: value.user?.username ?? "",
-        generation: value.generation ?? "",
-      });
-      channel.close();
-    }
+    acceptSessionScope(value,old);
     setData(null);
     const retained=value.user?pendingPayment(value.user.id):null;
     setPayment(retained?.prepared??null);setSentHash(retained?.hash??'');
@@ -140,7 +122,12 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
       .catch(() => {
         if (mounted.current && epoch.current === active) setNotice({error:new Error('PROVIDER_UNAVAILABLE')});
       });
-    const changed = () => {
+    return () => {
+      mounted.current = false;
+      epoch.current++;
+    };
+  }, []);
+  function invalidateSession(){
       const version = ++epoch.current;
       setData(null);
       setSession(null);
@@ -158,30 +145,8 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
           if (mounted.current && epoch.current === version)
             receive({ user: null, provider: "google" });
         });
-    };
-    const storage = (event: StorageEvent) => {
-      if (
-        event.key === null ||
-        event.key === "gw:v3:active-user" ||
-        event.key === "gw:v3:active-session"
-      )
-        changed();
-    };
-    const channel =
-      typeof BroadcastChannel === "function"
-        ? new BroadcastChannel("gw-session-scope-v1")
-        : null;
-    if (channel) channel.onmessage = () => changed();
-    window.addEventListener("storage", storage);
-    window.addEventListener("gw:identity", changed);
-    return () => {
-      mounted.current = false;
-      epoch.current++;
-      window.removeEventListener("gw:identity", changed);
-      window.removeEventListener("storage", storage);
-      channel?.close();
-    };
-  }, []);
+    }
+  useSessionInvalidation(invalidateSession);
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
@@ -500,55 +465,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
               </article>
             ))}
           {manifest?.feature_gifts&&currencySelector('bottom')}
-          {payment && (
-            <section
-              className="card"
-              aria-label={fr ? "Vérification du paiement" : "Payment review"}
-            >
-              <h2>
-                {fr ? "Vérifiez avant d’approuver" : "Review before approval"}
-              </h2>
-              <p>
-                {formatBaseUnits(
-                  BigInt(payment.amount_base_units),
-                  payment.decimals,
-                )}{" "}
-                {payment.asset} · {payment.network}
-              </p>
-              <p>
-                {t.networkFee}:{" "}
-                {formatBaseUnits(
-                  BigInt(payment.network_fee_native),
-                  payment.native_decimals,
-                )}{" "}
-                {payment.native_symbol}
-              </p>
-              <p>
-                {fr ? "Création de compte" : "Account setup"}:{" "}
-                {formatBaseUnits(
-                  BigInt(payment.account_setup_native),
-                  payment.native_decimals,
-                )}{" "}
-                {payment.native_symbol}
-              </p>
-              <p>
-                {fr
-                  ? "Payés par votre portefeuille. Aucun cycle avant confirmation du réseau."
-                  : "Paid by your wallet. No cycle is admitted before network confirmation."}
-              </p>
-<ProfileDisclosure presentation={manifest?.presentation} locale={locale} queue={payment.queue_disclosure} plan={payment.plan} mode="checkout"/><p className="wallet-address">{payment.destination}</p>
-              <button
-                disabled={busy || !navigator.onLine || !sentHash&&payment.profile_revision!==manifest?.profile_revision}
-                onClick={() => void pay()}
-              >
-                {sentHash?(fr?"Soumettre le transfert déjà envoyé":"Submit the transfer already sent"):(fr ? "Approuver dans le portefeuille" : "Approve in wallet")}
-              </button>
-              {sentHash&&<p className="wallet-address">{sentHash}</p>}
-              <button disabled={busy||!!sentHash} onClick={() => void cancelPayment()}>
-                {t.cancel}
-              </button>
-            </section>
-          )}
+          {payment&&<NativePaymentReview payment={payment} locale={locale} presentation={manifest?.presentation} profileRevision={manifest?.profile_revision} busy={busy} sentHash={sentHash} onApprove={()=>void pay()} onCancel={()=>void cancelPayment()}/>}
           {withdrawal && (
             <section className="card" aria-label={t.reviewWithdrawal}>
               <h2>{t.reviewWithdrawal}</h2>
