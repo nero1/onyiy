@@ -298,7 +298,11 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
       try{
       const retained=pendingPayment(user.id);
       if(retained&&retained.prepared.invoice_id!==prepared.invoice_id)throw new ApiError('VERSION_CONFLICT');
-      if(!retained){const valid=await mutation<{invoice_id:string;profile_revision:number;sender:string;destination:string;amount_base_units:string}>('/gifts/crypto/validate',owner,{invoice_id:prepared.invoice_id,profile_revision:prepared.profile_revision});if(epoch.current!==active)return;if(valid.sender!==prepared.sender||valid.destination!==prepared.destination||valid.amount_base_units!==prepared.amount_base_units)throw new ApiError('VERSION_CONFLICT');}
+      const attemptId=crypto.randomUUID();
+      const guard={authorize:async()=>{
+        const valid=await api<{sender:string;destination:string;amount_base_units:string}>('/gifts/crypto/validate',owner,{method:'POST',headers:{'Idempotency-Key':attemptId},body:JSON.stringify({invoice_id:prepared.invoice_id,profile_revision:prepared.profile_revision})});
+        if(valid.sender!==prepared.sender||valid.destination!==prepared.destination||valid.amount_base_units!==prepared.amount_base_units)throw new ApiError('VERSION_CONFLICT');
+      },reject:async(reason:'not_dispatched'|'user_rejected')=>{await mutation('/gifts/crypto/reject',owner,{invoice_id:prepared.invoice_id,attempt_id:attemptId,reason});}};
       const hash = retained?.prepared.invoice_id===prepared.invoice_id?retained.hash:await wallet.sendNativePayment(
         currency,
         prepared,
@@ -306,6 +310,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
           mounted.current &&
           epoch.current === active &&
           clientSessionMatches(owner, session!.generation!),
+        guard,
       );
       rememberPayment(user.id,prepared,hash);
       if (epoch.current !== active) return;
@@ -321,6 +326,9 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
         setNotice({copy:{fr:"Paiement soumis — confirmation réseau en attente.",en:"Payment submitted — awaiting network confirmation."}});
         await load();
       }
+      }catch(error){
+        if(error instanceof Error&&error.message==='BROADCAST_AMBIGUOUS'&&epoch.current===active){setExistingInvoice(prepared.invoice_id);setPayment(null);await load().catch(()=>{});}
+        throw error;
       }finally{endPayment(user.id);}
     },!!sentHash);
   }

@@ -1,3 +1,4 @@
+import {walletSendPending} from './native-wallet-attempts';
 import { enqueueObservation } from "./crypto-observer";
 import { canonicalTransactionHash } from "@gifters/chains";
 import type { AssetRegistry } from "@gifters/chains";
@@ -216,6 +217,7 @@ export async function quoteCryptoInvoice(
   await tx.update(cryptoInvoices).set({status:"expired"}).where(and(
     eq(cryptoInvoices.userId,userId),eq(cryptoInvoices.status,"quoted"),
     sql`${cryptoInvoices.expiresAt}<=${now.toISOString()}::timestamptz`,
+    sql`not (${walletSendPending(cryptoInvoices.id)})`,
     sql`not exists(select 1 from ${cryptoSubmissions} s where s.invoice_id=${cryptoInvoices.id})`,
   ));
   const [openInvoice] = await tx.select().from(cryptoInvoices).where(and(
@@ -223,6 +225,7 @@ export async function quoteCryptoInvoice(
     inArray(cryptoInvoices.status,["quoted","submitted"]),
   )).limit(1);
   if(openInvoice){
+    if((await tx.execute<{pending:boolean}>(sql`select ${walletSendPending(openInvoice.id)} as pending`))[0].pending)throw new Error("BROADCAST_AMBIGUOUS");
     if(openInvoice.status==="submitted")throw new Error("ACTIVE_INVOICE_EXISTS");
     if(openInvoice.sessionGeneration===generation&&openInvoice.walletId===wallet.id&&openInvoice.walletRevision===wallet.revision){
       await tx.insert(operationKeys).values({businessKey:aliasKey,requestHash:digest,result:{invoice_id:openInvoice.id}});return openInvoice;
@@ -574,6 +577,7 @@ export async function cancelNativeInvoice(tx:DbExecutor,userId:string,id:string)
  if(!invoice)throw new Error("NOT_FOUND");
  if(["cancelled","expired"].includes(invoice.status))return {id,status:invoice.status};
  const [submitted]=await tx.select({id:cryptoSubmissions.id}).from(cryptoSubmissions).where(eq(cryptoSubmissions.invoiceId,id)).limit(1);
+ if((await tx.execute<{pending:boolean}>(sql`select ${walletSendPending(id)} as pending`))[0].pending)throw new Error("BROADCAST_AMBIGUOUS");
  if(invoice.status!=="quoted"||submitted)throw new Error("FINANCIAL_SAFETY_PAUSE");
  await tx.update(cryptoInvoices).set({status:"cancelled"}).where(eq(cryptoInvoices.id,id));
  return {id,status:"cancelled"};

@@ -93,6 +93,7 @@ export async function holdBusinessSettlement(
         }),
       )
       .digest("hex");
+  if(scheduled&&requestKey!==clock.day)throw new Error('VERSION_CONFLICT');
   if(input.previous_obligation_id){if(scheduled)throw new Error("INVALID_INPUT");const [parent]=await tx.select().from(cryptoObligations).where(eq(cryptoObligations.id,input.previous_obligation_id)).limit(1);if(!parent||parent.kind!=="business"||parent.userId!==null||parent.assetId!==asset.id||parent.sourcePurpose!==sourcePurpose||!(parent.status==="cancelled"||parent.status==="exception"&&parent.completedAt))throw new Error("PREVIOUS_OBLIGATION_NOT_CLOSED");}
   const source = await account(
     tx,
@@ -114,12 +115,7 @@ export async function holdBusinessSettlement(
     if (old.requestHash !== digest) throw new Error("VERSION_CONFLICT");
     return old.result;
   }
-  const [value] = await tx
-    .select({
-      amount: sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='credit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`,
-    })
-    .from(ledgerPostings)
-    .where(eq(ledgerPostings.accountId, source.id));
+  const [value]=await tx.execute<{amount:string}>(sql`select public.gw_account_balance(${source.id}::uuid)::text as amount`);
   const amount = BigInt(value.amount);
   if (amount <= 0n) {
     const empty = { leg_ids: [], total_base_units: "0", status: "empty" };

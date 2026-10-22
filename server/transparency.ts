@@ -1,3 +1,4 @@
+import {walletSendPending} from './native-wallet-attempts';
 import {nativeCatalog} from './crypto-reads';
 import {realStatisticsPreview} from './activity';
 import crypto from 'node:crypto';
@@ -104,7 +105,7 @@ export async function commitProfile(tx:DbExecutor,actorId:string,input:z.infer<t
  if(next.deployment_profile==='transparent'&&(!next.feature_bootstrap||next.bootstrap_presentation==='disabled'))await tx.update(queueEntries).set({status:'removed',cancelledCount:sql`${queueEntries.requiredCount}-${queueEntries.creditedCount}`}).where(and(eq(queueEntries.kind,'bootstrap'),eq(queueEntries.status,'waiting')));
  if(next.deployment_profile==='transparent'&&(!next.feature_priority||next.priority_presentation==='disabled'))await tx.update(queueEntries).set({priorityTicket:null,priorityRevision:sql`${queueEntries.priorityRevision}+1`}).where(and(eq(queueEntries.status,'waiting'),sql`${queueEntries.priorityTicket} is not null`));
  await tx.update(giftInvoices).set({status:'expired'}).where(and(eq(giftInvoices.status,'quoted'),isNull(giftInvoices.submittedAt),lt(giftInvoices.profileRevision,next.profile_revision)));
- await tx.update(cryptoInvoices).set({status:'expired'}).where(and(eq(cryptoInvoices.status,'quoted'),lt(cryptoInvoices.profileRevision,next.profile_revision),sql`not exists(${tx.select({id:chainObservations.id}).from(chainObservations).where(eq(chainObservations.invoiceId,cryptoInvoices.id))})`,sql`not exists(${tx.select({id:cryptoEvents.id}).from(cryptoEvents).where(eq(cryptoEvents.invoiceId,cryptoInvoices.id))})`));
+ await tx.update(cryptoInvoices).set({status:'expired'}).where(and(eq(cryptoInvoices.status,'quoted'),sql`not (${walletSendPending(cryptoInvoices.id)})`,lt(cryptoInvoices.profileRevision,next.profile_revision),sql`not exists(${tx.select({id:chainObservations.id}).from(chainObservations).where(eq(chainObservations.invoiceId,cryptoInvoices.id))})`,sql`not exists(${tx.select({id:cryptoEvents.id}).from(cryptoEvents).where(eq(cryptoEvents.invoiceId,cryptoInvoices.id))})`));
  for(const [name,value] of Object.entries({...proposal.settings,profile_revision:next.profile_revision})){
   const row=version.rows.find(row=>row.key===name);if(!row||!manifestDefinition(name))throw new Error('CONFIGURATION_INVALID');
   await tx.update(xManifest).set({value,version:row.version+1,updatedBy:actorId,updatedAt:now}).where(eq(xManifest.key,name));

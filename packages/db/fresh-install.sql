@@ -4140,6 +4140,9 @@ CREATE INDEX notification_user_page_idx ON public.notifications USING btree (use
 
 CREATE UNIQUE INDEX notifications_delivery_key_unique ON public.notifications USING btree (delivery_key);
 
+CREATE INDEX notifications_user_page_idx ON public.notifications USING btree (user_id, created_at DESC, id DESC) WHERE (retired_at IS NULL);
+CREATE INDEX queue_entries_waiting_members_idx ON public.queue_entries USING btree (partition_id, ticket) WHERE (kind='member' AND status='waiting');
+
 CREATE INDEX notifications_retention_idx ON public.notifications USING btree (created_at, id) WHERE (retired_at IS NULL);
 
 CREATE INDEX obligation_pending_idx ON public.crypto_obligations USING btree (status, created_at, id);
@@ -6328,7 +6331,8 @@ INSERT INTO public.schema_migrations(name,sha256) VALUES('003_monthly_financial_
 INSERT INTO public.schema_migrations(name,sha256) VALUES('004_transparent_profiles.sql','77ae7eb1f76135cedec8681523e3013e'||'a0db35e07073691381152f1eabd02a3a');
 INSERT INTO public.schema_migrations(name,sha256) VALUES('005_production_environments.sql','617806668c00dd6a0202dd96a22b0164'||'3967943e62868b6475a3413251e315a0');
 INSERT INTO public.schema_migrations(name,sha256) VALUES('006_public_queue_disclosure.sql','1ee3e604b865d1e8c7ecc90cd60edc5d'||'c401cb92b4e9a212dba1bf536d94b3f1');
+INSERT INTO public.schema_migrations(name,sha256) VALUES('007_audit_queue_indexes.sql','539ed319da78062d9ae9598516489630'||'67c9d69c85f1680474109c6c0d9c3263');
 
 
--- Final-state installer SHA256 (base64): tx8VdqQQwujv0D6ssbgNZ/B887uS89mZ9ucjxAYyQBI=
+-- Final-state installer SHA256 (base64): F/LYKl5NDXg7ouf2RNSTx286RNmtFKOUUTmDiMnvLsc=
 COMMIT;

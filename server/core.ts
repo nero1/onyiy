@@ -426,7 +426,7 @@ export async function sendGift(database: DbExecutor, user: UserRow, planId: stri
     const fulfilled = newCount >= recipient.requiredCount;
     await database.update(queueEntries).set({ creditedCount: newCount, status: fulfilled ? 'fulfilled' : 'waiting' }).where(eq(queueEntries.id, recipient.id));
     if (recipient.kind === 'member' && recipient.cycleId && recipient.beneficiaryUserId) {
-      await database.update(cycles).set({ creditedCount: newCount, status: fulfilled ? 'completed' : 'active', completedAt: fulfilled ? new Date() : null }).where(eq(cycles.id, recipient.cycleId));
+      await database.update(cycles).set({ creditedCount: newCount, status: fulfilled ? 'completed' : 'active', completedAt: fulfilled ? sql`clock_timestamp()` : null }).where(eq(cycles.id, recipient.cycleId));
       await enqueueNotification(database, `notice:${opKey}:received`, {
         user_id: recipient.beneficiaryUserId,
         title_key: 'gift_received',

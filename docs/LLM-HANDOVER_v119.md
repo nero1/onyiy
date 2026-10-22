@@ -1,4 +1,4 @@
-# LLM handover v118
+# LLM handover v119
 
 ## Owner instructions
 
@@ -14,9 +14,11 @@
 
 ## Resume
 
-Repository `/workspace/onyiy` (`nero1/onyiy`). Audit report PR117 merged at `5de55ed4997fe410417b273cb419165c1924ab29`. Current branch `fix/audit-financial-safety`. The owner authorized fixing all reported and newly confirmed bugs, updating necessary docs, and creating/merging checked PRs without approval pauses. Do not resume the earlier report-only pause.
+Repository `/workspace/onyiy` (`nero1/onyiy`). Audit report PR117 merged at `5de55ed4997fe410417b273cb419165c1924ab29`. PR118 merged at `2f59f6d5a53c133e93536f45d0490957817d666e`. Current branch `fix/audit-wallet-and-queue`. The owner authorized fixing all reported and newly confirmed bugs, updating necessary docs, and creating/merging checked PRs without approval pauses. Do not resume the earlier report-only pause.
 
-This batch corrects 25 audit findings; eight remain: AUD-003–004, AUD-009–011, AUD-013, AUD-021 and AUD-026. Follow the [root report](../custom-bugs-report.md). Continue after this batch merges. Keep the root report because the owner explicitly requested that filename; summarize fixed IDs only. Preserve `/workspace/work/audit-remediation-20261022/batch1`, both forensic-audit roots and all earlier original/failed evidence. Isolated checks use generated dependencies/data and are not hosted acceptance. Both exact-final-head CI events must pass before merge.
+Audit:33 fixed, AUD-021 open, AUD-014 withdrawn. Finish the remaining shared session lifecycle and typed member/account feature responses; follow the [root report](../custom-bugs-report.md). Continue after this batch merges. Keep reports concise and retain the requested root filename. Isolated checks are not hosted acceptance.
+
+Preserve `/workspace/work/audit-remediation-20261022/batch1` and `batch2`, original forensic roots and all failed scratch databases. Batch2 catalog check matches the previous installer plus007 against the direct final installer and actual Drizzle model. Named wallet, queue paging/intent, notification boundary/replay/microsecond and daily-dispatch checks use generated dependencies/data. Scratch PostgreSQL55458 (`followup-r2/pgdata`, user `audit`) is separate from financial sources; never reset those sources.
 
 ## Environment
 
@@ -24,16 +26,16 @@ This batch corrects 25 audit findings; eight remain: AUD-003–004, AUD-009–01
 - PostgreSQL55450 uses `/workspace/work/shared-hosting-v50/pgdata`, CA `server.crt`, owner/runtime roles `gw_v50_owner` / `gw_v50_runtime`. Keep TLS/port intact; never read the private TLS key. Local certificate renewed20Oct; load current `server.crt` into generated `DATABASE_TLS_CA_PEM` instead of reusing embedded expired PEM. Original certificate retained in `clipboard-v115`.
 - Preserve `gw_v81_eth_support_r1`, `gw_v78_product_simulation_r3`, failed `gw_v27_native_refund_isolated` and stopped clusters55455/55456. Scratch/evidence remains under `/workspace/work`; do not reset sources.
 - Listeners/builds need additional network permission; Git mutations need `.git` write permission. Transport disconnects are infrastructure failures: inspect logs and retry without assuming a command ran.
-- gh CLI credential expired; connected GitHub tools work. Publish committed objects, match the remote tree to the reviewed local tree, and verify both exact-head CI events. Align local main only after an identical-tree check.
+- Git fetch/push work; connected GitHub tools handle PRs/merges. Verify both exact-head CI events before merging. Align local main only after an identical-tree check.
 - Never print generated secret env/cookie/key files. Keep them0600; web children receive no owner/signer keys. Preserve the session proxy and CA trust.
 
 ## Recovery and release constraints
 
-- Fresh install is `packages/db/fresh-install.sql`: seven receipts; SQL000–005 immutable, SQL006 queue fix. Contract `schema-contract_v67.json`:96 tables/897 columns/301 checks/119 indexes.
-- Recovery contract4 checks exact data/schema/security/migration fingerprints. Pre-006 contract4: matching PR65 `0ea4cf5e62a0ef7e7f83c26c1a512d6935775ac3`, then reviewed upgrade. Contract3: `6c323dc43c45efa1957308e467ce06e7cc0b36c0`; contract2: `25a5073d30974bcf8b02814bc81181e3a147d15c`. Never edit/re-sign packets.
+- Fresh install `packages/db/fresh-install.sql`: eight receipts; SQL000–006 immutable, SQL007 notification/queue indexes. Contract `schema-contract_v119.json`:96 tables/897 columns/301 checks/121 indexes. Catalog/security equality verified on generated isolated databases.
+- Recovery contract4 checks exact data/schema/security/migration fingerprints. Seven-receipt archives require matching PR118 `2f59f6d5a53c133e93536f45d0490957817d666e` for restore/verify, then reviewed007; never rewrite packets. Pre-006 contract4: matching PR65 `0ea4cf5e62a0ef7e7f83c26c1a512d6935775ac3`, then reviewed upgrade. Contract3: `6c323dc43c45efa1957308e467ce06e7cc0b36c0`; contract2: `25a5073d30974bcf8b02814bc81181e3a147d15c`. Never edit/re-sign packets.
 - Preserve `production-v55/production-foundation-v55-r1.gwbackup` with `cross-host-r1/archive.key`; `mainnet-recovery-v63/mainnet-isolated-r2.gwbackup`/`.key`; `browser-recovery-v69/mainnet-seven-migrations-r1.gwbackup`/`.key`. Last two keys are raw32 bytes; cross-host key is encoded text. All paths are below `/workspace/work`.
 - Restore requires an empty private target, disabled signing/scheduling, exact verification and fresh database-bound approvals. Retain original MFA/custody/payload keys; rotate request/auth keys. Unknown funds never prove missing member intent. Do not rewrite obligation/attempt snapshots.
 - Four mainnets/eight protocols; seven member currencies, TRX operating-only. Real JAGA stays disabled without provenance. Generated providers/contracts/keys are not live evidence.
 - Mainnet needs transparent settings, reviewed readiness, verified registry, configuration approvals and recent signed alert acknowledgement. Client wire1/min-client0/min-server1; do not weaken compatibility or financial gates.
 
-v118
+v119

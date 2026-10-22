@@ -1,3 +1,4 @@
+import {assetLedgerBalance} from '@gifters/db';
 import {beneficiaryLiabilityPurposes} from '@gifters/domain';
 import crypto from "node:crypto";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
@@ -55,21 +56,7 @@ async function staff(tx: DbExecutor, id: string) {
     throw new Error("FORBIDDEN");
   return policy;
 }
-async function liability(tx: DbExecutor, assetId: string) {
-  const [r] = await tx
-    .select({
-      amount: sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='credit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`,
-    })
-    .from(ledgerAccounts)
-    .leftJoin(ledgerPostings, eq(ledgerPostings.accountId, ledgerAccounts.id))
-    .where(
-      and(
-        eq(ledgerAccounts.assetId, assetId),
-        inArray(ledgerAccounts.purpose, liabilityPurposes),
-      ),
-    );
-  return BigInt(r.amount);
-}
+async function liability(tx:DbExecutor,assetId:string){return assetLedgerBalance(tx,assetId,liabilityPurposes);}
 async function authority(
   tx: DbExecutor,
   asset: typeof assets.$inferSelect,
@@ -106,18 +93,7 @@ async function authority(
     ]),
     owed = await liability(tx, asset.id),
     nativeOwed = await liability(tx, native.id),
-    [cash] = await tx
-      .select({
-        amount: sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='debit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`,
-      })
-      .from(ledgerAccounts)
-      .leftJoin(ledgerPostings, eq(ledgerPostings.accountId, ledgerAccounts.id))
-      .where(
-        and(
-          eq(ledgerAccounts.assetId, asset.id),
-          eq(ledgerAccounts.purpose, "treasury_asset"),
-        ),
-      ),
+    cash = {amount:(-await assetLedgerBalance(tx,asset.id,['treasury_asset'])).toString()},
     [health] = await tx
       .select()
       .from(signerHealth)

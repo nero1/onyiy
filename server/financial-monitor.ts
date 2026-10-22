@@ -1,3 +1,4 @@
+import {assetLedgerBalance} from '@gifters/db';
 import {beneficiaryLiabilityPurposes} from '@gifters/domain';
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
@@ -54,21 +55,7 @@ export async function monitorFinancials(assetKey?:string) {
           )
           .limit(1);
         if (!asset) return { asset_key: item.key, state: "not_provisioned" };
-        const [liability] = await tx
-          .select({
-            amount: sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='credit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`,
-          })
-          .from(ledgerAccounts)
-          .leftJoin(
-            ledgerPostings,
-            eq(ledgerPostings.accountId, ledgerAccounts.id),
-          )
-          .where(
-            and(
-              eq(ledgerAccounts.assetId, asset.id),
-              inArray(ledgerAccounts.purpose, beneficiaryLiabilityPurposes),
-            ),
-          );
+        const liability={amount:(await assetLedgerBalance(tx,asset.id,beneficiaryLiabilityPurposes)).toString()};
         const [health] = await tx
             .select()
             .from(signerHealth)

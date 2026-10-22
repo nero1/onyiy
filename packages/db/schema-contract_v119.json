@@ -1,7 +1,7 @@
 {
   "format": "gw-drizzle-congruence-v1",
   "verified_columns": 897,
-  "verified_standalone_indexes": 119,
+  "verified_standalone_indexes": 121,
   "verified_check_constraints": 301,
   "verified_tables": 96,
   "sql_only_constraint_triggers": [
@@ -154,8 +154,8 @@
   ],
   "source_sha256_base64": {
     "packages/db/src/schema.ts": "QyJxy2963mV4Yg/stPdMmkz/q+KU7pK6a8QMATofji8=",
-    "packages/db/src/schema-contracts.ts": "46f1C0h8HuSCRTgcljvOEJVmjNSydmdCF8NI6npdlHk=",
-    "packages/db/fresh-install.sql": "EA3M6PIge8UuwwBn6OT4JIGoimpNi/I7HYbKYbAl4wk="
+    "packages/db/src/schema-contracts.ts": "eGw/8Gn/NUZYBjSRIMhObaQylDW8XgVaw2tqD6MuKcc=",
+    "packages/db/fresh-install.sql": "ckG9/NutbHz+asr+H9yPgwgDuIpf685IPfcc1zwpJgk="
   },
   "migrations_sha256_base64": {
     "000_initial_schema.sql": "/8uTC5dPlh3nz8T4e7+39ITUe/KzB3fTsBCRtZ6z8yA=",
@@ -164,7 +164,8 @@
     "003_monthly_financial_archives.sql": "HYWwiP1nTBVxKKPiW04AH6ySCEf5tyjvmaNu4x62d/4=",
     "004_transparent_profiles.sql": "F81Aac7y8kcVS5yoliVy6coLWJ60BfwvXBaqAi3yChw=",
     "005_production_environments.sql": "4gzOpn/VtspbYmWice87LEhy1x877x2yfbpcB/HMtqs=",
-    "006_public_queue_disclosure.sql": "kFzyoMhGRwwzN3uxrKxEdmvZZDBauzsgI0jgjL/tJkE="
+    "006_public_queue_disclosure.sql": "kFzyoMhGRwwzN3uxrKxEdmvZZDBauzsgI0jgjL/tJkE=",
+    "007_audit_queue_indexes.sql": "9Ixl8MBnzgqSuWHvMTZuW6mSCywp/kT9xtq0rXTkjWg="
   },
   "consolidated_baseline": {
     "file": "000_initial_schema.sql",
@@ -241,5 +242,13 @@
     "exact_schema_security_entries": 4222,
     "column_grants_match": true,
     "historical_sql000_005_unchanged": true
+  },
+  "audit_queue_index_review": {
+    "migration": "007_audit_queue_indexes.sql",
+    "generated_model_columns_constraints_indexes_match": true,
+    "final_installer_eight_receipts": true,
+    "exact_schema_security_entries": 4232,
+    "historical_sql000_006_unchanged": true,
+    "recovery_schema_contract_version": 4
   }
 }

@@ -1,4 +1,4 @@
-# Project status v118
+# Project status v119
 
 **Phase One/Two is incomplete.** Four mainnets/eight protocols are implemented; seven member currencies have local financial checks. Configured-provider acceptance, hosted operation and observation periods remain. Owner launch inputs are deferred to final testing.
 
@@ -26,8 +26,8 @@
 
 ## Current work
 
-PR117 contains the independent audit. The remediation batch fixes 25 findings; **eight remain open**: AUD-003–004, AUD-009–011, AUD-013, AUD-021 and AUD-026. Current details and work order: [audit report](../custom-bugs-report.md).
+PR117 contains the independent audit; PR118 merged its first fixes. The current batch brings the audit to **33 fixed, one open (AUD-021), one withdrawn**. Continue the remaining controller/session/type refactor. See the [audit report](../custom-bugs-report.md).
 
 Continue fixing all reported and newly confirmed bugs without approval pauses. Merge substantial batches only after both final-head CI events pass. Local verification does not replace the outstanding hosted/provider/device acceptance or observation periods.
 
-v118
+v119

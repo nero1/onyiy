@@ -55,9 +55,18 @@ If already installed, run the receipt query below first and skip installation wh
 select name from public.schema_migrations order by name;
 ```
 
-7. Confirm seven receipts appear, from `000_initial_schema.sql` through `006_public_queue_disclosure.sql`. These identify the installed schema version; **do not run those files separately**.
+7. Confirm eight receipts appear, from `000_initial_schema.sql` through `007_audit_queue_indexes.sql`. These identify the installed schema version; **do not run those files separately**.
 
 This one file creates the final tables, views, functions, indexes and security rules directly. It does not replay the old upgrades. Step 8 adds the remaining default settings/plans/accounts. Existing databases keep their original receipts and use reviewed upgrades; never run this fresh installer over existing tables. Deployment checks the schema and does not apply SQL automatically.
+
+### Existing installation with seven receipts
+
+1. Keep using the same Supabase project. Do not paste the fresh installer again.
+2. Make an encrypted backup using the recovery steps below. Keep signing and scheduled work paused during this upgrade.
+3. In GitHub, open `packages/db/src/migrations/007_audit_queue_indexes.sql` → **Raw**. Copy the entire file.
+4. In Supabase → **SQL Editor → New query**, select the installed project and owner role. Paste unchanged and click **Run**. This adds two indexes; existing financial records remain.
+5. Run the receipt query above. Confirm all eight names appear before deploying this release.
+6. A backup with only seven receipts must first restore and verify using its original backup release (PR118 compatible commit `2f59f6d5a53c133e93536f45d0490957817d666e`). Apply007 only after verification. Keep the original archive and key unchanged.
 
 If installation fails, keep the error and check the troubleshooting table below. Do not split the file, remove checks, or rerun it over existing application tables. [SQL Editor reference](https://supabase.com/docs/guides/database/functions).
 
@@ -175,7 +184,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v118.md](PROJECT-STATUS_v118.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v119.md](PROJECT-STATUS_v119.md).
 
 ## 10. Read-only preview using the same database
 
@@ -422,7 +431,7 @@ Code supports Ethereum `1`, BNB `56`, Solana `mainnet-beta` and TRON `mainnet`. 
 17. Redeploy Production, then run the isolated signer workflow once. Check its run result and the site's signer heartbeat. A changed policy, registry, address or alert binding needs new hashes/probes; never reuse an unrelated approval.
 18. With the owner present, fund only the approved treasury/reserve amounts, activate the intended per-currency plans and perform the final tests with small limits. Confirm actual wallet approval, chain receipts, balances, fees, refunds, alerts and restore reconciliation. Complete the required observation periods before public launch.
 
-Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v118.md).
+Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v119.md).
 
 ### Financial actions that need review
 
@@ -723,3 +732,18 @@ select
 6. Inspect the result and stored quote. Repeat separately for other currencies if needed. A successful rate publication does not activate plans or prove a financial transfer.
 
 The pricing environment needs no database, Google, MFA, custody or financial-worker keys. Keep all such credentials out of it. See the current [CMC v3 reference](https://coinmarketcap.com/api/documentation/pro-api-reference/cryptocurrency) for provider behavior; hosted refresh/retry acceptance remains part of final setup.
+
+### Recover an uncertain member wallet send
+
+1. If a wallet closes, times out or returns no transaction hash, **do not send again**. The app retains a send-attempt record across reloads and tabs.
+2. Open the same wallet → **Activity/History**. Find the transfer matching the displayed network, recipient and amount. Copy its transaction hash/signature.
+3. Return to the app → **Current items → Payments → Open saved payment**. Paste the hash into **Submit hash** and submit once. Wait for network verification; an attempted send alone does not credit funds.
+4. If no transaction appears, ask support to reconcile the transfer. Do not create another payment or assume that missing wallet history proves failure. Unknown attempts cannot be cancelled into a fresh transfer.
+5. A definite wallet rejection, or an attempt stopped before dispatch, permits retry after the app records that outcome. If saving that rejection fails, keep using recovery until support resolves it.
+
+### Queue and daily settlement controls
+
+1. In the admin queue, select the plan, then the currency/network queue. Each row names the affected plan, asset, network and version.
+2. Use **Next page** to inspect later entries; **Refresh queue / first page** returns to the beginning. Change the plan before loading another plan’s entries.
+3. Priority notices appear through background jobs in pages of100. Check the job backlog if delivery is delayed; do not repeat the priority action to force delivery.
+4. Daily settlement records one attempt per asset/role per UTC day. A dust balance or another deferred account does not prevent later accounts from progressing. An attempt is not a completed settlement. Correct the cause and use the existing manual settlement controls for a same-day retry, or let the next daily run retry.

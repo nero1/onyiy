@@ -23,3 +23,13 @@ export type NativeWithdrawalQuote = Pick<JsonWire<Awaited<ReturnType<typeof quot
  feeSnapshot:{network_charge_base_units:string;account_setup_charge_base_units:string};
 };
 export type NativeWithdrawalReview = NativeWithdrawalQuote & {decimals:number;symbol:string;network:string};
+
+export type NativeAdminObligationPage=JsonWire<Awaited<ReturnType<typeof import('@/server/crypto-reads').nativeAdminObligations>>>;
+export type NativeAdminAlerts=JsonWire<Awaited<ReturnType<typeof import('@/server/staff-reads').staffAlerts>>>;
+export type NativeAdminReviews=JsonWire<Awaited<ReturnType<typeof import('@/server/staff-reads').staffReorgs>>>;
+export type NativeAdminPlans=JsonWire<Awaited<ReturnType<typeof import('@/server/plans').planList>>>;
+export type NativeAdminRecovery=JsonWire<Awaited<ReturnType<typeof import('@/server/liability-recovery').quoteLiabilityRecovery>>>;
+export type NativeAdminRecoveryLink=JsonWire<Awaited<ReturnType<typeof import('@/server/liability-recovery').issueRecoveryView>>>;
+export type NativeAdminSweep=JsonWire<Awaited<ReturnType<typeof import('@/server/treasury-sweeps').quoteTreasurySweep>>>;
+export type NativeAdminSweepConfirmation=JsonWire<Awaited<ReturnType<typeof import('@/server/treasury-sweeps').confirmTreasurySweep>>>;
+export type NativeAdminSweepRecovery=JsonWire<Awaited<ReturnType<typeof import('@/server/treasury-sweeps').recoverTreasurySweep>>>;

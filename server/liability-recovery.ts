@@ -208,10 +208,9 @@ export async function confirmLiabilityRecovery(
   );
   const [balance] = await tx
     .select({
-      amount: sql<string>`coalesce(sum(case when ${ledgerPostings.direction}='credit' then ${ledgerPostings.amountBaseUnits} else -${ledgerPostings.amountBaseUnits} end),0)::text`,
+      amount: sql<string>`coalesce(sum(public.gw_account_balance(${ledgerAccounts.id})),0)::text`,
     })
     .from(ledgerAccounts)
-    .leftJoin(ledgerPostings, eq(ledgerPostings.accountId, ledgerAccounts.id))
     .where(
       and(
         eq(ledgerAccounts.assetId, row.assetId),

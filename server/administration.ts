@@ -7,7 +7,7 @@ import {auditEvents,helpArticles,slugRedirects,queueEntries,queuePartitions,cycl
 import {databaseNow} from './auth';
 const reason=z.string().trim().min(3).max(500);const slug=z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/);
 export const settingInput=z.object({key:z.string().min(1).max(150),value:z.unknown(),version:z.number().int().positive(),reason}).strict();
-export const priorityInput=z.object({entry_id:z.string().uuid(),enabled:z.boolean(),revision:z.number().int().positive(),reason}).strict();
+export const priorityInput=z.object({entry_id:z.string().uuid(),plan_id:z.string().uuid(),partition_id:z.string().uuid(),enabled:z.boolean(),revision:z.number().int().positive(),reason}).strict();
 export const helpInput=z.object({id:z.string().uuid().optional(),locale:z.enum(['en','fr']),slug,title:z.string().trim().min(1).max(200),body:z.string().trim().min(1).max(20000),published:z.boolean(),version:z.number().int().nonnegative(),reason}).strict();
 async function prior(tx:DbExecutor,key:string,body:unknown){const digest=crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');const [old]=await tx.select().from(operationKeys).where(eq(operationKeys.businessKey,key)).limit(1);if(old){if(old.requestHash!==digest)throw new Error('VERSION_CONFLICT');return {digest,result:old.result}}return {digest,result:null}}
 async function save(tx:DbExecutor,key:string,digest:string,result:Record<string,unknown>){await tx.insert(operationKeys).values({businessKey:key,requestHash:digest,result});return result}
@@ -27,9 +27,10 @@ export async function editSetting(tx:DbExecutor,actorId:string,input:z.infer<typ
  return save(tx,key,saved.digest,{key:input.key,value,scope:row.scope,version:row.version+1});
 }
 export async function editPriority(tx:DbExecutor,actorId:string,input:z.infer<typeof priorityInput>,requestKey:string){
- const manifest=await readManifest(tx);if(!manifest.feature_admin||!manifest.feature_priority)throw new Error('FEATURE_DISABLED');const [entry]=await tx.select().from(queueEntries).where(eq(queueEntries.id,input.entry_id)).limit(1);if(!entry)throw new Error('NOT_FOUND');
+ const manifest=await readManifest(tx);if(!manifest.feature_admin||!manifest.feature_priority)throw new Error('FEATURE_DISABLED');const [entry]=await tx.select().from(queueEntries).where(eq(queueEntries.id,input.entry_id)).limit(1);if(!entry)throw new Error('NOT_FOUND');if(entry.partitionId!==input.partition_id)throw new Error('VERSION_CONFLICT');
  // Partition before entry, matching allocation/rank maintenance lock order.
  const [partition]=await tx.select().from(queuePartitions).where(eq(queuePartitions.id,entry.partitionId)).for('update');const [current]=await tx.select().from(queueEntries).where(eq(queueEntries.id,input.entry_id)).for('update');
+ const [version]=await tx.select({planId:planVersions.planId}).from(planVersions).where(eq(planVersions.id,partition.planVersionId)).limit(1);if(version?.planId!==input.plan_id)throw new Error('VERSION_CONFLICT');
  const key=`priority:${actorId}:${requestKey.toLowerCase()}`,saved=await prior(tx,key,input);if(saved.result)return saved.result;
  if(current.status!=='waiting'||current.priorityRevision!==input.revision)throw new Error('VERSION_CONFLICT');if(current.kind!=='member')throw new Error('FORBIDDEN');
  const [cycle]=await tx.select({id:cycles.id}).from(cycles).where(eq(cycles.id,current.cycleId!)).limit(1);if(!cycle)throw new Error('CONFIGURATION_INVALID');

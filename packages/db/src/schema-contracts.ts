@@ -1959,6 +1959,17 @@ const indexes:Record<string,readonly {name:string;method:string;unique:boolean;c
         "delivery_key"
       ],
       "predicate": null
+    },
+    {
+      "name": "notifications_user_page_idx",
+      "method": "btree",
+      "unique": false,
+      "columns": [
+        "user_id",
+        "created_at DESC",
+        "id DESC"
+      ],
+      "predicate": "(retired_at IS NULL)"
     }
   ],
   "operation_keys": [
@@ -2153,6 +2164,16 @@ const indexes:Record<string,readonly {name:string;method:string;unique:boolean;c
         "ticket"
       ],
       "predicate": "((status = 'waiting'::text) AND (priority_ticket IS NOT NULL))"
+    },
+    {
+      "name": "queue_entries_waiting_members_idx",
+      "method": "btree",
+      "unique": false,
+      "columns": [
+        "partition_id",
+        "ticket"
+      ],
+      "predicate": "((kind = 'member'::text) AND (status = 'waiting'::text))"
     }
   ],
   "rate_limits": [
