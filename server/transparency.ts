@@ -1,3 +1,4 @@
+import {nativeCatalog} from './crypto-reads';
 import {realStatisticsPreview} from './activity';
 import crypto from 'node:crypto';
 import {z} from 'zod';
@@ -61,11 +62,13 @@ async function previewSample(tx:DbExecutor,manifest:Manifest,settings:Settings){
 }
 export async function releaseProfile(tx:DbExecutor,input:Options=options.parse({})){
  const manifest=await readManifest(tx),version=await rowsAndVersion(tx),proposal=proposedSettings(manifest,input);
+ let execution:Awaited<ReturnType<typeof nativeCatalog>>|null=null;
+ try{execution=await nativeCatalog(tx)}catch{/* Unchecked execution is never reported as enabled. */}
  const unclassified=await tx.select({id:users.id}).from(users).where(eq(users.publicationClassification,'unreviewed')).orderBy(asc(users.id)).limit(1001);
  return {current:presentationFromManifest(manifest),proposed:presentationFromManifest(parseManifest({...manifest,...proposal,profile_revision:manifest.profile_revision+1})),settings:proposal,
   controls:{transparency_content:manifest.transparency_content,verified_activity_policy:manifest.verified_activity_policy,queue_disclosure_policy:manifest.queue_disclosure_policy,public_receipt_policy:manifest.public_receipt_policy,transparency_snapshot_policy:manifest.transparency_snapshot_policy},
   expected_revision:manifest.profile_revision,manifest_version:version.version,impact:await impact(tx),preview_sample:await previewSample(tx,manifest,proposal),statistics_preview:await realStatisticsPreview(tx,parseManifest({...manifest,...proposal,profile_revision:manifest.profile_revision+1})),readiness:manifest.financial_readiness_record,readiness_version:version.rows.find(row=>row.key==='financial_readiness_record')?.version??1,
-  assessment:{unclassified_accounts_at_least:unclassified.length,presentation_does_not_approve_finance:true,mainnet_enabled:false,unresolved:['mainnet_registry_and_execution','isolated_custody_and_signing','funding_refund_and_closure_model','target_jurisdictions_and_review','approved_copy_and_terms','operating_and_gas_budget','hosted_capacity_alerts_and_restore_acceptance']},preview_only:!manifest.feature_transparency};
+  assessment:{unclassified_accounts_at_least:unclassified.length,presentation_does_not_approve_finance:true,mainnet_enabled:process.env.APP_ENV==='mainnet'?(execution?.execution_enabled??null):false,execution_checked:execution!==null,execution_enabled:execution?.execution_enabled??null,review_requirements:['mainnet_registry_and_execution','isolated_custody_and_signing','funding_refund_and_closure_model','target_jurisdictions_and_review','approved_copy_and_terms','operating_and_gas_budget','hosted_capacity_alerts_and_restore_acceptance']},preview_only:!manifest.feature_transparency};
 }
 export async function stageProfile(tx:DbExecutor,actorId:string,input:z.infer<typeof profileStageInput>,requestKey:string){
  const key=`profile-stage:${actorId}:${requestKey}`,hash=digest(input);await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${key},0))`);

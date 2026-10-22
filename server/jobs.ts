@@ -243,6 +243,10 @@ export async function replayDeadJob(database:DbExecutor,actorId:string,jobId:str
   if (!job) throw new Error('NOT_FOUND');
   if (job.status!=='dead_letter') throw new Error('VERSION_CONFLICT');
   if (job.lastErrorCode==='INVALID_JOB') throw new Error('INVALID_INPUT');
+  if(job.kind==='chain_observation'){
+    const observation=await observationForJob(database,observationPayload.parse(job.payload),job.id);
+    if(observation.status==='review')throw new Error('OBSERVATION_REVIEW_REQUIRED');
+  }
   const policy=(await readManifest(database)).job_policy;
   if (job.attempts+policy.max_attempts>1000000) throw new Error('FINANCIAL_SAFETY_PAUSE');
   await database.update(jobs).set({status:'pending',retryLimit:job.attempts+policy.max_attempts,dueAt:sql`clock_timestamp()`,completedAt:null,updatedAt:sql`clock_timestamp()`}).where(eq(jobs.id,job.id));

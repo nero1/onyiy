@@ -12,7 +12,7 @@ import {
   type DbExecutor,
 } from "@gifters/db";
 import type { AssetRegistry } from "@gifters/chains";
-import { assertFreshRates, type RateSnapshot } from "@gifters/domain";
+import { assertFreshRates, principalUsdMicros, effectiveUsdLimitMicros, type RateSnapshot } from "@gifters/domain";
 import {
   adapter,
   financialConfiguration,
@@ -184,6 +184,7 @@ export async function reserveUnmatchedRefund(
     source: price.source,
   };
   assertFreshRates(rate, policy.price_max_age_minutes);
+  if(principalUsdMicros(BigInt(row.amountBaseUnits),rate)>effectiveUsdLimitMicros(policy.payout_limits.signer_per_tx_usd,process.env.SIGNER_HARD_PER_TX_USD??'5000'))throw new Error('FINANCIAL_SAFETY_PAUSE');
   const sender = await platformAddress(registry, "RECEIVING"),
     amount = BigInt(row.amountBaseUnits),
     fee = await chain.estimateFee({

@@ -200,16 +200,16 @@ export class SignerStore {
   async pending() {
     return this.context(async tx => {
       await tx.insert(signerDispatchCursor).values({singleton:true}).onConflictDoNothing();
-      const [cursor]=await tx.select().from(signerDispatchCursor).for('update');
+      const [cursor]=await tx.select({lastCreatedAt:sql<string|null>`${signerDispatchCursor.lastCreatedAt}::text`,lastId:signerDispatchCursor.lastId}).from(signerDispatchCursor).for('update');
       const eligible=sql`(${cryptoObligations.status} in ('approved','signing','broadcast') or (${cryptoObligations.status} in ('settled','exception') and exists(select 1 from ${signedAttempts} where ${signedAttempts.obligationId}=${cryptoObligations.id} and ${signedAttempts.status} in ('signed','broadcast'))))`;
       const position=cursor.lastCreatedAt&&cursor.lastId?sql`(${cryptoObligations.createdAt},${cryptoObligations.id})`:undefined;
-      const lastCreated=cursor.lastCreatedAt?.toISOString();
+      const lastCreated=cursor.lastCreatedAt;
       const rows=await tx.select().from(cryptoObligations).where(and(eligible,position?sql`${position}>(${lastCreated}::timestamptz,${cursor.lastId}::uuid)`:undefined)).orderBy(asc(cryptoObligations.createdAt),asc(cryptoObligations.id)).limit(20);
       if(position&&rows.length<20){
         rows.push(...await tx.select().from(cryptoObligations).where(and(eligible,sql`${position}<=(${lastCreated}::timestamptz,${cursor.lastId}::uuid)`)).orderBy(asc(cryptoObligations.createdAt),asc(cryptoObligations.id)).limit(20-rows.length));
       }
       const last=rows.at(-1);
-      if(last)await tx.update(signerDispatchCursor).set({lastCreatedAt:last.createdAt,lastId:last.id}).where(eq(signerDispatchCursor.singleton,true));
+      if(last)await tx.update(signerDispatchCursor).set({lastCreatedAt:sql`(select ${cryptoObligations.createdAt} from ${cryptoObligations} where ${cryptoObligations.id}=${last.id})`,lastId:last.id}).where(eq(signerDispatchCursor.singleton,true));
       return rows;
     });
   }

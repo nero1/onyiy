@@ -1,6 +1,6 @@
 import {scopedDatabaseBinding} from '../packages/db/src/binding-fingerprint';
 import {
-  runtimeAdapter,
+  runtimePreparationAdapter,
   configurationSnapshot,
   financialPolicySnapshot,
 } from "../packages/chains/src/runtime";
@@ -33,7 +33,7 @@ export function registryAsset(key: string) {
   assertActive(asset);
   return asset;
 }
-export const adapter = runtimeAdapter;
+export const adapter = runtimePreparationAdapter;
 export async function platformAddress(asset: AssetRegistry, role: Role) {
   const value = process.env[`PLATFORM_${role}_ADDRESS_${chainEnvironmentSuffix(asset.chain,asset.environment)}`];
   if (!value) throw new Error("DESTINATION_NOT_CONFIGURED");

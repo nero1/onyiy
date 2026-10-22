@@ -102,7 +102,7 @@ export async function monitorFinancials(assetKey?:string) {
         if (shortages)
           await openFinancialAlert(
             tx,
-            `liability:${label}`,
+            `liability:${asset.id}:${label}`,
             "balance_shortfall",
             "critical",
             { asset_key: item.key, reason: historical.historical_count==='0'?"CUSTODY_BELOW_LIABILITIES":"ACTIVE_TREASURY_BELOW_LIABILITIES" },

@@ -692,48 +692,12 @@ export class TronAdapter implements ChainAdapter {
       throw new Error("TRANSFER_MISMATCH");
     return result;
   }
-  async proveExpiry(
-    hash: string,
-    validity: { lastValidHeight?: bigint; expiresAt?: Date },
-  ) {
-    hash = canonicalTransactionHash("tron", hash);
-    if (!validity.expiresAt || !Number.isFinite(validity.expiresAt.getTime()))
-      return false;
-    const identities = await Promise.all(
-      ([0, 1] as const).map((side) =>
-        this.rpc.post(
-          side,
-          "jsonrpc",
-          { jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] },
-          true,
-        ),
-      ),
-    );
-    if (identities.some((v) => BigInt(v) !== tronChainId(this.asset.network)))
-      throw new Error("WRONG_NETWORK");
-    const observations = await Promise.all(
-      ([0, 1] as const).map(async (side) => {
-        const [transaction, current, solid, block] = await Promise.all([
-          this.rpc.post(side, "wallet/gettransactionbyid", { value: hash }),
-          this.rpc.post(side, "wallet/gettransactioninfobyid", { value: hash }),
-          this.rpc.post(side, "walletsolidity/gettransactioninfobyid", {
-            value: hash,
-          }),
-          this.rpc.post(side, "walletsolidity/getnowblock", {}),
-        ]);
-        return (
-          !!transaction &&
-          !!current &&
-          !!solid &&
-          !transaction.txID &&
-          !current.id &&
-          !solid.id &&
-          integer(block.block_header.raw_data.timestamp) >
-            BigInt(validity.expiresAt!.getTime())
-        );
-      }),
-    );
-    return observations.every(Boolean);
+  async proveExpiry(hash: string, _validity: { lastValidHeight?: bigint; expiresAt?: Date }) {
+    canonicalTransactionHash("tron", hash);
+    // These RPCs do not attest complete historical coverage. An expired
+    // validity window plus a missing transaction cannot exclude earlier inclusion.
+    // Keep the signed packet and holds until positive canonical resolution.
+    return false;
   }
   async getTransactionStatus(asset: AssetRegistry, signed: SignedTransfer) {
     const tx = JSON.parse(signed.bytes);

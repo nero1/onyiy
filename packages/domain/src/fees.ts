@@ -119,3 +119,20 @@ export function assertFreshRates(
 export function usdLimitMicros(value: string | number) {
   return (priceUnits(String(value)) * 1000000n) / 1000000000000000000n;
 }
+
+export function effectiveUsdLimitMicros(policy:string|number,hard:string){
+  const policyLimit=usdLimitMicros(policy),hardLimit=usdLimitMicros(hard);
+  return policyLimit<hardLimit?policyLimit:hardLimit;
+}
+
+/** Reserve only bounded payable work; leave the rest in the source balance. */
+export function settlementSlice(total:bigint,maximum:bigint,minimum:bigint,limit:number){
+  if(total<=0n||maximum<=0n||minimum<0n||minimum>maximum||!Number.isSafeInteger(limit)||limit<1||limit>100)throw new Error('WITHDRAWAL_NOT_VIABLE');
+  const dust=minimum>0n?minimum:1n;
+  const count=ceilDivide(total,maximum);
+  if(total<count*dust)throw new Error('WITHDRAWAL_NOT_VIABLE');
+  const base=total/count,extra=total%count;
+  const legs=Array.from({length:count<BigInt(limit)?Number(count):limit},(_,i)=>base+(BigInt(i)<extra?1n:0n));
+  const amount=legs.reduce((sum,value)=>sum+value,0n);
+  return {legs,amount,remaining:total-amount};
+}

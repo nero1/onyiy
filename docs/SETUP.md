@@ -175,7 +175,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v117.md](PROJECT-STATUS_v117.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v118.md](PROJECT-STATUS_v118.md).
 
 ## 10. Read-only preview using the same database
 
@@ -422,7 +422,14 @@ Code supports Ethereum `1`, BNB `56`, Solana `mainnet-beta` and TRON `mainnet`. 
 17. Redeploy Production, then run the isolated signer workflow once. Check its run result and the site's signer heartbeat. A changed policy, registry, address or alert binding needs new hashes/probes; never reuse an unrelated approval.
 18. With the owner present, fund only the approved treasury/reserve amounts, activate the intended per-currency plans and perform the final tests with small limits. Confirm actual wallet approval, chain receipts, balances, fees, refunds, alerts and restore reconciliation. Complete the required observation periods before public launch.
 
-Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v117.md).
+Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v118.md).
+
+### Financial actions that need review
+
+1. If a business settlement reports a remaining balance, check the two prepared requests under **Payment administration → Financial requests**. The remaining balance stays available. Prepare another manual settlement when appropriate; the daily action uses its usual daily key.
+2. If an unmatched refund exceeds the signer limit, no new hold is created. Review the amount and configured limits with the operator. Do not disable signer caps or shorten the original principal.
+3. If a Solana/TRON transfer expires but providers cannot find its history, keep its reservation and signed record. Use the actual transaction hash and recovery screens to obtain positive canonical evidence. Do not cancel, resend or release money merely because a provider returns no transaction.
+4. If a deposit job requires observation review, generic **Replay job** is blocked. Review its original invoice/hash and submit the existing transfer for verification; do not create another payment to clear the warning.
 
 ## If something fails
 

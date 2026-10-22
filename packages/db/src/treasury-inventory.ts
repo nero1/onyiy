@@ -2,9 +2,9 @@ import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { treasuryAddresses, type DbExecutor } from "./index";
 import crypto from "node:crypto";
 
-export function treasuryFingerprint(asset: {chain:string;network:string}, address: string) {
+export function treasuryFingerprint(asset: {environment:string;chain:string;network:string}, address: string) {
   return crypto.createHash("sha256")
-    .update(["testnet", asset.chain, asset.network, address].join("|"))
+    .update([asset.environment, asset.chain, asset.network, address].join("|"))
     .digest("hex");
 }
 

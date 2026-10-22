@@ -18,6 +18,8 @@ import {
   type RateSnapshot,
   businessSettlementRoles,
   businessAddressRole,
+  settlementSlice,
+  effectiveUsdLimitMicros,
 } from "@gifters/domain";
 import {
   registryAsset,
@@ -149,11 +151,11 @@ export async function holdBusinessSettlement(
   };
   assertFreshRates(snapshot, policy.price_max_age_minutes);
   const max =
-    (priceUnits(String(policy.payout_limits.signer_per_tx_usd)) *
-      10n ** BigInt(asset.decimals)) /
+    (effectiveUsdLimitMicros(policy.payout_limits.signer_per_tx_usd,process.env.SIGNER_HARD_PER_TX_USD??'5000') *
+      10n ** BigInt(asset.decimals) * 1000000000000n) /
     priceUnits(rate.assetUsd);
-  if (max <= 0n || amount > max * 100n)
-    throw new Error("FINANCIAL_SAFETY_PAUSE");
+  if (max <= 0n) throw new Error("FINANCIAL_SAFETY_PAUSE");
+  const batch=settlementSlice(amount,max,BigInt(registry.dust),2);
   const destination = await platformAddress(
       registry,
       businessAddressRole(sourcePurpose),
@@ -169,11 +171,7 @@ export async function holdBusinessSettlement(
       "credit",
     ),
     legIds: string[] = [];
-  let remaining = amount;
-  while (remaining > 0n) {
-    const principal = remaining > max ? max : remaining;
-    if (principal < BigInt(registry.dust))
-      throw new Error("WITHDRAWAL_NOT_VIABLE");
+  for (const principal of batch.legs) {
     const fee = await chain.estimateFee({
       asset: registry,
       sender,
@@ -226,11 +224,12 @@ export async function holdBusinessSettlement(
       { obligation_id: leg.id, role: input.role },
     );
     legIds.push(leg.id);
-    remaining -= principal;
   }
   const result = {
     leg_ids: legIds,
-    total_base_units: amount.toString(),
+    total_base_units: batch.amount.toString(),
+    remaining_base_units: batch.remaining.toString(),
+    partial: batch.remaining>0n,
     status: "approved",
   };
   await tx

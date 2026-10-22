@@ -1,4 +1,4 @@
-# LLM handover v117
+# LLM handover v118
 
 ## Owner instructions
 
@@ -14,7 +14,9 @@
 
 ## Resume
 
-Repository `/workspace/onyiy` (`nero1/onyiy`). PR115 merged at `09db56c5e1848b1c4dd417434cec18649cf26c84`; current branch `feat/update-reload-flight`. P1-126 rechecks active wallet/payment work after clipboard waiting, immediately before update-triggered reload. Preserve `/workspace/work/reload-race-v117`, `wallet-deadline-v116`, `clipboard-v115` and earlier original/failed evidence. EN/FR browser checks pass for blocked reload, clipboard failure/manual hash and permitted real reload after completion. The reload procedure runs actual React/update/flight modules in a generated browser host with explicit appearance/clipboard fixtures; no hosted, financial or API acceptance claim. Finish required checks/merge if open, then continue C001/C004/C007/C010 and independent tasks in [status](PROJECT-STATUS_v117.md). Hosted/device/provider/observation acceptance remains open; do not stop after merge or request deferred launch inputs.
+Repository `/workspace/onyiy` (`nero1/onyiy`). Audit report PR117 merged at `5de55ed4997fe410417b273cb419165c1924ab29`. Current branch `fix/audit-financial-safety`. The owner authorized fixing all reported and newly confirmed bugs, updating necessary docs, and creating/merging checked PRs without approval pauses. Do not resume the earlier report-only pause.
+
+This batch corrects 25 audit findings; eight remain: AUD-003–004, AUD-009–011, AUD-013, AUD-021 and AUD-026. Follow the [root report](../custom-bugs-report.md). Continue after this batch merges. Keep the root report because the owner explicitly requested that filename; summarize fixed IDs only. Preserve `/workspace/work/audit-remediation-20261022/batch1`, both forensic-audit roots and all earlier original/failed evidence. Isolated checks use generated dependencies/data and are not hosted acceptance. Both exact-final-head CI events must pass before merge.
 
 ## Environment
 
@@ -34,4 +36,4 @@ Repository `/workspace/onyiy` (`nero1/onyiy`). PR115 merged at `09db56c5e1848b1c
 - Four mainnets/eight protocols; seven member currencies, TRX operating-only. Real JAGA stays disabled without provenance. Generated providers/contracts/keys are not live evidence.
 - Mainnet needs transparent settings, reviewed readiness, verified registry, configuration approvals and recent signed alert acknowledgement. Client wire1/min-client0/min-server1; do not weaken compatibility or financial gates.
 
-v117
+v118
