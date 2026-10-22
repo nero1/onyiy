@@ -15,5 +15,5 @@ export default function CopyButton({text,locale,children}:{text:string;locale:Lo
   try{await navigator.clipboard.writeText(value);if(valid())setCopied(true)}
   catch{if(valid())setCopied(false)}
  }
- return <><button onClick={()=>void copy()}>{children}</button><p role="status">{copied===null?'':copied?(fr?'Copié.':'Copied.'):(fr?'Sélectionnez et copiez le texte dans le champ ci-dessus.':'Select and copy the text in the field above.')}</p></>;
+ return <><button type="button" onClick={()=>void copy()}>{children}</button><span role="status">{copied===null?'':copied?(fr?'Copié.':'Copied.'):(fr?'Sélectionnez et copiez le texte affiché.':'Select and copy the displayed text.')}</span></>;
 }

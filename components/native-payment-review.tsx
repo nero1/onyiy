@@ -1,4 +1,6 @@
 "use client";
+import CopyButton from './copy-button';
+import TransactionReference from './transaction-reference';
 import {formatBaseUnits} from '@gifters/domain';
 import {copy,type Locale} from '@/lib/i18n';
 import type {PreparedPayment} from '@/lib/native-wallet';
@@ -40,14 +42,14 @@ export default function NativePaymentReview({payment,locale,presentation,profile
                   ? "Payés par votre portefeuille. Aucun cycle avant confirmation du réseau."
                   : "Paid by your wallet. No cycle is admitted before network confirmation."}
               </p>
-<ProfileDisclosure presentation={presentation} locale={locale} queue={payment.queue_disclosure} plan={payment.plan} mode="checkout"/><p className="wallet-address">{payment.destination}</p>
+<ProfileDisclosure presentation={presentation} locale={locale} queue={payment.queue_disclosure} plan={payment.plan} mode="checkout"/><p className="wallet-address">{fr?'Depuis':'From'}: {payment.sender} <CopyButton text={payment.sender} locale={locale}>{fr?'Copier l’adresse':'Copy address'}</CopyButton></p><p className="wallet-address">{fr?'Vers':'To'}: {payment.destination} <CopyButton text={payment.destination} locale={locale}>{fr?'Copier l’adresse':'Copy address'}</CopyButton></p>
               <button
                 disabled={busy || !navigator.onLine || !sentHash&&payment.profile_revision!==profileRevision}
                 onClick={onApprove}
               >
                 {sentHash?(fr?"Soumettre le transfert déjà envoyé":"Submit the transfer already sent"):(fr ? "Approuver dans le portefeuille" : "Approve in wallet")}
               </button>
-              {sentHash&&<p className="wallet-address">{sentHash}</p>}
+              {sentHash&&<p><TransactionReference hash={sentHash} network={payment.network} environment={payment.environment} locale={locale} registryExplorer={payment.explorer}/></p>}
               <button disabled={busy||!!sentHash} onClick={onCancel}>
                 {t.cancel}
               </button>

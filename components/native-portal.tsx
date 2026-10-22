@@ -1,4 +1,7 @@
 "use client";
+import CopyButton from './copy-button';
+import TransactionReference from './transaction-reference';
+import {giftBlockReason,giftBlockCopy,withdrawalAmountFits} from '@/lib/checkout-readiness';
 import NativePaymentReview from './native-payment-review';
 import {acceptSessionScope} from '@/lib/session-scope';
 import {useSessionInvalidation} from './use-session-invalidation';
@@ -410,7 +413,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
       />
       {user && !session?.requires_mfa && ["active","deactivated"].includes(user.status) && (
         <>
-          {session?.generation&&manifest?.feature_wallets&&manifest?.entitlements_member?.dashboard!==false&&<ScopedSnapshotPoll owner={user.username} generation={session.generation} path="/me/crypto" seconds={manifest.presentation?.transparent?manifest.presentation.client_poll_seconds:manifest.cache_policy.client_poll_seconds} enabled={!busy} locale={locale} onStart={()=>++readGeneration.current} onValue={(value,token)=>{if(token===readGeneration.current&&value.user?.username===user.username)applyPortfolio(value)}} onError={(error,token)=>{if(token===readGeneration.current&&error instanceof ApiError&&['UNAUTHENTICATED','ACCOUNT_RESTRICTED'].includes(error.code)){setData(null);if(error.code==='UNAUTHENTICATED')receive({user:null,requires_mfa:false,provider:session.provider})}}}/>}
+          {session?.generation&&(manifest?.feature_wallets||manifest?.feature_gifts)&&manifest?.entitlements_member?.dashboard!==false&&<ScopedSnapshotPoll owner={user.username} generation={session.generation} path="/me/crypto" seconds={manifest.presentation?.transparent?manifest.presentation.client_poll_seconds:manifest.cache_policy.client_poll_seconds} enabled={!busy} locale={locale} onStart={()=>++readGeneration.current} onValue={(value,token)=>{if(token===readGeneration.current&&value.user?.username===user.username)applyPortfolio(value)}} onError={(error,token)=>{if(token===readGeneration.current&&error instanceof ApiError&&['UNAUTHENTICATED','ACCOUNT_RESTRICTED'].includes(error.code)){setData(null);if(error.code==='UNAUTHENTICATED')receive({user:null,requires_mfa:false,provider:session.provider})}}}/>}
           {data&&manifest?.feature_notifications&&<NotificationInbox key={user.username+session?.generation} user={user.username} locale={locale} initial={data.notifications??[]} badge={!!data.notification_badge?.has_new} onChange={()=>void load()}/>}
 
           {user.role === "admin" && (
@@ -439,7 +442,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
           {manifest?.feature_gifts&&currencySelector('top')}
           {manifest?.feature_gifts&&<nav className="gift-tiles" aria-label={fr?'Dons':'Gifts'}>{giftPlans.map(plan=><button id={'gift-tile-'+(plan.version_id??plan.id)} className="gift-tile" key={plan.version_id??plan.id} onClick={()=>{const card=document.getElementById('gift-card-'+(plan.version_id??plan.id));card?.scrollIntoView({block:'start'});card?.focus({preventScroll:true})}}><span aria-hidden="true">🎁</span><strong>{plan.name}</strong><strong>{plan.amount_base_units===null?(fr?'Montant fixé au lancement':'Amount set at launch'):formatBaseUnits(BigInt(plan.amount_base_units??0),plan.decimals)} {plan.asset}</strong>{plan.plan&&<small>{manifest.presentation?.transparent?currencyText.potential:currencyText.expected}: ${plan.plan.estimated_reference_usd}</small>}</button>)}</nav>}
           {manifest?.feature_gifts&&enabledCurrencies.length>0&&!giftPlans.length&&<p>{currencyText.empty}</p>}
-          {giftPlans.map((plan) => (
+          {giftPlans.map((plan) => {const blocked=manifest&&user?giftBlockReason({user,policy:manifest,portfolio:data,plan,currency:catalog?.assets.find(asset=>asset.id===plan.asset_id)}):'READINESS_UNAVAILABLE';return (
               <article id={'gift-card-'+(plan.version_id??plan.id)} aria-labelledby={'gift-card-heading-'+(plan.version_id??plan.id)} tabIndex={-1} className="card" key={plan.version_id ?? plan.id}>
                 <h2 id={'gift-card-heading-'+(plan.version_id??plan.id)}>
                   {plan.name} · {plan.asset} · {plan.network}
@@ -455,15 +458,16 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
                 <ProfileDisclosure presentation={manifest?.presentation} locale={locale} queue={plan.queue_disclosure} plan={plan.plan}/>
                 <button
                   disabled={
-                    busy || plan.status!=='active' || catalog?.profile_revision!==manifest?.profile_revision || !botReady || !catalog?.assets.find(asset=>asset.id===plan.asset_id)?.execution_enabled || !navigator.onLine
+                    busy || !!blocked || plan.status!=='active' || catalog?.profile_revision!==manifest?.profile_revision || !botReady || !catalog?.assets.find(asset=>asset.id===plan.asset_id)?.execution_enabled || !navigator.onLine
                   }
                   onClick={() => void quoteGift(plan)}
                 >
                   {fr ? "Vérifier le paiement" : "Review payment"}
                 </button>
+                {blocked&&<p role="status">{giftBlockCopy(blocked,locale)}</p>}
                 <button onClick={()=>{const tile=document.getElementById('gift-tile-'+(plan.version_id??plan.id));tile?.scrollIntoView({block:'center'});tile?.focus({preventScroll:true})}}>{currencyText.back}</button>
               </article>
-            ))}
+            );})}
           {manifest?.feature_gifts&&currencySelector('bottom')}
           {payment&&<NativePaymentReview payment={payment} locale={locale} presentation={manifest?.presentation} profileRevision={manifest?.profile_revision} busy={busy} sentHash={sentHash} onApprove={()=>void pay()} onCancel={()=>void cancelPayment()}/>}
           {withdrawal && (
@@ -506,7 +510,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
                   withdrawal.decimals,
                 )}
               </p>
-              <p className="wallet-address">{withdrawal.destination}</p>
+              <p className="wallet-address">{withdrawal.destination} <CopyButton text={withdrawal.destination} locale={locale}>{fr?'Copier l’adresse':'Copy address'}</CopyButton></p>
               <p>
                 {fr
                   ? "Une exécution réseau échouée peut consommer des frais approuvés."
@@ -533,7 +537,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
           <button disabled={busy} onClick={() => void load()}>
             {fr ? "Actualiser" : "Refresh"}
           </button>
-          {catalog?.assets
+          {manifest?.feature_wallets&&catalog?.assets
             .filter(
               (asset) =>
                 asset.enabled ||
@@ -572,7 +576,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
                     <>
                       <p>
                         {fr ? "Adresse vérifiée" : "Verified address"}:{" "}
-                        <span className="wallet-address">{wallet.address}</span>
+                        <span className="wallet-address">{wallet.address}</span> <CopyButton text={wallet.address} locale={locale}>{fr?'Copier l’adresse':'Copy address'}</CopyButton>
                       </p>
                       {wallet.cooling_until &&
                         new Date(wallet.cooling_until).getTime() >
@@ -592,8 +596,9 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
                         : "Pending — No wallet"}
                     </p>
                   )}
+                  {wallet&&<p>{fr?'Utilisez la même adresse vérifiée pour les monnaies de ce réseau. Un changement concerne toutes ces monnaies.':'Use the same verified address for currencies on this network. Changing it updates all of them.'}</p>}
                   <button
-                    disabled={busy || !navigator.onLine || !currency.enabled}
+                    disabled={busy || !navigator.onLine || !currency.enabled || !manifest?.entitlements_member.wallet_link}
                     onClick={() => void link(currency)}
                   >
                     {wallet
@@ -621,7 +626,8 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
                       !currency.execution_enabled ||
                       !wallet ||
                       !currency.enabled ||
-                      !gross ||
+                      !withdrawalAmountFits(gross,currency.decimals,balance?.amount??'0') ||
+                      !!(wallet?.cooling_until&&Date.parse(wallet.cooling_until)>Date.now()) ||
                       balance?.under_review ||
                       !navigator.onLine
                     }
@@ -664,7 +670,7 @@ export default function NativePortal({environment='testnet'}:{environment?:'test
                 {t.net}:{" "}
                 {formatBaseUnits(BigInt(row.net_base_units), row.decimals)}
               </p>
-              {row.tx_hash&&<p>{fr?"Transaction enregistrée":"Recorded transaction"}: <code className="wallet-address">{row.tx_hash}</code></p>}
+              {row.tx_hash&&<p>{fr?"Transaction enregistrée":"Recorded transaction"}: <TransactionReference hash={row.tx_hash} network={row.network} environment={environment} locale={locale} registryExplorer={row.explorer??undefined}/></p>}
               {(!row.kind||row.kind==='withdrawal') && !row.completed_at &&
                 [
                   "quoted",

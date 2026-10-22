@@ -1617,6 +1617,17 @@ const indexes:Record<string,readonly {name:string;method:string;unique:boolean;c
         "plan_version_id"
       ],
       "predicate": "(status = ANY (ARRAY['active'::text, 'exception'::text]))"
+    },
+    {
+      "name": "cycle_completion_lookup_idx",
+      "method": "btree",
+      "unique": false,
+      "columns": [
+        "user_id",
+        "completed_at DESC",
+        "plan_version_id"
+      ],
+      "predicate": "(status = 'completed'::text)"
     }
   ],
   "data_exports": [

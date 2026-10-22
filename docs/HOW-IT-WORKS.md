@@ -1,6 +1,6 @@
 # How Gifters World works
 
-Use [SETUP](SETUP.md) to install, [PRD](PRD.md) for requirements and [status](PROJECT-STATUS_v120.md) for remaining work.
+Use [SETUP](SETUP.md) to install, [PRD](PRD.md) for requirements and [status](PROJECT-STATUS_v121.md) for remaining work.
 
 ## Code map
 
@@ -25,7 +25,7 @@ Use [SETUP](SETUP.md) to install, [PRD](PRD.md) for requirements and [status](PR
 
 ## Database and identity
 
-- Paste `packages/db/fresh-install.sql` once into an empty application schema. It creates the final state directly. Existing installations use reviewed upgrades; deployments verify SQL rather than applying it.
+- Paste `packages/db/src/migrations/000_initial_schema.sql` once into an empty application schema. It creates the final state directly. It records one receipt; deployments verify SQL rather than applying it.
 - Runtime transactions use restricted read/service roles, row security and current database permissions. Owner credentials stay outside Vercel; the separate signer holds only its own role.
 - Financial amounts use integer smallest units. Journals balance and posted history is immutable; corrections add compensating records. Permanent operation keys prevent duplicate benefits.
 - Consent, current account status and fresh MFA protect sensitive actions. Wallet proofs bind account, domain, network, environment, purpose, nonce and expiry.
@@ -41,6 +41,8 @@ Use [SETUP](SETUP.md) to install, [PRD](PRD.md) for requirements and [status](PR
 5. Allocations credit internal balances. A separate approved withdrawal pays an external wallet after its fees.
 
 **Internal credit, available balance, held withdrawal and settled wallet transfer are different states.** Missing wallets, suspension, deletion or failed sends do not erase liabilities. Late/incorrect/unmatched transfers keep their own recovery/refund state; refunds return to the proven original sender.
+
+Checkout checks current-cycle and cooldown eligibility outside the recent-history window. Displayed withdrawal limits use exact base units. Copy controls preserve full addresses/hashes; explorer links bind the correct network and environment.
 
 Queues preserve joining tickets. Transparent profiles show actual serving position; platform positions and administrative priority are labelled or disabled. Priority changes notify affected waiting members without private staff reasons. Potential receipts depend on later confirmed gifts and are not guaranteed.
 
@@ -69,7 +71,7 @@ Verified activity uses consenting real members and eligible immutable events; te
 
 - Run mandatory type, import/lint, translation, settings, schema/grant, docs, secret, build and bundle checks. Use named isolated manual procedures; broad automated suites remain deferred.
 - Preserve original/failed financial fixtures, archives and keys. Both CI events must pass the exact final head before merge. Real provider/device/hosted acceptance and observation periods stay separate.
-- Keep five core guides and one concise versioned bug report. Fixed bugs need only ranges; open bugs need problem, next fix and status. Do not recreate the fix plan or append evidence histories. Keep the PRD comprehensive and SETUP detailed for a beginner; shorten status and general explanations. New documents require an owner request or essential need.
+- Keep only the five core guides. The owner removed both bug reports; track confirmed open work briefly in project status. Do not recreate a report/fix plan or append evidence histories. Keep the PRD comprehensive and SETUP detailed for a beginner; shorten status and general explanations. New documents require an owner request or essential need.
 
 ## Native reference prices
 

@@ -8,7 +8,8 @@ const warnings = [];
 for (const name of fs.readdirSync(root)) {
   const p = path.join(root, name);
   if (fs.statSync(p).isFile() && /\.md$/i.test(name)) {
-    warnings.push(`root-level Markdown found: ${name}; prefer project documentation under /docs`);
+    if (/custom-bugs.*report/i.test(name)) errors.push('owner removed separate bug reports; use project status');
+    else warnings.push(`root-level Markdown found: ${name}; prefer project documentation under /docs`);
   }
 }
 
@@ -30,9 +31,9 @@ if (!fs.existsSync(docs)) {
   statusFiles = names.filter((n) => /^PROJECT-STATUS_v\d+\.md$/i.test(n));
   handoverFiles = names.filter((n) => /^LLM-HANDOVER_v\d+\.md$/i.test(n));
   bugReportFiles = names.filter((n) => /^custom-bugs-report_v\d+\.md$/i.test(n));
-  if (names.some((n) => /^custom-bugs-fix-plan(?:_v\d+)?\.md$/i.test(n))) errors.push('remove the separate bug-fix plan; use the concise bug report');
+  if (names.some((n) => /^custom-bugs-fix-plan(?:_v\d+)?\.md$/i.test(n))) errors.push('remove the separate bug-fix plan; track open work in project status');
   for (const obsolete of ['custom-bugs-report.md', 'custom-bugs-fix-plan.md']) {
-    if (names.includes(obsolete)) errors.push(`bug documentation must use a versioned filename: docs/${obsolete}`);
+    if (names.includes(obsolete)) errors.push(`owner removed separate bug documentation: docs/${obsolete}`);
   }
 
   if (!statusFiles.length) errors.push('missing versioned project status doc: docs/PROJECT-STATUS_vN.md');
@@ -41,9 +42,9 @@ if (!fs.existsSync(docs)) {
   if (statusFiles.length > 1) errors.push(`multiple project status versions found: ${statusFiles.join(', ')}`);
   if (handoverFiles.length > 1) errors.push(`multiple LLM handover versions found: ${handoverFiles.join(', ')}`);
 
-  if (bugReportFiles.length !== 1) errors.push('keep exactly one versioned bug report');
-  const allowed = new Set(['PRD.md', 'SETUP.md', 'HOW-IT-WORKS.md', ...statusFiles, ...handoverFiles, ...bugReportFiles]);
-  for (const name of names.filter((name) => /\.md$/i.test(name))) if (!allowed.has(name)) errors.push(`unexpected guide docs/${name}; use the six existing guides unless the owner requests or an essential need requires a new file`);
+  if (bugReportFiles.length) errors.push('owner removed separate bug reports; track open work in project status');
+  const allowed = new Set(['PRD.md', 'SETUP.md', 'HOW-IT-WORKS.md', ...statusFiles, ...handoverFiles]);
+  for (const name of names.filter((name) => /\.md$/i.test(name))) if (!allowed.has(name)) errors.push(`unexpected guide docs/${name}; use the five core guides unless the owner requests or an essential need requires a new file`);
 
   for (const entry of entries) {
     if (entry.isDirectory()) warnings.push(`nested docs directory found: docs/${entry.name}`);
@@ -64,11 +65,6 @@ const latestHandover = handoverFiles
 
 if (latestStatus && latestHandover && latestStatus.version !== latestHandover.version) {
   errors.push(`current filename versions differ (${latestStatus.name} vs ${latestHandover.name}); versions must match`);
-}
-
-const latestReport = bugReportFiles.map((name) => ({ name, version: versionOf(name, 'custom-bugs-report') })).sort((a, b) => b.version - a.version)[0];
-if (latestReport && (latestReport.version !== latestStatus?.version || latestReport.version !== latestHandover?.version)) {
-  errors.push('current bug report version must match status and handover');
 }
 
 for (const current of [latestStatus, latestHandover].filter(Boolean)) {

@@ -1,4 +1,5 @@
 'use client';
+import TransactionReference from './transaction-reference';
 import {useLocalizedNotice} from './use-localized-notice';
 import {paymentStateLabel} from '@/lib/payment-state';
 import CycleCooldown from './cycle-cooldown';
@@ -46,7 +47,7 @@ export default function MemberRecords(props:Props){
   {page?.rows.map(row=><article className="card" key={row.id}>
    <h3>{row.name??row.asset} · {row.asset} · {row.network}</h3><p>{paymentStateLabel(row.under_review?'exception':(row.display_status??row.status),locale)}</p>
    <code>{row.id}</code>{row.send_pending&&<p role="status">{fr?'Envoi incertain : vérifiez l’historique du portefeuille et ouvrez ce paiement pour fournir sa transaction. Ne payez pas à nouveau.':'Send outcome unknown: check wallet history and open this payment to submit its transaction hash. Do not pay again.'}</p>}
-   {row.tx_hash&&<p>{fr?"Transaction enregistrée":"Recorded transaction"}: <code className="wallet-address">{row.tx_hash}</code></p>}
+   {row.tx_hash&&<p>{fr?"Transaction enregistrée":"Recorded transaction"}: <TransactionReference hash={row.tx_hash} network={row.network} environment={environment} locale={locale} registryExplorer={row.explorer??undefined}/></p>}
    {collection==='cycles'&&row.completed_at&&<p>{fr?'Clôture enregistrée':'Recorded completion'}: <time dateTime={new Date(row.completed_at).toISOString()}>{formatDisplayDate(row.completed_at,locale,zone)}</time></p>}
    {collection==='cycles'&&row.status==='completed'&&!row.under_review&&row.cooldown_ends_at&&<CycleCooldown until={new Date(row.cooldown_ends_at).toISOString()} locale={locale}/>}
 

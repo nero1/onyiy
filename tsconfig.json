@@ -54,7 +54,6 @@
     "lib/**/*.ts",
     "server/**/*.ts",
     "packages/**/*.ts",
-    "drizzle.config.ts",
     ".next/dev/types/**/*.ts",
     "workers/**/*.ts"
   ],

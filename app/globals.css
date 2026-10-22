@@ -23,3 +23,5 @@
 
 .profile-disclosure{font-size:.92rem;line-height:1.5;min-width:0;flex-basis:100%}.profile-disclosure p{margin:.5rem 0}.profile-disclosure small{display:block;opacity:.8}.cycle:has(.profile-disclosure){flex-wrap:wrap}.release-profiles pre{max-height:22rem;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}.release-profiles textarea{max-width:100%;width:100%}
 .public-page .gift-tiles{grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr))}.public-page .gift-tiles>.card{min-width:0;overflow-wrap:anywhere}
+
+.member-tools{display:flex;flex-wrap:wrap;gap:.75rem;padding:1rem 0}.transaction-reference{display:inline-flex;flex-wrap:wrap;align-items:center;gap:.4rem;max-width:100%}.transaction-reference code{overflow-wrap:anywhere;word-break:break-word;min-width:0}
