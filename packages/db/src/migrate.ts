@@ -10,7 +10,7 @@ try {
  // Owner-only metadata/coordination are deliberate PostgreSQL infrastructure exceptions.
  await client`select pg_advisory_lock(hashtextextended('gw-schema-migrations',0))`;
  const migrations=fs.readdirSync(dir).filter(f=>f.endsWith('.sql')).sort().map(name=>migrationSource(name,fs.readFileSync(path.join(dir,name),'utf8')));
- if(migrations[0]?.name!==initialSchemaFile)throw new Error('INITIAL_SCHEMA_MISSING');
+ if(migrations.length!==1||migrations[0]?.name!==initialSchemaFile)throw new Error('INITIAL_SCHEMA_MISSING');
  const [history]=await database.execute<{present:boolean}>(sql`select to_regclass('public.schema_migrations') is not null as present`);
  const applied=history.present?await database.select({name:migrationHistory.name,sha256:migrationHistory.sha256}).from(migrationHistory).limit(1001):[];
  if(applied.length>1000||applied.some(row=>!migrations.some(migration=>migration.name===row.name)))throw new Error('MIGRATION_HISTORY_MISMATCH');

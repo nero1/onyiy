@@ -1,3 +1,4 @@
+import {nativeGiftReadiness} from './native-eligibility';
 import {nativeSendDisplayStatus,nativeSendTransactionHash} from './native-send-state';
 import {presentationFromManifest,planFinancialPresentation,type QueueDisclosure,type PublicQueueDisclosure} from './presentation';
 import {planConfigSchema} from '../packages/config/src/policies';
@@ -121,7 +122,7 @@ export async function nativeCatalog(tx: DbExecutor) {
 export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
   const environment=await financialEnvironmentIn(tx);
   const policy = await readManifest(tx);
-  if (!policy.feature_wallets || !policy.entitlements_member.dashboard) throw new Error("FEATURE_DISABLED");
+  if ((!policy.feature_wallets&&!policy.feature_gifts) || !policy.entitlements_member.dashboard) throw new Error("FEATURE_DISABLED");
   const balances = await tx
     .select({
       asset_id: assets.id,
@@ -217,7 +218,7 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
       network: assets.chainId,
       decimals: assets.decimals,
       status: cryptoObligations.status,
-      display_status:nativeSendDisplayStatus(),tx_hash:nativeSendTransactionHash(),
+      display_status:nativeSendDisplayStatus(),tx_hash:nativeSendTransactionHash(),explorer:sql<string|null>`${cryptoObligations.registrySnapshot}->>'explorer'`,
       gross_base_units: cryptoObligations.grossBaseUnits,
       charge_base_units: cryptoObligations.chargeBaseUnits,
       net_base_units: cryptoObligations.netBaseUnits,
@@ -274,7 +275,8 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
   const [user]=await tx.select({id:users.id,username:users.username,status:users.status,role:users.role,locale:users.locale,time_zone:users.timeZone}).from(users).where(eq(users.id,userId)).limit(1);
   const notices=policy.feature_notifications?await notificationPage(tx,userId):null;
   const badge=policy.feature_notifications?await notificationBadge(tx,userId):{has_new:false};
-  return { user,manifest:{...publicManifest(policy),presentation:presentationFromManifest(policy),configuration_available:true},notifications:notices?.items??[],notification_badge:badge,balances, summary, wallets:policy.entitlements_member.wallet_link?wallets:[], invoices:policy.entitlements_member.history?invoices:[], withdrawals:policy.entitlements_member.history?withdrawals:[], cycles: active,has_active_cycles:!!openCycle };
+  const gift_readiness=await nativeGiftReadiness(tx,userId,environment);
+  return { gift_readiness,user,manifest:{...publicManifest(policy),presentation:presentationFromManifest(policy),configuration_available:true},notifications:notices?.items??[],notification_badge:badge,balances, summary, wallets:policy.entitlements_member.wallet_link?wallets:[], invoices:policy.entitlements_member.history?invoices:[], withdrawals:policy.entitlements_member.history?withdrawals:[], cycles: active,has_active_cycles:!!openCycle };
 }
 
 export async function nativeAdminObligations(tx:DbExecutor,after?:string){

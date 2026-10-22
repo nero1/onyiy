@@ -22,6 +22,7 @@ export async function ownNativeReceipts(
   return tx
     .select({
       id: cryptoObligations.id,
+      explorer:sql<string|null>`${cryptoObligations.registrySnapshot}->>'explorer'`,
       asset: assets.symbol,
       decimals: assets.decimals,
       environment: cryptoObligations.environment,

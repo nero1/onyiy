@@ -1,7 +1,6 @@
 {
   "format": "gw-drizzle-congruence-v1",
   "verified_columns": 897,
-  "verified_standalone_indexes": 121,
   "verified_check_constraints": 301,
   "verified_tables": 96,
   "sql_only_constraint_triggers": [
@@ -152,103 +151,24 @@
       "definition": "FOREIGN KEY (operation_key) REFERENCES operation_keys(business_key) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED"
     }
   ],
+  "verified_standalone_indexes": 122,
   "source_sha256_base64": {
     "packages/db/src/schema.ts": "QyJxy2963mV4Yg/stPdMmkz/q+KU7pK6a8QMATofji8=",
-    "packages/db/src/schema-contracts.ts": "eGw/8Gn/NUZYBjSRIMhObaQylDW8XgVaw2tqD6MuKcc=",
-    "packages/db/fresh-install.sql": "ckG9/NutbHz+asr+H9yPgwgDuIpf685IPfcc1zwpJgk="
+    "packages/db/src/schema-contracts.ts": "TBnOaNBtmV23q9sVqWa4NxN9K2eSbCZnIIwuypqJ/sk=",
+    "packages/db/src/migrations/000_initial_schema.sql": "oixJSnvfX6c1Cd+ZH+qJN2wZEnRKP/XkRZt21AfF1PU="
   },
   "migrations_sha256_base64": {
-    "000_initial_schema.sql": "/8uTC5dPlh3nz8T4e7+39ITUe/KzB3fTsBCRtZ6z8yA=",
-    "001_historical_treasury_fence.sql": "AnaXqjRLsZmREkce7CFRMuvCWkqpm9h+wk8YUasj2Oo=",
-    "002_ephemeral_retention.sql": "X3hHpSCKXHFmlU9hgfSROZYBrk/5Y98PQbdaKsNju24=",
-    "003_monthly_financial_archives.sql": "HYWwiP1nTBVxKKPiW04AH6ySCEf5tyjvmaNu4x62d/4=",
-    "004_transparent_profiles.sql": "F81Aac7y8kcVS5yoliVy6coLWJ60BfwvXBaqAi3yChw=",
-    "005_production_environments.sql": "4gzOpn/VtspbYmWice87LEhy1x877x2yfbpcB/HMtqs=",
-    "006_public_queue_disclosure.sql": "kFzyoMhGRwwzN3uxrKxEdmvZZDBauzsgI0jgjL/tJkE=",
-    "007_audit_queue_indexes.sql": "9Ixl8MBnzgqSuWHvMTZuW6mSCywp/kT9xtq0rXTkjWg="
+    "000_initial_schema.sql": "oixJSnvfX6c1Cd+ZH+qJN2wZEnRKP/XkRZt21AfF1PU="
   },
-  "consolidated_baseline": {
-    "file": "000_initial_schema.sql",
-    "reference_commit": "e6f7888034afae01d0c7803965f1c17889783171",
-    "reference_migrations": 99,
-    "verified_schema_security_entries": 3523,
-    "verified_column_grants": true,
-    "hostile_default_grants_verified": true
-  },
-  "forward_function_review": {
-    "migration": "001_historical_treasury_fence.sql",
-    "changed_function": "gw_native_asset_fence(uuid)",
-    "new_table": "treasury_addresses",
-    "new_source_triggers": 4,
-    "new_retention_trigger": 1,
-    "new_address_checkpoint_index": true,
-    "prior_schema_security_entries_preserved_except_reviewed_function": 3523,
-    "generated_drizzle_new_table_catalog_match": true,
-    "hostile_default_acl_removal_verified": true,
-    "baseline_000_unchanged": true,
-    "new_functions": [
-      "gw_capture_treasury_address()",
-      "gw_treasury_inventory_guard()",
-      "gw_next_treasury_monitor(uuid,text)"
-    ],
-    "new_monitoring_index": true
-  },
-  "retention_forward_review": {
-    "migrations": [
-      "002_ephemeral_retention.sql",
-      "003_monthly_financial_archives.sql"
-    ],
-    "generated_model_columns_constraints_indexes_match": true,
-    "partition_roots": [
-      "ledger_postings",
-      "chain_scan_pages",
-      "audit_events"
-    ],
-    "global_identity_registry": true,
-    "sql_only_partition_bounds_triggers_acl_inventory": true,
-    "recovery_schema_contract_version": 4,
-    "financial_deletion": false
-  },
-  "transparent_profile_review": {
-    "migration": "004_transparent_profiles.sql",
-    "generated_model_columns_constraints_indexes_match": true,
-    "publication_consent_epoch": true,
-    "profile_transition_fence": true,
-    "financial_deletion": false,
-    "microsecond_row_hashes_and_cursors": true
-  },
-  "production_foundation_review": {
-    "migration": "005_production_environments.sql",
-    "generated_model_columns_constraints_indexes_match": true,
-    "active_environment_read_write_fences": true,
-    "preview_role_closed": true,
-    "pricing_snapshot_immutable": true,
-    "birth_date_not_stored": true,
-    "user_preferences_scoped_versioned": true,
-    "recovery_roles_closed_and_fingerprinted": [
-      "gw_read",
-      "gw_service",
-      "gw_signer",
-      "gw_preview"
-    ],
-    "actual_cross_cluster_restore_verified": true,
-    "mainnet_execution_enabled": false
-  },
-  "public_queue_parameter_review": {
-    "migration": "006_public_queue_disclosure.sql",
-    "positional_parameter_removes_version_column_ambiguity": true,
-    "declaration_shapes_unchanged": true,
-    "final_installer_seven_receipts": true,
-    "exact_schema_security_entries": 4222,
-    "column_grants_match": true,
-    "historical_sql000_005_unchanged": true
-  },
-  "audit_queue_index_review": {
-    "migration": "007_audit_queue_indexes.sql",
-    "generated_model_columns_constraints_indexes_match": true,
-    "final_installer_eight_receipts": true,
-    "exact_schema_security_entries": 4232,
-    "historical_sql000_006_unchanged": true,
+  "final_state_review": {
+    "reference_commit": "178e814977bad46a0a718085658e90c346db2718",
+    "owner_schema_security_entries": 4233,
+    "one_self_receipted_migration": true,
+    "direct_and_cli_catalogs_identical": true,
+    "generated_model_columns_checks_indexes_match": true,
+    "completed_cycle_lookup_index": true,
+    "nonempty_target_and_tamper_rejected": true,
+    "backward_compatibility_required": false,
     "recovery_schema_contract_version": 4
   }
 }

@@ -7,10 +7,13 @@ const migrationDir = path.join(root, 'packages/db/src/migrations');
 const schemaText = fs.readFileSync(path.join(root, 'packages/db/src/schema.ts'), 'utf8');
 const schemaTables = new Set([...schemaText.matchAll(/pgTable\(['"]([^'"]+)['"]/g)].map((m) => m[1]));
 const migrationTables = new Set();
+const attachedPartitions = new Map();
 for (const file of fs.readdirSync(migrationDir).filter((f) => f.endsWith('.sql'))) {
   const text = fs.readFileSync(path.join(migrationDir, file), 'utf8');
+  for(const m of text.matchAll(/ALTER TABLE (?:ONLY )?public\.([a-z_]+) ATTACH PARTITION public\.([a-z_]+) /g))attachedPartitions.set(m[2],m[1]);
   for (const m of text.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-zA-Z0-9_]+)/gi)) migrationTables.add(m[1]);
 }
+for(const [child,parent] of attachedPartitions){if(!schemaTables.has(parent))throw new Error('PARTITION_ROOT_MISSING_FROM_MODEL');migrationTables.delete(child);}
 const missing = [...migrationTables].filter((name) => !schemaTables.has(name));
 if (missing.length) {
   console.error(`Drizzle schema missing application tables: ${missing.join(', ')}`);

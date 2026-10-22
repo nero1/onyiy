@@ -44,7 +44,7 @@ If your existing project already has this app installed, reuse it and confirm it
 
 If already installed, run the receipt query below first and skip installation when it matches. Otherwise:
 
-1. In GitHub, open [fresh-install.sql](https://github.com/nero1/onyiy/blob/main/packages/db/fresh-install.sql).
+1. In GitHub, open [000_initial_schema.sql](https://github.com/nero1/onyiy/blob/main/packages/db/src/migrations/000_initial_schema.sql).
 2. Click **Raw**. Copy the **entire file**, including its first and last lines.
 3. In your Supabase project, click **SQL Editor → New query**.
 4. Use the owner role, normally **postgres**. Paste the SQL unchanged.
@@ -55,18 +55,9 @@ If already installed, run the receipt query below first and skip installation wh
 select name from public.schema_migrations order by name;
 ```
 
-7. Confirm eight receipts appear, from `000_initial_schema.sql` through `007_audit_queue_indexes.sql`. These identify the installed schema version; **do not run those files separately**.
+7. Confirm exactly one row appears: `000_initial_schema.sql`. That is the complete schema. There are no other migration files to run.
 
-This one file creates the final tables, views, functions, indexes and security rules directly. It does not replay the old upgrades. Step 8 adds the remaining default settings/plans/accounts. Existing databases keep their original receipts and use reviewed upgrades; never run this fresh installer over existing tables. Deployment checks the schema and does not apply SQL automatically.
-
-### Existing installation with seven receipts
-
-1. Keep using the same Supabase project. Do not paste the fresh installer again.
-2. Make an encrypted backup using the recovery steps below. Keep signing and scheduled work paused during this upgrade.
-3. In GitHub, open `packages/db/src/migrations/007_audit_queue_indexes.sql` → **Raw**. Copy the entire file.
-4. In Supabase → **SQL Editor → New query**, select the installed project and owner role. Paste unchanged and click **Run**. This adds two indexes; existing financial records remain.
-5. Run the receipt query above. Confirm all eight names appear before deploying this release.
-6. A backup with only seven receipts must first restore and verify using its original backup release (PR118 compatible commit `2f59f6d5a53c133e93536f45d0490957817d666e`). Apply007 only after verification. Keep the original archive and key unchanged.
+This one file creates the final tables, views, functions, indexes and security rules directly. It does not replay the old upgrades. Step 8 adds the remaining default settings/plans/accounts. This baseline is for your first installation. Never run it over existing application tables. Deployment checks the schema and does not apply SQL automatically.
 
 If installation fails, keep the error and check the troubleshooting table below. Do not split the file, remove checks, or rerun it over existing application tables. [SQL Editor reference](https://supabase.com/docs/guides/database/functions).
 
@@ -184,7 +175,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v120.md](PROJECT-STATUS_v120.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v121.md](PROJECT-STATUS_v121.md).
 
 ## 10. Read-only preview using the same database
 
@@ -431,7 +422,7 @@ Code supports Ethereum `1`, BNB `56`, Solana `mainnet-beta` and TRON `mainnet`. 
 17. Redeploy Production, then run the isolated signer workflow once. Check its run result and the site's signer heartbeat. A changed policy, registry, address or alert binding needs new hashes/probes; never reuse an unrelated approval.
 18. With the owner present, fund only the approved treasury/reserve amounts, activate the intended per-currency plans and perform the final tests with small limits. Confirm actual wallet approval, chain receipts, balances, fees, refunds, alerts and restore reconciliation. Complete the required observation periods before public launch.
 
-Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v120.md).
+Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v121.md).
 
 ### Financial actions that need review
 
@@ -512,7 +503,7 @@ Provide these during final setup; coding can continue before they are available.
 
 6. On the member wallet, open **All my current items → Type: Cycles → View: Completed** to inspect completed cycles, recorded completion times and the live rejoin cooldown. Dates use the saved account time zone.
 
-New backups use recovery inventory contract4. Keep original archives, keys and release references. Contract4 packets made before SQL006 need the matching pre-006 release (PR65 `0ea4cf5e62a0ef7e7f83c26c1a512d6935775ac3`) before a reviewed forward upgrade. Contract3 archives require release `6c323dc43c45efa1957308e467ce06e7cc0b36c0`; do not edit or re-sign them.
+New backups use recovery inventory contract4 and the single initial migration receipt. Keep each archive, key and original backup release together. Restore with its matching backup release; never edit or re-sign a packet to make it match another schema.
 
 ## Background jobs
 
@@ -749,3 +740,14 @@ The pricing environment needs no database, Google, MFA, custody or financial-wor
 4. Daily settlement records one attempt per asset/role per UTC day. A dust balance or another deferred account does not prevent later accounts from progressing. An attempt is not a completed settlement. Correct the cause and use the existing manual settlement controls for a same-day retry, or let the next daily run retry.
 
 When changing **Currency** in Payment administration, prepare a new retained-balance recovery or reserve-sweep review. Switching currency clears the previous review and any late response. Check the asset, network, amount and recipient again before confirming.
+
+### Final testing after installation
+
+1. Finish the simulation walkthrough first, then choose testnet or mainnet using the existing account/project steps above. Keep real sends disabled until the relevant reviews pass.
+2. In **Settings**, open the enabled **Transaction history**, **Points**, **Notifications**, **Withdrawal receipts**, and **Export my data** links. Disabled tools should disappear.
+3. Connect a wallet once per network. ETH and tokens on that same network reuse its verified address. A different network needs its own proof; changing an address changes every asset on that network.
+4. Open a gift. A missing wallet, active same-plan/currency cycle or cooldown should explain why review is disabled. Use the visible refresh control after your status changes. The server still checks eligibility again when you submit.
+5. Review the full sender/recipient and copy each address. After a transaction is recorded, use **Copy transaction** or **View on explorer**. Check the explorer’s network; testnet must never open a mainnet transaction page.
+6. In withdrawals, try zero, a malformed amount and an amount above the displayed available balance. They must remain disabled. Enter an affordable positive amount, review the exact fee and recipient, then approve.
+7. Perform the previously listed Google/CAPTCHA/MFA, physical-wallet/mobile, signed-alert, provider-failover, backup/restore and incident checks with your actual services. Measure quotas/latency/costs and complete the required observation periods; local checks do not substitute for these.
+8. Before real-money activation, provide the reviewed countries/terms, funding/refund/closure model, custody/recovery choices, gas budget, actual addresses, independent RPCs and verified contracts/mints. JAGA stays disabled until provenance is supplied. Follow the protected environment settings above; do not put private keys in the website or repository.

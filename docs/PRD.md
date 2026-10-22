@@ -422,9 +422,9 @@ Sign approved member withdrawal and business-settlement batches under worker/cha
 - Refunds must return verified refundable amounts to a proven original sender; no automatic refund must be promised after allocation/settlement.
 - A policy amendment must apply only prospectively.
 
-### §8.5 Flagged remaining dependency: native-gas prefunding and precise fee accounting
+### §8.5 Native-gas prefunding and precise fee accounting
 
-> **FLAG — STILL REQUIRED:** User-paid withdrawals and accumulated business settlement reduce gas exposure, but they do not remove the need for **native-gas prefunding and precise fee accounting**. The treasury must have spendable ETH, BNB, SOL, or TRX/resources for the relevant chain before broadcasting. Collecting a fee in USDT or JAGA does not automatically replenish that native balance.
+> **FINAL SETUP REQUIREMENT:** User-paid withdrawals and accumulated business settlement reduce gas exposure, but they do not remove the need for **native-gas prefunding and precise fee accounting**. The treasury must have spendable ETH, BNB, SOL, or TRX/resources for the relevant chain before broadcasting. Collecting a fee in USDT or JAGA does not automatically replenish that native balance.
 
 Treat the 1% gift share as an operating reserve, distinct from member balances and fee recoveries. Maintain native-asset balance/reserved-fee/low-watermark metrics per network and environment. Before reserving/signing a send, cover worst-case authorized fee and any account creation funding without consuming recipient principal or another asset's liability. Missing gas blocks sending, not crediting an already-confirmed gift; show awaiting gas and notify admin.
 
@@ -861,7 +861,7 @@ Keep these **five core documents** in `/docs`:
 | `PROJECT-STATUS_vN.md` | Verified progress, open bugs, checks actually run, blockers and next work |
 | `LLM-HANDOVER_vN.md` | Self-contained current instructions and stop boundary for the next LLM |
 
-- Keep one concise `custom-bugs-report_vN.md` alongside the five core guides. Summarize fixed bugs by range; list only open problems, next fixes and status. No separate fix plan. Version the report with status/handover; keep history in Git. Shorten status/general explanations without condensing this PRD; retain detailed beginner steps in SETUP.
+- Owner directive, 22 October 2026: keep only the five core guides. Delete both separate bug reports and do not recreate reports or fix plans without a new owner request. Track confirmed open issues briefly in PROJECT-STATUS; keep fixed history in Git. Do not condense this PRD or remove beginner detail from SETUP.
 - Create another non-core document only when the owner explicitly requests it or it is essential. Otherwise fold the information into the appropriate existing file. Essential machine evidence belongs beside its tooling, not in a new human handover.
 - Write for a high-school developer still learning: plain words, short explanations, useful lists/tables, and enough detail to act. Be concise without hiding necessary steps or limitations.
 - SETUP uses web UIs only. Research current official platform screens before changing instructions. Apply the single migration by pasting its complete SQL into Supabase SQL Editor. Do not add terminal, localhost or automated-migration instructions.
@@ -1220,13 +1220,13 @@ uj*****p3 just received $9.5 referral commission
 - Finish verified mainnet registry/adapters, isolated signing/custody, shared-database financial isolation and restricted preview access, payment/fee/refund/recovery paths, all exposed UI/help and operational setup.
 - Retain configured limits and evidence-based activation. Replace unfinished implementation gates only after their dependent work is verified; never remove a financial safeguard merely to make a status green.
 - Collect owner credentials securely and record actual external alerts, chain transactions, restore reconciliation, capacity and the observation periods in §30. Do not manufacture approval, elapsed time or provider evidence.
-- Both exact-final-head push and pull-request CI must pass before each merge. No direct main pushes. Keep five core guides and one concise versioned bug report. Existing no-automated-test-suite instructions remain binding; named isolated manual verification continues.
+- Both exact-final-head push and pull-request CI must pass before each merge. No direct main pushes. Keep only five core guides; track open issues in status. Existing no-automated-test-suite instructions remain binding; named isolated manual verification continues.
 
-The current gap list and acceptance evidence belong in [status](PROJECT-STATUS_v120.md) and the [bug report](custom-bugs-report_v120.md). Continue until all requirements have actual verification; report any owner-dependent blocker precisely.
+The current gap list and acceptance evidence belong in [status](PROJECT-STATUS_v121.md). Continue until all requirements have actual verification; report any owner-dependent blocker precisely.
 
-### Fresh installation and historical compatibility
+### Single final-state migration
 
-New owners paste only `packages/db/fresh-install.sql` into Supabase SQL Editor. It creates current final definitions directly, records eight receipts, preserving the original SQL000–006 values and refuses unsafe/nonempty targets. Preserve historical migration bytes, original signed archives, keys and matching release references. Later DDL requires forward migrations plus a refreshed, verified final-state installer; never concatenate upgrades or silently adopt existing records.
+Owner directive, 22 October 2026: no migrations have been applied. Replace the old lineage and duplicate installer with **one** canonical file, `packages/db/src/migrations/000_initial_schema.sql`. It defines the final tables, views, functions, constraints, triggers, policies, grants and indexes directly and records one validated receipt. It must not concatenate historical upgrades, backfills or superseded definitions. SQL Editor and developer tooling use the same file; reject nonempty targets and modified checksums. Verify its owner/security catalog against the prior final schema plus current intentional changes, and compare all ORM columns/checks/indexes. Earlier signed development fixtures remain untouched outside the repository; compatibility with their old migration receipts is not required for this new baseline.
 
 ### Binding safeguards retained during remediation
 
@@ -1245,7 +1245,7 @@ The owner explicitly approved P1-065 on **14 October 2026 at 02:25:24 PM WAT**, 
 - Closed signed-archive dependencies accept pgcrypto-only older packets or an additional pg_trgm declaration; unknown names, duplicates, versions and schemas fail.
 - Signatures/checksums, empty-target verification and exact post-restore inventories remain mandatory. Search approval does not activate financial gates.
 
-Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v120.md](PROJECT-STATUS_v120.md). Current bug evidence/tasks: [bug report](custom-bugs-report_v120.md).
+Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v121.md](PROJECT-STATUS_v121.md). Confirmed open issues belong in that status file; separate bug reports were removed at the owner’s request.
 
 ### Retention implementation clarification (v52)
 
@@ -1254,7 +1254,7 @@ Use the same database for online monthly archives of ledger postings, scan pages
 
 ### Phase Two presentation baseline — PR53
 
-P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v120.md).
+P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v121.md).
 
 P2.4 external assessment remains **not_reviewed** until actual owner/provider evidence is recorded. Mainnet runtime, encrypted signing and local financial procedures are implemented in v67. Remaining evidence includes live registry/provider/custody operation, funding/refund/closure review, countries and terms, budget, hosted capacity/alerts/restore and observation periods. Local implementation does not approve public launch.
 
@@ -1298,3 +1298,9 @@ Member wallet sends require a durable, single-use authorization before dispatch.
 Admin queue pages and mutations bind plan, partition, asset/network and request generation. Queue continuation is signed and scoped. Operational balances use protected exact counters with coverage checks. Priority-change notices retain a stable audience boundary and advance in idempotent bounded pages. Daily settlement admission advances past deferred accounts without marking their funds settled.
 
 Payment, recovery and reserve-sweep reviews have separate typed controls. A currency change discards the prior recovery/sweep review, including late responses. Member/account feature payloads are validated before display, and shared identity signals invalidate private portal state across tabs.
+
+### Owner-independent completion and final setup
+
+Complete all Phase One/Two implementation and local verification without pausing for owner input. Leave actual service credentials, verified registry/provenance, custody/gas funding, business/country/terms decisions, physical-wallet/device checks, hosted measurements and real observation periods to final setup. Never report those unperformed checks as passed. Keep actionable web-UI steps in SETUP.
+
+Checkout displays advisory eligibility from bounded current-cycle/cooldown reads, independent of recent history. Explain missing-wallet, cooldown and active-cycle blocks; validate exact withdrawal amounts against displayed available balance. Transactions expose full hashes, copy controls and closed, network/environment-specific explorer links; a registry URL cannot add an unapproved host. Same-network wallet reuse is explicit; cross-network reuse is never inferred. Secondary account tools follow feature and entitlement flags.

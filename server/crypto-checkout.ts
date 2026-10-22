@@ -128,6 +128,7 @@ export async function prepareNativeInvoice(tx:DbExecutor,userId:string,generatio
     energy_fee_native:registry.chain==="tron"?(fee.gasLimit*fee.unitPrice).toString():undefined,
     invoice_id: invoice.id,
     asset_key: registry.key,
+    explorer:registry.explorer,
     asset: asset.symbol,
     network: registry.network,
     kind: registry.kind,

@@ -1,6 +1,7 @@
 -- Gifters World: final-state schema for a new, empty database.
 -- Run this file once with the schema owner; seed application content separately.
--- Historical upgrades are retained in Git, not replayed by this baseline.
+-- Creates current definitions directly. Historical migrations are not replayed.
+-- One initial migration; no historical upgrade steps or receipts.
 -- Archive all application table schemas; exclude ephemeral proof data only.
 BEGIN;
 SET LOCAL lock_timeout='10s';
@@ -17,7 +18,7 @@ END $empty_database$;
 DO $application_roles$
 DECLARE name text;
 BEGIN
- FOREACH name IN ARRAY ARRAY['gw_read','gw_service','gw_signer'] LOOP
+ FOREACH name IN ARRAY ARRAY['gw_read','gw_service','gw_signer','gw_preview'] LOOP
   IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname=name) THEN
    EXECUTE format('CREATE ROLE %I NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS',name);
   END IF;
@@ -54,11 +55,6 @@ BEGIN
  RETURN value;
 END $$;
 
-
---
--- Name: gw_account_bucket(uuid, text); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_account_bucket(target uuid, bucket text) RETURNS numeric
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
@@ -76,11 +72,6 @@ BEGIN
  RETURN value;
 END $_$;
 
-
---
--- Name: gw_account_tombstone_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_account_tombstone_guard() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -91,11 +82,6 @@ BEGIN
  RETURN NEW;
 END $$;
 
-
---
--- Name: gw_actor_id(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_actor_id() RETURNS uuid
     LANGUAGE sql STABLE
     SET search_path TO 'pg_catalog'
@@ -103,10 +89,66 @@ CREATE FUNCTION public.gw_actor_id() RETURNS uuid
   SELECT nullif(current_setting('gw.actor_id',true),'')::uuid
 $$;
 
-
---
--- Name: gw_alert_delivery_guard(); Type: FUNCTION; Schema: public; Owner: -
---
+CREATE FUNCTION public.gw_advance_monthly_archive(maximum integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    SET "TimeZone" TO 'UTC'
+    AS $_$
+DECLARE policy jsonb; item public.archive_months; source_name text; prefix text; default_name text; pending_month date; row_value record;
+ actor uuid; environment text; count_value bigint; hash_value text; cursor_value uuid; revision_value integer; processed integer:=0; new_state text; query text; review_reason text;
+BEGIN
+ IF public.gw_runtime_environment_allowed() IS NOT TRUE THEN RAISE EXCEPTION 'FINANCIAL_ENVIRONMENT_DENIED'; END IF;
+ actor:=nullif(current_setting('gw.actor_id',true),'')::uuid; environment:=current_setting('gw.environment',true);
+ IF current_setting('gw.access',true) IS DISTINCT FROM 'service' OR environment IS NULL OR environment NOT IN ('simulation','testnet','mainnet') OR maximum IS NULL OR maximum NOT BETWEEN 1 AND 100 THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;
+ IF actor IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.users WHERE id=actor AND role='admin' AND status='active') THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;
+ IF current_setting('gw.operational_retention_hold',true)='true' THEN RETURN jsonb_build_object('state','held','more_possible',false); END IF;
+ IF NOT pg_try_advisory_xact_lock(hashtextextended('gw-monthly-archive',0)) THEN RETURN jsonb_build_object('state','busy','more_possible',true); END IF;
+ SELECT value INTO policy FROM public.x_manifest WHERE key='retention_policy' AND scope='staff' FOR SHARE;
+ IF policy IS NULL OR policy->>'financial_archive_after_days' IS NULL OR policy->>'audit_hot_days' IS NULL OR (policy->>'financial_archive_after_days')::integer NOT BETWEEN 1 AND 1000000 OR (policy->>'audit_hot_days')::integer NOT BETWEEN 1 AND 1000000 THEN RAISE EXCEPTION 'CONFIGURATION_INVALID'; END IF;
+ FOREACH source_name IN ARRAY ARRAY['ledger_postings','chain_scan_pages','audit_events'] LOOP
+  prefix:=CASE source_name WHEN 'ledger_postings' THEN 'lp' WHEN 'chain_scan_pages' THEN 'cs' ELSE 'au' END;
+  default_name:='gw_part_'||prefix||'_default';
+  BEGIN
+   EXECUTE format('SELECT date_trunc(''month'',created_at AT TIME ZONE ''UTC'')::date FROM %I.%I ORDER BY created_at LIMIT 1','public',default_name) INTO pending_month;
+   IF pending_month IS NOT NULL THEN PERFORM public.gw_create_archive_month(source_name,pending_month); END IF;
+   PERFORM public.gw_create_archive_month(source_name,date_trunc('month',clock_timestamp() AT TIME ZONE 'UTC')::date);
+   PERFORM public.gw_create_archive_month(source_name,(date_trunc('month',clock_timestamp() AT TIME ZONE 'UTC')+interval '1 month')::date);
+  EXCEPTION WHEN raise_exception THEN
+   IF SQLERRM<>'ARCHIVE_DEFAULT_BACKLOG_REVIEW' THEN RAISE; END IF;
+   review_reason:='ARCHIVE_DEFAULT_BACKLOG_REVIEW';
+  END;
+ END LOOP;
+ SELECT * INTO item FROM public.archive_months m WHERE m.state IN ('hashing','verifying') OR m.state='hot' AND (m.month_start+interval '1 month')::timestamptz<clock_timestamp()-(CASE WHEN m.source_table='audit_events' THEN policy->>'audit_hot_days' ELSE policy->>'financial_archive_after_days' END)::integer*interval '1 day'
+ ORDER BY m.last_step_at,m.month_start,m.source_table LIMIT 1 FOR UPDATE SKIP LOCKED;
+ IF NOT FOUND THEN RETURN jsonb_build_object('state',CASE WHEN review_reason IS NULL THEN 'idle' ELSE 'review' END,'reason',review_reason,'more_possible',false); END IF;
+ IF NOT EXISTS(SELECT 1 FROM pg_inherits WHERE inhrelid=to_regclass(format('public.%I',item.child_name)) AND inhparent=to_regclass(format('public.%I',item.source_table))) THEN RAISE EXCEPTION 'ARCHIVE_SCHEMA_CONFLICT'; END IF;
+ IF item.state='hot' THEN
+  UPDATE public.archive_months SET state='hashing',frozen_at=clock_timestamp(),last_step_at=clock_timestamp() WHERE source_table=item.source_table AND month_start=item.month_start RETURNING * INTO item;
+ END IF;
+ count_value:=item.walk_count;hash_value:=item.walk_hash;cursor_value:=item.cursor_id;revision_value:=item.cursor_revision;
+ IF item.source_table='chain_scan_pages' THEN
+  query:=format('SELECT to_jsonb(r) AS body,r.run_id AS id,r.revision FROM %I.%I r WHERE $1::uuid IS NULL OR (r.run_id,r.revision)>($1::uuid,$2::integer) ORDER BY r.run_id,r.revision LIMIT $3','public',item.child_name);
+ ELSE query:=format('SELECT to_jsonb(r) AS body,r.id,0 AS revision FROM %I.%I r WHERE $1::uuid IS NULL OR r.id>$1::uuid ORDER BY r.id LIMIT $3','public',item.child_name); END IF;
+ FOR row_value IN EXECUTE query USING cursor_value,revision_value,maximum LOOP
+  hash_value:=encode(sha256(convert_to(hash_value||encode(sha256(convert_to(row_value.body::text,'UTF8')),'hex'),'UTF8')),'hex');
+  count_value:=count_value+1;cursor_value:=row_value.id;revision_value:=row_value.revision;processed:=processed+1;
+ END LOOP;
+ new_state:=item.state;
+ IF processed<maximum THEN
+  IF item.state='hashing' THEN
+   UPDATE public.archive_months SET state='verifying',expected_count=count_value,expected_hash=hash_value,walk_count=0,walk_hash=encode(sha256(''::bytea),'hex'),cursor_id=NULL,cursor_revision=NULL,last_step_at=clock_timestamp() WHERE source_table=item.source_table AND month_start=item.month_start;
+   new_state:='verifying';
+  ELSE
+   new_state:=CASE WHEN count_value=item.expected_count AND hash_value=item.expected_hash THEN 'archived' ELSE 'review' END;
+   IF new_state='review' THEN review_reason:='ARCHIVE_CHECKSUM_MISMATCH'; END IF;
+   UPDATE public.archive_months SET state=new_state,walk_count=count_value,walk_hash=hash_value,cursor_id=cursor_value,cursor_revision=revision_value,archived_at=CASE WHEN new_state='archived' THEN clock_timestamp() ELSE NULL END,last_step_at=clock_timestamp() WHERE source_table=item.source_table AND month_start=item.month_start;
+   INSERT INTO public.audit_events(actor_user_id,action,target_type,target_id,reason,after_state) VALUES(actor,'retention.month.'||new_state,'archive_month',item.source_table||':'||item.month_start::text,CASE WHEN new_state='archived' THEN 'Online archive checksum verified without deleting financial evidence' ELSE 'Archive checksum mismatch requires review; financial evidence retained' END,jsonb_build_object('source_table',item.source_table,'month',item.month_start,'rows',count_value::text,'state',new_state));
+  END IF;
+ ELSE
+  UPDATE public.archive_months SET walk_count=count_value,walk_hash=hash_value,cursor_id=cursor_value,cursor_revision=revision_value,last_step_at=clock_timestamp() WHERE source_table=item.source_table AND month_start=item.month_start;
+ END IF;
+ RETURN jsonb_build_object('state',new_state,'source_table',item.source_table,'month',item.month_start,'processed',processed,'rows',count_value::text,'reason',review_reason,'more_possible',true);
+END $_$;
 
 CREATE FUNCTION public.gw_alert_delivery_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -126,10 +168,34 @@ BEGIN
  RETURN NEW;
 END $$;
 
+CREATE FUNCTION public.gw_archive_month_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+ IF TG_OP='DELETE' THEN RAISE EXCEPTION 'ARCHIVE_EVIDENCE_RETAINED'; END IF;
+ IF (NEW.source_table,NEW.month_start,NEW.child_name) IS DISTINCT FROM (OLD.source_table,OLD.month_start,OLD.child_name)
+  OR OLD.state IN ('archived','review') OR NOT ((OLD.state='hot' AND NEW.state='hashing') OR (OLD.state='hashing' AND NEW.state IN ('hashing','verifying','review')) OR (OLD.state='verifying' AND NEW.state IN ('verifying','archived','review')))
+  OR (OLD.frozen_at IS NOT NULL AND NEW.frozen_at IS DISTINCT FROM OLD.frozen_at)
+  OR (OLD.state=NEW.state AND NEW.walk_count<OLD.walk_count) THEN RAISE EXCEPTION 'ARCHIVE_EVIDENCE_RETAINED'; END IF;
+ RETURN NEW;
+END $$;
 
---
--- Name: gw_asset_balance(uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
---
+CREATE FUNCTION public.gw_archive_record_guard() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    SET "TimeZone" TO 'UTC'
+    AS $$
+DECLARE source_name text; identity_value text; frozen boolean;
+BEGIN
+ source_name:=TG_ARGV[0];
+ IF source_name NOT IN ('ledger_postings','chain_scan_pages','audit_events') OR source_name IS NULL THEN RAISE EXCEPTION 'ARCHIVE_SCOPE_INVALID'; END IF;
+ SELECT state<>'hot' INTO frozen FROM public.archive_months WHERE source_table=source_name AND month_start=date_trunc('month',NEW.created_at AT TIME ZONE 'UTC')::date FOR SHARE;
+ IF coalesce(frozen,false) THEN RAISE EXCEPTION 'ARCHIVE_MONTH_FROZEN'; END IF;
+ IF source_name='chain_scan_pages' THEN identity_value:=NEW.run_id::text||':'||NEW.revision::text; ELSE identity_value:=NEW.id::text; END IF;
+ INSERT INTO public.archive_record_keys(source_table,record_key,created_at) VALUES(source_name,identity_value,NEW.created_at);
+ RETURN NEW;
+END $$;
 
 CREATE FUNCTION public.gw_asset_balance(target uuid, purposes text[]) RETURNS numeric
     LANGUAGE plpgsql STABLE SECURITY DEFINER
@@ -142,11 +208,6 @@ BEGIN
  ELSE SELECT coalesce(sum(CASE WHEN p.direction='credit' THEN p.amount_base_units ELSE -p.amount_base_units END),0) INTO value FROM public.ledger_accounts a JOIN public.ledger_postings p ON p.account_id=a.id WHERE a.asset_id=target AND a.purpose=ANY(purposes);END IF;
  RETURN value;
 END $$;
-
-
---
--- Name: gw_attempt_lineage_guard(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_attempt_lineage_guard() RETURNS trigger
     LANGUAGE plpgsql
@@ -163,11 +224,6 @@ BEGIN
  RETURN NEW;
 END $$;
 
-
---
--- Name: gw_bot_history_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_bot_history_guard() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -179,11 +235,6 @@ BEGIN
  IF TG_TABLE_NAME<>'bot_challenges' OR (to_jsonb(NEW)-'consumed_at') IS DISTINCT FROM (to_jsonb(OLD)-'consumed_at') OR OLD.consumed_at IS NOT NULL OR NEW.consumed_at IS NULL OR NEW.consumed_at>clock_timestamp() OR OLD.expires_at<=clock_timestamp() THEN RAISE EXCEPTION 'BOT_CHALLENGE_IMMUTABLE';END IF;RETURN NEW;
 END $$;
 
-
---
--- Name: gw_cancelled_withdrawal_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_cancelled_withdrawal_guard() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -193,10 +244,20 @@ BEGIN
   RETURN NEW;
 END $$;
 
-
---
--- Name: gw_case_guard(); Type: FUNCTION; Schema: public; Owner: -
---
+CREATE FUNCTION public.gw_capture_treasury_address() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE address text;
+BEGIN
+ IF TG_TABLE_NAME='crypto_invoices' THEN address:=NEW.treasury;
+ ELSIF TG_TABLE_NAME IN ('crypto_obligations','chain_checkpoints') THEN address:=NEW.treasury_sender;
+ ELSE address:=NEW.destination; END IF;
+ IF address IS NOT NULL AND EXISTS(SELECT 1 FROM public.assets a WHERE a.id=NEW.asset_id AND a.environment IN ('testnet','mainnet')) THEN
+  INSERT INTO public.treasury_addresses(asset_id,address) VALUES(NEW.asset_id,address) ON CONFLICT DO NOTHING;
+ END IF;
+ RETURN NEW;
+END $$;
 
 CREATE FUNCTION public.gw_case_guard() RETURNS trigger
     LANGUAGE plpgsql
@@ -213,11 +274,6 @@ BEGIN
  RETURN NEW;
 END $$;
 
-
---
--- Name: gw_chain_fee_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_chain_fee_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public', 'pg_temp'
@@ -225,7 +281,7 @@ CREATE FUNCTION public.gw_chain_fee_guard() RETURNS trigger
 DECLARE a public.assets;j public.ledger_journals;cost numeric;journal uuid;target_purpose text;component text;total integer;valid integer;
 BEGIN
  SELECT * INTO a FROM public.assets WHERE id=NEW.native_asset_id;
- IF a.environment<>'testnet' OR a.chain_id<>NEW.network OR a.symbol<>(CASE NEW.chain WHEN 'eth' THEN 'ETH' WHEN 'bnb' THEN 'BNB' WHEN 'sol' THEN 'SOL' WHEN 'tron' THEN 'TRX' END) THEN RAISE EXCEPTION 'CHAIN_FEE_ASSET_INVALID';END IF;
+ IF a.environment IS DISTINCT FROM NEW.environment OR a.environment NOT IN ('testnet','mainnet') OR a.chain_id<>NEW.network OR a.symbol<>(CASE NEW.chain WHEN 'eth' THEN 'ETH' WHEN 'bnb' THEN 'BNB' WHEN 'sol' THEN 'SOL' WHEN 'tron' THEN 'TRX' END) THEN RAISE EXCEPTION 'CHAIN_FEE_ASSET_INVALID';END IF;
  FOR component,cost,journal,target_purpose IN SELECT * FROM (VALUES
   ('network',NEW.network_fee_base_units,NEW.gas_journal_id,'network_fee_expense'),
   ('setup',NEW.account_setup_base_units,NEW.setup_journal_id,'recipient_account_setup_expense')) v LOOP
@@ -236,7 +292,7 @@ BEGIN
   IF total<>2 OR valid<>2 OR j.id IS NULL THEN RAISE EXCEPTION 'CHAIN_FEE_JOURNAL_INVALID';END IF;
   IF j.business_key='chain-fee:'||NEW.environment||':'||NEW.chain||':'||NEW.network||':'||NEW.tx_hash||':'||component THEN
    IF j.metadata->>'tx_hash' IS DISTINCT FROM NEW.tx_hash OR j.metadata->>'network' IS DISTINCT FROM NEW.network OR j.metadata->>'chain' IS DISTINCT FROM NEW.chain THEN RAISE EXCEPTION 'CHAIN_FEE_JOURNAL_INVALID';END IF;
-  ELSIF j.business_key=(CASE component WHEN 'network' THEN 'gas:testnet:'||NEW.chain||':'||NEW.tx_hash ELSE 'account-setup:'||NEW.chain||':'||NEW.tx_hash END) THEN
+  ELSIF j.business_key=(CASE component WHEN 'network' THEN 'gas:'||NEW.environment||':'||NEW.chain||':'||NEW.tx_hash ELSE 'account-setup:'||NEW.chain||':'||NEW.tx_hash END) THEN
    NULL; -- Retained legacy key; exact native-asset postings checked above.
   ELSIF NOT EXISTS(SELECT 1 FROM public.recovery_outflow_resolutions r WHERE r.native_asset_id=NEW.native_asset_id AND r.tx_hash=NEW.tx_hash AND (CASE component WHEN 'network' THEN r.gas_journal_id ELSE r.setup_journal_id END)=journal) THEN
    RAISE EXCEPTION 'CHAIN_FEE_JOURNAL_INVALID';
@@ -245,11 +301,6 @@ BEGIN
  RETURN NULL;
 END $$;
 
-
---
--- Name: gw_check_treasury_sweep(uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_check_treasury_sweep(target uuid) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public'
@@ -257,7 +308,7 @@ CREATE FUNCTION public.gw_check_treasury_sweep(target uuid) RETURNS void
 DECLARE o public.crypto_obligations;j public.ledger_journals;component text;expected_type text;p1 text;p2 text;owner1 text;owner2 text;d1 text;d2 text;total integer;valid integer;held boolean:=false;settled boolean:=false;moved boolean:=false;released boolean:=false;attempts integer;proof jsonb;
 BEGIN
  SELECT * INTO o FROM public.crypto_obligations WHERE id=target;IF NOT FOUND OR o.kind<>'sweep' THEN RETURN;END IF;
- IF o.user_id IS NOT NULL OR o.environment<>'testnet' OR o.source_purpose<>'treasury_sweep_clearing' OR o.gross_base_units<>o.net_base_units OR o.charge_base_units<>0 OR coalesce(o.fee_snapshot->>'nativeFloor','')!~'^(0|[1-9][0-9]{0,77})$' THEN RAISE EXCEPTION 'SWEEP_INTENT_INVALID';END IF;
+ IF o.user_id IS NOT NULL OR o.environment NOT IN ('testnet','mainnet') OR o.source_purpose<>'treasury_sweep_clearing' OR o.gross_base_units<>o.net_base_units OR o.charge_base_units<>0 OR coalesce(o.fee_snapshot->>'nativeFloor','')!~'^(0|[1-9][0-9]{0,77})$' THEN RAISE EXCEPTION 'SWEEP_INTENT_INVALID';END IF;
  FOREACH component IN ARRAY ARRAY['hold','settle','move','release'] LOOP
   SELECT * INTO j FROM public.ledger_journals WHERE business_key=CASE WHEN component='settle' THEN 'crypto-settle:'||o.id ELSE 'treasury-sweep-'||component||':'||o.id END;
   IF NOT FOUND THEN CONTINUE;END IF;
@@ -278,11 +329,6 @@ BEGIN
  ELSE IF NOT held OR settled OR moved OR released THEN RAISE EXCEPTION 'SWEEP_STATE_INVALID';END IF;END IF;
 END $_$;
 
-
---
--- Name: gw_check_user_payable(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_check_user_payable() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
@@ -292,11 +338,6 @@ DECLARE a public.ledger_accounts;net numeric;BEGIN SELECT * INTO a FROM public.l
   net:=public.gw_counter_account_total(a.id);IF net<0 THEN RAISE EXCEPTION 'USER_PAYABLE_NEGATIVE';END IF;
  END IF;RETURN NULL;
 END $$;
-
-
---
--- Name: gw_counter_account_total(uuid); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_counter_account_total(target uuid) RETURNS numeric
     LANGUAGE plpgsql STABLE SECURITY DEFINER
@@ -317,18 +358,14 @@ BEGIN
  RETURN value;
 END $$;
 
-
---
--- Name: gw_counter_advance(integer); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_counter_advance(batch_size integer) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
 DECLARE state public.ledger_counter_state;ids uuid[];fresh uuid[];last_id uuid;target uuid;removed integer:=0;more boolean;
 BEGIN
- IF current_setting('gw.access',true) IS DISTINCT FROM 'service' OR coalesce(current_setting('gw.environment',true),'') NOT IN('simulation','testnet') OR batch_size IS NULL OR batch_size NOT BETWEEN 1 AND 100 THEN RAISE EXCEPTION 'FORBIDDEN';END IF;
+ IF public.gw_runtime_environment_allowed() IS NOT TRUE THEN RAISE EXCEPTION 'FINANCIAL_ENVIRONMENT_DENIED'; END IF;
+ IF current_setting('gw.access',true) IS DISTINCT FROM 'service' OR coalesce(current_setting('gw.environment',true),'') NOT IN('simulation','testnet','mainnet') OR batch_size IS NULL OR batch_size NOT BETWEEN 1 AND 100 THEN RAISE EXCEPTION 'FORBIDDEN';END IF;
  SELECT * INTO state FROM public.ledger_counter_state WHERE id='global' FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'FINANCIAL_SAFETY_PAUSE';END IF;
  IF state.reason_code IS NOT NULL THEN RETURN jsonb_build_object('state','review','reason',state.reason_code,'more_possible',false);END IF;
@@ -359,11 +396,6 @@ BEGIN
  more:=state.reason_code IS NULL AND (NOT state.complete OR EXISTS(SELECT 1 FROM public.ledger_counter_markers));
  RETURN jsonb_build_object('state',CASE WHEN state.reason_code IS NOT NULL THEN 'review' WHEN state.complete THEN 'sealed' ELSE 'backfilling' END,'more_possible',more,'markers_deleted',removed);
 END $$;
-
-
---
--- Name: gw_counter_apply_postings(uuid[]); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_counter_apply_postings(targets uuid[]) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
@@ -401,21 +433,11 @@ BEGIN
  END LOOP;
 END $_$;
 
-
---
--- Name: gw_counter_new_journal(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_counter_new_journal() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
 BEGIN PERFORM public.gw_counter_refresh_journal(NEW.id);RETURN NEW;END $$;
-
-
---
--- Name: gw_counter_new_postings(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_counter_new_postings() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -433,11 +455,6 @@ BEGIN
  RETURN NULL;
 END $$;
 
-
---
--- Name: gw_counter_ready(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_counter_ready() RETURNS boolean
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
@@ -448,11 +465,6 @@ BEGIN
  IF NOT FOUND OR state.reason_code IS NOT NULL THEN RAISE EXCEPTION 'FINANCIAL_SAFETY_PAUSE';END IF;
  RETURN state.complete;
 END $$;
-
-
---
--- Name: gw_counter_refresh_journal(uuid); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_counter_refresh_journal(target uuid) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
@@ -469,10 +481,45 @@ BEGIN
  ON CONFLICT(journal_id) DO UPDATE SET debit_total=excluded.debit_total,credit_total=excluded.credit_total,line_count=excluded.line_count,asset_ids=excluded.asset_ids,valid=excluded.valid,proof_hash=excluded.proof_hash,checked_at=clock_timestamp();
 END $$;
 
-
---
--- Name: gw_database_binding(); Type: FUNCTION; Schema: public; Owner: -
---
+CREATE FUNCTION public.gw_create_archive_month(source_name text, month_value date, maximum_transfer integer DEFAULT 10000) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    SET "TimeZone" TO 'UTC'
+    AS $_$
+DECLARE child text; prefix text; existing regclass; ending date; default_child text; waiting integer; difference boolean;
+BEGIN
+ prefix:=CASE source_name WHEN 'ledger_postings' THEN 'lp' WHEN 'chain_scan_pages' THEN 'cs' WHEN 'audit_events' THEN 'au' END;
+ IF prefix IS NULL OR month_value IS NULL OR extract(day FROM month_value)<>1 OR extract(year FROM month_value) NOT BETWEEN 2000 AND 9999 OR maximum_transfer IS NULL OR maximum_transfer NOT BETWEEN 1 AND 1000000 THEN RAISE EXCEPTION 'ARCHIVE_SCOPE_INVALID'; END IF;
+ ending:=(month_value+interval '1 month')::date;
+ child:='gw_part_'||prefix||'_'||to_char(month_value,'YYYYMM');
+ default_child:='gw_part_'||prefix||'_default';
+ existing:=to_regclass(format('public.%I',child));
+ IF existing IS NOT NULL THEN
+  IF NOT EXISTS(SELECT 1 FROM pg_inherits WHERE inhrelid=existing AND inhparent=to_regclass(format('public.%I',source_name))) THEN RAISE EXCEPTION 'ARCHIVE_SCHEMA_CONFLICT'; END IF;
+ ELSE
+  EXECUTE format('LOCK TABLE %I.%I IN ACCESS EXCLUSIVE MODE','public',source_name);
+  IF to_regclass(format('public.%I',default_child)) IS NOT NULL THEN
+   EXECUTE format('SELECT count(*)::integer FROM (SELECT 1 FROM %I.%I WHERE created_at>=$1 AND created_at<$2 LIMIT $3) bounded','public',default_child) INTO waiting USING month_value::timestamptz,ending::timestamptz,maximum_transfer+1;
+  ELSE waiting:=0; END IF;
+  IF waiting>maximum_transfer THEN RAISE EXCEPTION 'ARCHIVE_DEFAULT_BACKLOG_REVIEW'; END IF;
+  IF waiting=0 THEN
+   EXECUTE format('CREATE TABLE %I.%I PARTITION OF %I.%I FOR VALUES FROM (%L) TO (%L)','public',child,'public',source_name,month_value::timestamptz,ending::timestamptz);
+  ELSE
+   -- Standalone copy has no parent triggers yet: no counter replay or new keys.
+   EXECUTE format('CREATE TABLE %I.%I (LIKE %I.%I INCLUDING DEFAULTS INCLUDING GENERATED INCLUDING IDENTITY INCLUDING STORAGE INCLUDING CONSTRAINTS INCLUDING INDEXES)','public',child,'public',source_name);
+   EXECUTE format('INSERT INTO %I.%I SELECT * FROM %I.%I WHERE created_at>=$1 AND created_at<$2','public',child,'public',default_child) USING month_value::timestamptz,ending::timestamptz;
+   EXECUTE format('SELECT EXISTS(SELECT 1 FROM ((SELECT * FROM %I.%I WHERE created_at>=$1 AND created_at<$2 EXCEPT ALL TABLE %I.%I) UNION ALL (TABLE %I.%I EXCEPT ALL SELECT * FROM %I.%I WHERE created_at>=$1 AND created_at<$2)) delta LIMIT 1)','public',default_child,'public',child,'public',child,'public',default_child) INTO difference USING month_value::timestamptz,ending::timestamptz;
+   IF difference THEN RAISE EXCEPTION 'ARCHIVE_COPY_MISMATCH'; END IF;
+   PERFORM set_config('gw.partition_transfer',source_name,true);
+   EXECUTE format('DELETE FROM %I.%I WHERE created_at>=$1 AND created_at<$2','public',default_child) USING month_value::timestamptz,ending::timestamptz;
+   PERFORM set_config('gw.partition_transfer','',true);
+   EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES FROM (%L) TO (%L)','public',source_name,'public',child,month_value::timestamptz,ending::timestamptz);
+  END IF;
+  PERFORM public.gw_partition_private_acl(to_regclass(format('public.%I',child)));
+ END IF;
+ INSERT INTO public.archive_months(source_table,month_start,child_name) VALUES(source_name,month_value,child) ON CONFLICT(source_table,month_start) DO NOTHING;
+ IF NOT EXISTS(SELECT 1 FROM public.archive_months WHERE source_table=source_name AND month_start=month_value AND child_name=child) THEN RAISE EXCEPTION 'ARCHIVE_SCHEMA_CONFLICT'; END IF;
+END $_$;
 
 CREATE FUNCTION public.gw_database_binding() RETURNS text
     LANGUAGE plpgsql SECURITY DEFINER
@@ -488,10 +535,18 @@ BEGIN
  RETURN identity::text||':'||current_database()||':'||(SELECT oid::text FROM pg_database WHERE datname=current_database());
 END $$;
 
-
---
--- Name: gw_expired_identity_delete_guard(); Type: FUNCTION; Schema: public; Owner: -
---
+CREATE FUNCTION public.gw_expire_profile_previews(maximum integer) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE amount integer;
+BEGIN
+ IF maximum IS NULL OR maximum NOT BETWEEN 1 AND 100 OR current_setting('gw.access',true) IS DISTINCT FROM 'service' THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;
+ IF current_setting('gw.operational_retention_hold',true)='true' THEN RETURN 0; END IF;
+ WITH candidates AS(SELECT id FROM public.profile_previews WHERE committed_at IS NULL AND expires_at<clock_timestamp() ORDER BY expires_at,id LIMIT maximum FOR UPDATE SKIP LOCKED)
+ DELETE FROM public.profile_previews p USING candidates c WHERE p.id=c.id;
+ GET DIAGNOSTICS amount=ROW_COUNT;RETURN amount;
+END $$;
 
 CREATE FUNCTION public.gw_expired_identity_delete_guard() RETURNS trigger
     LANGUAGE plpgsql
@@ -506,11 +561,6 @@ BEGIN
  END IF;
  RETURN OLD;
 END $$;
-
-
---
--- Name: gw_export_guard(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_export_guard() RETURNS trigger
     LANGUAGE plpgsql
@@ -528,11 +578,6 @@ BEGIN
  RETURN NEW;
 END $$;
 
-
---
--- Name: gw_failed_closure_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_failed_closure_guard() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog', 'public'
@@ -544,11 +589,6 @@ BEGIN
  END IF;
  IF TG_OP='INSERT' AND NEW.previous_obligation_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.crypto_obligations p WHERE p.id=NEW.previous_obligation_id AND p.user_id IS NOT DISTINCT FROM NEW.user_id AND p.asset_id=NEW.asset_id AND p.kind=NEW.kind AND p.source_purpose=NEW.source_purpose AND (p.status='cancelled' OR p.status='exception' AND p.completed_at IS NOT NULL)) THEN RAISE EXCEPTION 'PREVIOUS_OBLIGATION_NOT_CLOSED';END IF;RETURN NEW;
 END $$;
-
-
---
--- Name: gw_financial_adapter_guard(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_financial_adapter_guard() RETURNS trigger
     LANGUAGE plpgsql
@@ -574,11 +614,6 @@ BEGIN
  RETURN NEW;
 END $$;
 
-
---
--- Name: gw_financial_ephemeral_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_financial_ephemeral_guard() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -591,11 +626,6 @@ BEGIN
  IF TG_TABLE_NAME='worker_requests' OR (to_jsonb(NEW)-'used_at') IS DISTINCT FROM (to_jsonb(OLD)-'used_at') OR OLD.used_at IS NOT NULL OR NEW.used_at IS NULL OR NEW.used_at>clock_timestamp() OR OLD.expires_at<=clock_timestamp() THEN RAISE EXCEPTION 'FINANCIAL_EPHEMERAL_IMMUTABLE';END IF;
  RETURN NEW;
 END $$;
-
-
---
--- Name: gw_financial_state_guard(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_financial_state_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -622,11 +652,6 @@ BEGIN
  RETURN NEW;
 END $$;
 
-
---
--- Name: gw_frozen_spend_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_frozen_spend_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
@@ -647,11 +672,6 @@ BEGIN
  END IF;
  RETURN NULL;
 END $$;
-
-
---
--- Name: gw_giv_withdrawal_integrity(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_giv_withdrawal_integrity() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -684,11 +704,6 @@ BEGIN
   RETURN NULL;
 END $$;
 
-
---
--- Name: gw_giv_withdrawal_leg_valid(uuid, uuid, uuid, numeric, text, text, text); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_giv_withdrawal_leg_valid(journal_id uuid, beneficiary uuid, asset uuid, amount numeric, debit_purpose text, credit_purpose text, credit_owner text) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
@@ -697,11 +712,6 @@ CREATE FUNCTION public.gw_giv_withdrawal_leg_valid(journal_id uuid, beneficiary 
     AND EXISTS (SELECT 1 FROM public.ledger_postings p JOIN public.ledger_accounts a ON a.id=p.account_id WHERE p.journal_id=$1 AND p.direction='debit' AND p.amount_base_units=$4 AND a.owner_type='user' AND a.owner_id=$2 AND a.asset_id=$3 AND a.purpose=$5)
     AND EXISTS (SELECT 1 FROM public.ledger_postings p JOIN public.ledger_accounts a ON a.id=p.account_id WHERE p.journal_id=$1 AND p.direction='credit' AND p.amount_base_units=$4 AND a.owner_type=$7 AND (CASE WHEN $7='user' THEN a.owner_id=$2 ELSE a.owner_id IS NULL END) AND a.asset_id=$3 AND a.purpose=$6)
 $_$;
-
-
---
--- Name: gw_identity_revocation(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_identity_revocation() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -716,11 +726,6 @@ BEGIN
  RETURN NEW;
 END $$;
 
-
---
--- Name: gw_incoming_control_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_incoming_control_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
@@ -733,11 +738,6 @@ BEGIN
   OR (NEW.outcome='over' AND NEW.actual_base_units<=item.expected_base_units) OR (NEW.outcome IN ('late','delay') AND NEW.actual_base_units<>item.expected_base_units) THEN RAISE EXCEPTION 'INCOMING_CONTROL_INVALID'; END IF;
  RETURN NEW;
 END $$;
-
-
---
--- Name: gw_incoming_integrity(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_incoming_integrity() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -783,13 +783,6 @@ BEGIN
  RETURN NULL;
 END $$;
 
-
-
-
---
--- Name: gift_invoices; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.gift_invoices (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
@@ -805,15 +798,12 @@ CREATE TABLE public.gift_invoices (
     quote_expires_at timestamp with time zone NOT NULL,
     submitted_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    profile_revision integer DEFAULT 1 NOT NULL,
     CONSTRAINT gift_invoice_amount_check CHECK (((expected_base_units > (0)::numeric) AND (actual_base_units >= (0)::numeric) AND (refundable_base_units >= (0)::numeric))),
     CONSTRAINT gift_invoice_environment_check CHECK (((environment = 'simulation'::text) AND (chain_id = 'giv'::text))),
-    CONSTRAINT gift_invoice_status_check CHECK ((status = ANY (ARRAY['quoted'::text, 'submitted'::text, 'credited'::text, 'exception'::text, 'failed'::text, 'expired'::text])))
+    CONSTRAINT gift_invoice_status_check CHECK ((status = ANY (ARRAY['quoted'::text, 'submitted'::text, 'credited'::text, 'exception'::text, 'failed'::text, 'expired'::text]))),
+    CONSTRAINT gift_invoices_profile_revision_check CHECK ((profile_revision > 0))
 );
-
-
---
--- Name: gw_incoming_leg_valid(uuid, public.gift_invoices, text, numeric, text, text); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_incoming_leg_valid(journal uuid, item public.gift_invoices, kind text, amount numeric, from_purpose text, to_purpose text) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
@@ -822,11 +812,6 @@ CREATE FUNCTION public.gw_incoming_leg_valid(journal uuid, item public.gift_invo
  SELECT EXISTS (SELECT 1 FROM public.ledger_journals j WHERE j.id=$1 AND j.ledger_type=$3 AND j.metadata->>'invoice_id'=($2).id::text)
  AND public.gw_giv_withdrawal_leg_valid($1,($2).user_id,($2).asset_id,$4,$5,$6,'user')
 $_$;
-
-
---
--- Name: gw_incoming_refund_integrity(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_incoming_refund_integrity() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -840,10 +825,21 @@ BEGIN
  RETURN NULL;
 END $$;
 
-
---
--- Name: gw_invoice_snapshot_guard(); Type: FUNCTION; Schema: public; Owner: -
---
+CREATE FUNCTION public.gw_invoice_profile_guard() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE revision integer;
+BEGIN
+ IF TG_OP='UPDATE' THEN
+  IF NEW.profile_revision<>OLD.profile_revision THEN RAISE EXCEPTION 'VERSION_CONFLICT'; END IF;
+ ELSE
+  PERFORM pg_advisory_xact_lock_shared(hashtextextended('gw-release-profile',0));
+  SELECT (value#>>'{}')::integer INTO revision FROM public.x_manifest WHERE key='profile_revision';
+  IF NEW.profile_revision IS DISTINCT FROM revision THEN RAISE EXCEPTION 'VERSION_CONFLICT'; END IF;
+ END IF;
+ RETURN NEW;
+END $$;
 
 CREATE FUNCTION public.gw_invoice_snapshot_guard() RETURNS trigger
     LANGUAGE plpgsql
@@ -858,11 +854,6 @@ BEGIN
  RETURN NEW;
 END $$;
 
-
---
--- Name: gw_invoice_version_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_invoice_version_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
@@ -876,11 +867,6 @@ BEGIN
  IF TG_OP='DELETE' THEN RETURN OLD; END IF;RETURN NEW;
 END $$;
 
-
---
--- Name: gw_job_identity_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_job_identity_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public', 'pg_temp'
@@ -888,6 +874,20 @@ CREATE FUNCTION public.gw_job_identity_guard() RETURNS trigger
 BEGIN
   IF TG_OP='DELETE' THEN RAISE EXCEPTION 'DURABLE_WORK_RETAINED'; END IF;
 
+  IF OLD.retired_at IS NULL AND NEW.retired_at IS NOT NULL THEN
+   IF NEW.payload<>'{}'::jsonb OR NEW.retired_payload_hash IS DISTINCT FROM encode(sha256(convert_to(OLD.payload::text,'UTF8')),'hex')
+    OR OLD.kind NOT IN ('notification','own_export','operational_cleanup','privacy_redaction')
+    OR (to_jsonb(NEW)-ARRAY['payload','retired_at','retired_payload_hash']) IS DISTINCT FROM (to_jsonb(OLD)-ARRAY['payload','retired_at','retired_payload_hash'])
+    OR current_setting('gw.operational_retention_hold',true)='true' THEN RAISE EXCEPTION 'RETENTION_SCOPE_DENIED'; END IF;
+   IF TG_TABLE_NAME='jobs' THEN
+    IF OLD.status<>'done' OR OLD.completed_at IS NULL OR OLD.completed_at>=clock_timestamp()-((SELECT value->>'job_terminal_days' FROM public.x_manifest WHERE key='retention_policy')::integer)*interval '1 day'
+      OR OLD.lease_token IS NOT NULL OR OLD.lease_until IS NOT NULL THEN RAISE EXCEPTION 'RETENTION_SCOPE_DENIED'; END IF;
+   ELSE
+    IF OLD.dispatched_at IS NULL OR NOT EXISTS(SELECT 1 FROM public.jobs j WHERE j.outbox_id=OLD.id AND j.status='done' AND j.retired_at IS NOT NULL) THEN RAISE EXCEPTION 'RETENTION_SCOPE_DENIED'; END IF;
+   END IF;
+   RETURN NEW;
+  END IF;
+  IF (NEW.retired_at,NEW.retired_payload_hash) IS DISTINCT FROM (OLD.retired_at,OLD.retired_payload_hash) THEN RAISE EXCEPTION 'RETENTION_SCOPE_DENIED'; END IF;
   IF OLD.kind='notification' AND OLD.payload->>'title_key'='admin_message' AND OLD.redacted_at IS NULL AND NEW.redacted_at IS NOT NULL THEN
    IF NOT EXISTS(SELECT 1 FROM public.users u WHERE u.id=(OLD.payload->>'user_id')::uuid AND u.status='deleted') OR NEW.payload IS DISTINCT FROM jsonb_set(OLD.payload,'{body}','"[redacted]"'::jsonb) OR NEW.redacted_payload_hash IS DISTINCT FROM encode(sha256(convert_to(OLD.payload::text,'UTF8')),'hex') OR (to_jsonb(NEW)-ARRAY['payload','redacted_at','redacted_payload_hash']) IS DISTINCT FROM (to_jsonb(OLD)-ARRAY['payload','redacted_at','redacted_payload_hash']) THEN RAISE EXCEPTION 'REDACTION_SCOPE_DENIED';END IF;
    RETURN NEW;
@@ -904,11 +904,6 @@ BEGIN
   RETURN NEW;
 END $$;
 
-
---
--- Name: gw_job_source_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_job_source_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
@@ -919,11 +914,6 @@ BEGIN
   RETURN NEW;
 END $$;
 
-
---
--- Name: gw_liability_recovery_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_liability_recovery_guard() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -933,11 +923,6 @@ BEGIN
  IF (to_jsonb(NEW)-ARRAY['signature_hash','confirmation_hash','confirmed_at']) IS DISTINCT FROM (to_jsonb(OLD)-ARRAY['signature_hash','confirmation_hash','confirmed_at']) OR OLD.confirmed_at IS NOT NULL OR NEW.confirmed_at IS NULL OR NEW.signature_hash IS NULL OR NEW.confirmation_hash IS NULL OR OLD.expires_at<=clock_timestamp() OR NEW.confirmed_at>clock_timestamp() THEN RAISE EXCEPTION 'LIABILITY_RECOVERY_IMMUTABLE';END IF;RETURN NEW;
 END $$;
 
-
---
--- Name: gw_lock_user_payable(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_lock_user_payable() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public'
@@ -945,11 +930,6 @@ CREATE FUNCTION public.gw_lock_user_payable() RETURNS trigger
 DECLARE a public.ledger_accounts;BEGIN SELECT * INTO a FROM public.ledger_accounts WHERE id=NEW.account_id;
  IF a.owner_type='user' AND a.purpose IN ('available_payable','held_payable','refund_payable','incoming_payable') THEN PERFORM pg_advisory_xact_lock(hashtextextended('user-payable:'||a.owner_id||':'||a.asset_id,0));END IF;RETURN NEW;
 END $$;
-
-
---
--- Name: gw_maintenance_result_guard(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_maintenance_result_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -964,40 +944,46 @@ BEGIN
   RETURN NEW;
 END $$;
 
-
---
--- Name: gw_native_asset_fence(uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_native_asset_fence(asset uuid) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE binding text;checkpoint uuid;BEGIN
+DECLARE binding text; cutoff numeric; anchor text;
+BEGIN
  PERFORM pg_advisory_xact_lock_shared(hashtextextended('financial-policy',0));
- IF EXISTS(SELECT 1 FROM public.crypto_reorg_reviews r LEFT JOIN public.crypto_reorg_resolutions s ON s.review_id=r.id WHERE r.asset_id=asset AND s.review_id IS NULL) THEN RETURN false;END IF;
- SELECT id INTO checkpoint FROM public.chain_checkpoints WHERE asset_id=asset ORDER BY created_at DESC,id DESC LIMIT 1;
- IF checkpoint IS NOT NULL THEN
-  binding:=current_setting('gw.database_binding',true);
-  IF binding IS NULL OR length(binding)<>64 OR NOT EXISTS(SELECT 1 FROM public.chain_recovery_runs r JOIN public.chain_checkpoints c ON c.id=r.checkpoint_id WHERE c.id=checkpoint AND c.binding_fingerprint=binding AND r.binding_fingerprint=binding AND r.state='reconciled' AND r.id=(SELECT r2.id FROM public.chain_recovery_runs r2 WHERE r2.checkpoint_id=checkpoint ORDER BY r2.created_at DESC,r2.id DESC LIMIT 1)) THEN RETURN false;END IF;
- END IF;RETURN true;
+ IF EXISTS(SELECT 1 FROM public.crypto_reorg_reviews r LEFT JOIN public.crypto_reorg_resolutions s ON s.review_id=r.id WHERE r.asset_id=asset AND s.review_id IS NULL) THEN RETURN false; END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.chain_checkpoints c WHERE c.asset_id=asset) THEN
+   -- Initial single-address operation is unchanged. Rotation without any
+   -- recovery checkpoints cannot clear the historical-address inventory.
+   RETURN (SELECT count(*)<=1 FROM public.treasury_addresses WHERE asset_id=asset);
+ END IF;
+ binding:=current_setting('gw.database_binding',true);
+ IF binding IS NULL OR length(binding)<>64 THEN RETURN false; END IF;
+ SELECT r.through_height,r.scan_progress->'custodyWitness'->>'block_hash' INTO cutoff,anchor
+ FROM public.chain_checkpoints c JOIN public.chain_recovery_runs r ON r.checkpoint_id=c.id
+ WHERE c.asset_id=asset ORDER BY c.created_at DESC,c.id DESC,r.created_at DESC,r.id DESC LIMIT 1;
+ IF cutoff IS NULL OR anchor IS NULL THEN RETURN false; END IF;
+ RETURN NOT EXISTS(
+   SELECT 1 FROM public.treasury_addresses addresses
+   LEFT JOIN LATERAL (SELECT c.* FROM public.chain_checkpoints c WHERE c.asset_id=asset AND c.treasury_sender=addresses.address ORDER BY c.created_at DESC,c.id DESC LIMIT 1) checkpoint ON true
+   LEFT JOIN LATERAL (SELECT r.* FROM public.chain_recovery_runs r WHERE r.checkpoint_id=checkpoint.id ORDER BY r.created_at DESC,r.id DESC LIMIT 1) run ON true
+   WHERE addresses.asset_id=asset AND (checkpoint.id IS NULL OR checkpoint.binding_fingerprint<>binding OR run.id IS NULL
+     OR run.binding_fingerprint<>binding OR run.state<>'reconciled' OR run.through_height<>cutoff
+     OR run.scan_progress->>'stage' IS DISTINCT FROM 'balance'
+     OR run.scan_progress->'custodyWitness'->>'format' IS DISTINCT FROM 'gw-address-custody-v1'
+     OR run.scan_progress->'custodyWitness'->>'asset_id' IS DISTINCT FROM asset::text
+     OR run.scan_progress->'custodyWitness'->>'binding_fingerprint' IS DISTINCT FROM binding
+     OR run.scan_progress->'custodyWitness'->>'address' IS DISTINCT FROM addresses.address
+     OR run.scan_progress->'custodyWitness'->>'height' IS DISTINCT FROM cutoff::text
+     OR run.scan_progress->'custodyWitness'->>'block_hash' IS DISTINCT FROM anchor)
+ );
 END $$;
-
-
---
--- Name: gw_native_attempt_review_fence(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_native_attempt_review_fence() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public'
     AS $$
 DECLARE asset uuid;BEGIN SELECT asset_id INTO asset FROM public.crypto_obligations WHERE id=NEW.obligation_id;IF NOT public.gw_native_asset_fence(asset) THEN RAISE EXCEPTION 'FINANCIAL_SAFETY_PAUSE';END IF;RETURN NEW;END $$;
-
-
---
--- Name: gw_native_intake_fence(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_native_intake_fence() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1008,11 +994,6 @@ BEGIN
  IF TG_TABLE_NAME='crypto_obligations' AND TG_OP='UPDATE' AND NEW.status=OLD.status THEN RETURN NEW;END IF;
  IF NOT public.gw_native_asset_fence(NEW.asset_id) THEN RAISE EXCEPTION 'FINANCIAL_SAFETY_PAUSE';END IF;RETURN NEW;
 END $$;
-
-
---
--- Name: gw_native_review_anchor_guard(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_native_review_anchor_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1031,11 +1012,6 @@ BEGIN
  END IF;RETURN NEW;
 END $$;
 
-
---
--- Name: gw_native_review_immutable(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_native_review_immutable() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog', 'public'
@@ -1051,11 +1027,6 @@ BEGIN
   END IF;
  END IF;RAISE EXCEPTION 'NATIVE_REVIEW_RETAINED';
 END $$;
-
-
---
--- Name: gw_native_review_journal_guard(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_native_review_journal_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1077,10 +1048,21 @@ BEGIN
  IF lines<>2 OR valid<>2 OR j.metadata->>'review_id' IS DISTINCT FROM review::text THEN RAISE EXCEPTION 'NATIVE_REVIEW_JOURNAL_MISMATCH';END IF;RETURN NEW;
 END $$;
 
-
---
--- Name: gw_notification_view_guard(); Type: FUNCTION; Schema: public; Owner: -
---
+CREATE FUNCTION public.gw_next_treasury_monitor(target uuid, current_address text) RETURNS TABLE(address text, historical_count bigint)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE selected text; total bigint;
+BEGIN
+ IF public.gw_runtime_environment_allowed() IS NOT TRUE THEN RAISE EXCEPTION 'FINANCIAL_ENVIRONMENT_DENIED'; END IF;
+ IF current_setting('gw.access',true) IS DISTINCT FROM 'service' OR coalesce(current_setting('gw.environment',true),'') NOT IN ('testnet','mainnet') THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.assets WHERE id=target AND environment=current_setting('gw.environment',true)) THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;
+ SELECT count(*) INTO total FROM public.treasury_addresses t WHERE t.asset_id=target AND t.address<>current_address;
+ SELECT t.address INTO selected FROM public.treasury_addresses t WHERE t.asset_id=target AND t.address<>current_address
+  ORDER BY t.last_monitor_at,t.address LIMIT 1 FOR UPDATE SKIP LOCKED;
+ IF selected IS NOT NULL THEN UPDATE public.treasury_addresses t SET last_monitor_at=clock_timestamp() WHERE t.asset_id=target AND t.address=selected; END IF;
+ RETURN QUERY SELECT selected,total;
+END $$;
 
 CREATE FUNCTION public.gw_notification_view_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1091,6 +1073,14 @@ BEGIN
   IF TG_OP='UPDATE' AND (NEW.user_id<>OLD.user_id OR (NEW.seen_at,NEW.seen_id)<(OLD.seen_at,OLD.seen_id)) THEN RAISE EXCEPTION 'NOTIFICATION_SEEN_INVALID';END IF;
   IF NOT EXISTS(SELECT 1 FROM public.notifications WHERE id=NEW.seen_id AND user_id=NEW.user_id AND created_at=NEW.seen_at) THEN RAISE EXCEPTION 'NOTIFICATION_SEEN_INVALID';END IF;
  ELSE
+  IF OLD.retired_at IS NULL AND NEW.retired_at IS NOT NULL THEN
+   IF NEW.body<>'[expired]' OR NEW.retired_body_hash IS DISTINCT FROM encode(sha256(convert_to(OLD.body,'UTF8')),'hex')
+    OR OLD.created_at>=clock_timestamp()-((SELECT value->>'notification_days' FROM public.x_manifest WHERE key='retention_policy')::integer)*interval '1 day'
+    OR (to_jsonb(NEW)-ARRAY['body','retired_at','retired_body_hash']) IS DISTINCT FROM (to_jsonb(OLD)-ARRAY['body','retired_at','retired_body_hash'])
+    OR current_setting('gw.operational_retention_hold',true)='true' THEN RAISE EXCEPTION 'RETENTION_SCOPE_DENIED'; END IF;
+   RETURN NEW;
+  END IF;
+  IF (NEW.retired_at,NEW.retired_body_hash) IS DISTINCT FROM (OLD.retired_at,OLD.retired_body_hash) THEN RAISE EXCEPTION 'RETENTION_SCOPE_DENIED'; END IF;
 
   IF OLD.title_key='admin_message' AND OLD.redacted_at IS NULL AND NEW.redacted_at IS NOT NULL THEN
    IF NOT EXISTS(SELECT 1 FROM public.users u WHERE u.id=OLD.user_id AND u.status='deleted') OR NEW.body<>'[redacted]' OR NEW.redacted_body_hash IS DISTINCT FROM encode(sha256(convert_to(OLD.body,'UTF8')),'hex') OR (to_jsonb(NEW)-ARRAY['body','redacted_at','redacted_body_hash']) IS DISTINCT FROM (to_jsonb(OLD)-ARRAY['body','redacted_at','redacted_body_hash']) THEN RAISE EXCEPTION 'REDACTION_SCOPE_DENIED';END IF;
@@ -1103,11 +1093,6 @@ BEGIN
  RETURN NEW;
 END $$;
 
-
---
--- Name: gw_observation_identity_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_observation_identity_guard() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog', 'public', 'pg_temp'
@@ -1117,11 +1102,6 @@ BEGIN
  IF (to_jsonb(NEW)-ARRAY['source_job_id','rounds','status','next_observation_at']) IS DISTINCT FROM (to_jsonb(OLD)-ARRAY['source_job_id','rounds','status','next_observation_at']) OR NEW.rounds<OLD.rounds OR (OLD.source_job_id IS NOT NULL AND NEW.source_job_id IS DISTINCT FROM OLD.source_job_id) OR (OLD.status<>'pending' AND NEW.status<>OLD.status) THEN RAISE EXCEPTION 'OBSERVATION_IDENTITY_IMMUTABLE';END IF;
  RETURN NEW;
 END $$;
-
-
---
--- Name: gw_operational_recovery_guard(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_operational_recovery_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1139,11 +1119,6 @@ BEGIN
  IF jsonb_typeof(proof) IS DISTINCT FROM 'array' OR jsonb_array_length(proof)<>attempts OR (o.status='cancelled' AND attempts>0) OR EXISTS(SELECT 1 FROM public.signed_attempts a WHERE a.obligation_id=o.id AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(proof) e WHERE e->>'id'=a.id::text AND e->>'state' IN ('failed','expired','superseded') AND e->>'hash'~'^[0-9a-f]{64}$')) THEN RAISE EXCEPTION 'OPERATIONAL_RECOVERY_UNPROVEN';END IF;RETURN NULL;
 END $_$;
 
-
---
--- Name: gw_owns(uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_owns(target uuid) RETURNS boolean
     LANGUAGE sql STABLE
     SET search_path TO 'pg_catalog'
@@ -1151,10 +1126,40 @@ CREATE FUNCTION public.gw_owns(target uuid) RETURNS boolean
   SELECT target=public.gw_actor_id() OR public.gw_staff_reader()
 $$;
 
+CREATE FUNCTION public.gw_partition_private_acl(target regclass) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE recipient text;
+BEGIN
+ FOR recipient IN SELECT CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE quote_ident(pg_get_userbyid(a.grantee)) END FROM pg_class c CROSS JOIN LATERAL aclexplode(coalesce(c.relacl,acldefault('r',c.relowner))) a WHERE c.oid=target AND a.grantee<>c.relowner
+ LOOP EXECUTE 'REVOKE ALL ON TABLE '||target||' FROM '||recipient; END LOOP;
+ EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY',target);
+END $$;
 
---
--- Name: gw_plan_snapshot_guard(); Type: FUNCTION; Schema: public; Owner: -
---
+CREATE FUNCTION public.gw_partition_transfer_allowed(target regclass, operation text) RETURNS boolean
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE source_name text; prefix text;
+BEGIN
+ IF operation<>'DELETE' OR current_user::regrole<>(SELECT relowner FROM pg_class WHERE oid=target) THEN RETURN false; END IF;
+ source_name:=current_setting('gw.partition_transfer',true);
+ prefix:=CASE source_name WHEN 'ledger_postings' THEN 'lp' WHEN 'chain_scan_pages' THEN 'cs' WHEN 'audit_events' THEN 'au' END;
+ RETURN prefix IS NOT NULL AND target=to_regclass(format('public.%I','gw_part_'||prefix||'_default'))
+  AND EXISTS(SELECT 1 FROM pg_inherits WHERE inhrelid=target AND inhparent=to_regclass(format('public.%I',source_name)));
+END $$;
+
+CREATE FUNCTION public.gw_plan_pricing_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+ IF TG_OP='UPDATE' AND (NEW.pricing_mode,NEW.activation_price_id) IS DISTINCT FROM (OLD.pricing_mode,OLD.activation_price_id) THEN RAISE EXCEPTION 'PLAN_PRICING_IMMUTABLE'; END IF;
+ IF NEW.activation_price_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.price_quotes WHERE id=NEW.activation_price_id AND asset_id=NEW.asset_id) THEN RAISE EXCEPTION 'PRICE_ASSET_MISMATCH'; END IF;
+ IF NEW.pricing_mode='fixed_token' AND NEW.activation_price_id IS NULL THEN RAISE EXCEPTION 'PRICE_REQUIRED'; END IF;
+ RETURN NEW;
+END $$;
 
 CREATE FUNCTION public.gw_plan_snapshot_guard() RETURNS trigger
     LANGUAGE plpgsql
@@ -1165,25 +1170,142 @@ BEGIN
  RETURN NEW;
 END $$;
 
+CREATE FUNCTION public.gw_production_write_fence() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+ IF current_setting('role',true) IN ('gw_read','gw_service','gw_signer') AND public.gw_runtime_environment_allowed() IS NOT TRUE THEN RAISE EXCEPTION 'FINANCIAL_ENVIRONMENT_DENIED'; END IF;
+ RETURN NULL;
+END $$;
 
---
--- Name: gw_queue_identity_guard(); Type: FUNCTION; Schema: public; Owner: -
---
+CREATE FUNCTION public.gw_profile_preview_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+ IF TG_OP='DELETE' THEN
+  IF OLD.committed_at IS NOT NULL OR OLD.expires_at>=clock_timestamp() THEN RAISE EXCEPTION 'PROFILE_PREVIEW_RETAINED'; END IF;RETURN OLD;
+ END IF;
+ IF (to_jsonb(NEW)-'committed_at') IS DISTINCT FROM (to_jsonb(OLD)-'committed_at') OR OLD.committed_at IS NOT NULL OR NEW.committed_at IS NULL OR OLD.expires_at<=clock_timestamp() THEN RAISE EXCEPTION 'PROFILE_PREVIEW_RETAINED'; END IF;
+ RETURN NEW;
+END $$;
+
+CREATE FUNCTION public.gw_profile_setting_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE controlled boolean;
+BEGIN
+ IF TG_OP='UPDATE' AND NEW.key<>OLD.key THEN RAISE EXCEPTION 'CONFIGURATION_INVALID'; END IF;
+ IF TG_OP='UPDATE' AND to_jsonb(NEW) IS NOT DISTINCT FROM to_jsonb(OLD) THEN RETURN NEW; END IF;
+ IF OLD.key='activity_epoch' THEN
+  IF current_user::regrole<>(SELECT relowner FROM pg_class WHERE oid=TG_RELID) THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;
+  IF TG_OP='DELETE' THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;RETURN NEW;
+ END IF;
+ controlled:=OLD.key IN ('deployment_profile','feature_transparency','profile_revision','bootstrap_presentation','priority_presentation','activity_presentation','transparency_content','verified_activity_policy','queue_disclosure_policy','public_receipt_policy','transparency_snapshot_policy','financial_readiness_record')
+  OR OLD.key IN ('feature_bootstrap','feature_priority','terms_content','public_stats_policy') AND EXISTS(SELECT 1 FROM public.x_manifest WHERE key='deployment_profile' AND value='"transparent"'::jsonb);
+ IF controlled AND (TG_OP='DELETE' OR current_setting('gw.profile_switch',true) IS DISTINCT FROM 'true' OR NOT EXISTS(SELECT 1 FROM public.users WHERE id=nullif(current_setting('gw.actor_id',true),'')::uuid AND role='admin' AND status='active')) THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;
+ IF TG_OP='DELETE' THEN RETURN OLD; END IF;RETURN NEW;
+END $$;
+
+CREATE FUNCTION public.gw_public_queue_disclosure(version uuid) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE partition uuid; total bigint; slots bigint; revision bigint; priority_enabled boolean;
+BEGIN
+ IF NOT EXISTS(SELECT 1 FROM public.x_manifest WHERE key='deployment_profile' AND value='"transparent"'::jsonb) OR NOT EXISTS(SELECT 1 FROM public.x_manifest WHERE key='feature_transparency' AND value='true'::jsonb) THEN RETURN NULL; END IF;
+ SELECT q.id,q.revision INTO partition,revision FROM public.queue_partitions q JOIN public.plan_versions v ON v.id=q.plan_version_id JOIN public.assets a ON a.id=v.asset_id WHERE v.id=$1 AND a.environment=current_setting('gw.environment',true);
+ IF NOT FOUND THEN RETURN NULL; END IF;
+ SELECT count(*),coalesce(sum(required_count-credited_count),0) INTO total,slots FROM public.queue_entries WHERE partition_id=partition AND kind='bootstrap' AND status='waiting';
+ SELECT value='true'::jsonb INTO priority_enabled FROM public.x_manifest WHERE key='feature_priority';
+ RETURN jsonb_build_object('system_positions',total::text,'system_remaining_slots',slots::text,'priority_positions',CASE WHEN priority_enabled THEN public.gw_rank_prefix(partition,'priority',1099511627776) ELSE 0 END::text,'queue_revision',revision::text,'snapshot_at',statement_timestamp());
+END $$;
+
+CREATE FUNCTION public.gw_public_statistics_reorg() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+ UPDATE public.public_statistics SET expires_at=clock_timestamp() WHERE verified_only;
+ UPDATE public.x_manifest SET value=to_jsonb((value#>>'{}')::bigint+1),version=version+1,updated_at=clock_timestamp() WHERE key='activity_epoch';
+ RETURN NEW;
+END $$;
+
+CREATE FUNCTION public.gw_publication_cache_epoch() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE relevant boolean;
+BEGIN
+ IF TG_OP='INSERT' THEN relevant:=NEW.publication_classification='real';
+ ELSE relevant:=(OLD.publication_classification='real' OR NEW.publication_classification='real') AND (NEW.publication_classification,NEW.activity_opt_in,NEW.status,NEW.role,NEW.consent_version) IS DISTINCT FROM (OLD.publication_classification,OLD.activity_opt_in,OLD.status,OLD.role,OLD.consent_version); END IF;
+ IF relevant THEN
+  UPDATE public.x_manifest SET value=to_jsonb((value#>>'{}')::bigint+1),version=version+1,updated_at=clock_timestamp() WHERE key='activity_epoch';
+  UPDATE public.public_statistics SET expires_at=clock_timestamp() WHERE verified_only;
+ END IF;
+ RETURN NEW;
+END $$;
+
+CREATE FUNCTION public.gw_publication_consent_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+ IF NEW.publication_classification IS DISTINCT FROM OLD.publication_classification AND current_user::regrole<>(SELECT relowner FROM pg_class WHERE oid=TG_RELID) THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;
+ IF NEW.activity_opt_in IS DISTINCT FROM OLD.activity_opt_in THEN
+  IF current_setting('gw.actor_id',true) IS DISTINCT FROM OLD.id::text OR NEW.activity_revision<>OLD.activity_revision+1
+   OR NEW.activity_opt_in AND (NEW.status<>'active' OR NEW.role<>'member' OR NEW.consented_at IS NULL OR NEW.age_confirmed_at IS NULL OR NOT EXISTS(SELECT 1 FROM public.x_manifest WHERE key='terms_content' AND value->>'version'=NEW.consent_version)) THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;
+ ELSIF NEW.activity_revision<>OLD.activity_revision THEN RAISE EXCEPTION 'VERSION_CONFLICT'; END IF;
+ RETURN NEW;
+END $$;
+
+CREATE FUNCTION public.gw_queue_disclosure(entry uuid) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE item public.queue_entries; priority_enabled boolean; priority_ahead bigint; ahead bigint; slots bigint; total bigint; revision bigint;
+BEGIN
+ IF NOT EXISTS(SELECT 1 FROM public.x_manifest WHERE key='deployment_profile' AND value='"transparent"'::jsonb) THEN RETURN NULL; END IF;
+ SELECT e.* INTO item FROM public.queue_entries e JOIN public.queue_partitions p ON p.id=e.partition_id JOIN public.plan_versions v ON v.id=p.plan_version_id JOIN public.assets a ON a.id=v.asset_id
+ WHERE e.id=entry AND a.environment=current_setting('gw.environment',true);
+ IF NOT FOUND OR public.gw_owns(item.beneficiary_user_id) IS NOT TRUE OR item.status<>'waiting' THEN RETURN NULL; END IF;
+ SELECT value='true'::jsonb INTO priority_enabled FROM public.x_manifest WHERE key='feature_priority';
+ IF priority_enabled IS NULL THEN RAISE EXCEPTION 'CONFIGURATION_INVALID'; END IF;
+ SELECT count(*),coalesce(sum(required_count-credited_count),0),count(*) FILTER(WHERE
+  CASE WHEN NOT priority_enabled THEN ticket<item.ticket
+   WHEN item.priority_ticket IS NOT NULL THEN priority_ticket IS NOT NULL AND (priority_ticket,ticket)<(item.priority_ticket,item.ticket)
+   ELSE priority_ticket IS NOT NULL OR priority_ticket IS NULL AND ticket<item.ticket END)
+ INTO total,slots,ahead FROM public.queue_entries WHERE partition_id=item.partition_id AND kind='bootstrap' AND status='waiting';
+ priority_ahead:=CASE WHEN NOT priority_enabled THEN 0 WHEN item.priority_ticket IS NOT NULL THEN public.gw_rank_prefix(item.partition_id,'priority',item.priority_ticket-1) ELSE public.gw_rank_prefix(item.partition_id,'priority',1099511627776) END;
+ SELECT p.revision INTO revision FROM public.queue_partitions p WHERE p.id=item.partition_id;
+ RETURN jsonb_build_object('joining_number',item.ticket::text,'serving_position',public.gw_queue_rank(entry,'public_serving')::text,'system_ahead',ahead::text,'system_positions',total::text,'system_remaining_slots',slots::text,'priority_ahead',priority_ahead::text,'queue_revision',revision::text,'snapshot_at',statement_timestamp());
+END $$;
 
 CREATE FUNCTION public.gw_queue_identity_guard() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
     AS $$
 BEGIN
-  IF TG_OP='DELETE' THEN RAISE EXCEPTION 'QUEUE_HISTORY_IMMUTABLE'; END IF;
-  IF OLD.partition_id<>NEW.partition_id OR OLD.ticket<>NEW.ticket THEN RAISE EXCEPTION 'QUEUE_TICKET_IMMUTABLE'; END IF;
-  RETURN NEW;
+ IF TG_OP='DELETE' THEN RAISE EXCEPTION 'QUEUE_HISTORY_IMMUTABLE'; END IF;
+ IF (NEW.partition_id,NEW.ticket,NEW.kind,NEW.cycle_id,NEW.beneficiary_user_id,NEW.platform_role,NEW.required_count) IS DISTINCT FROM (OLD.partition_id,OLD.ticket,OLD.kind,OLD.cycle_id,OLD.beneficiary_user_id,OLD.platform_role,OLD.required_count) THEN RAISE EXCEPTION 'QUEUE_TICKET_IMMUTABLE'; END IF;
+ IF NEW.cancelled_count IS DISTINCT FROM OLD.cancelled_count THEN
+  IF OLD.cancelled_count<>0 OR OLD.kind<>'bootstrap' OR OLD.status<>'waiting' OR NEW.status<>'removed' OR NEW.cancelled_count<>OLD.required_count-OLD.credited_count OR NEW.credited_count<>OLD.credited_count
+   OR current_setting('gw.profile_switch',true) IS DISTINCT FROM 'true'
+   OR NOT EXISTS(SELECT 1 FROM public.users WHERE id=nullif(current_setting('gw.actor_id',true),'')::uuid AND role='admin' AND status='active') THEN RAISE EXCEPTION 'QUEUE_HISTORY_IMMUTABLE'; END IF;
+ END IF;
+ RETURN NEW;
 END $$;
 
-
---
--- Name: gw_queue_rank(uuid, text); Type: FUNCTION; Schema: public; Owner: -
---
+CREATE FUNCTION public.gw_queue_profile_revision() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+ IF TG_OP='INSERT' OR NEW IS DISTINCT FROM OLD THEN UPDATE public.queue_partitions SET revision=revision+1 WHERE id=NEW.partition_id; END IF;
+ RETURN NEW;
+END $$;
 
 CREATE FUNCTION public.gw_queue_rank(entry uuid, mode text) RETURNS bigint
     LANGUAGE plpgsql STABLE SECURITY DEFINER
@@ -1196,18 +1318,15 @@ BEGIN
   WHERE e.id=entry AND a.environment=current_setting('gw.environment',true);
   IF NOT FOUND OR public.gw_owns(item.beneficiary_user_id) IS NOT TRUE OR item.status<>'waiting' THEN RETURN NULL; END IF;
   IF mode='display' THEN RETURN public.gw_rank_prefix(item.partition_id,'display',item.ticket-1)+1; END IF;
-  IF mode<>'serving' OR NOT public.gw_staff_reader() THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;
+  IF mode='public_serving' THEN
+    IF NOT EXISTS(SELECT 1 FROM public.x_manifest WHERE key='deployment_profile' AND value='"transparent"'::jsonb) THEN RETURN NULL; END IF;
+  ELSIF mode<>'serving' OR NOT public.gw_staff_reader() THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;
   SELECT value='true'::jsonb INTO priority_enabled FROM public.x_manifest WHERE key='feature_priority';
   IF priority_enabled IS NULL THEN RAISE EXCEPTION 'CONFIGURATION_INVALID'; END IF;
   IF NOT priority_enabled THEN RETURN public.gw_rank_prefix(item.partition_id,'display',item.ticket-1)+1; END IF;
   IF item.priority_ticket IS NOT NULL THEN RETURN public.gw_rank_prefix(item.partition_id,'priority',item.priority_ticket-1)+1; END IF;
   RETURN public.gw_rank_prefix(item.partition_id,'priority',1099511627776)+public.gw_rank_prefix(item.partition_id,'fifo',item.ticket-1)+1;
 END $$;
-
-
---
--- Name: gw_queue_rank_maintain(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_queue_rank_maintain() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1227,11 +1346,6 @@ BEGIN
   RETURN NEW;
 END $$;
 
-
---
--- Name: gw_queue_sequence_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_queue_sequence_guard() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -1240,11 +1354,6 @@ BEGIN
   IF NEW.next_ticket<OLD.next_ticket OR NEW.next_priority_ticket<OLD.next_priority_ticket THEN RAISE EXCEPTION 'QUEUE_SEQUENCE_CANNOT_REWIND'; END IF;
   RETURN NEW;
 END $$;
-
-
---
--- Name: gw_rank_delta(uuid, text, bigint, integer); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_rank_delta(partition uuid, lane_name text, ticket bigint, delta integer) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1265,11 +1374,6 @@ BEGIN
   END LOOP;
 END $$;
 
-
---
--- Name: gw_rank_prefix(uuid, text, bigint); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_rank_prefix(partition uuid, lane_name text, ticket bigint) RETURNS bigint
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
@@ -1284,11 +1388,6 @@ BEGIN
   RETURN total;
 END $$;
 
-
---
--- Name: gw_reconciliation_result_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_reconciliation_result_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
@@ -1300,20 +1399,16 @@ BEGIN
   RETURN NEW;
 END $$;
 
-
---
--- Name: gw_record_verified_expiry(uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_record_verified_expiry(attempt uuid) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public', 'pg_temp'
     AS $_$
 DECLARE a public.signed_attempts;
 BEGIN
+ IF public.gw_runtime_environment_allowed() IS NOT TRUE THEN RAISE EXCEPTION 'FINANCIAL_ENVIRONMENT_DENIED'; END IF;
  IF current_setting('gw.access',true) IS DISTINCT FROM 'service' THEN RAISE EXCEPTION 'EXPIRY_SCOPE_DENIED';END IF;
  SELECT * INTO a FROM public.signed_attempts WHERE id=$1 FOR UPDATE;
- IF a.id IS NULL OR a.environment<>'testnet' OR a.chain NOT IN ('sol','tron') OR NOT EXISTS(
+ IF a.id IS NULL OR a.environment IS DISTINCT FROM current_setting('gw.environment',true) OR a.chain NOT IN ('sol','tron') OR NOT EXISTS(
   SELECT 1 FROM public.operation_keys k WHERE k.business_key='crypto-expiry:'||a.id::text
   AND k.result->>'status'='expiry_verified' AND k.result->>'attempt_id'=a.id::text
   AND k.result->>'obligation_id'=a.obligation_id::text
@@ -1324,20 +1419,14 @@ BEGIN
  RETURN true;
 END $_$;
 
-
---
--- Name: gw_recovery_evidence_retained(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_recovery_evidence_retained() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
-    AS $$ BEGIN RAISE EXCEPTION 'CHAIN_RECOVERY_EVIDENCE_RETAINED';END $$;
-
-
---
--- Name: gw_recovery_loss_guard(); Type: FUNCTION; Schema: public; Owner: -
---
+    AS $$
+BEGIN
+ IF public.gw_partition_transfer_allowed(TG_RELID,TG_OP) THEN RETURN OLD; END IF;
+ RAISE EXCEPTION 'CHAIN_RECOVERY_EVIDENCE_RETAINED';
+END $$;
 
 CREATE FUNCTION public.gw_recovery_loss_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1353,15 +1442,10 @@ BEGIN
  IF total<>2 OR valid<>2 OR j.ledger_type<>'RECOVERY_OUTFLOW_LOSS' OR j.metadata->>'resolution_id' IS DISTINCT FROM r.id::text THEN RAISE EXCEPTION 'RECOVERY_LOSS_JOURNAL_INVALID';END IF;
  ELSIF r.principal_journal_id IS NOT NULL THEN RAISE EXCEPTION 'RECOVERY_LOSS_JOURNAL_INVALID';END IF;
  SELECT c.registry_snapshot INTO registry FROM public.recovery_outflows o2 JOIN public.chain_recovery_runs run ON run.id=o2.run_id JOIN public.chain_checkpoints c ON c.id=run.checkpoint_id WHERE o2.id=r.outflow_id;
- SELECT * INTO claim FROM public.chain_fee_claims WHERE environment='testnet' AND chain=registry->>'chain' AND network=registry->>'network' AND tx_hash=r.tx_hash;
+ SELECT * INTO claim FROM public.chain_fee_claims WHERE environment=(SELECT environment FROM public.assets WHERE id=r.asset_id) AND chain=registry->>'chain' AND network=registry->>'network' AND tx_hash=r.tx_hash;
  IF claim.id IS NULL OR (claim.native_asset_id,claim.network_fee_base_units+claim.account_setup_base_units,claim.account_setup_base_units,claim.gas_journal_id,claim.setup_journal_id) IS DISTINCT FROM (r.native_asset_id,r.native_fee_base_units,r.account_setup_base_units,r.gas_journal_id,r.setup_journal_id) THEN RAISE EXCEPTION 'RECOVERY_LOSS_JOURNAL_INVALID';END IF;
  RETURN NULL;
 END $$;
-
-
---
--- Name: gw_recovery_run_guard(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_recovery_run_guard() RETURNS trigger
     LANGUAGE plpgsql
@@ -1375,11 +1459,6 @@ BEGIN
  RETURN NEW;
 END $$;
 
-
---
--- Name: gw_recovery_view_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_recovery_view_guard() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -1387,11 +1466,6 @@ CREATE FUNCTION public.gw_recovery_view_guard() RETURNS trigger
 BEGIN
  IF TG_OP='UPDATE' OR OLD.expires_at>clock_timestamp() OR current_setting('gw.operational_retention_hold',true)='true' THEN RAISE EXCEPTION 'RECOVERY_VIEW_RETAINED';END IF;RETURN OLD;
 END $$;
-
-
---
--- Name: gw_refund_hold_guard(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_refund_hold_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1408,25 +1482,15 @@ BEGIN
  IF total<>2 OR valid<>2 THEN RAISE EXCEPTION 'REFUND_HOLD_MISMATCH';END IF;RETURN NULL;
 END $$;
 
-
---
--- Name: gw_registry_binding_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_registry_binding_guard() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
     AS $$
 BEGIN
  IF OLD.registry_binding IS NOT NULL AND NEW.registry_binding IS DISTINCT FROM OLD.registry_binding THEN RAISE EXCEPTION 'ASSET_REGISTRY_IMMUTABLE';END IF;
- IF NEW.registry_binding IS NOT NULL AND (NEW.environment<>'testnet' OR NEW.registry_binding->>'network'<>NEW.chain_id OR (NEW.registry_binding->>'decimals')::integer<>NEW.decimals) THEN RAISE EXCEPTION 'ASSET_REGISTRY_INVALID';END IF;
+ IF NEW.registry_binding IS NOT NULL AND (NEW.environment NOT IN ('testnet','mainnet') OR NEW.registry_binding->>'network'<>NEW.chain_id OR (NEW.registry_binding->>'decimals')::integer<>NEW.decimals) THEN RAISE EXCEPTION 'ASSET_REGISTRY_INVALID';END IF;
  RETURN NEW;
 END $$;
-
-
---
--- Name: gw_registry_first_binding_guard(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_registry_first_binding_guard() RETURNS trigger
     LANGUAGE plpgsql
@@ -1436,11 +1500,6 @@ BEGIN
  IF OLD.registry_binding IS NULL AND NEW.registry_binding IS NOT NULL AND (EXISTS(SELECT 1 FROM public.ledger_accounts WHERE asset_id=OLD.id) OR EXISTS(SELECT 1 FROM public.plan_versions WHERE asset_id=OLD.id)) THEN RAISE EXCEPTION 'USED_ASSET_BINDING_REQUIRED';END IF;
  RETURN NEW;
 END $$;
-
-
---
--- Name: gw_reject_account_reassignment(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_reject_account_reassignment() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1454,23 +1513,14 @@ BEGIN
 END;
 $$;
 
-
---
--- Name: gw_reject_ledger_mutation(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_reject_ledger_mutation() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
     AS $$
 BEGIN
-  RAISE EXCEPTION 'LEDGER_APPEND_ONLY';
-END;
-$$;
-
-
---
--- Name: gw_reorg_admission_guard(); Type: FUNCTION; Schema: public; Owner: -
---
+ IF public.gw_partition_transfer_allowed(TG_RELID,TG_OP) THEN RETURN OLD; END IF;
+ RAISE EXCEPTION 'LEDGER_APPEND_ONLY';
+END $$;
 
 CREATE FUNCTION public.gw_reorg_admission_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1480,11 +1530,6 @@ BEGIN
  IF EXISTS(SELECT 1 FROM public.queue_partitions p JOIN public.simulation_reorg_reviews r ON r.partition_id=p.id LEFT JOIN public.simulation_reorg_resolutions resolved ON resolved.review_id=r.id WHERE p.plan_version_id=NEW.plan_version_id AND resolved.id IS NULL) THEN RAISE EXCEPTION 'FINANCIAL_REVIEW_REQUIRED'; END IF;
  RETURN NULL;
 END $$;
-
-
---
--- Name: simulation_reorg_reviews; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.simulation_reorg_reviews (
     id uuid NOT NULL,
@@ -1514,11 +1559,6 @@ CREATE TABLE public.simulation_reorg_reviews (
     CONSTRAINT simulation_reorg_reviews_settled_outgoing_exposure_check CHECK ((settled_outgoing_exposure >= (0)::numeric))
 );
 
-
---
--- Name: gw_reorg_leg_valid(uuid, public.simulation_reorg_reviews, boolean); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_reorg_leg_valid(journal uuid, item public.simulation_reorg_reviews, reconfirmed boolean) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
@@ -1528,11 +1568,6 @@ CREATE FUNCTION public.gw_reorg_leg_valid(journal uuid, item public.simulation_r
  AND EXISTS(SELECT 1 FROM public.ledger_postings p JOIN public.ledger_accounts a ON a.id=p.account_id WHERE p.journal_id=$1 AND p.direction=CASE WHEN $3 THEN 'debit' ELSE 'credit' END AND p.amount_base_units=($2).amount_base_units AND a.asset_id=($2).asset_id AND a.owner_type='user' AND a.owner_id=($2).payer_user_id AND a.purpose='available_payable')
  AND EXISTS(SELECT 1 FROM public.ledger_postings p JOIN public.ledger_accounts a ON a.id=p.account_id WHERE p.journal_id=$1 AND p.direction=CASE WHEN $3 THEN 'credit' ELSE 'debit' END AND p.amount_base_units=($2).amount_base_units AND a.asset_id=($2).asset_id AND a.owner_type='system' AND a.owner_id IS NULL AND a.purpose='simulation_chain_loss')
 $_$;
-
-
---
--- Name: gw_reorg_resolution_integrity(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_reorg_resolution_integrity() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1549,11 +1584,6 @@ BEGIN
   )) THEN RAISE EXCEPTION 'REORG_RESOLUTION_INVALID'; END IF;
  RETURN NULL;
 END $$;
-
-
---
--- Name: gw_reorg_review_integrity(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_reorg_review_integrity() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1586,10 +1616,45 @@ BEGIN
  RETURN NULL;
 END $$;
 
+CREATE FUNCTION public.gw_retire_ephemeral_batch(maximum integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE policy jsonb; selected_environment text; notices integer; work integer; dispatch integer; more boolean;
+BEGIN
+ IF public.gw_runtime_environment_allowed() IS NOT TRUE THEN RAISE EXCEPTION 'FINANCIAL_ENVIRONMENT_DENIED'; END IF;
+ selected_environment:=current_setting('gw.environment',true);
+ IF current_setting('gw.access',true) IS DISTINCT FROM 'service' OR selected_environment NOT IN ('simulation','testnet','mainnet') OR selected_environment IS NULL OR maximum<1 OR maximum>100 OR maximum IS NULL THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;
+ IF current_setting('gw.operational_retention_hold',true)='true' THEN RETURN jsonb_build_object('notifications',0,'jobs',0,'outbox',0,'held',true,'more_possible',false); END IF;
+ SELECT value INTO policy FROM public.x_manifest WHERE key='retention_policy' AND scope='staff' FOR SHARE;
+ IF policy IS NULL OR policy->>'notification_days' IS NULL OR policy->>'job_terminal_days' IS NULL OR (policy->>'notification_days')::integer NOT BETWEEN 1 AND 1000000 OR (policy->>'job_terminal_days')::integer NOT BETWEEN 1 AND 1000000 THEN RAISE EXCEPTION 'CONFIGURATION_INVALID'; END IF;
+ WITH candidates AS (SELECT n.id FROM public.notifications n WHERE n.retired_at IS NULL AND n.created_at<clock_timestamp()-(policy->>'notification_days')::integer*interval '1 day' ORDER BY n.created_at,n.id LIMIT maximum FOR UPDATE SKIP LOCKED)
+ UPDATE public.notifications n SET body='[expired]',retired_at=clock_timestamp(),retired_body_hash=encode(sha256(convert_to(n.body,'UTF8')),'hex') FROM candidates c WHERE n.id=c.id;
+ GET DIAGNOSTICS notices=ROW_COUNT;
+ WITH candidates AS (SELECT j.id FROM public.jobs j WHERE j.environment=selected_environment AND j.status='done' AND j.retired_at IS NULL AND j.completed_at<clock_timestamp()-(policy->>'job_terminal_days')::integer*interval '1 day'
+  AND j.kind IN ('notification','own_export','operational_cleanup','privacy_redaction') AND j.lease_token IS NULL AND j.lease_until IS NULL
+  ORDER BY j.completed_at,j.id LIMIT maximum FOR UPDATE SKIP LOCKED)
+ UPDATE public.jobs j SET payload='{}'::jsonb,retired_at=clock_timestamp(),retired_payload_hash=encode(sha256(convert_to(j.payload::text,'UTF8')),'hex') FROM candidates c WHERE j.id=c.id;
+ GET DIAGNOSTICS work=ROW_COUNT;
+ WITH candidates AS (SELECT o.id FROM public.outbox o JOIN public.jobs j ON j.outbox_id=o.id WHERE o.environment=selected_environment AND o.retired_at IS NULL AND o.dispatched_at IS NOT NULL AND j.status='done' AND j.retired_at IS NOT NULL
+  AND o.kind IN ('notification','own_export','operational_cleanup','privacy_redaction') ORDER BY o.created_at,o.id LIMIT maximum FOR UPDATE OF o SKIP LOCKED)
+ UPDATE public.outbox o SET payload='{}'::jsonb,retired_at=clock_timestamp(),retired_payload_hash=encode(sha256(convert_to(o.payload::text,'UTF8')),'hex') FROM candidates c WHERE o.id=c.id;
+ GET DIAGNOSTICS dispatch=ROW_COUNT;
+ SELECT EXISTS(SELECT 1 FROM public.notifications n WHERE n.retired_at IS NULL AND n.created_at<clock_timestamp()-(policy->>'notification_days')::integer*interval '1 day')
+  OR EXISTS(SELECT 1 FROM public.jobs j WHERE j.environment=selected_environment AND j.status='done' AND j.retired_at IS NULL AND j.completed_at<clock_timestamp()-(policy->>'job_terminal_days')::integer*interval '1 day' AND j.kind IN ('notification','own_export','operational_cleanup','privacy_redaction') AND j.lease_token IS NULL AND j.lease_until IS NULL)
+  OR EXISTS(SELECT 1 FROM public.outbox o JOIN public.jobs j ON j.outbox_id=o.id WHERE o.environment=selected_environment AND o.retired_at IS NULL AND o.dispatched_at IS NOT NULL AND j.status='done' AND j.retired_at IS NOT NULL AND o.kind IN ('notification','own_export','operational_cleanup','privacy_redaction')) INTO more;
+ RETURN jsonb_build_object('notifications',notices,'jobs',work,'outbox',dispatch,'held',false,'more_possible',more);
+END $$;
 
---
--- Name: gw_scheduler_retention_guard(); Type: FUNCTION; Schema: public; Owner: -
---
+CREATE FUNCTION public.gw_runtime_environment_allowed() RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+ SELECT CASE
+ WHEN EXISTS(SELECT 1 FROM public.environment_instances WHERE environment='mainnet') THEN current_setting('gw.environment',true)='mainnet'
+ WHEN EXISTS(SELECT 1 FROM public.environment_instances WHERE environment='testnet') THEN current_setting('gw.environment',true)='testnet'
+ ELSE current_setting('gw.environment',true)='simulation' END
+$$;
 
 CREATE FUNCTION public.gw_scheduler_retention_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1621,11 +1686,6 @@ BEGIN
   RETURN OLD;
 END $_$;
 
-
---
--- Name: gw_seal_ledger_posting(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_seal_ledger_posting() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public'
@@ -1639,11 +1699,6 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
-
---
--- Name: gw_session_history_guard(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_session_history_guard() RETURNS trigger
     LANGUAGE plpgsql
@@ -1666,19 +1721,15 @@ BEGIN
  RETURN NEW;
 END $$;
 
-
---
--- Name: gw_signer_asset_balance(uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_signer_asset_balance(target uuid, purposes text[]) RETURNS numeric
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
 DECLARE value numeric;
 BEGIN
- IF current_setting('role',true) IS DISTINCT FROM 'gw_signer' OR current_setting('gw.environment',true) IS DISTINCT FROM 'testnet'
-  OR NOT EXISTS(SELECT 1 FROM public.assets WHERE id=target AND environment='testnet')
+ IF public.gw_runtime_environment_allowed() IS NOT TRUE THEN RAISE EXCEPTION 'FINANCIAL_ENVIRONMENT_DENIED'; END IF;
+ IF current_setting('role',true) IS DISTINCT FROM 'gw_signer' OR coalesce(current_setting('gw.environment',true),'') NOT IN ('testnet','mainnet')
+  OR NOT EXISTS(SELECT 1 FROM public.assets WHERE id=target AND environment=current_setting('gw.environment',true))
   OR purposes IS NULL OR cardinality(purposes) NOT BETWEEN 1 AND 20 OR array_position(purposes,NULL) IS NOT NULL
   OR NOT purposes <@ ARRAY['available_payable','held_payable','refund_payable','incoming_payable','unallocated_payable','marketing_payable','developer_payable','bootstrap_developer_payable','bootstrap_marketing_payable','bootstrap_platform_payable','bootstrap_custom_bootstrap_payable']::text[] THEN RAISE EXCEPTION 'FORBIDDEN';END IF;
  IF public.gw_counter_ready() THEN SELECT coalesce(sum(balance),0) INTO value FROM public.ledger_asset_totals WHERE asset_id=target AND purpose=ANY(purposes);
@@ -1686,19 +1737,15 @@ BEGIN
  RETURN value;
 END $$;
 
-
---
--- Name: gw_signer_identity_fence(uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_signer_identity_fence(obligation uuid) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public'
     AS $$
 DECLARE o public.crypto_obligations;u public.users;w public.wallet_links;
 BEGIN
- IF current_setting('gw.environment',true)<>'testnet' THEN RAISE EXCEPTION 'SIGNER_SCOPE_DENIED';END IF;
- SELECT * INTO o FROM public.crypto_obligations WHERE id=obligation AND environment='testnet';IF NOT FOUND THEN RETURN false;END IF;
+ IF public.gw_runtime_environment_allowed() IS NOT TRUE THEN RAISE EXCEPTION 'FINANCIAL_ENVIRONMENT_DENIED'; END IF;
+ IF coalesce(current_setting('gw.environment',true),'') NOT IN ('testnet','mainnet') THEN RAISE EXCEPTION 'SIGNER_SCOPE_DENIED';END IF;
+ SELECT * INTO o FROM public.crypto_obligations WHERE id=obligation AND environment=current_setting('gw.environment',true);IF NOT FOUND THEN RETURN false;END IF;
  IF o.user_id IS NULL THEN
   IF o.kind='unallocated_refund' THEN RETURN EXISTS(SELECT 1 FROM public.unallocated_inflows i JOIN public.unallocated_refund_claims c ON c.inflow_id=i.id WHERE i.id=(o.fee_snapshot->>'inflow_id')::uuid AND i.asset_id=o.asset_id AND i.sender=o.destination AND i.amount_base_units=o.gross_base_units);END IF;
   RETURN o.kind IN ('business','sweep');
@@ -1707,14 +1754,9 @@ BEGIN
  IF o.kind='refund' THEN RETURN true;END IF;
  IF o.kind='recovery' THEN RETURN EXISTS(SELECT 1 FROM public.liability_recoveries r WHERE r.obligation_id=o.id AND r.user_id=o.user_id AND r.asset_id=o.asset_id AND r.confirmed_at IS NOT NULL);END IF;
  IF u.status NOT IN ('active','deactivated') OR u.consented_at IS NULL THEN RETURN false;END IF;
- SELECT * INTO w FROM public.wallet_links WHERE user_id=o.user_id AND environment='testnet' AND chain_id=o.registry_snapshot->>'network';
+ SELECT * INTO w FROM public.wallet_links WHERE user_id=o.user_id AND environment=current_setting('gw.environment',true) AND chain_id=o.registry_snapshot->>'network';
  RETURN w.address=o.destination AND w.revision=o.wallet_revision AND coalesce(w.cooling_until<=clock_timestamp(),true);
 END $$;
-
-
---
--- Name: gw_signer_owner_fence(uuid); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_signer_owner_fence(obligation uuid) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1726,11 +1768,6 @@ DECLARE asset uuid;BEGIN
  RETURN public.gw_native_asset_fence(asset);
 END $$;
 
-
---
--- Name: gw_staff_reader(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_staff_reader() RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
@@ -1740,10 +1777,15 @@ CREATE FUNCTION public.gw_staff_reader() RETURNS boolean
   ),false)
 $$;
 
-
---
--- Name: gw_treasury_sweep_guard(); Type: FUNCTION; Schema: public; Owner: -
---
+CREATE FUNCTION public.gw_treasury_inventory_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+ IF TG_OP='UPDATE' AND (NEW.asset_id,NEW.address,NEW.created_at) IS NOT DISTINCT FROM (OLD.asset_id,OLD.address,OLD.created_at)
+   AND NEW.last_monitor_at>=OLD.last_monitor_at THEN RETURN NEW; END IF;
+ RAISE EXCEPTION 'CHAIN_RECOVERY_EVIDENCE_RETAINED';
+END $$;
 
 CREATE FUNCTION public.gw_treasury_sweep_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1755,11 +1797,6 @@ DECLARE target uuid;j public.ledger_journals;BEGIN
  ELSE SELECT * INTO j FROM public.ledger_journals WHERE id=NEW.journal_id;target:=NULLIF(j.metadata->>'obligation_id','')::uuid;END IF;
  IF target IS NOT NULL THEN PERFORM public.gw_check_treasury_sweep(target);END IF;RETURN NULL;
 END $$;
-
-
---
--- Name: gw_unallocated_custody_guard(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_unallocated_custody_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1773,11 +1810,6 @@ BEGIN
  IF total<>2 OR valid<>2 OR j.ledger_type<>'CHAIN_UNALLOCATED' OR j.business_key<>'unallocated:'||i.id OR j.metadata->>'unallocated_id' IS DISTINCT FROM i.id::text OR NOT EXISTS(SELECT 1 FROM public.operation_keys WHERE business_key='chain-event:'||i.environment||':'||i.chain||':'||i.network||':'||i.tx_hash||':'||i.event_index||':'||i.asset_id AND result->>'purpose'='unallocated') THEN RAISE EXCEPTION 'UNALLOCATED_CUSTODY_INVALID';END IF;
  RETURN NULL;
 END $$;
-
-
---
--- Name: gw_unallocated_refund_guard(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_unallocated_refund_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1793,11 +1825,6 @@ BEGIN
  IF total<>2 OR valid<>2 OR j.metadata->>'obligation_id' IS DISTINCT FROM o.id::text THEN RAISE EXCEPTION 'UNALLOCATED_HOLD_REQUIRED';END IF;RETURN NULL;
 END $$;
 
-
---
--- Name: gw_unallocated_source_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_unallocated_source_guard() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
@@ -1805,11 +1832,6 @@ CREATE FUNCTION public.gw_unallocated_source_guard() RETURNS trigger
 DECLARE a public.ledger_accounts;balance numeric;BEGIN SELECT * INTO a FROM public.ledger_accounts WHERE id=NEW.account_id;
  IF a.owner_type='system' AND a.purpose='unallocated_payable' THEN balance:=public.gw_counter_account_total(a.id);IF balance<0 THEN RAISE EXCEPTION 'UNALLOCATED_SOURCE_NEGATIVE';END IF;END IF;RETURN NULL;
 END $$;
-
-
---
--- Name: gw_unallocated_source_lock(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_unallocated_source_lock() RETURNS trigger
     LANGUAGE plpgsql
@@ -1819,11 +1841,6 @@ DECLARE a public.ledger_accounts;BEGIN
  SELECT * INTO a FROM public.ledger_accounts WHERE id=NEW.account_id;
  IF a.owner_type='system' AND a.purpose='unallocated_payable' THEN PERFORM pg_advisory_xact_lock(hashtextextended('unallocated-source:'||a.asset_id,0));END IF;RETURN NEW;
 END $$;
-
-
---
--- Name: gw_validate_ledger_balance(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_validate_ledger_balance() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1844,11 +1861,6 @@ BEGIN
   RETURN NULL;
 END;
 $$;
-
-
---
--- Name: gw_validate_receipt_allocation(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_validate_receipt_allocation() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1897,11 +1909,6 @@ BEGIN
   RETURN NULL;
 END $_$;
 
-
---
--- Name: gw_wallet_revision_guard(); Type: FUNCTION; Schema: public; Owner: -
---
-
 CREATE FUNCTION public.gw_wallet_revision_guard() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog', 'public'
@@ -1909,15 +1916,10 @@ CREATE FUNCTION public.gw_wallet_revision_guard() RETURNS trigger
 BEGIN
  IF (to_jsonb(NEW)-ARRAY['address','verified_at','revision','cooling_until']) IS DISTINCT FROM (to_jsonb(OLD)-ARRAY['address','verified_at','revision','cooling_until']) THEN RAISE EXCEPTION 'WALLET_IDENTITY_IMMUTABLE';END IF;
  IF NEW.address IS DISTINCT FROM OLD.address THEN
-  IF OLD.environment<>'testnet' OR NEW.revision<>OLD.revision+1 OR NEW.verified_at<=OLD.verified_at OR NEW.cooling_until<NEW.verified_at THEN RAISE EXCEPTION 'WALLET_REVISION_REQUIRED';END IF;
+  IF OLD.environment NOT IN ('testnet','mainnet') OR NEW.revision<>OLD.revision+1 OR NEW.verified_at<=OLD.verified_at OR NEW.cooling_until<NEW.verified_at THEN RAISE EXCEPTION 'WALLET_REVISION_REQUIRED';END IF;
  ELSIF NEW.revision<>OLD.revision THEN RAISE EXCEPTION 'WALLET_REVISION_REQUIRED';END IF;
  RETURN NEW;
 END $$;
-
-
---
--- Name: gw_withdrawal_snapshot_guard(); Type: FUNCTION; Schema: public; Owner: -
---
 
 CREATE FUNCTION public.gw_withdrawal_snapshot_guard() RETURNS trigger
     LANGUAGE plpgsql
@@ -1932,11 +1934,6 @@ BEGIN
   RETURN NEW;
 END $$;
 
-
---
--- Name: abuse_signals; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.abuse_signals (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
@@ -1946,11 +1943,6 @@ CREATE TABLE public.abuse_signals (
     CONSTRAINT abuse_signals_category_check CHECK ((category = 'payment_proof_failure'::text)),
     CONSTRAINT abuse_signals_source_key_check CHECK ((length(source_key) = 64))
 );
-
-
---
--- Name: alert_deliveries; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.alert_deliveries (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -1971,11 +1963,6 @@ CREATE TABLE public.alert_deliveries (
     CONSTRAINT alert_deliveries_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'sending'::text, 'delivered'::text, 'failed'::text, 'cancelled'::text])))
 );
 
-
---
--- Name: appeals; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.appeals (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     report_id uuid NOT NULL,
@@ -1990,10 +1977,37 @@ CREATE TABLE public.appeals (
     CONSTRAINT appeals_status_check CHECK ((status = ANY (ARRAY['open'::text, 'resolved'::text, 'dismissed'::text])))
 );
 
+CREATE TABLE public.archive_months (
+    source_table text NOT NULL,
+    month_start date NOT NULL,
+    child_name text NOT NULL,
+    state text DEFAULT 'hot'::text NOT NULL,
+    cursor_id uuid,
+    cursor_revision integer,
+    walk_count bigint DEFAULT 0 NOT NULL,
+    walk_hash text DEFAULT encode(sha256('\x'::bytea), 'hex'::text) NOT NULL,
+    expected_count bigint,
+    expected_hash text,
+    frozen_at timestamp with time zone,
+    archived_at timestamp with time zone,
+    last_step_at timestamp with time zone DEFAULT '1970-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    CONSTRAINT archive_months_child_name_check CHECK ((child_name ~ '^gw_part_(lp|cs|au)_[0-9]{6}$'::text)),
+    CONSTRAINT archive_months_expected_count_check CHECK ((expected_count >= 0)),
+    CONSTRAINT archive_months_expected_hash_check CHECK (((expected_hash IS NULL) OR (length(expected_hash) = 64))),
+    CONSTRAINT archive_months_month_start_check CHECK ((EXTRACT(day FROM month_start) = (1)::numeric)),
+    CONSTRAINT archive_months_source_table_check CHECK ((source_table = ANY (ARRAY['ledger_postings'::text, 'chain_scan_pages'::text, 'audit_events'::text]))),
+    CONSTRAINT archive_months_state_check CHECK ((state = ANY (ARRAY['hot'::text, 'hashing'::text, 'verifying'::text, 'archived'::text, 'review'::text]))),
+    CONSTRAINT archive_months_walk_count_check CHECK ((walk_count >= 0)),
+    CONSTRAINT archive_months_walk_hash_check CHECK ((length(walk_hash) = 64))
+);
 
---
--- Name: assets; Type: TABLE; Schema: public; Owner: -
---
+CREATE TABLE public.archive_record_keys (
+    source_table text NOT NULL,
+    record_key text NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    CONSTRAINT archive_record_keys_record_key_check CHECK (((length(record_key) >= 1) AND (length(record_key) <= 100))),
+    CONSTRAINT archive_record_keys_source_table_check CHECK ((source_table = ANY (ARRAY['ledger_postings'::text, 'chain_scan_pages'::text, 'audit_events'::text])))
+);
 
 CREATE TABLE public.assets (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2007,11 +2021,6 @@ CREATE TABLE public.assets (
     CONSTRAINT assets_environment_check CHECK ((environment = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])))
 );
 
-
---
--- Name: audit_events; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.audit_events (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     actor_user_id uuid,
@@ -2023,12 +2032,8 @@ CREATE TABLE public.audit_events (
     after_state jsonb,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     request_id uuid DEFAULT (NULLIF(current_setting('gw.request_id'::text, true), ''::text))::uuid
-);
-
-
---
--- Name: auth_factors; Type: TABLE; Schema: public; Owner: -
---
+)
+PARTITION BY RANGE (created_at);
 
 CREATE TABLE public.auth_factors (
     user_id uuid NOT NULL,
@@ -2041,11 +2046,6 @@ CREATE TABLE public.auth_factors (
     CONSTRAINT auth_factors_last_step_check CHECK ((last_step >= '-1'::integer)),
     CONSTRAINT auth_factors_secret_cipher_check CHECK (((length(secret_cipher) >= 60) AND (length(secret_cipher) <= 512)))
 );
-
-
---
--- Name: auth_flows; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.auth_flows (
     state_hash text NOT NULL,
@@ -2060,11 +2060,6 @@ CREATE TABLE public.auth_flows (
     CONSTRAINT auth_flows_verifier_cipher_check CHECK (((length(verifier_cipher) >= 60) AND (length(verifier_cipher) <= 512)))
 );
 
-
---
--- Name: auth_recovery_codes; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.auth_recovery_codes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     factor_id uuid NOT NULL,
@@ -2073,11 +2068,6 @@ CREATE TABLE public.auth_recovery_codes (
     used_at timestamp with time zone,
     CONSTRAINT auth_recovery_codes_code_hash_check CHECK ((length(code_hash) = 64))
 );
-
-
---
--- Name: auth_refresh_tokens; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.auth_refresh_tokens (
     token_hash text NOT NULL,
@@ -2088,11 +2078,6 @@ CREATE TABLE public.auth_refresh_tokens (
     CONSTRAINT auth_refresh_tokens_check CHECK ((expires_at > created_at)),
     CONSTRAINT auth_refresh_tokens_token_hash_check CHECK ((length(token_hash) = 64))
 );
-
-
---
--- Name: auth_sessions; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.auth_sessions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2115,22 +2100,12 @@ CREATE TABLE public.auth_sessions (
     CONSTRAINT auth_sessions_session_version_check CHECK ((session_version > 0))
 );
 
-
---
--- Name: auth_totp_replays; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.auth_totp_replays (
     factor_id uuid NOT NULL,
     time_step bigint NOT NULL,
     accepted_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     CONSTRAINT auth_totp_replays_time_step_check CHECK ((time_step >= 0))
 );
-
-
---
--- Name: bot_challenges; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.bot_challenges (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2143,15 +2118,10 @@ CREATE TABLE public.bot_challenges (
     expires_at timestamp with time zone NOT NULL,
     consumed_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    CONSTRAINT bot_challenges_environment_check CHECK ((environment = ANY (ARRAY['simulation'::text, 'testnet'::text]))),
+    CONSTRAINT bot_challenges_environment_check CHECK ((environment = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text]))),
     CONSTRAINT bot_challenges_provider_check CHECK ((provider = ANY (ARRAY['dummy'::text, 'turnstile'::text]))),
     CONSTRAINT bot_challenges_surface_check CHECK ((surface = ANY (ARRAY['consent'::text, 'suspicious_checkout'::text])))
 );
-
-
---
--- Name: bot_token_uses; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.bot_token_uses (
     token_hash text NOT NULL,
@@ -2160,14 +2130,9 @@ CREATE TABLE public.bot_token_uses (
     environment text NOT NULL,
     expires_at timestamp with time zone NOT NULL,
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    CONSTRAINT bot_token_uses_environment_check CHECK ((environment = ANY (ARRAY['simulation'::text, 'testnet'::text]))),
+    CONSTRAINT bot_token_uses_environment_check CHECK ((environment = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text]))),
     CONSTRAINT bot_token_uses_token_hash_check CHECK ((length(token_hash) = 64))
 );
-
-
---
--- Name: chain_checkpoints; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.chain_checkpoints (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2189,11 +2154,6 @@ CREATE TABLE public.chain_checkpoints (
     CONSTRAINT chain_checkpoints_treasury_fingerprint_check CHECK ((length(treasury_fingerprint) = 64))
 );
 
-
---
--- Name: chain_fee_claims; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.chain_fee_claims (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     environment text NOT NULL,
@@ -2208,14 +2168,9 @@ CREATE TABLE public.chain_fee_claims (
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     CONSTRAINT chain_fee_claims_account_setup_base_units_check CHECK ((account_setup_base_units >= (0)::numeric)),
     CONSTRAINT chain_fee_claims_chain_check CHECK ((chain = ANY (ARRAY['eth'::text, 'bnb'::text, 'sol'::text, 'tron'::text]))),
-    CONSTRAINT chain_fee_claims_environment_check CHECK ((environment = 'testnet'::text)),
+    CONSTRAINT chain_fee_claims_environment_check CHECK ((environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))),
     CONSTRAINT chain_fee_claims_network_fee_base_units_check CHECK ((network_fee_base_units >= (0)::numeric))
 );
-
-
---
--- Name: chain_observations; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.chain_observations (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2233,11 +2188,6 @@ CREATE TABLE public.chain_observations (
     CONSTRAINT chain_observations_rounds_check CHECK (((rounds >= 0) AND (rounds <= 2880))),
     CONSTRAINT chain_observations_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'done'::text, 'review'::text])))
 );
-
-
---
--- Name: chain_recovery_runs; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.chain_recovery_runs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2265,11 +2215,6 @@ CREATE TABLE public.chain_recovery_runs (
     CONSTRAINT recovery_progress_shape CHECK (((scan_progress IS NULL) OR ((jsonb_typeof(scan_progress) = 'object'::text) AND (octet_length((scan_progress)::text) <= 16384) AND (scan_progress ?& ARRAY['stage'::text, 'cursor'::text]) AND (jsonb_typeof((scan_progress -> 'stage'::text)) = 'string'::text) AND ((scan_progress ->> 'stage'::text) = ANY (ARRAY['discover'::text, 'verify'::text, 'book'::text, 'known_next'::text, 'known_index'::text, 'known_settle'::text, 'known_expiry'::text, 'balance'::text])) AND (jsonb_typeof((scan_progress -> 'cursor'::text)) = 'object'::text) AND ((scan_progress -> 'cursor'::text) ?& ARRAY['height'::text, 'transaction'::text, 'event'::text]) AND (jsonb_typeof(((scan_progress -> 'cursor'::text) -> 'height'::text)) = 'string'::text) AND (((scan_progress -> 'cursor'::text) ->> 'height'::text) ~ '^(0|[1-9][0-9]{0,77})$'::text) AND ((((scan_progress -> 'cursor'::text) ->> 'height'::text))::numeric = (cursor_height + (1)::numeric)) AND (jsonb_typeof(((scan_progress -> 'cursor'::text) -> 'transaction'::text)) = 'number'::text) AND (((scan_progress -> 'cursor'::text) ->> 'transaction'::text) ~ '^(0|[1-9][0-9]{0,5})$'::text) AND ((((scan_progress -> 'cursor'::text) ->> 'transaction'::text))::integer <= 100000) AND (jsonb_typeof(((scan_progress -> 'cursor'::text) -> 'event'::text)) = 'number'::text) AND (((scan_progress -> 'cursor'::text) ->> 'event'::text) ~ '^(0|[1-9][0-9]{0,5})$'::text) AND ((((scan_progress -> 'cursor'::text) ->> 'event'::text))::integer <= 100000))))
 );
 
-
---
--- Name: chain_scan_pages; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.chain_scan_pages (
     run_id uuid NOT NULL,
     revision integer NOT NULL,
@@ -2284,12 +2229,8 @@ CREATE TABLE public.chain_scan_pages (
     CONSTRAINT chain_scan_pages_check1 CHECK (((incoming_count >= 0) AND (outgoing_count >= 0))),
     CONSTRAINT chain_scan_pages_evidence_hash_check CHECK ((length(evidence_hash) = 64)),
     CONSTRAINT scan_page_height_order CHECK ((from_height <= through_height))
-);
-
-
---
--- Name: crypto_events; Type: TABLE; Schema: public; Owner: -
---
+)
+PARTITION BY RANGE (created_at);
 
 CREATE TABLE public.crypto_events (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2307,15 +2248,10 @@ CREATE TABLE public.crypto_events (
     status text NOT NULL,
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     CONSTRAINT crypto_events_amount_base_units_check CHECK ((amount_base_units >= (0)::numeric)),
-    CONSTRAINT crypto_events_environment_check CHECK ((environment = 'testnet'::text)),
+    CONSTRAINT crypto_events_environment_check CHECK ((environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))),
     CONSTRAINT crypto_events_event_index_check CHECK ((event_index >= 0)),
     CONSTRAINT crypto_events_status_check CHECK ((status = ANY (ARRAY['confirmed'::text, 'credited'::text, 'exception'::text, 'reorged'::text])))
 );
-
-
---
--- Name: crypto_invoices; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.crypto_invoices (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2337,17 +2273,14 @@ CREATE TABLE public.crypto_invoices (
     status text DEFAULT 'quoted'::text NOT NULL,
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     registry_snapshot jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT crypto_invoices_environment_check CHECK ((environment = 'testnet'::text)),
+    profile_revision integer DEFAULT 1 NOT NULL,
+    CONSTRAINT crypto_invoices_environment_check CHECK ((environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))),
     CONSTRAINT crypto_invoices_expected_base_units_check CHECK ((expected_base_units > (0)::numeric)),
+    CONSTRAINT crypto_invoices_profile_revision_check CHECK ((profile_revision > 0)),
     CONSTRAINT crypto_invoices_registry_hash_check CHECK ((length(registry_hash) = 64)),
     CONSTRAINT crypto_invoices_status_check CHECK ((status = ANY (ARRAY['quoted'::text, 'submitted'::text, 'credited'::text, 'exception'::text, 'expired'::text, 'cancelled'::text]))),
     CONSTRAINT crypto_invoices_usd_reference_check CHECK ((usd_reference > (0)::numeric))
 );
-
-
---
--- Name: crypto_obligations; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.crypto_obligations (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2382,7 +2315,7 @@ CREATE TABLE public.crypto_obligations (
     CONSTRAINT crypto_obligations_charge_base_units_check CHECK ((charge_base_units >= (0)::numeric)),
     CONSTRAINT crypto_obligations_check CHECK (((net_base_units + charge_base_units) = gross_base_units)),
     CONSTRAINT crypto_obligations_configuration_hash_check CHECK ((length(configuration_hash) = 64)),
-    CONSTRAINT crypto_obligations_environment_check CHECK ((environment = 'testnet'::text)),
+    CONSTRAINT crypto_obligations_environment_check CHECK ((environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))),
     CONSTRAINT crypto_obligations_gross_base_units_check CHECK ((gross_base_units > (0)::numeric)),
     CONSTRAINT crypto_obligations_kind_check CHECK ((kind = ANY (ARRAY['withdrawal'::text, 'business'::text, 'refund'::text, 'sweep'::text, 'recovery'::text, 'unallocated_refund'::text]))),
     CONSTRAINT crypto_obligations_native_fee_quote_check CHECK ((native_fee_quote >= (0)::numeric)),
@@ -2392,11 +2325,6 @@ CREATE TABLE public.crypto_obligations (
     CONSTRAINT crypto_obligations_status_check CHECK ((status = ANY (ARRAY['quoted'::text, 'held'::text, 'approved'::text, 'signing'::text, 'broadcast'::text, 'settled'::text, 'awaiting_requote'::text, 'exception'::text, 'cancelled'::text]))),
     CONSTRAINT crypto_obligations_treasury_fingerprint_check CHECK ((length(treasury_fingerprint) = 64))
 );
-
-
---
--- Name: crypto_reorg_resolutions; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.crypto_reorg_resolutions (
     review_id uuid NOT NULL,
@@ -2410,11 +2338,6 @@ CREATE TABLE public.crypto_reorg_resolutions (
     CONSTRAINT crypto_reorg_resolutions_evidence_hash_check CHECK ((length(evidence_hash) = 64)),
     CONSTRAINT crypto_reorg_resolutions_reason_check CHECK (((length(reason) >= 10) AND (length(reason) <= 500)))
 );
-
-
---
--- Name: crypto_reorg_reviews; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.crypto_reorg_reviews (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2435,11 +2358,6 @@ CREATE TABLE public.crypto_reorg_reviews (
     CONSTRAINT native_review_anchor_height CHECK ((anchor_height >= (0)::numeric))
 );
 
-
---
--- Name: crypto_submissions; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.crypto_submissions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     invoice_id uuid NOT NULL,
@@ -2448,11 +2366,6 @@ CREATE TABLE public.crypto_submissions (
     first_seen_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     CONSTRAINT crypto_submissions_event_index_check CHECK (((event_index >= '-1'::integer) AND (event_index <= 1000)))
 );
-
-
---
--- Name: cycles; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.cycles (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2465,11 +2378,6 @@ CREATE TABLE public.cycles (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT cycles_status_check CHECK ((status = ANY (ARRAY['active'::text, 'completed'::text, 'exception'::text])))
 );
-
-
---
--- Name: data_exports; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.data_exports (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2492,22 +2400,12 @@ CREATE TABLE public.data_exports (
     CONSTRAINT data_exports_total_bytes_check CHECK (((total_bytes >= 0) AND (total_bytes <= 52428800)))
 );
 
-
---
--- Name: database_binding_nonce; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.database_binding_nonce (
     singleton boolean DEFAULT true NOT NULL,
     nonce uuid DEFAULT gen_random_uuid() NOT NULL,
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     CONSTRAINT database_binding_nonce_singleton_check CHECK (singleton)
 );
-
-
---
--- Name: deployment_binding_challenges; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.deployment_binding_challenges (
     id uuid NOT NULL,
@@ -2517,22 +2415,12 @@ CREATE TABLE public.deployment_binding_challenges (
     CONSTRAINT deployment_binding_challenges_environment_check CHECK ((environment = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])))
 );
 
-
---
--- Name: environment_instances; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.environment_instances (
     environment text NOT NULL,
     instance_id uuid DEFAULT gen_random_uuid() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT environment_instances_environment_check CHECK ((environment = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])))
 );
-
-
---
--- Name: export_chunks; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.export_chunks (
     export_id uuid NOT NULL,
@@ -2550,11 +2438,6 @@ CREATE TABLE public.export_chunks (
     CONSTRAINT export_chunks_sha256_check CHECK ((length(sha256) = 64))
 );
 
-
---
--- Name: financial_reconciliation_results; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.financial_reconciliation_results (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     source_job_id uuid NOT NULL,
@@ -2570,11 +2453,6 @@ CREATE TABLE public.financial_reconciliation_results (
     CONSTRAINT financial_reconciliation_results_result_check CHECK (((jsonb_typeof(result) = 'object'::text) AND (octet_length((result)::text) <= 131072)))
 );
 
-
---
--- Name: queue_entries; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.queue_entries (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     partition_id uuid NOT NULL,
@@ -2589,16 +2467,13 @@ CREATE TABLE public.queue_entries (
     status text DEFAULT 'waiting'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     priority_revision integer DEFAULT 1 NOT NULL,
+    cancelled_count integer DEFAULT 0 NOT NULL,
+    CONSTRAINT queue_entries_cancelled_count_check CHECK (((cancelled_count >= 0) AND (cancelled_count <= (required_count - credited_count)) AND ((cancelled_count = 0) OR ((kind = 'bootstrap'::text) AND (status = 'removed'::text))))),
     CONSTRAINT queue_entries_kind_check CHECK ((kind = ANY (ARRAY['member'::text, 'bootstrap'::text]))),
     CONSTRAINT queue_entries_priority_revision_check CHECK ((priority_revision > 0)),
     CONSTRAINT queue_entries_status_check CHECK ((status = ANY (ARRAY['waiting'::text, 'fully_allocated'::text, 'fulfilled'::text, 'removed'::text]))),
-    CONSTRAINT queue_entry_ticket_bounds CHECK ((((ticket >= 1) AND (ticket <= '1099511627775'::bigint)) AND ((priority_ticket IS NULL) OR ((priority_ticket >= 1) AND (priority_ticket <= '1099511627775'::bigint)))))
+    CONSTRAINT queue_entry_ticket_bounds CHECK (((ticket >= 1) AND (ticket <= '1099511627775'::bigint) AND ((priority_ticket IS NULL) OR ((priority_ticket >= 1) AND (priority_ticket <= '1099511627775'::bigint)))))
 );
-
-
---
--- Name: simulation_reorg_resolutions; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.simulation_reorg_resolutions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2613,11 +2488,6 @@ CREATE TABLE public.simulation_reorg_resolutions (
     CONSTRAINT simulation_reorg_resolutions_reason_check CHECK (((length(reason) >= 5) AND (length(reason) <= 500)))
 );
 
-
---
--- Name: gw_cycle_financial_reviews; Type: VIEW; Schema: public; Owner: -
---
-
 CREATE VIEW public.gw_cycle_financial_reviews WITH (security_barrier='true') AS
  SELECT c.id AS cycle_id,
     bool_or(((e.ticket >= r.source_ticket) OR COALESCE((e.id = r.receiver_entry_id), false))) AS under_review,
@@ -2630,21 +2500,63 @@ CREATE VIEW public.gw_cycle_financial_reviews WITH (security_barrier='true') AS
   WHERE ((resolved.id IS NULL) AND (r.environment = current_setting('gw.environment'::text, true)) AND (c.user_id = public.gw_actor_id()))
   GROUP BY c.id;
 
+CREATE TABLE public.gw_part_au_default (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    actor_user_id uuid,
+    action text NOT NULL,
+    target_type text NOT NULL,
+    target_id text,
+    reason text,
+    before_state jsonb,
+    after_state jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    request_id uuid DEFAULT (NULLIF(current_setting('gw.request_id'::text, true), ''::text))::uuid
+);
 
---
--- Name: gw_queue_positions; Type: VIEW; Schema: public; Owner: -
---
+CREATE TABLE public.gw_part_cs_default (
+    run_id uuid NOT NULL,
+    revision integer NOT NULL,
+    from_height numeric(78,0) NOT NULL,
+    through_height numeric(78,0) NOT NULL,
+    evidence_hash text NOT NULL,
+    incoming_count integer NOT NULL,
+    outgoing_count integer NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    progress_before jsonb,
+    progress_after jsonb,
+    CONSTRAINT chain_scan_pages_check1 CHECK (((incoming_count >= 0) AND (outgoing_count >= 0))),
+    CONSTRAINT chain_scan_pages_evidence_hash_check CHECK ((length(evidence_hash) = 64)),
+    CONSTRAINT scan_page_height_order CHECK ((from_height <= through_height))
+);
+
+CREATE TABLE public.ledger_postings (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    journal_id uuid NOT NULL,
+    account_id uuid NOT NULL,
+    direction text NOT NULL,
+    amount_base_units numeric(78,0) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ledger_postings_amount_base_units_check CHECK ((amount_base_units > (0)::numeric)),
+    CONSTRAINT ledger_postings_direction_check CHECK ((direction = ANY (ARRAY['debit'::text, 'credit'::text])))
+)
+PARTITION BY RANGE (created_at);
+
+CREATE TABLE public.gw_part_lp_default (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    journal_id uuid NOT NULL,
+    account_id uuid NOT NULL,
+    direction text NOT NULL,
+    amount_base_units numeric(78,0) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ledger_postings_amount_base_units_check CHECK ((amount_base_units > (0)::numeric)),
+    CONSTRAINT ledger_postings_direction_check CHECK ((direction = ANY (ARRAY['debit'::text, 'credit'::text])))
+);
 
 CREATE VIEW public.gw_queue_positions WITH (security_barrier='true') AS
  SELECT id AS entry_id,
     public.gw_queue_rank(id, 'display'::text) AS display_position
    FROM public.queue_entries e
   WHERE (public.gw_owns(beneficiary_user_id) AND (status = 'waiting'::text));
-
-
---
--- Name: signed_attempts; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.signed_attempts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2672,17 +2584,12 @@ CREATE TABLE public.signed_attempts (
     CONSTRAINT signed_attempt_terminal_shape CHECK (((status <> ALL (ARRAY['confirmed'::text, 'failed'::text, 'expired'::text, 'superseded'::text])) OR ((actual_native_fee IS NOT NULL) AND (confirmed_at IS NOT NULL)))),
     CONSTRAINT signed_attempts_attempt_check CHECK ((attempt > 0)),
     CONSTRAINT signed_attempts_configuration_hash_check CHECK ((length(configuration_hash) = 64)),
-    CONSTRAINT signed_attempts_environment_check CHECK ((environment = 'testnet'::text)),
+    CONSTRAINT signed_attempts_environment_check CHECK ((environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))),
     CONSTRAINT signed_attempts_intent_hash_check CHECK ((length(intent_hash) = 64)),
     CONSTRAINT signed_attempts_native_fee_cap_check CHECK ((native_fee_cap >= (0)::numeric)),
     CONSTRAINT signed_attempts_signed_at_height_check CHECK ((signed_at_height >= (0)::numeric)),
     CONSTRAINT signed_attempts_status_check CHECK ((status = ANY (ARRAY['signed'::text, 'broadcast'::text, 'confirmed'::text, 'failed'::text, 'expired'::text, 'unknown'::text, 'superseded'::text])))
 );
-
-
---
--- Name: gw_signed_attempt_status; Type: VIEW; Schema: public; Owner: -
---
 
 CREATE VIEW public.gw_signed_attempt_status WITH (security_barrier='true') AS
  SELECT id,
@@ -2701,11 +2608,6 @@ CREATE VIEW public.gw_signed_attempt_status WITH (security_barrier='true') AS
     created_at
    FROM public.signed_attempts;
 
-
---
--- Name: signer_heartbeats; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.signer_heartbeats (
     treasury_fingerprint text NOT NULL,
     environment text NOT NULL,
@@ -2714,14 +2616,9 @@ CREATE TABLE public.signer_heartbeats (
     heartbeat_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     CONSTRAINT signer_heartbeats_chain_check CHECK ((chain = ANY (ARRAY['eth'::text, 'bnb'::text, 'sol'::text, 'tron'::text]))),
     CONSTRAINT signer_heartbeats_configuration_hash_check CHECK ((length(configuration_hash) = 64)),
-    CONSTRAINT signer_heartbeats_environment_check CHECK ((environment = 'testnet'::text)),
+    CONSTRAINT signer_heartbeats_environment_check CHECK ((environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))),
     CONSTRAINT signer_heartbeats_treasury_fingerprint_check CHECK ((length(treasury_fingerprint) = 64))
 );
-
-
---
--- Name: signer_reservations; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.signer_reservations (
     obligation_id uuid NOT NULL,
@@ -2735,11 +2632,6 @@ CREATE TABLE public.signer_reservations (
     CONSTRAINT signer_reservations_principal_usd_micros_check CHECK ((principal_usd_micros >= (0)::numeric))
 );
 
-
---
--- Name: signer_states; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.signer_states (
     treasury_fingerprint text NOT NULL,
     environment text NOT NULL,
@@ -2750,15 +2642,10 @@ CREATE TABLE public.signer_states (
     lease_until timestamp with time zone,
     heartbeat_at timestamp with time zone,
     configuration_hash text,
-    CONSTRAINT signer_states_environment_check CHECK ((environment = 'testnet'::text)),
+    CONSTRAINT signer_states_environment_check CHECK ((environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))),
     CONSTRAINT signer_states_next_nonce_check CHECK ((next_nonce >= (0)::numeric)),
     CONSTRAINT signer_states_treasury_fingerprint_check CHECK ((length(treasury_fingerprint) = 64))
 );
-
-
---
--- Name: gw_signer_health; Type: VIEW; Schema: public; Owner: -
---
 
 CREATE VIEW public.gw_signer_health WITH (security_barrier='true') AS
  SELECT h.treasury_fingerprint,
@@ -2783,11 +2670,6 @@ CREATE VIEW public.gw_signer_health WITH (security_barrier='true') AS
                   WHERE (h0.treasury_fingerprint = s0.treasury_fingerprint)))))) h
      LEFT JOIN public.signer_states s ON ((s.treasury_fingerprint = h.treasury_fingerprint)));
 
-
---
--- Name: users; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.users (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     username text NOT NULL,
@@ -2806,18 +2688,23 @@ CREATE TABLE public.users (
     account_revision integer DEFAULT 1 NOT NULL,
     suspension_until timestamp with time zone,
     suspension_previous_status text,
+    publication_classification text DEFAULT 'unreviewed'::text NOT NULL,
+    activity_opt_in boolean DEFAULT false NOT NULL,
+    activity_revision integer DEFAULT 1 NOT NULL,
+    time_zone text DEFAULT 'Africa/Lagos'::text NOT NULL,
+    preferences_revision integer DEFAULT 1 NOT NULL,
+    age_dob_verified_at timestamp with time zone,
     CONSTRAINT users_account_revision_check CHECK ((account_revision > 0)),
+    CONSTRAINT users_activity_revision_check CHECK ((activity_revision > 0)),
     CONSTRAINT users_age_minimum_accepted_check CHECK (((age_minimum_accepted >= 1) AND (age_minimum_accepted <= 120))),
+    CONSTRAINT users_dob_verification_check CHECK (((age_dob_verified_at IS NULL) OR ((age_confirmed_at IS NOT NULL) AND (age_minimum_accepted IS NOT NULL)))),
+    CONSTRAINT users_preferences_revision_check CHECK ((preferences_revision > 0)),
+    CONSTRAINT users_publication_classification_check CHECK ((publication_classification = ANY (ARRAY['unreviewed'::text, 'test'::text, 'real'::text]))),
     CONSTRAINT users_role_check CHECK ((role = ANY (ARRAY['member'::text, 'moderator'::text, 'admin'::text]))),
     CONSTRAINT users_session_version_check CHECK ((session_version > 0)),
     CONSTRAINT users_status_check CHECK ((status = ANY (ARRAY['pending_consent'::text, 'active'::text, 'suspended'::text, 'banned'::text, 'deactivated'::text, 'deleted'::text]))),
     CONSTRAINT users_suspension_previous_status_check CHECK ((suspension_previous_status = ANY (ARRAY['active'::text, 'deactivated'::text])))
 );
-
-
---
--- Name: gw_sim_accounts; Type: VIEW; Schema: public; Owner: -
---
 
 CREATE VIEW public.gw_sim_accounts WITH (security_barrier='true') AS
  SELECT id,
@@ -2827,11 +2714,6 @@ CREATE VIEW public.gw_sim_accounts WITH (security_barrier='true') AS
     locale
    FROM public.users
   WHERE (current_setting('gw.environment'::text, true) = 'simulation'::text);
-
-
---
--- Name: ledger_accounts; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.ledger_accounts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2845,11 +2727,6 @@ CREATE TABLE public.ledger_accounts (
     CONSTRAINT ledger_accounts_owner_type_check CHECK ((owner_type = ANY (ARRAY['user'::text, 'platform'::text, 'system'::text])))
 );
 
-
---
--- Name: gw_user_account_balances; Type: VIEW; Schema: public; Owner: -
---
-
 CREATE VIEW public.gw_user_account_balances WITH (security_barrier='true') AS
  SELECT a.owner_id AS user_id,
     a.asset_id,
@@ -2858,11 +2735,6 @@ CREATE VIEW public.gw_user_account_balances WITH (security_barrier='true') AS
    FROM (public.ledger_accounts a
      JOIN public.assets x ON ((x.id = a.asset_id)))
   WHERE ((a.owner_type = 'user'::text) AND public.gw_owns(a.owner_id) AND (x.environment = current_setting('gw.environment'::text, true)));
-
-
---
--- Name: gw_user_financial_reviews; Type: VIEW; Schema: public; Owner: -
---
 
 CREATE VIEW public.gw_user_financial_reviews WITH (security_barrier='true') AS
  SELECT u.id AS user_id,
@@ -2873,11 +2745,6 @@ CREATE VIEW public.gw_user_financial_reviews WITH (security_barrier='true') AS
      LEFT JOIN public.simulation_reorg_resolutions resolved ON ((resolved.review_id = r.id)))
   WHERE ((resolved.id IS NULL) AND (r.environment = current_setting('gw.environment'::text, true)) AND (u.id = public.gw_actor_id()))
   GROUP BY u.id, r.asset_id;
-
-
---
--- Name: help_articles; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.help_articles (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2896,11 +2763,6 @@ CREATE TABLE public.help_articles (
     CONSTRAINT help_articles_title_check CHECK (((length(title) >= 1) AND (length(title) <= 200))),
     CONSTRAINT help_articles_version_check CHECK ((version > 0))
 );
-
-
---
--- Name: jobs; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.jobs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2923,6 +2785,8 @@ CREATE TABLE public.jobs (
     redacted_at timestamp with time zone,
     redacted_payload_hash text,
     request_id uuid DEFAULT (NULLIF(current_setting('gw.request_id'::text, true), ''::text))::uuid,
+    retired_at timestamp with time zone,
+    retired_payload_hash text,
     CONSTRAINT jobs_attempts_check CHECK ((attempts >= 0)),
     CONSTRAINT jobs_completion_shape CHECK ((((status = ANY (ARRAY['done'::text, 'dead_letter'::text])) AND (completed_at IS NOT NULL)) OR ((status <> ALL (ARRAY['done'::text, 'dead_letter'::text])) AND (completed_at IS NULL)))),
     CONSTRAINT jobs_environment_check CHECK ((environment = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text]))),
@@ -2932,14 +2796,10 @@ CREATE TABLE public.jobs (
     CONSTRAINT jobs_lease_shape CHECK ((((status = 'running'::text) AND (lease_token IS NOT NULL) AND (lease_until IS NOT NULL)) OR ((status <> 'running'::text) AND (lease_token IS NULL) AND (lease_until IS NULL)))),
     CONSTRAINT jobs_payload_check CHECK (((jsonb_typeof(payload) = 'object'::text) AND (octet_length((payload)::text) <= 8192))),
     CONSTRAINT jobs_redacted_payload_hash_check CHECK (((redacted_payload_hash IS NULL) OR (length(redacted_payload_hash) = 64))),
+    CONSTRAINT jobs_retirement_check CHECK ((((retired_at IS NULL) AND (retired_payload_hash IS NULL)) OR ((retired_at IS NOT NULL) AND (retired_payload_hash IS NOT NULL) AND (retired_payload_hash ~ '^[a-f0-9]{64}$'::text)))),
     CONSTRAINT jobs_retry_limit_check CHECK (((retry_limit >= 1) AND (retry_limit <= 1000000))),
     CONSTRAINT jobs_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'done'::text, 'retry_wait'::text, 'dead_letter'::text])))
 );
-
-
---
--- Name: ledger_account_buckets; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.ledger_account_buckets (
     account_id uuid NOT NULL,
@@ -2947,11 +2807,6 @@ CREATE TABLE public.ledger_account_buckets (
     amount numeric DEFAULT 0 NOT NULL,
     CONSTRAINT ledger_account_buckets_label_check CHECK ((label = ANY (ARRAY['settled_payout_net'::text, 'refund_held'::text])))
 );
-
-
---
--- Name: ledger_account_totals; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.ledger_account_totals (
     account_id uuid NOT NULL,
@@ -2968,11 +2823,6 @@ CREATE TABLE public.ledger_account_totals (
     CONSTRAINT ledger_account_totals_debits_check CHECK ((debits >= (0)::numeric))
 );
 
-
---
--- Name: ledger_asset_totals; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.ledger_asset_totals (
     asset_id uuid NOT NULL,
     purpose text NOT NULL,
@@ -2984,19 +2834,9 @@ CREATE TABLE public.ledger_asset_totals (
     CONSTRAINT ledger_asset_totals_debits_check CHECK ((debits >= (0)::numeric))
 );
 
-
---
--- Name: ledger_counter_markers; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.ledger_counter_markers (
     posting_id uuid NOT NULL
 );
-
-
---
--- Name: ledger_counter_state; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.ledger_counter_state (
     id text NOT NULL,
@@ -3015,11 +2855,6 @@ CREATE TABLE public.ledger_counter_state (
     CONSTRAINT ledger_counter_state_reason_code_check CHECK (((reason_code IS NULL) OR (reason_code = 'LEDGER_SOURCE_INVALID'::text)))
 );
 
-
---
--- Name: ledger_journal_audits; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.ledger_journal_audits (
     journal_id uuid NOT NULL,
     debit_total numeric NOT NULL,
@@ -3033,11 +2868,6 @@ CREATE TABLE public.ledger_journal_audits (
     CONSTRAINT ledger_journal_audits_proof_hash_check CHECK ((length(proof_hash) = 64))
 );
 
-
---
--- Name: ledger_journals; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.ledger_journals (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     ledger_type text NOT NULL,
@@ -3046,27 +2876,6 @@ CREATE TABLE public.ledger_journals (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_txid bigint DEFAULT txid_current() NOT NULL
 );
-
-
---
--- Name: ledger_postings; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.ledger_postings (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    journal_id uuid NOT NULL,
-    account_id uuid NOT NULL,
-    direction text NOT NULL,
-    amount_base_units numeric(78,0) NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT ledger_postings_amount_base_units_check CHECK ((amount_base_units > (0)::numeric)),
-    CONSTRAINT ledger_postings_direction_check CHECK ((direction = ANY (ARRAY['debit'::text, 'credit'::text])))
-);
-
-
---
--- Name: liability_recoveries; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.liability_recoveries (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3085,11 +2894,6 @@ CREATE TABLE public.liability_recoveries (
     CONSTRAINT liability_recoveries_confirmation_hash_check CHECK (((confirmation_hash IS NULL) OR (length(confirmation_hash) = 64))),
     CONSTRAINT liability_recoveries_statement_hash_check CHECK ((length(statement_hash) = 64))
 );
-
-
---
--- Name: maintenance_results; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.maintenance_results (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3113,11 +2917,6 @@ CREATE TABLE public.maintenance_results (
     CONSTRAINT maintenance_results_runs_deleted_check CHECK (((runs_deleted >= 0) AND (runs_deleted <= 100)))
 );
 
-
---
--- Name: native_reserve_inflows; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.native_reserve_inflows (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     asset_id uuid NOT NULL,
@@ -3137,16 +2936,11 @@ CREATE TABLE public.native_reserve_inflows (
     journal_id uuid NOT NULL,
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     CONSTRAINT native_reserve_inflows_amount_base_units_check CHECK ((amount_base_units > (0)::numeric)),
-    CONSTRAINT native_reserve_inflows_environment_check CHECK ((environment = 'testnet'::text)),
+    CONSTRAINT native_reserve_inflows_environment_check CHECK ((environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))),
     CONSTRAINT native_reserve_inflows_event_index_check CHECK ((event_index >= 0)),
     CONSTRAINT native_reserve_inflows_request_hash_check CHECK ((length(request_hash) = 64)),
     CONSTRAINT native_reserve_inflows_statement_hash_check CHECK ((length(statement_hash) = 64))
 );
-
-
---
--- Name: notification_views; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.notification_views (
     user_id uuid NOT NULL,
@@ -3154,11 +2948,6 @@ CREATE TABLE public.notification_views (
     seen_id uuid NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
-
-
---
--- Name: notifications; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.notifications (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3170,13 +2959,11 @@ CREATE TABLE public.notifications (
     delivery_key text,
     redacted_at timestamp with time zone,
     redacted_body_hash text,
-    CONSTRAINT notifications_redacted_body_hash_check CHECK (((redacted_body_hash IS NULL) OR (length(redacted_body_hash) = 64)))
+    retired_at timestamp with time zone,
+    retired_body_hash text,
+    CONSTRAINT notifications_redacted_body_hash_check CHECK (((redacted_body_hash IS NULL) OR (length(redacted_body_hash) = 64))),
+    CONSTRAINT notifications_retirement_check CHECK ((((retired_at IS NULL) AND (retired_body_hash IS NULL)) OR ((retired_at IS NOT NULL) AND (retired_body_hash IS NOT NULL) AND (retired_body_hash ~ '^[a-f0-9]{64}$'::text))))
 );
-
-
---
--- Name: operation_keys; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.operation_keys (
     business_key text NOT NULL,
@@ -3184,11 +2971,6 @@ CREATE TABLE public.operation_keys (
     result jsonb,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
-
-
---
--- Name: operational_alerts; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.operational_alerts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3207,30 +2989,20 @@ CREATE TABLE public.operational_alerts (
     occurrence integer DEFAULT 1 NOT NULL,
     escalation_step integer DEFAULT 0 NOT NULL,
     occurrence_started_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    CONSTRAINT operational_alerts_environment_check CHECK ((environment = ANY (ARRAY['simulation'::text, 'testnet'::text]))),
+    CONSTRAINT operational_alerts_environment_check CHECK ((environment = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text]))),
     CONSTRAINT operational_alerts_escalation_step_check CHECK ((escalation_step >= 0)),
     CONSTRAINT operational_alerts_occurrence_check CHECK ((occurrence > 0)),
     CONSTRAINT operational_alerts_severity_check CHECK ((severity = ANY (ARRAY['P1'::text, 'P2'::text, 'P3'::text, 'INFO'::text]))),
     CONSTRAINT operational_alerts_status_check CHECK ((status = ANY (ARRAY['open'::text, 'acknowledged'::text, 'resolved'::text])))
 );
 
-
---
--- Name: operational_diagnostics; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.operational_diagnostics (
     environment text NOT NULL,
     snapshot jsonb NOT NULL,
     observed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    CONSTRAINT operational_diagnostics_environment_check CHECK ((environment = ANY (ARRAY['simulation'::text, 'testnet'::text]))),
+    CONSTRAINT operational_diagnostics_environment_check CHECK ((environment = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text]))),
     CONSTRAINT operational_diagnostics_snapshot_check CHECK ((octet_length((snapshot)::text) <= 8192))
 );
-
-
---
--- Name: outbox; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.outbox (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3243,16 +3015,14 @@ CREATE TABLE public.outbox (
     redacted_at timestamp with time zone,
     redacted_payload_hash text,
     request_id uuid DEFAULT (NULLIF(current_setting('gw.request_id'::text, true), ''::text))::uuid,
+    retired_at timestamp with time zone,
+    retired_payload_hash text,
     CONSTRAINT outbox_environment_check CHECK ((environment = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text]))),
     CONSTRAINT outbox_kind_check CHECK ((kind = ANY (ARRAY['notification'::text, 'financial_reconciliation'::text, 'operational_cleanup'::text, 'own_export'::text, 'chain_observation'::text, 'privacy_redaction'::text]))),
     CONSTRAINT outbox_payload_check CHECK (((jsonb_typeof(payload) = 'object'::text) AND (octet_length((payload)::text) <= 8192))),
-    CONSTRAINT outbox_redacted_payload_hash_check CHECK (((redacted_payload_hash IS NULL) OR (length(redacted_payload_hash) = 64)))
+    CONSTRAINT outbox_redacted_payload_hash_check CHECK (((redacted_payload_hash IS NULL) OR (length(redacted_payload_hash) = 64))),
+    CONSTRAINT outbox_retirement_check CHECK ((((retired_at IS NULL) AND (retired_payload_hash IS NULL)) OR ((retired_at IS NOT NULL) AND (retired_payload_hash IS NOT NULL) AND (retired_payload_hash ~ '^[a-f0-9]{64}$'::text))))
 );
-
-
---
--- Name: plan_versions; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.plan_versions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3268,13 +3038,11 @@ CREATE TABLE public.plan_versions (
     receipts_required integer NOT NULL,
     active boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    usd_reference numeric(20,2) NOT NULL
+    usd_reference numeric(20,2) NOT NULL,
+    pricing_mode text DEFAULT 'usd_at_activation'::text NOT NULL,
+    activation_price_id uuid,
+    CONSTRAINT plan_versions_pricing_mode_check CHECK ((pricing_mode = ANY (ARRAY['usd_at_activation'::text, 'fixed_token'::text])))
 );
-
-
---
--- Name: plans; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.plans (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3292,11 +3060,6 @@ CREATE TABLE public.plans (
     CONSTRAINT plans_status_check CHECK ((status = ANY (ARRAY['disabled'::text, 'scheduled'::text, 'active'::text, 'paused'::text, 'retired'::text])))
 );
 
-
---
--- Name: point_events; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.point_events (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
@@ -3305,11 +3068,6 @@ CREATE TABLE public.point_events (
     points integer NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
-
-
---
--- Name: price_quotes; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.price_quotes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3324,10 +3082,21 @@ CREATE TABLE public.price_quotes (
     CONSTRAINT price_quotes_fingerprint_check CHECK ((length(fingerprint) = 64))
 );
 
-
---
--- Name: provider_quota_reports; Type: TABLE; Schema: public; Owner: -
---
+CREATE TABLE public.profile_previews (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    actor_user_id uuid NOT NULL,
+    expected_revision integer NOT NULL,
+    manifest_version text NOT NULL,
+    proposal jsonb NOT NULL,
+    impact jsonb NOT NULL,
+    partition_versions jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    committed_at timestamp with time zone,
+    CONSTRAINT profile_previews_expiry_check CHECK ((expires_at > created_at)),
+    CONSTRAINT profile_previews_revision_check CHECK ((expected_revision > 0)),
+    CONSTRAINT profile_previews_version_check CHECK ((manifest_version ~ '^[a-f0-9]{64}$'::text))
+);
 
 CREATE TABLE public.provider_quota_reports (
     environment text NOT NULL,
@@ -3341,17 +3110,12 @@ CREATE TABLE public.provider_quota_reports (
     proof_reference text NOT NULL,
     CONSTRAINT provider_quota_reports_binding_fingerprint_check CHECK ((length(binding_fingerprint) = 64)),
     CONSTRAINT provider_quota_reports_capacity_check CHECK ((capacity > (0)::numeric)),
-    CONSTRAINT provider_quota_reports_environment_check CHECK ((environment = ANY (ARRAY['simulation'::text, 'testnet'::text]))),
+    CONSTRAINT provider_quota_reports_environment_check CHECK ((environment = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text]))),
     CONSTRAINT provider_quota_reports_proof_reference_check CHECK (((length(proof_reference) >= 5) AND (length(proof_reference) <= 200))),
     CONSTRAINT provider_quota_reports_provider_check CHECK ((provider = ANY (ARRAY['postgres'::text, 'vercel'::text, 'cache'::text, 'rpc'::text]))),
     CONSTRAINT provider_quota_reports_revision_check CHECK ((revision > 0)),
     CONSTRAINT provider_quota_reports_used_check CHECK ((used >= (0)::numeric))
 );
-
-
---
--- Name: public_statistics; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.public_statistics (
     environment text NOT NULL,
@@ -3360,16 +3124,14 @@ CREATE TABLE public.public_statistics (
     settled_member_usd numeric(78,18) NOT NULL,
     observed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     expires_at timestamp with time zone NOT NULL,
-    CONSTRAINT public_statistics_environment_check CHECK ((environment = ANY (ARRAY['simulation'::text, 'testnet'::text]))),
+    profile_revision integer DEFAULT 1 NOT NULL,
+    verified_only boolean DEFAULT false NOT NULL,
+    CONSTRAINT public_statistics_environment_check CHECK ((environment = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text]))),
     CONSTRAINT public_statistics_members_check CHECK ((members >= 0)),
     CONSTRAINT public_statistics_pending_registrations_check CHECK ((pending_registrations >= 0)),
+    CONSTRAINT public_statistics_profile_revision_check CHECK ((profile_revision > 0)),
     CONSTRAINT public_statistics_settled_member_usd_check CHECK ((settled_member_usd >= (0)::numeric))
 );
-
-
---
--- Name: queue_partitions; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.queue_partitions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3378,13 +3140,9 @@ CREATE TABLE public.queue_partitions (
     revision bigint DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     next_priority_ticket bigint DEFAULT 1 NOT NULL,
-    CONSTRAINT queue_partition_ticket_bounds CHECK ((((next_ticket >= 1) AND (next_ticket <= '1099511627776'::bigint)) AND ((next_priority_ticket >= 1) AND (next_priority_ticket <= '1099511627776'::bigint))))
+    CONSTRAINT queue_partition_ticket_bounds CHECK (((next_ticket >= 1) AND (next_ticket <= '1099511627776'::bigint) AND ((next_priority_ticket >= 1) AND (next_priority_ticket <= '1099511627776'::bigint)))),
+    CONSTRAINT queue_partitions_revision_bounds CHECK (((revision >= 0) AND (revision <= '9007199254740991'::bigint)))
 );
-
-
---
--- Name: queue_rank_nodes; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.queue_rank_nodes (
     partition_id uuid NOT NULL,
@@ -3395,11 +3153,6 @@ CREATE TABLE public.queue_rank_nodes (
     CONSTRAINT queue_rank_nodes_node_index_check CHECK (((node_index >= 1) AND (node_index <= '1099511627776'::bigint))),
     CONSTRAINT queue_rank_nodes_waiting_count_check CHECK (((waiting_count >= 0) AND (waiting_count <= '1099511627775'::bigint)))
 );
-
-
---
--- Name: rate_limits; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.rate_limits (
     key_hash text NOT NULL,
@@ -3413,11 +3166,6 @@ CREATE TABLE public.rate_limits (
     CONSTRAINT rate_limits_used_check CHECK ((used > 0)),
     CONSTRAINT rate_limits_window_seconds_check CHECK (((window_seconds >= 1) AND (window_seconds <= 1000000)))
 );
-
-
---
--- Name: receipt_allocations; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.receipt_allocations (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3446,11 +3194,6 @@ CREATE TABLE public.receipt_allocations (
     CONSTRAINT receipt_slot_shape CHECK ((((receiver_kind = 'empty_queue_business'::text) AND (receiver_entry_id IS NULL) AND (slot_index IS NULL)) OR ((receiver_kind = ANY (ARRAY['member'::text, 'bootstrap'::text])) AND (receiver_entry_id IS NOT NULL) AND (((lineage_status = 'captured'::text) AND (slot_index IS NOT NULL) AND (slot_index > 0)) OR ((lineage_status = 'legacy_linked'::text) AND (slot_index IS NULL))))))
 );
 
-
---
--- Name: recovery_outflow_resolutions; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.recovery_outflow_resolutions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     outflow_id uuid NOT NULL,
@@ -3475,11 +3218,6 @@ CREATE TABLE public.recovery_outflow_resolutions (
     CONSTRAINT recovery_outflow_resolutions_principal_base_units_check CHECK ((principal_base_units >= (0)::numeric))
 );
 
-
---
--- Name: recovery_outflows; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.recovery_outflows (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     run_id uuid NOT NULL,
@@ -3499,11 +3237,6 @@ CREATE TABLE public.recovery_outflows (
     CONSTRAINT recovery_outflows_status_check CHECK ((status = ANY (ARRAY['matched'::text, 'review'::text])))
 );
 
-
---
--- Name: recovery_view_caps; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.recovery_view_caps (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     recovery_id uuid NOT NULL,
@@ -3513,21 +3246,11 @@ CREATE TABLE public.recovery_view_caps (
     CONSTRAINT recovery_view_caps_token_hash_check CHECK ((length(token_hash) = 64))
 );
 
-
---
--- Name: referral_codes; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.referral_codes (
     user_id uuid NOT NULL,
     code uuid DEFAULT gen_random_uuid() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
-
-
---
--- Name: reports; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.reports (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3547,11 +3270,6 @@ CREATE TABLE public.reports (
     CONSTRAINT reports_status_check CHECK ((status = ANY (ARRAY['open'::text, 'reviewing'::text, 'resolved'::text, 'dismissed'::text, 'appealed'::text])))
 );
 
-
---
--- Name: scheduler_nonces; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.scheduler_nonces (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     environment text NOT NULL,
@@ -3560,11 +3278,6 @@ CREATE TABLE public.scheduler_nonces (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT scheduler_nonces_environment_check CHECK ((environment = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])))
 );
-
-
---
--- Name: scheduler_runs; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.scheduler_runs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3579,22 +3292,12 @@ CREATE TABLE public.scheduler_runs (
     CONSTRAINT scheduler_runs_lease_generation_check CHECK (((lease_generation >= 1) AND (lease_generation <= 1000000)))
 );
 
-
---
--- Name: schema_migrations; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.schema_migrations (
     name text NOT NULL,
     sha256 text NOT NULL,
     applied_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     CONSTRAINT schema_migrations_sha256_check CHECK ((length(sha256) = 64))
 );
-
-
---
--- Name: signer_dispatch_cursor; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.signer_dispatch_cursor (
     singleton boolean DEFAULT true NOT NULL,
@@ -3603,11 +3306,6 @@ CREATE TABLE public.signer_dispatch_cursor (
     CONSTRAINT signer_dispatch_cursor_check CHECK (((last_created_at IS NULL) = (last_id IS NULL))),
     CONSTRAINT signer_dispatch_cursor_singleton_check CHECK (singleton)
 );
-
-
---
--- Name: simulation_incoming_controls; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.simulation_incoming_controls (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3625,11 +3323,6 @@ CREATE TABLE public.simulation_incoming_controls (
     CONSTRAINT simulation_incoming_controls_reason_check CHECK (((length(reason) >= 5) AND (length(reason) <= 500)))
 );
 
-
---
--- Name: simulation_incoming_events; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.simulation_incoming_events (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     invoice_id uuid NOT NULL,
@@ -3643,11 +3336,6 @@ CREATE TABLE public.simulation_incoming_events (
     CONSTRAINT simulation_incoming_events_environment_check CHECK ((environment = 'simulation'::text)),
     CONSTRAINT simulation_incoming_events_outcome_check CHECK ((outcome = ANY (ARRAY['exact'::text, 'reject'::text, 'under'::text, 'over'::text, 'late'::text, 'review_reject'::text])))
 );
-
-
---
--- Name: simulation_incoming_refunds; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.simulation_incoming_refunds (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3664,11 +3352,6 @@ CREATE TABLE public.simulation_incoming_refunds (
     CONSTRAINT simulation_incoming_refunds_reason_check CHECK (((length(reason) >= 5) AND (length(reason) <= 500)))
 );
 
-
---
--- Name: simulation_withdrawal_controls; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.simulation_withdrawal_controls (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     withdrawal_id uuid NOT NULL,
@@ -3683,11 +3366,6 @@ CREATE TABLE public.simulation_withdrawal_controls (
     CONSTRAINT simulation_withdrawal_controls_reason_check CHECK (((length(reason) >= 5) AND (length(reason) <= 500)))
 );
 
-
---
--- Name: slug_redirects; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.slug_redirects (
     locale text NOT NULL,
     old_slug text NOT NULL,
@@ -3697,10 +3375,13 @@ CREATE TABLE public.slug_redirects (
     CONSTRAINT slug_redirects_old_slug_check CHECK ((old_slug ~ '^[a-z0-9][a-z0-9-]{0,79}$'::text))
 );
 
-
---
--- Name: unallocated_inflows; Type: TABLE; Schema: public; Owner: -
---
+CREATE TABLE public.treasury_addresses (
+    asset_id uuid NOT NULL,
+    address text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_monitor_at timestamp with time zone DEFAULT '1970-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    CONSTRAINT treasury_addresses_address_check CHECK (((length(address) >= 1) AND (length(address) <= 128)))
+);
 
 CREATE TABLE public.unallocated_inflows (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3721,15 +3402,10 @@ CREATE TABLE public.unallocated_inflows (
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     CONSTRAINT unallocated_inflows_amount_base_units_check CHECK ((amount_base_units > (0)::numeric)),
     CONSTRAINT unallocated_inflows_block_height_check CHECK ((block_height >= (0)::numeric)),
-    CONSTRAINT unallocated_inflows_environment_check CHECK ((environment = 'testnet'::text)),
+    CONSTRAINT unallocated_inflows_environment_check CHECK ((environment = ANY (ARRAY['testnet'::text, 'mainnet'::text]))),
     CONSTRAINT unallocated_inflows_event_index_check CHECK ((event_index >= 0)),
     CONSTRAINT unallocated_inflows_treasury_fingerprint_check CHECK ((length(treasury_fingerprint) = 64))
 );
-
-
---
--- Name: unallocated_refund_claims; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.unallocated_refund_claims (
     inflow_id uuid NOT NULL,
@@ -3743,11 +3419,6 @@ CREATE TABLE public.unallocated_refund_claims (
     CONSTRAINT unallocated_refund_claims_statement_hash_check CHECK ((length(statement_hash) = 64))
 );
 
-
---
--- Name: user_identities; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.user_identities (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
@@ -3757,11 +3428,6 @@ CREATE TABLE public.user_identities (
     CONSTRAINT user_identities_provider_check CHECK ((provider = ANY (ARRAY['google'::text, 'simulation'::text]))),
     CONSTRAINT user_identities_subject_check CHECK (((length(subject) >= 1) AND (length(subject) <= 255)))
 );
-
-
---
--- Name: wallet_challenges; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.wallet_challenges (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3776,13 +3442,8 @@ CREATE TABLE public.wallet_challenges (
     used_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     CONSTRAINT wallet_challenges_chain_check CHECK ((chain = ANY (ARRAY['eth'::text, 'bnb'::text, 'sol'::text, 'tron'::text]))),
-    CONSTRAINT wallet_challenges_environment_check CHECK ((environment = 'testnet'::text))
+    CONSTRAINT wallet_challenges_environment_check CHECK ((environment = ANY (ARRAY['testnet'::text, 'mainnet'::text])))
 );
-
-
---
--- Name: wallet_links; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.wallet_links (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3796,11 +3457,6 @@ CREATE TABLE public.wallet_links (
     revision integer DEFAULT 1 NOT NULL,
     CONSTRAINT wallet_links_revision_check CHECK ((revision > 0))
 );
-
-
---
--- Name: withdrawals; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.withdrawals (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3819,11 +3475,6 @@ CREATE TABLE public.withdrawals (
     CONSTRAINT withdrawals_status_check CHECK ((status = ANY (ARRAY['quoted'::text, 'held'::text, 'awaiting_requote'::text, 'approved'::text, 'sending'::text, 'settled'::text, 'cancelled'::text, 'exception'::text])))
 );
 
-
---
--- Name: worker_requests; Type: TABLE; Schema: public; Owner: -
---
-
 CREATE TABLE public.worker_requests (
     nonce uuid NOT NULL,
     environment text NOT NULL,
@@ -3832,13 +3483,8 @@ CREATE TABLE public.worker_requests (
     expires_at timestamp with time zone NOT NULL,
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     CONSTRAINT worker_requests_body_hash_check CHECK ((length(body_hash) = 64)),
-    CONSTRAINT worker_requests_environment_check CHECK ((environment = 'testnet'::text))
+    CONSTRAINT worker_requests_environment_check CHECK ((environment = ANY (ARRAY['testnet'::text, 'mainnet'::text])))
 );
-
-
---
--- Name: x_manifest; Type: TABLE; Schema: public; Owner: -
---
 
 CREATE TABLE public.x_manifest (
     key text NOT NULL,
@@ -3853,5410 +3499,2429 @@ CREATE TABLE public.x_manifest (
     CONSTRAINT x_manifest_scope_check CHECK ((scope = ANY (ARRAY['public'::text, 'private'::text, 'staff'::text])))
 );
 
+ALTER TABLE ONLY public.audit_events ATTACH PARTITION public.gw_part_au_default DEFAULT;
 
---
--- Name: abuse_signals abuse_signals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
+ALTER TABLE ONLY public.chain_scan_pages ATTACH PARTITION public.gw_part_cs_default DEFAULT;
+
+ALTER TABLE ONLY public.ledger_postings ATTACH PARTITION public.gw_part_lp_default DEFAULT;
 
 ALTER TABLE ONLY public.abuse_signals
     ADD CONSTRAINT abuse_signals_pkey PRIMARY KEY (id);
 
-
---
--- Name: abuse_signals abuse_signals_source_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.abuse_signals
     ADD CONSTRAINT abuse_signals_source_key_key UNIQUE (source_key);
-
-
---
--- Name: alert_deliveries alert_deliveries_business_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.alert_deliveries
     ADD CONSTRAINT alert_deliveries_business_key_key UNIQUE (business_key);
 
-
---
--- Name: alert_deliveries alert_deliveries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.alert_deliveries
     ADD CONSTRAINT alert_deliveries_pkey PRIMARY KEY (id);
-
-
---
--- Name: appeals appeals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.appeals
     ADD CONSTRAINT appeals_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.archive_months
+    ADD CONSTRAINT archive_months_child_name_key UNIQUE (child_name);
 
---
--- Name: assets assets_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
+ALTER TABLE ONLY public.archive_months
+    ADD CONSTRAINT archive_months_pkey PRIMARY KEY (source_table, month_start);
+
+ALTER TABLE ONLY public.archive_record_keys
+    ADD CONSTRAINT archive_record_keys_pkey PRIMARY KEY (source_table, record_key);
 
 ALTER TABLE ONLY public.assets
     ADD CONSTRAINT assets_pkey PRIMARY KEY (id);
 
-
---
--- Name: assets assets_symbol_environment_chain_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.assets
     ADD CONSTRAINT assets_symbol_environment_chain_id_key UNIQUE (symbol, environment, chain_id);
 
-
---
--- Name: audit_events audit_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.audit_events
-    ADD CONSTRAINT audit_events_pkey PRIMARY KEY (id);
-
-
---
--- Name: auth_factors auth_factors_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
+    ADD CONSTRAINT audit_events_pkey PRIMARY KEY (id, created_at);
 
 ALTER TABLE ONLY public.auth_factors
     ADD CONSTRAINT auth_factors_id_key UNIQUE (id);
 
-
---
--- Name: auth_factors auth_factors_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.auth_factors
     ADD CONSTRAINT auth_factors_pkey PRIMARY KEY (user_id);
-
-
---
--- Name: auth_flows auth_flows_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.auth_flows
     ADD CONSTRAINT auth_flows_pkey PRIMARY KEY (state_hash);
 
-
---
--- Name: auth_recovery_codes auth_recovery_codes_code_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.auth_recovery_codes
     ADD CONSTRAINT auth_recovery_codes_code_hash_key UNIQUE (code_hash);
-
-
---
--- Name: auth_recovery_codes auth_recovery_codes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.auth_recovery_codes
     ADD CONSTRAINT auth_recovery_codes_pkey PRIMARY KEY (id);
 
-
---
--- Name: auth_refresh_tokens auth_refresh_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.auth_refresh_tokens
     ADD CONSTRAINT auth_refresh_tokens_pkey PRIMARY KEY (token_hash);
-
-
---
--- Name: auth_sessions auth_sessions_access_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.auth_sessions
     ADD CONSTRAINT auth_sessions_access_hash_key UNIQUE (access_hash);
 
-
---
--- Name: auth_sessions auth_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.auth_sessions
     ADD CONSTRAINT auth_sessions_pkey PRIMARY KEY (id);
-
-
---
--- Name: auth_totp_replays auth_totp_replays_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.auth_totp_replays
     ADD CONSTRAINT auth_totp_replays_pkey PRIMARY KEY (factor_id, time_step);
 
-
---
--- Name: bot_challenges bot_challenges_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.bot_challenges
     ADD CONSTRAINT bot_challenges_pkey PRIMARY KEY (id);
-
-
---
--- Name: bot_token_uses bot_token_uses_challenge_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.bot_token_uses
     ADD CONSTRAINT bot_token_uses_challenge_id_key UNIQUE (challenge_id);
 
-
---
--- Name: bot_token_uses bot_token_uses_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.bot_token_uses
     ADD CONSTRAINT bot_token_uses_pkey PRIMARY KEY (token_hash);
-
-
---
--- Name: chain_checkpoints chain_checkpoints_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.chain_checkpoints
     ADD CONSTRAINT chain_checkpoints_pkey PRIMARY KEY (id);
 
-
---
--- Name: chain_fee_claims chain_fee_claims_gas_journal_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.chain_fee_claims
     ADD CONSTRAINT chain_fee_claims_gas_journal_id_key UNIQUE (gas_journal_id);
-
-
---
--- Name: chain_fee_claims chain_fee_claims_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.chain_fee_claims
     ADD CONSTRAINT chain_fee_claims_pkey PRIMARY KEY (id);
 
-
---
--- Name: chain_fee_claims chain_fee_claims_setup_journal_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.chain_fee_claims
     ADD CONSTRAINT chain_fee_claims_setup_journal_id_key UNIQUE (setup_journal_id);
-
-
---
--- Name: chain_observations chain_observations_business_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.chain_observations
     ADD CONSTRAINT chain_observations_business_key_key UNIQUE (business_key);
 
-
---
--- Name: chain_observations chain_observations_invoice_id_tx_hash_event_index_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.chain_observations
     ADD CONSTRAINT chain_observations_invoice_id_tx_hash_event_index_key UNIQUE (invoice_id, tx_hash, event_index);
-
-
---
--- Name: chain_observations chain_observations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.chain_observations
     ADD CONSTRAINT chain_observations_pkey PRIMARY KEY (id);
 
-
---
--- Name: chain_observations chain_observations_source_job_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.chain_observations
     ADD CONSTRAINT chain_observations_source_job_id_key UNIQUE (source_job_id);
-
-
---
--- Name: chain_recovery_runs chain_recovery_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.chain_recovery_runs
     ADD CONSTRAINT chain_recovery_runs_pkey PRIMARY KEY (id);
 
-
---
--- Name: chain_scan_pages chain_scan_pages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.chain_scan_pages
-    ADD CONSTRAINT chain_scan_pages_pkey PRIMARY KEY (run_id, revision);
-
-
---
--- Name: crypto_events crypto_events_environment_chain_tx_hash_event_index_asset_i_key; Type: CONSTRAINT; Schema: public; Owner: -
---
+    ADD CONSTRAINT chain_scan_pages_pkey PRIMARY KEY (run_id, revision, created_at);
 
 ALTER TABLE ONLY public.crypto_events
     ADD CONSTRAINT crypto_events_environment_chain_tx_hash_event_index_asset_i_key UNIQUE (environment, chain, tx_hash, event_index, asset_id);
 
-
---
--- Name: crypto_events crypto_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.crypto_events
     ADD CONSTRAINT crypto_events_pkey PRIMARY KEY (id);
-
-
---
--- Name: crypto_invoices crypto_invoices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.crypto_invoices
     ADD CONSTRAINT crypto_invoices_pkey PRIMARY KEY (id);
 
-
---
--- Name: crypto_invoices crypto_invoices_user_id_request_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.crypto_invoices
     ADD CONSTRAINT crypto_invoices_user_id_request_key_key UNIQUE (user_id, request_key);
-
-
---
--- Name: crypto_obligations crypto_obligations_business_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.crypto_obligations
     ADD CONSTRAINT crypto_obligations_business_key_key UNIQUE (business_key);
 
-
---
--- Name: crypto_obligations crypto_obligations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.crypto_obligations
     ADD CONSTRAINT crypto_obligations_pkey PRIMARY KEY (id);
-
-
---
--- Name: crypto_reorg_resolutions crypto_reorg_resolutions_journal_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.crypto_reorg_resolutions
     ADD CONSTRAINT crypto_reorg_resolutions_journal_id_key UNIQUE (journal_id);
 
-
---
--- Name: crypto_reorg_resolutions crypto_reorg_resolutions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.crypto_reorg_resolutions
     ADD CONSTRAINT crypto_reorg_resolutions_pkey PRIMARY KEY (review_id);
-
-
---
--- Name: crypto_reorg_reviews crypto_reorg_reviews_event_id_revision_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.crypto_reorg_reviews
     ADD CONSTRAINT crypto_reorg_reviews_event_id_revision_key UNIQUE (event_id, revision);
 
-
---
--- Name: crypto_reorg_reviews crypto_reorg_reviews_loss_journal_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.crypto_reorg_reviews
     ADD CONSTRAINT crypto_reorg_reviews_loss_journal_id_key UNIQUE (loss_journal_id);
-
-
---
--- Name: crypto_reorg_reviews crypto_reorg_reviews_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.crypto_reorg_reviews
     ADD CONSTRAINT crypto_reorg_reviews_pkey PRIMARY KEY (id);
 
-
---
--- Name: crypto_submissions crypto_submissions_invoice_id_tx_hash_event_index_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.crypto_submissions
     ADD CONSTRAINT crypto_submissions_invoice_id_tx_hash_event_index_key UNIQUE (invoice_id, tx_hash, event_index);
-
-
---
--- Name: crypto_submissions crypto_submissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.crypto_submissions
     ADD CONSTRAINT crypto_submissions_pkey PRIMARY KEY (id);
 
-
---
--- Name: cycles cycles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.cycles
     ADD CONSTRAINT cycles_pkey PRIMARY KEY (id);
-
-
---
--- Name: data_exports data_exports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.data_exports
     ADD CONSTRAINT data_exports_pkey PRIMARY KEY (id);
 
-
---
--- Name: database_binding_nonce database_binding_nonce_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.database_binding_nonce
     ADD CONSTRAINT database_binding_nonce_pkey PRIMARY KEY (singleton);
-
-
---
--- Name: deployment_binding_challenges deployment_binding_challenges_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.deployment_binding_challenges
     ADD CONSTRAINT deployment_binding_challenges_pkey PRIMARY KEY (id);
 
-
---
--- Name: environment_instances environment_instances_instance_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.environment_instances
     ADD CONSTRAINT environment_instances_instance_id_key UNIQUE (instance_id);
-
-
---
--- Name: environment_instances environment_instances_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.environment_instances
     ADD CONSTRAINT environment_instances_pkey PRIMARY KEY (environment);
 
-
---
--- Name: export_chunks export_chunks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.export_chunks
     ADD CONSTRAINT export_chunks_pkey PRIMARY KEY (export_id, part);
-
-
---
--- Name: financial_reconciliation_results financial_reconciliation_results_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.financial_reconciliation_results
     ADD CONSTRAINT financial_reconciliation_results_pkey PRIMARY KEY (id);
 
-
---
--- Name: financial_reconciliation_results financial_reconciliation_results_source_job_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.financial_reconciliation_results
     ADD CONSTRAINT financial_reconciliation_results_source_job_id_key UNIQUE (source_job_id);
-
-
---
--- Name: gift_invoices gift_invoice_request_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.gift_invoices
     ADD CONSTRAINT gift_invoice_request_key UNIQUE (user_id, request_key);
 
-
---
--- Name: gift_invoices gift_invoices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.gift_invoices
     ADD CONSTRAINT gift_invoices_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.gw_part_au_default
+    ADD CONSTRAINT gw_part_au_default_pkey PRIMARY KEY (id, created_at);
 
---
--- Name: help_articles help_articles_locale_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
---
+ALTER TABLE ONLY public.gw_part_cs_default
+    ADD CONSTRAINT gw_part_cs_default_pkey PRIMARY KEY (run_id, revision, created_at);
+
+ALTER TABLE ONLY public.ledger_postings
+    ADD CONSTRAINT ledger_postings_pkey PRIMARY KEY (id, created_at);
+
+ALTER TABLE ONLY public.gw_part_lp_default
+    ADD CONSTRAINT gw_part_lp_default_pkey PRIMARY KEY (id, created_at);
 
 ALTER TABLE ONLY public.help_articles
     ADD CONSTRAINT help_articles_locale_slug_key UNIQUE (locale, slug);
 
-
---
--- Name: help_articles help_articles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.help_articles
     ADD CONSTRAINT help_articles_pkey PRIMARY KEY (id);
-
-
---
--- Name: jobs jobs_business_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.jobs
     ADD CONSTRAINT jobs_business_key_key UNIQUE (business_key);
 
-
---
--- Name: jobs jobs_outbox_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.jobs
     ADD CONSTRAINT jobs_outbox_id_key UNIQUE (outbox_id);
-
-
---
--- Name: jobs jobs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.jobs
     ADD CONSTRAINT jobs_pkey PRIMARY KEY (id);
 
-
---
--- Name: ledger_account_buckets ledger_account_buckets_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.ledger_account_buckets
     ADD CONSTRAINT ledger_account_buckets_pkey PRIMARY KEY (account_id, label);
-
-
---
--- Name: ledger_account_totals ledger_account_totals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.ledger_account_totals
     ADD CONSTRAINT ledger_account_totals_pkey PRIMARY KEY (account_id);
 
-
---
--- Name: ledger_accounts ledger_accounts_asset_id_owner_type_owner_id_purpose_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.ledger_accounts
     ADD CONSTRAINT ledger_accounts_asset_id_owner_type_owner_id_purpose_key UNIQUE (asset_id, owner_type, owner_id, purpose);
-
-
---
--- Name: ledger_accounts ledger_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.ledger_accounts
     ADD CONSTRAINT ledger_accounts_pkey PRIMARY KEY (id);
 
-
---
--- Name: ledger_asset_totals ledger_asset_totals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.ledger_asset_totals
     ADD CONSTRAINT ledger_asset_totals_pkey PRIMARY KEY (asset_id, purpose);
-
-
---
--- Name: ledger_counter_markers ledger_counter_markers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.ledger_counter_markers
     ADD CONSTRAINT ledger_counter_markers_pkey PRIMARY KEY (posting_id);
 
-
---
--- Name: ledger_counter_state ledger_counter_state_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.ledger_counter_state
     ADD CONSTRAINT ledger_counter_state_pkey PRIMARY KEY (id);
-
-
---
--- Name: ledger_journal_audits ledger_journal_audits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.ledger_journal_audits
     ADD CONSTRAINT ledger_journal_audits_pkey PRIMARY KEY (journal_id);
 
-
---
--- Name: ledger_journals ledger_journals_business_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.ledger_journals
     ADD CONSTRAINT ledger_journals_business_key_key UNIQUE (business_key);
-
-
---
--- Name: ledger_journals ledger_journals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.ledger_journals
     ADD CONSTRAINT ledger_journals_pkey PRIMARY KEY (id);
 
-
---
--- Name: ledger_postings ledger_postings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.ledger_postings
-    ADD CONSTRAINT ledger_postings_pkey PRIMARY KEY (id);
-
-
---
--- Name: liability_recoveries liability_recoveries_obligation_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.liability_recoveries
     ADD CONSTRAINT liability_recoveries_obligation_id_key UNIQUE (obligation_id);
-
-
---
--- Name: liability_recoveries liability_recoveries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.liability_recoveries
     ADD CONSTRAINT liability_recoveries_pkey PRIMARY KEY (id);
 
-
---
--- Name: maintenance_results maintenance_results_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.maintenance_results
     ADD CONSTRAINT maintenance_results_pkey PRIMARY KEY (id);
-
-
---
--- Name: maintenance_results maintenance_results_source_job_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.maintenance_results
     ADD CONSTRAINT maintenance_results_source_job_id_key UNIQUE (source_job_id);
 
-
---
--- Name: native_reserve_inflows native_reserve_inflows_environment_chain_network_tx_hash_ev_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.native_reserve_inflows
     ADD CONSTRAINT native_reserve_inflows_environment_chain_network_tx_hash_ev_key UNIQUE (environment, chain, network, tx_hash, event_index, asset_id);
-
-
---
--- Name: native_reserve_inflows native_reserve_inflows_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.native_reserve_inflows
     ADD CONSTRAINT native_reserve_inflows_pkey PRIMARY KEY (id);
 
-
---
--- Name: notification_views notification_views_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.notification_views
     ADD CONSTRAINT notification_views_pkey PRIMARY KEY (user_id);
-
-
---
--- Name: notifications notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.notifications
     ADD CONSTRAINT notifications_pkey PRIMARY KEY (id);
 
-
---
--- Name: operation_keys operation_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.operation_keys
     ADD CONSTRAINT operation_keys_pkey PRIMARY KEY (business_key);
-
-
---
--- Name: operational_alerts operational_alerts_condition_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.operational_alerts
     ADD CONSTRAINT operational_alerts_condition_key_key UNIQUE (condition_key);
 
-
---
--- Name: operational_alerts operational_alerts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.operational_alerts
     ADD CONSTRAINT operational_alerts_pkey PRIMARY KEY (id);
-
-
---
--- Name: operational_diagnostics operational_diagnostics_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.operational_diagnostics
     ADD CONSTRAINT operational_diagnostics_pkey PRIMARY KEY (environment);
 
-
---
--- Name: outbox outbox_business_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.outbox
     ADD CONSTRAINT outbox_business_key_key UNIQUE (business_key);
-
-
---
--- Name: outbox outbox_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.outbox
     ADD CONSTRAINT outbox_pkey PRIMARY KEY (id);
 
-
---
--- Name: plan_versions plan_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.plan_versions
     ADD CONSTRAINT plan_versions_pkey PRIMARY KEY (id);
-
-
---
--- Name: plan_versions plan_versions_plan_id_asset_id_version_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.plan_versions
     ADD CONSTRAINT plan_versions_plan_id_asset_id_version_key UNIQUE (plan_id, asset_id, version);
 
-
---
--- Name: plans plans_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.plans
     ADD CONSTRAINT plans_pkey PRIMARY KEY (id);
-
-
---
--- Name: plans plans_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.plans
     ADD CONSTRAINT plans_slug_key UNIQUE (slug);
 
-
---
--- Name: point_events point_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.point_events
     ADD CONSTRAINT point_events_pkey PRIMARY KEY (id);
-
-
---
--- Name: point_events point_events_user_id_source_key_award_type_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.point_events
     ADD CONSTRAINT point_events_user_id_source_key_award_type_key UNIQUE (user_id, source_key, award_type);
 
-
---
--- Name: price_quotes price_quotes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.price_quotes
     ADD CONSTRAINT price_quotes_pkey PRIMARY KEY (id);
 
-
---
--- Name: provider_quota_reports provider_quota_reports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
+ALTER TABLE ONLY public.profile_previews
+    ADD CONSTRAINT profile_previews_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY public.provider_quota_reports
     ADD CONSTRAINT provider_quota_reports_pkey PRIMARY KEY (environment, provider);
 
-
---
--- Name: public_statistics public_statistics_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.public_statistics
     ADD CONSTRAINT public_statistics_pkey PRIMARY KEY (environment);
-
-
---
--- Name: queue_entries queue_entries_partition_id_ticket_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.queue_entries
     ADD CONSTRAINT queue_entries_partition_id_ticket_key UNIQUE (partition_id, ticket);
 
-
---
--- Name: queue_entries queue_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.queue_entries
     ADD CONSTRAINT queue_entries_pkey PRIMARY KEY (id);
-
-
---
--- Name: queue_partitions queue_partitions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.queue_partitions
     ADD CONSTRAINT queue_partitions_pkey PRIMARY KEY (id);
 
-
---
--- Name: queue_partitions queue_partitions_plan_version_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.queue_partitions
     ADD CONSTRAINT queue_partitions_plan_version_id_key UNIQUE (plan_version_id);
-
-
---
--- Name: queue_rank_nodes queue_rank_nodes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.queue_rank_nodes
     ADD CONSTRAINT queue_rank_nodes_pkey PRIMARY KEY (partition_id, lane, node_index);
 
-
---
--- Name: rate_limits rate_limits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.rate_limits
     ADD CONSTRAINT rate_limits_pkey PRIMARY KEY (key_hash);
-
-
---
--- Name: receipt_allocations receipt_allocations_credit_journal_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.receipt_allocations
     ADD CONSTRAINT receipt_allocations_credit_journal_id_key UNIQUE (credit_journal_id);
 
-
---
--- Name: receipt_allocations receipt_allocations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.receipt_allocations
     ADD CONSTRAINT receipt_allocations_pkey PRIMARY KEY (id);
-
-
---
--- Name: receipt_allocations receipt_allocations_source_operation_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.receipt_allocations
     ADD CONSTRAINT receipt_allocations_source_operation_key_key UNIQUE (source_operation_key);
 
-
---
--- Name: recovery_outflow_resolutions recovery_outflow_resolutions_asset_id_tx_hash_event_index_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.recovery_outflow_resolutions
     ADD CONSTRAINT recovery_outflow_resolutions_asset_id_tx_hash_event_index_key UNIQUE (asset_id, tx_hash, event_index);
-
-
---
--- Name: recovery_outflow_resolutions recovery_outflow_resolutions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.recovery_outflow_resolutions
     ADD CONSTRAINT recovery_outflow_resolutions_pkey PRIMARY KEY (id);
 
-
---
--- Name: recovery_outflows recovery_outflows_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.recovery_outflows
     ADD CONSTRAINT recovery_outflows_pkey PRIMARY KEY (id);
-
-
---
--- Name: recovery_outflows recovery_outflows_run_id_tx_hash_event_index_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.recovery_outflows
     ADD CONSTRAINT recovery_outflows_run_id_tx_hash_event_index_key UNIQUE (run_id, tx_hash, event_index);
 
-
---
--- Name: recovery_view_caps recovery_view_caps_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.recovery_view_caps
     ADD CONSTRAINT recovery_view_caps_pkey PRIMARY KEY (id);
-
-
---
--- Name: recovery_view_caps recovery_view_caps_token_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.recovery_view_caps
     ADD CONSTRAINT recovery_view_caps_token_hash_key UNIQUE (token_hash);
 
-
---
--- Name: referral_codes referral_codes_code_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.referral_codes
     ADD CONSTRAINT referral_codes_code_key UNIQUE (code);
-
-
---
--- Name: referral_codes referral_codes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.referral_codes
     ADD CONSTRAINT referral_codes_pkey PRIMARY KEY (user_id);
 
-
---
--- Name: simulation_reorg_reviews reorg_source_revision_unique; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_reorg_reviews
     ADD CONSTRAINT reorg_source_revision_unique UNIQUE (source_allocation_id, revision);
-
-
---
--- Name: reports reports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.reports
     ADD CONSTRAINT reports_pkey PRIMARY KEY (id);
 
-
---
--- Name: scheduler_nonces scheduler_nonces_environment_nonce_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.scheduler_nonces
     ADD CONSTRAINT scheduler_nonces_environment_nonce_key UNIQUE (environment, nonce);
-
-
---
--- Name: scheduler_nonces scheduler_nonces_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.scheduler_nonces
     ADD CONSTRAINT scheduler_nonces_pkey PRIMARY KEY (id);
 
-
---
--- Name: scheduler_runs scheduler_runs_environment_run_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.scheduler_runs
     ADD CONSTRAINT scheduler_runs_environment_run_key_key UNIQUE (environment, run_key);
-
-
---
--- Name: scheduler_runs scheduler_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.scheduler_runs
     ADD CONSTRAINT scheduler_runs_pkey PRIMARY KEY (id);
 
-
---
--- Name: schema_migrations schema_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.schema_migrations
     ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (name);
-
-
---
--- Name: signed_attempts signed_attempts_obligation_id_attempt_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.signed_attempts
     ADD CONSTRAINT signed_attempts_obligation_id_attempt_key UNIQUE (obligation_id, attempt);
 
-
---
--- Name: signed_attempts signed_attempts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.signed_attempts
     ADD CONSTRAINT signed_attempts_pkey PRIMARY KEY (id);
-
-
---
--- Name: signed_attempts signed_attempts_tx_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.signed_attempts
     ADD CONSTRAINT signed_attempts_tx_hash_key UNIQUE (tx_hash);
 
-
---
--- Name: signer_dispatch_cursor signer_dispatch_cursor_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.signer_dispatch_cursor
     ADD CONSTRAINT signer_dispatch_cursor_pkey PRIMARY KEY (singleton);
-
-
---
--- Name: signer_heartbeats signer_heartbeats_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.signer_heartbeats
     ADD CONSTRAINT signer_heartbeats_pkey PRIMARY KEY (treasury_fingerprint);
 
-
---
--- Name: signer_reservations signer_reservations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.signer_reservations
     ADD CONSTRAINT signer_reservations_pkey PRIMARY KEY (obligation_id, signing_day);
-
-
---
--- Name: signer_states signer_states_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.signer_states
     ADD CONSTRAINT signer_states_pkey PRIMARY KEY (treasury_fingerprint);
 
-
---
--- Name: simulation_incoming_controls simulation_incoming_controls_invoice_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_incoming_controls
     ADD CONSTRAINT simulation_incoming_controls_invoice_id_key UNIQUE (invoice_id);
-
-
---
--- Name: simulation_incoming_controls simulation_incoming_controls_operation_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_incoming_controls
     ADD CONSTRAINT simulation_incoming_controls_operation_key_key UNIQUE (operation_key);
 
-
---
--- Name: simulation_incoming_controls simulation_incoming_controls_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_incoming_controls
     ADD CONSTRAINT simulation_incoming_controls_pkey PRIMARY KEY (id);
-
-
---
--- Name: simulation_incoming_events simulation_incoming_events_gift_operation_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_incoming_events
     ADD CONSTRAINT simulation_incoming_events_gift_operation_key_key UNIQUE (gift_operation_key);
 
-
---
--- Name: simulation_incoming_events simulation_incoming_events_invoice_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_incoming_events
     ADD CONSTRAINT simulation_incoming_events_invoice_id_key UNIQUE (invoice_id);
-
-
---
--- Name: simulation_incoming_events simulation_incoming_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_incoming_events
     ADD CONSTRAINT simulation_incoming_events_pkey PRIMARY KEY (id);
 
-
---
--- Name: simulation_incoming_refunds simulation_incoming_refunds_invoice_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_incoming_refunds
     ADD CONSTRAINT simulation_incoming_refunds_invoice_id_key UNIQUE (invoice_id);
-
-
---
--- Name: simulation_incoming_refunds simulation_incoming_refunds_journal_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_incoming_refunds
     ADD CONSTRAINT simulation_incoming_refunds_journal_id_key UNIQUE (journal_id);
 
-
---
--- Name: simulation_incoming_refunds simulation_incoming_refunds_operation_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_incoming_refunds
     ADD CONSTRAINT simulation_incoming_refunds_operation_key_key UNIQUE (operation_key);
-
-
---
--- Name: simulation_incoming_refunds simulation_incoming_refunds_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_incoming_refunds
     ADD CONSTRAINT simulation_incoming_refunds_pkey PRIMARY KEY (id);
 
-
---
--- Name: simulation_reorg_resolutions simulation_reorg_resolutions_journal_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_reorg_resolutions
     ADD CONSTRAINT simulation_reorg_resolutions_journal_id_key UNIQUE (journal_id);
-
-
---
--- Name: simulation_reorg_resolutions simulation_reorg_resolutions_operation_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_reorg_resolutions
     ADD CONSTRAINT simulation_reorg_resolutions_operation_key_key UNIQUE (operation_key);
 
-
---
--- Name: simulation_reorg_resolutions simulation_reorg_resolutions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_reorg_resolutions
     ADD CONSTRAINT simulation_reorg_resolutions_pkey PRIMARY KEY (id);
-
-
---
--- Name: simulation_reorg_resolutions simulation_reorg_resolutions_review_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_reorg_resolutions
     ADD CONSTRAINT simulation_reorg_resolutions_review_id_key UNIQUE (review_id);
 
-
---
--- Name: simulation_reorg_reviews simulation_reorg_reviews_loss_journal_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_reorg_reviews
     ADD CONSTRAINT simulation_reorg_reviews_loss_journal_id_key UNIQUE (loss_journal_id);
-
-
---
--- Name: simulation_reorg_reviews simulation_reorg_reviews_operation_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_reorg_reviews
     ADD CONSTRAINT simulation_reorg_reviews_operation_key_key UNIQUE (operation_key);
 
-
---
--- Name: simulation_reorg_reviews simulation_reorg_reviews_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_reorg_reviews
     ADD CONSTRAINT simulation_reorg_reviews_pkey PRIMARY KEY (id);
-
-
---
--- Name: simulation_withdrawal_controls simulation_withdrawal_controls_operation_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_withdrawal_controls
     ADD CONSTRAINT simulation_withdrawal_controls_operation_key_key UNIQUE (operation_key);
 
-
---
--- Name: simulation_withdrawal_controls simulation_withdrawal_controls_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_withdrawal_controls
     ADD CONSTRAINT simulation_withdrawal_controls_pkey PRIMARY KEY (id);
-
-
---
--- Name: simulation_withdrawal_controls simulation_withdrawal_controls_withdrawal_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_withdrawal_controls
     ADD CONSTRAINT simulation_withdrawal_controls_withdrawal_id_key UNIQUE (withdrawal_id);
 
-
---
--- Name: slug_redirects slug_redirects_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.slug_redirects
     ADD CONSTRAINT slug_redirects_pkey PRIMARY KEY (locale, old_slug);
 
-
---
--- Name: unallocated_inflows unallocated_inflows_asset_id_environment_chain_network_tx_h_key; Type: CONSTRAINT; Schema: public; Owner: -
---
+ALTER TABLE ONLY public.treasury_addresses
+    ADD CONSTRAINT treasury_addresses_pkey PRIMARY KEY (asset_id, address);
 
 ALTER TABLE ONLY public.unallocated_inflows
     ADD CONSTRAINT unallocated_inflows_asset_id_environment_chain_network_tx_h_key UNIQUE (asset_id, environment, chain, network, tx_hash, event_index);
 
-
---
--- Name: unallocated_inflows unallocated_inflows_journal_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.unallocated_inflows
     ADD CONSTRAINT unallocated_inflows_journal_id_key UNIQUE (journal_id);
-
-
---
--- Name: unallocated_inflows unallocated_inflows_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.unallocated_inflows
     ADD CONSTRAINT unallocated_inflows_pkey PRIMARY KEY (id);
 
-
---
--- Name: unallocated_refund_claims unallocated_refund_claims_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.unallocated_refund_claims
     ADD CONSTRAINT unallocated_refund_claims_pkey PRIMARY KEY (inflow_id);
-
-
---
--- Name: user_identities user_identities_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.user_identities
     ADD CONSTRAINT user_identities_pkey PRIMARY KEY (id);
 
-
---
--- Name: user_identities user_identities_provider_subject_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.user_identities
     ADD CONSTRAINT user_identities_provider_subject_key UNIQUE (provider, subject);
-
-
---
--- Name: users users_email_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_email_key UNIQUE (email);
 
-
---
--- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
-
-
---
--- Name: users users_username_key; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_username_key UNIQUE (username);
 
-
---
--- Name: wallet_challenges wallet_challenges_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.wallet_challenges
     ADD CONSTRAINT wallet_challenges_pkey PRIMARY KEY (id);
-
-
---
--- Name: wallet_links wallet_links_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.wallet_links
     ADD CONSTRAINT wallet_links_pkey PRIMARY KEY (id);
 
-
---
--- Name: wallet_links wallet_links_user_id_environment_chain_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.wallet_links
     ADD CONSTRAINT wallet_links_user_id_environment_chain_id_key UNIQUE (user_id, environment, chain_id);
-
-
---
--- Name: withdrawals withdrawals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.withdrawals
     ADD CONSTRAINT withdrawals_pkey PRIMARY KEY (id);
 
-
---
--- Name: withdrawals withdrawals_request_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.withdrawals
     ADD CONSTRAINT withdrawals_request_key_key UNIQUE (request_key);
-
-
---
--- Name: worker_requests worker_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.worker_requests
     ADD CONSTRAINT worker_requests_pkey PRIMARY KEY (nonce);
 
-
---
--- Name: x_manifest x_manifest_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.x_manifest
     ADD CONSTRAINT x_manifest_pkey PRIMARY KEY (key);
 
-
---
--- Name: abuse_user_time_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX abuse_user_time_idx ON public.abuse_signals USING btree (user_id, created_at, id);
-
-
---
--- Name: alert_claim_priority_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX alert_claim_priority_idx ON public.operational_alerts USING btree (severity, status, occurrence, id);
 
-
---
--- Name: appeal_open_case_unique; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE UNIQUE INDEX appeal_open_case_unique ON public.appeals USING btree (report_id) WHERE (status = 'open'::text);
 
+CREATE INDEX archive_months_pending_idx ON public.archive_months USING btree (state, last_step_at, month_start, source_table);
 
---
--- Name: audit_request_correlation_idx; Type: INDEX; Schema: public; Owner: -
---
+CREATE INDEX audit_events_archive_time_idx ON ONLY public.audit_events USING btree (created_at, id);
 
-CREATE INDEX audit_request_correlation_idx ON public.audit_events USING btree (request_id, id) WHERE (request_id IS NOT NULL);
-
-
---
--- Name: auth_flow_expiry_cleanup_idx; Type: INDEX; Schema: public; Owner: -
---
+CREATE INDEX audit_request_correlation_idx ON ONLY public.audit_events USING btree (request_id, id) WHERE (request_id IS NOT NULL);
 
 CREATE INDEX auth_flow_expiry_cleanup_idx ON public.auth_flows USING btree (expires_at, state_hash);
 
-
---
--- Name: auth_refresh_expiry_cleanup_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX auth_refresh_expiry_cleanup_idx ON public.auth_refresh_tokens USING btree (expires_at, token_hash);
-
-
---
--- Name: auth_refresh_session_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX auth_refresh_session_idx ON public.auth_refresh_tokens USING btree (session_id);
 
-
---
--- Name: auth_session_expiry_cleanup_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX auth_session_expiry_cleanup_idx ON public.auth_sessions USING btree (absolute_expires_at, id);
-
-
---
--- Name: auth_sessions_user_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX auth_sessions_user_idx ON public.auth_sessions USING btree (user_id, id);
 
-
---
--- Name: auth_totp_cleanup_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX auth_totp_cleanup_idx ON public.auth_totp_replays USING btree (accepted_at, factor_id, time_step);
-
-
---
--- Name: binding_challenge_expiry_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX binding_challenge_expiry_idx ON public.deployment_binding_challenges USING btree (expires_at, id);
 
-
---
--- Name: bot_challenge_expiry_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX bot_challenge_expiry_idx ON public.bot_challenges USING btree (expires_at, id);
-
-
---
--- Name: bot_token_expiry_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX bot_token_expiry_idx ON public.bot_token_uses USING btree (expires_at, token_hash);
 
-
---
--- Name: chain_checkpoint_latest_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX chain_checkpoint_latest_idx ON public.chain_checkpoints USING btree (asset_id, created_at DESC, id DESC);
 
-
---
--- Name: chain_fee_identity_idx; Type: INDEX; Schema: public; Owner: -
---
+CREATE INDEX chain_checkpoints_address_latest_idx ON public.chain_checkpoints USING btree (asset_id, treasury_sender, created_at DESC NULLS LAST, id DESC NULLS LAST);
 
 CREATE UNIQUE INDEX chain_fee_identity_idx ON public.chain_fee_claims USING btree (environment, chain, network, tx_hash);
 
-
---
--- Name: chain_observation_due_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX chain_observation_due_idx ON public.chain_observations USING btree (status, next_observation_at, id);
-
-
---
--- Name: chain_recovery_latest_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX chain_recovery_latest_idx ON public.chain_recovery_runs USING btree (checkpoint_id, created_at DESC, id DESC);
 
-
---
--- Name: checkpoint_treasury_idx; Type: INDEX; Schema: public; Owner: -
---
+CREATE INDEX chain_scan_pages_archive_time_idx ON ONLY public.chain_scan_pages USING btree (created_at, run_id, revision);
 
 CREATE INDEX checkpoint_treasury_idx ON public.chain_checkpoints USING btree (treasury_fingerprint, asset_id, created_at, id);
 
-
---
--- Name: crypto_event_invoice_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX crypto_event_invoice_cursor_idx ON public.crypto_events USING btree (invoice_id, id);
-
-
---
--- Name: crypto_invoice_open_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE UNIQUE INDEX crypto_invoice_open_idx ON public.crypto_invoices USING btree (user_id, plan_version_id) WHERE (status = ANY (ARRAY['quoted'::text, 'submitted'::text]));
 
-
---
--- Name: crypto_invoice_owned_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX crypto_invoice_owned_cursor_idx ON public.crypto_invoices USING btree (user_id, id);
-
-
---
--- Name: crypto_obligation_owned_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX crypto_obligation_owned_cursor_idx ON public.crypto_obligations USING btree (user_id, id);
 
-
---
--- Name: crypto_obligation_treasury_lineage_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX crypto_obligation_treasury_lineage_idx ON public.crypto_obligations USING btree (asset_id, treasury_sender, id);
-
-
---
--- Name: crypto_reorg_asset_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX crypto_reorg_asset_idx ON public.crypto_reorg_reviews USING btree (asset_id, event_id, revision);
 
-
---
--- Name: cycle_owned_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
+CREATE INDEX cycle_completion_lookup_idx ON public.cycles USING btree (user_id, completed_at DESC, plan_version_id) WHERE (status = 'completed'::text);
 
 CREATE INDEX cycle_owned_cursor_idx ON public.cycles USING btree (user_id, id);
 
-
---
--- Name: cycle_user_history_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX cycle_user_history_idx ON public.cycles USING btree (user_id, created_at, id);
-
-
---
--- Name: data_export_expiry_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX data_export_expiry_idx ON public.data_exports USING btree (expires_at, id);
 
-
---
--- Name: data_export_owned_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX data_export_owned_idx ON public.data_exports USING btree (user_id, created_at, id);
-
-
---
--- Name: gift_invoice_history_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX gift_invoice_history_idx ON public.gift_invoices USING btree (user_id, created_at, id);
 
-
---
--- Name: gift_invoice_open_unique; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE UNIQUE INDEX gift_invoice_open_unique ON public.gift_invoices USING btree (user_id, plan_version_id) WHERE (status = ANY (ARRAY['quoted'::text, 'submitted'::text]));
-
-
---
--- Name: gift_invoice_owned_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX gift_invoice_owned_cursor_idx ON public.gift_invoices USING btree (user_id, id);
 
+CREATE INDEX gw_part_au_default_created_at_id_idx ON public.gw_part_au_default USING btree (created_at, id);
 
---
--- Name: help_public_locale_idx; Type: INDEX; Schema: public; Owner: -
---
+CREATE INDEX gw_part_au_default_request_id_id_idx ON public.gw_part_au_default USING btree (request_id, id) WHERE (request_id IS NOT NULL);
+
+CREATE INDEX gw_part_cs_default_created_at_run_id_revision_idx ON public.gw_part_cs_default USING btree (created_at, run_id, revision);
+
+CREATE INDEX ledger_account_page_idx ON ONLY public.ledger_postings USING btree (account_id, id);
+
+CREATE INDEX gw_part_lp_default_account_id_id_idx ON public.gw_part_lp_default USING btree (account_id, id);
+
+CREATE INDEX ledger_postings_archive_time_idx ON ONLY public.ledger_postings USING btree (created_at, id);
+
+CREATE INDEX gw_part_lp_default_created_at_id_idx ON public.gw_part_lp_default USING btree (created_at, id);
 
 CREATE INDEX help_public_locale_idx ON public.help_articles USING btree (locale, published, slug);
 
-
---
--- Name: help_published_en_search_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX help_published_en_search_idx ON public.help_articles USING gin (((setweight(to_tsvector('english'::regconfig, title), 'A'::"char") || setweight(to_tsvector('english'::regconfig, body), 'B'::"char")))) WHERE (published AND (locale = 'en'::text));
-
-
---
--- Name: help_published_fr_search_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX help_published_fr_search_idx ON public.help_articles USING gin (((setweight(to_tsvector('french'::regconfig, title), 'A'::"char") || setweight(to_tsvector('french'::regconfig, body), 'B'::"char")))) WHERE (published AND (locale = 'fr'::text));
 
-
---
--- Name: help_published_title_trigram_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX help_published_title_trigram_idx ON public.help_articles USING gin (lower(title) public.gin_trgm_ops) WHERE published;
-
-
---
--- Name: job_redaction_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX job_redaction_idx ON public.jobs USING btree (((payload ->> 'user_id'::text)), id) WHERE ((kind = 'notification'::text) AND (redacted_at IS NULL));
 
-
---
--- Name: job_request_correlation_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX job_request_correlation_idx ON public.jobs USING btree (request_id, id) WHERE (request_id IS NOT NULL);
-
-
---
--- Name: jobs_due_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX jobs_due_idx ON public.jobs USING btree (environment, status, due_at, id);
 
-
---
--- Name: jobs_expired_lease_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX jobs_expired_lease_idx ON public.jobs USING btree (environment, lease_until, id) WHERE (status = 'running'::text);
 
-
---
--- Name: ledger_account_page_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX ledger_account_page_idx ON public.ledger_postings USING btree (account_id, id);
-
-
---
--- Name: ledger_accounts_owner_unique; Type: INDEX; Schema: public; Owner: -
---
+CREATE INDEX jobs_retention_idx ON public.jobs USING btree (environment, completed_at, id) WHERE ((status = 'done'::text) AND (retired_at IS NULL));
 
 CREATE UNIQUE INDEX ledger_accounts_owner_unique ON public.ledger_accounts USING btree (asset_id, owner_type, COALESCE(owner_id, '00000000-0000-0000-0000-000000000000'::uuid), purpose);
 
-
---
--- Name: ledger_business_prefix_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX ledger_business_prefix_idx ON public.ledger_journals USING btree (business_key text_pattern_ops);
-
-
---
--- Name: ledger_counter_negative_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX ledger_counter_negative_idx ON public.ledger_account_totals USING btree (account_id) WHERE (balance < (0)::numeric);
 
-
---
--- Name: ledger_counter_nonzero_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX ledger_counter_nonzero_idx ON public.ledger_account_totals USING btree (purpose, asset_id, owner_id, account_id) WHERE (balance <> (0)::numeric);
-
-
---
--- Name: ledger_giv_uuid_nonce_unique; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE UNIQUE INDEX ledger_giv_uuid_nonce_unique ON public.ledger_journals USING btree (lower(business_key)) WHERE (business_key ~ '^gift-in:[0-9a-fA-F-]{36}:[0-9a-fA-F-]{36}$|^allocation:gift:[0-9a-fA-F-]{36}:[0-9a-fA-F-]{36}:'::text);
 
-
---
--- Name: ledger_journal_audit_invalid_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX ledger_journal_audit_invalid_idx ON public.ledger_journal_audits USING btree (journal_id) WHERE (NOT valid);
-
-
---
--- Name: ledger_user_page_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX ledger_user_page_idx ON public.ledger_accounts USING btree (owner_id, asset_id, id) WHERE (owner_type = 'user'::text);
 
-
---
--- Name: maintenance_history_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX maintenance_history_idx ON public.maintenance_results USING btree (environment, checked_at, id);
-
-
---
--- Name: native_hold_obligation_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX native_hold_obligation_idx ON public.ledger_journals USING btree (((metadata ->> 'obligation_id'::text))) WHERE (ledger_type = 'PAYOUT_HOLD'::text);
 
-
---
--- Name: native_receipt_owned_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX native_receipt_owned_cursor_idx ON public.crypto_obligations USING btree (user_id, kind, status, id);
-
-
---
--- Name: notification_redaction_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX notification_redaction_idx ON public.notifications USING btree (user_id, title_key, id) WHERE (redacted_at IS NULL);
 
-
---
--- Name: notification_user_page_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX notification_user_page_idx ON public.notifications USING btree (user_id, id);
-
-
---
--- Name: notifications_delivery_key_unique; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE UNIQUE INDEX notifications_delivery_key_unique ON public.notifications USING btree (delivery_key);
 
+CREATE INDEX notifications_user_page_idx ON public.notifications USING btree (user_id, created_at DESC, id DESC) WHERE (retired_at IS NULL);
+CREATE INDEX queue_entries_waiting_members_idx ON public.queue_entries USING btree (partition_id, ticket) WHERE (kind='member' AND status='waiting');
 
---
--- Name: obligation_pending_idx; Type: INDEX; Schema: public; Owner: -
---
+CREATE INDEX notifications_retention_idx ON public.notifications USING btree (created_at, id) WHERE (retired_at IS NULL);
 
 CREATE INDEX obligation_pending_idx ON public.crypto_obligations USING btree (status, created_at, id);
 
-
---
--- Name: operation_key_case_lookup; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX operation_key_case_lookup ON public.operation_keys USING btree (lower(business_key));
-
-
---
--- Name: operation_staff_uuid_nonce_unique; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE UNIQUE INDEX operation_staff_uuid_nonce_unique ON public.operation_keys USING btree (lower(business_key)) WHERE (business_key ~ '^admin-(job-replay|sim-withdrawal|resolve-withdrawal):[0-9a-fA-F-]{36}:[0-9a-fA-F-]{36}$'::text);
 
-
---
--- Name: operation_uuid_nonce_unique; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE UNIQUE INDEX operation_uuid_nonce_unique ON public.operation_keys USING btree (lower(business_key)) WHERE (business_key ~ '^(gift|admin-activate):[0-9a-fA-F-]{36}:[0-9a-fA-F-]{36}$'::text);
-
-
---
--- Name: outbox_pending_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX outbox_pending_idx ON public.outbox USING btree (environment, created_at, id) WHERE (dispatched_at IS NULL);
 
-
---
--- Name: outbox_redaction_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX outbox_redaction_idx ON public.outbox USING btree (((payload ->> 'user_id'::text)), id) WHERE ((kind = 'notification'::text) AND (redacted_at IS NULL));
 
-
---
--- Name: plan_asset_active_unique; Type: INDEX; Schema: public; Owner: -
---
+CREATE INDEX outbox_retention_idx ON public.outbox USING btree (environment, created_at, id) WHERE (retired_at IS NULL);
 
 CREATE UNIQUE INDEX plan_asset_active_unique ON public.plan_versions USING btree (plan_id, asset_id) WHERE active;
 
-
---
--- Name: point_source_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX point_source_idx ON public.point_events USING btree (source_key, user_id);
-
-
---
--- Name: point_user_page_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX point_user_page_idx ON public.point_events USING btree (user_id, id);
 
-
---
--- Name: price_quote_fingerprint_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE UNIQUE INDEX price_quote_fingerprint_idx ON public.price_quotes USING btree (fingerprint);
-
-
---
--- Name: price_quote_fresh_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX price_quote_fresh_idx ON public.price_quotes USING btree (asset_id, observed_at DESC, expires_at);
 
+CREATE INDEX profile_previews_actor_expiry_idx ON public.profile_previews USING btree (actor_user_id, expires_at);
 
---
--- Name: queue_cycle_entry_unique; Type: INDEX; Schema: public; Owner: -
---
+CREATE INDEX profile_previews_cleanup_idx ON public.profile_previews USING btree (expires_at, id) WHERE (committed_at IS NULL);
 
 CREATE UNIQUE INDEX queue_cycle_entry_unique ON public.queue_entries USING btree (cycle_id) WHERE (cycle_id IS NOT NULL);
 
-
---
--- Name: queue_priority_ticket_unique; Type: INDEX; Schema: public; Owner: -
---
+CREATE INDEX queue_entries_bootstrap_disclosure_idx ON public.queue_entries USING btree (partition_id, priority_ticket, ticket) WHERE ((kind = 'bootstrap'::text) AND (status = 'waiting'::text));
 
 CREATE UNIQUE INDEX queue_priority_ticket_unique ON public.queue_entries USING btree (partition_id, priority_ticket) WHERE ((priority_ticket IS NOT NULL) AND (status = 'waiting'::text));
 
-
---
--- Name: queue_waiting_display_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX queue_waiting_display_idx ON public.queue_entries USING btree (partition_id, ticket) WHERE (status = 'waiting'::text);
-
-
---
--- Name: queue_waiting_fifo_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX queue_waiting_fifo_idx ON public.queue_entries USING btree (partition_id, ticket) WHERE ((status = 'waiting'::text) AND (priority_ticket IS NULL));
 
-
---
--- Name: queue_waiting_order_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX queue_waiting_order_idx ON public.queue_entries USING btree (partition_id, priority_ticket, ticket) WHERE (status = 'waiting'::text);
-
-
---
--- Name: queue_waiting_priority_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX queue_waiting_priority_idx ON public.queue_entries USING btree (partition_id, priority_ticket, ticket) WHERE ((status = 'waiting'::text) AND (priority_ticket IS NOT NULL));
 
-
---
--- Name: rate_limit_expiry_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX rate_limit_expiry_idx ON public.rate_limits USING btree (environment, expires_at, key_hash);
-
-
---
--- Name: receipt_beneficiary_history_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX receipt_beneficiary_history_idx ON public.receipt_allocations USING btree (beneficiary_user_id, credited_at, id);
 
-
---
--- Name: receipt_receiver_slot_unique; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE UNIQUE INDEX receipt_receiver_slot_unique ON public.receipt_allocations USING btree (receiver_entry_id, slot_index) WHERE (slot_index IS NOT NULL);
-
-
---
--- Name: receipt_source_cycle_unique; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE UNIQUE INDEX receipt_source_cycle_unique ON public.receipt_allocations USING btree (source_cycle_id);
 
-
---
--- Name: reconciliation_history_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX reconciliation_history_idx ON public.financial_reconciliation_results USING btree (environment, checked_at, id);
-
-
---
--- Name: recovery_known_attempt_order; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX recovery_known_attempt_order ON public.signed_attempts USING btree (obligation_id, id);
 
-
---
--- Name: recovery_outflow_event_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX recovery_outflow_event_idx ON public.recovery_outflows USING btree (asset_id, tx_hash, event_index);
-
-
---
--- Name: recovery_view_expiry_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX recovery_view_expiry_idx ON public.recovery_view_caps USING btree (expires_at, id);
 
-
---
--- Name: reorg_affected_users_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX reorg_affected_users_idx ON public.simulation_reorg_reviews USING gin (affected_user_ids);
-
-
---
--- Name: reorg_partition_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX reorg_partition_idx ON public.simulation_reorg_reviews USING btree (partition_id, created_at, id);
 
-
---
--- Name: reorg_source_operation_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX reorg_source_operation_idx ON public.simulation_reorg_reviews USING btree (source_operation_key);
-
-
---
--- Name: reports_dedupe_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX reports_dedupe_idx ON public.reports USING btree (actor_id, target_id, reason_hash, created_at);
 
-
---
--- Name: reports_status_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX reports_status_idx ON public.reports USING btree (status, created_at, id);
-
-
---
--- Name: scheduler_nonce_environment_expiry_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX scheduler_nonce_environment_expiry_idx ON public.scheduler_nonces USING btree (environment, expires_at, id);
 
-
---
--- Name: scheduler_nonce_expiry_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX scheduler_nonce_expiry_idx ON public.scheduler_nonces USING btree (expires_at, id);
-
-
---
--- Name: scheduler_runs_completed_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX scheduler_runs_completed_idx ON public.scheduler_runs USING btree (environment, completed_at, id) WHERE (completed_at IS NOT NULL);
 
-
---
--- Name: scheduler_runs_lease_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX scheduler_runs_lease_idx ON public.scheduler_runs USING btree (environment, lease_until, id) WHERE (completed_at IS NULL);
-
-
---
--- Name: staff_alert_current_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX staff_alert_current_cursor_idx ON public.operational_alerts USING btree (id) WHERE (status <> 'resolved'::text);
 
-
---
--- Name: staff_appeal_status_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX staff_appeal_status_cursor_idx ON public.appeals USING btree (status, id);
-
-
---
--- Name: staff_job_current_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX staff_job_current_cursor_idx ON public.jobs USING btree (environment, id) WHERE (status <> 'done'::text);
 
-
---
--- Name: staff_job_history_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX staff_job_history_cursor_idx ON public.jobs USING btree (environment, id);
-
-
---
--- Name: staff_job_status_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX staff_job_status_cursor_idx ON public.jobs USING btree (environment, status, id);
 
-
---
--- Name: staff_outflow_review_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX staff_outflow_review_cursor_idx ON public.recovery_outflows USING btree (id) WHERE (status = 'review'::text);
-
-
---
--- Name: staff_recovery_current_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX staff_recovery_current_cursor_idx ON public.chain_recovery_runs USING btree (id) WHERE (state <> 'reconciled'::text);
 
-
---
--- Name: staff_report_status_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX staff_report_status_cursor_idx ON public.reports USING btree (status, id);
-
-
---
--- Name: staff_user_status_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX staff_user_status_cursor_idx ON public.users USING btree (status, id);
 
-
---
--- Name: unallocated_refund_source_status_idx; Type: INDEX; Schema: public; Owner: -
---
+CREATE INDEX treasury_addresses_monitor_idx ON public.treasury_addresses USING btree (asset_id, last_monitor_at, address);
 
 CREATE INDEX unallocated_refund_source_status_idx ON public.crypto_obligations USING btree (asset_id, status, split_part(business_key, ':'::text, 2)) WHERE ((kind = 'unallocated_refund'::text) AND (split_part(business_key, ':'::text, 1) = 'unallocated-refund'::text));
 
-
---
--- Name: uniq_active_cycle_per_user_plan; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE UNIQUE INDEX uniq_active_cycle_per_user_plan ON public.cycles USING btree (user_id, plan_version_id) WHERE (status = ANY (ARRAY['active'::text, 'exception'::text]));
-
-
---
--- Name: unmatched_sender_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX unmatched_sender_idx ON public.unallocated_inflows USING btree (asset_id, sender, created_at, id);
 
+CREATE INDEX users_public_activity_idx ON public.users USING btree (created_at, id) WHERE ((publication_classification = 'real'::text) AND activity_opt_in AND (role = 'member'::text) AND (status = 'active'::text));
 
---
--- Name: wallet_challenge_expiry_idx; Type: INDEX; Schema: public; Owner: -
---
+CREATE INDEX users_publication_review_idx ON public.users USING btree (publication_classification, id);
 
 CREATE INDEX wallet_challenge_expiry_idx ON public.wallet_challenges USING btree (expires_at, id);
 
-
---
--- Name: wallet_reuse_lookup_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX wallet_reuse_lookup_idx ON public.wallet_links USING btree (environment, chain_id, address, user_id);
-
-
---
--- Name: withdrawal_owned_cursor_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX withdrawal_owned_cursor_idx ON public.withdrawals USING btree (user_id, id);
 
-
---
--- Name: withdrawal_uuid_quote_unique; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE UNIQUE INDEX withdrawal_uuid_quote_unique ON public.withdrawals USING btree (lower(request_key));
-
-
---
--- Name: withdrawals_user_history_idx; Type: INDEX; Schema: public; Owner: -
---
 
 CREATE INDEX withdrawals_user_history_idx ON public.withdrawals USING btree (user_id, created_at, id);
 
-
---
--- Name: worker_request_expiry_idx; Type: INDEX; Schema: public; Owner: -
---
-
 CREATE INDEX worker_request_expiry_idx ON public.worker_requests USING btree (expires_at, nonce);
 
+ALTER INDEX public.audit_events_archive_time_idx ATTACH PARTITION public.gw_part_au_default_created_at_id_idx;
 
---
--- Name: users account_tombstone_guard; Type: TRIGGER; Schema: public; Owner: -
---
+ALTER INDEX public.audit_events_pkey ATTACH PARTITION public.gw_part_au_default_pkey;
+
+ALTER INDEX public.audit_request_correlation_idx ATTACH PARTITION public.gw_part_au_default_request_id_id_idx;
+
+ALTER INDEX public.chain_scan_pages_archive_time_idx ATTACH PARTITION public.gw_part_cs_default_created_at_run_id_revision_idx;
+
+ALTER INDEX public.chain_scan_pages_pkey ATTACH PARTITION public.gw_part_cs_default_pkey;
+
+ALTER INDEX public.ledger_account_page_idx ATTACH PARTITION public.gw_part_lp_default_account_id_id_idx;
+
+ALTER INDEX public.ledger_postings_archive_time_idx ATTACH PARTITION public.gw_part_lp_default_created_at_id_idx;
+
+ALTER INDEX public.ledger_postings_pkey ATTACH PARTITION public.gw_part_lp_default_pkey;
 
 CREATE TRIGGER account_tombstone_guard BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION public.gw_account_tombstone_guard();
 
-
---
--- Name: alert_deliveries alert_delivery_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER alert_delivery_guard BEFORE INSERT OR DELETE OR UPDATE ON public.alert_deliveries FOR EACH ROW EXECUTE FUNCTION public.gw_alert_delivery_guard();
-
-
---
--- Name: appeals appeal_history_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER appeal_history_guard BEFORE UPDATE ON public.appeals FOR EACH ROW EXECUTE FUNCTION public.gw_case_guard();
 
+CREATE TRIGGER archive_keys_retained BEFORE DELETE OR UPDATE ON public.archive_record_keys FOR EACH ROW EXECUTE FUNCTION public.gw_recovery_evidence_retained();
 
---
--- Name: signed_attempts attempt_lineage_guard; Type: TRIGGER; Schema: public; Owner: -
---
+CREATE TRIGGER archive_months_retained BEFORE DELETE OR UPDATE ON public.archive_months FOR EACH ROW EXECUTE FUNCTION public.gw_archive_month_guard();
+
+CREATE TRIGGER archive_record_identity BEFORE INSERT ON public.audit_events FOR EACH ROW EXECUTE FUNCTION public.gw_archive_record_guard('audit_events');
+
+CREATE TRIGGER archive_record_identity BEFORE INSERT ON public.chain_scan_pages FOR EACH ROW EXECUTE FUNCTION public.gw_archive_record_guard('chain_scan_pages');
+
+CREATE TRIGGER archive_record_identity BEFORE INSERT ON public.ledger_postings FOR EACH ROW EXECUTE FUNCTION public.gw_archive_record_guard('ledger_postings');
 
 CREATE TRIGGER attempt_lineage_guard BEFORE INSERT OR UPDATE ON public.signed_attempts FOR EACH ROW EXECUTE FUNCTION public.gw_attempt_lineage_guard();
 
-
---
--- Name: abuse_signals bot_history_guard; Type: TRIGGER; Schema: public; Owner: -
---
+CREATE TRIGGER audit_events_append_only BEFORE DELETE OR UPDATE ON public.audit_events FOR EACH ROW EXECUTE FUNCTION public.gw_reject_ledger_mutation();
 
 CREATE TRIGGER bot_history_guard BEFORE DELETE OR UPDATE ON public.abuse_signals FOR EACH ROW EXECUTE FUNCTION public.gw_bot_history_guard();
 
-
---
--- Name: bot_challenges bot_history_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER bot_history_guard BEFORE DELETE OR UPDATE ON public.bot_challenges FOR EACH ROW EXECUTE FUNCTION public.gw_bot_history_guard();
-
-
---
--- Name: bot_token_uses bot_history_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER bot_history_guard BEFORE DELETE OR UPDATE ON public.bot_token_uses FOR EACH ROW EXECUTE FUNCTION public.gw_bot_history_guard();
 
-
---
--- Name: withdrawals cancelled_withdrawal_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER cancelled_withdrawal_guard BEFORE UPDATE ON public.withdrawals FOR EACH ROW EXECUTE FUNCTION public.gw_cancelled_withdrawal_guard();
 
+CREATE TRIGGER capture_treasury_address AFTER INSERT ON public.chain_checkpoints FOR EACH ROW EXECUTE FUNCTION public.gw_capture_treasury_address();
 
---
--- Name: chain_fee_claims chain_fee_guard; Type: TRIGGER; Schema: public; Owner: -
---
+CREATE TRIGGER capture_treasury_address AFTER INSERT ON public.crypto_invoices FOR EACH ROW EXECUTE FUNCTION public.gw_capture_treasury_address();
+
+CREATE TRIGGER capture_treasury_address AFTER INSERT ON public.crypto_obligations FOR EACH ROW EXECUTE FUNCTION public.gw_capture_treasury_address();
+
+CREATE TRIGGER capture_treasury_address AFTER INSERT ON public.unallocated_inflows FOR EACH ROW EXECUTE FUNCTION public.gw_capture_treasury_address();
 
 CREATE CONSTRAINT TRIGGER chain_fee_guard AFTER INSERT ON public.chain_fee_claims DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_chain_fee_guard();
 
-
---
--- Name: chain_fee_claims chain_fee_retained; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER chain_fee_retained BEFORE DELETE OR UPDATE ON public.chain_fee_claims FOR EACH ROW EXECUTE FUNCTION public.gw_recovery_evidence_retained();
-
-
---
--- Name: chain_checkpoints checkpoint_retained; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER checkpoint_retained BEFORE DELETE OR UPDATE ON public.chain_checkpoints FOR EACH ROW EXECUTE FUNCTION public.gw_recovery_evidence_retained();
 
+CREATE TRIGGER crypto_invoices_profile_guard BEFORE INSERT OR UPDATE ON public.crypto_invoices FOR EACH ROW EXECUTE FUNCTION public.gw_invoice_profile_guard();
 
---
--- Name: database_binding_nonce database_binding_retained; Type: TRIGGER; Schema: public; Owner: -
---
+CREATE TRIGGER crypto_reconfirm_public_statistics AFTER INSERT ON public.crypto_reorg_resolutions FOR EACH ROW EXECUTE FUNCTION public.gw_public_statistics_reorg();
+
+CREATE TRIGGER crypto_reorg_public_statistics AFTER INSERT ON public.crypto_reorg_reviews FOR EACH ROW EXECUTE FUNCTION public.gw_public_statistics_reorg();
 
 CREATE TRIGGER database_binding_retained BEFORE DELETE OR UPDATE ON public.database_binding_nonce FOR EACH ROW EXECUTE FUNCTION public.gw_recovery_evidence_retained();
 
-
---
--- Name: auth_flows expired_flow_delete_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER expired_flow_delete_guard BEFORE DELETE ON public.auth_flows FOR EACH ROW EXECUTE FUNCTION public.gw_expired_identity_delete_guard();
-
-
---
--- Name: rate_limits expired_rate_delete_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER expired_rate_delete_guard BEFORE DELETE ON public.rate_limits FOR EACH ROW EXECUTE FUNCTION public.gw_expired_identity_delete_guard();
 
-
---
--- Name: export_chunks export_chunk_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER export_chunk_guard BEFORE DELETE OR UPDATE ON public.export_chunks FOR EACH ROW EXECUTE FUNCTION public.gw_export_guard();
-
-
---
--- Name: data_exports export_request_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER export_request_guard BEFORE DELETE OR UPDATE ON public.data_exports FOR EACH ROW EXECUTE FUNCTION public.gw_export_guard();
 
-
---
--- Name: auth_factors factor_history_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER factor_history_guard BEFORE UPDATE ON public.auth_factors FOR EACH ROW EXECUTE FUNCTION public.gw_session_history_guard();
-
-
---
--- Name: crypto_obligations failed_closure_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER failed_closure_guard BEFORE INSERT OR UPDATE ON public.crypto_obligations FOR EACH ROW EXECUTE FUNCTION public.gw_failed_closure_guard();
 
-
---
--- Name: crypto_events financial_adapter_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER financial_adapter_guard BEFORE DELETE OR UPDATE ON public.crypto_events FOR EACH ROW EXECUTE FUNCTION public.gw_financial_adapter_guard();
-
-
---
--- Name: crypto_invoices financial_adapter_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER financial_adapter_guard BEFORE DELETE OR UPDATE ON public.crypto_invoices FOR EACH ROW EXECUTE FUNCTION public.gw_financial_adapter_guard();
 
-
---
--- Name: crypto_obligations financial_adapter_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER financial_adapter_guard BEFORE DELETE OR UPDATE ON public.crypto_obligations FOR EACH ROW EXECUTE FUNCTION public.gw_financial_adapter_guard();
-
-
---
--- Name: crypto_submissions financial_adapter_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER financial_adapter_guard BEFORE DELETE OR UPDATE ON public.crypto_submissions FOR EACH ROW EXECUTE FUNCTION public.gw_financial_adapter_guard();
 
-
---
--- Name: price_quotes financial_adapter_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER financial_adapter_guard BEFORE DELETE OR UPDATE ON public.price_quotes FOR EACH ROW EXECUTE FUNCTION public.gw_financial_adapter_guard();
-
-
---
--- Name: signed_attempts financial_adapter_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER financial_adapter_guard BEFORE DELETE OR UPDATE ON public.signed_attempts FOR EACH ROW EXECUTE FUNCTION public.gw_financial_adapter_guard();
 
-
---
--- Name: signer_reservations financial_adapter_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER financial_adapter_guard BEFORE DELETE OR UPDATE ON public.signer_reservations FOR EACH ROW EXECUTE FUNCTION public.gw_financial_adapter_guard();
-
-
---
--- Name: crypto_obligations financial_state_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER financial_state_guard BEFORE UPDATE ON public.crypto_obligations FOR EACH ROW EXECUTE FUNCTION public.gw_financial_state_guard();
 
-
---
--- Name: ledger_postings frozen_spend_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE CONSTRAINT TRIGGER frozen_spend_guard AFTER INSERT ON public.ledger_postings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_frozen_spend_guard();
 
-
---
--- Name: withdrawals giv_withdrawal_integrity; Type: TRIGGER; Schema: public; Owner: -
---
+CREATE TRIGGER gift_invoices_profile_guard BEFORE INSERT OR UPDATE ON public.gift_invoices FOR EACH ROW EXECUTE FUNCTION public.gw_invoice_profile_guard();
 
 CREATE CONSTRAINT TRIGGER giv_withdrawal_integrity AFTER INSERT OR UPDATE ON public.withdrawals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_giv_withdrawal_integrity();
 
-
---
--- Name: users identity_revocation; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER identity_revocation BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION public.gw_identity_revocation();
-
-
---
--- Name: native_reserve_inflows immutable_reserve_inflow; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER immutable_reserve_inflow BEFORE DELETE OR UPDATE ON public.native_reserve_inflows FOR EACH ROW EXECUTE FUNCTION public.gw_financial_adapter_guard();
 
-
---
--- Name: simulation_incoming_controls incoming_append_only; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER incoming_append_only BEFORE DELETE OR UPDATE ON public.simulation_incoming_controls FOR EACH ROW EXECUTE FUNCTION public.gw_reject_ledger_mutation();
-
-
---
--- Name: simulation_incoming_events incoming_append_only; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER incoming_append_only BEFORE DELETE OR UPDATE ON public.simulation_incoming_events FOR EACH ROW EXECUTE FUNCTION public.gw_reject_ledger_mutation();
 
-
---
--- Name: simulation_incoming_refunds incoming_append_only; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER incoming_append_only BEFORE DELETE OR UPDATE ON public.simulation_incoming_refunds FOR EACH ROW EXECUTE FUNCTION public.gw_reject_ledger_mutation();
-
-
---
--- Name: simulation_incoming_controls incoming_control_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER incoming_control_guard BEFORE INSERT ON public.simulation_incoming_controls FOR EACH ROW EXECUTE FUNCTION public.gw_incoming_control_guard();
 
-
---
--- Name: simulation_incoming_events incoming_event_integrity; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE CONSTRAINT TRIGGER incoming_event_integrity AFTER INSERT ON public.simulation_incoming_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_incoming_integrity();
-
-
---
--- Name: gift_invoices incoming_invoice_integrity; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE CONSTRAINT TRIGGER incoming_invoice_integrity AFTER INSERT OR UPDATE ON public.gift_invoices DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_incoming_integrity();
 
-
---
--- Name: simulation_incoming_refunds incoming_refund_integrity; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE CONSTRAINT TRIGGER incoming_refund_integrity AFTER INSERT ON public.simulation_incoming_refunds DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_incoming_refund_integrity();
-
-
---
--- Name: gift_invoices invoice_snapshot_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER invoice_snapshot_guard BEFORE DELETE OR UPDATE ON public.gift_invoices FOR EACH ROW EXECUTE FUNCTION public.gw_invoice_snapshot_guard();
 
-
---
--- Name: plan_versions invoice_version_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER invoice_version_guard BEFORE DELETE OR UPDATE ON public.plan_versions FOR EACH ROW EXECUTE FUNCTION public.gw_invoice_version_guard();
-
-
---
--- Name: jobs jobs_identity_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER jobs_identity_guard BEFORE DELETE OR UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION public.gw_job_identity_guard();
 
-
---
--- Name: jobs jobs_source_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER jobs_source_guard BEFORE INSERT ON public.jobs FOR EACH ROW EXECUTE FUNCTION public.gw_job_source_guard();
-
-
---
--- Name: ledger_accounts ledger_account_identity; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER ledger_account_identity BEFORE DELETE OR UPDATE ON public.ledger_accounts FOR EACH ROW EXECUTE FUNCTION public.gw_reject_account_reassignment();
 
-
---
--- Name: ledger_journals ledger_counter_journal_write; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER ledger_counter_journal_write AFTER INSERT ON public.ledger_journals FOR EACH ROW EXECUTE FUNCTION public.gw_counter_new_journal();
-
-
---
--- Name: ledger_postings ledger_counter_posting_write; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER ledger_counter_posting_write AFTER INSERT ON public.ledger_postings REFERENCING NEW TABLE AS counter_posting_rows FOR EACH STATEMENT EXECUTE FUNCTION public.gw_counter_new_postings();
 
-
---
--- Name: ledger_journals ledger_journal_balanced; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE CONSTRAINT TRIGGER ledger_journal_balanced AFTER INSERT ON public.ledger_journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_validate_ledger_balance();
-
-
---
--- Name: ledger_journals ledger_journals_append_only; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER ledger_journals_append_only BEFORE DELETE OR UPDATE ON public.ledger_journals FOR EACH ROW EXECUTE FUNCTION public.gw_reject_ledger_mutation();
 
-
---
--- Name: ledger_postings ledger_posting_balanced; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE CONSTRAINT TRIGGER ledger_posting_balanced AFTER INSERT ON public.ledger_postings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_validate_ledger_balance();
-
-
---
--- Name: ledger_postings ledger_posting_sealed; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER ledger_posting_sealed BEFORE INSERT ON public.ledger_postings FOR EACH ROW EXECUTE FUNCTION public.gw_seal_ledger_posting();
 
-
---
--- Name: ledger_postings ledger_postings_append_only; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER ledger_postings_append_only BEFORE DELETE OR UPDATE ON public.ledger_postings FOR EACH ROW EXECUTE FUNCTION public.gw_reject_ledger_mutation();
-
-
---
--- Name: liability_recoveries liability_recovery_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER liability_recovery_guard BEFORE DELETE OR UPDATE ON public.liability_recoveries FOR EACH ROW EXECUTE FUNCTION public.gw_liability_recovery_guard();
 
-
---
--- Name: maintenance_results maintenance_result_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER maintenance_result_guard BEFORE INSERT ON public.maintenance_results FOR EACH ROW EXECUTE FUNCTION public.gw_maintenance_result_guard();
-
-
---
--- Name: maintenance_results maintenance_results_append_only; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER maintenance_results_append_only BEFORE DELETE OR UPDATE ON public.maintenance_results FOR EACH ROW EXECUTE FUNCTION public.gw_reject_ledger_mutation();
 
-
---
--- Name: signed_attempts native_attempt_review_fence; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER native_attempt_review_fence BEFORE INSERT ON public.signed_attempts FOR EACH ROW EXECUTE FUNCTION public.gw_native_attempt_review_fence();
-
-
---
--- Name: crypto_invoices native_invoice_review_fence; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER native_invoice_review_fence BEFORE INSERT ON public.crypto_invoices FOR EACH ROW EXECUTE FUNCTION public.gw_native_intake_fence();
 
-
---
--- Name: crypto_obligations native_obligation_review_fence; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER native_obligation_review_fence BEFORE INSERT OR UPDATE ON public.crypto_obligations FOR EACH ROW EXECUTE FUNCTION public.gw_native_intake_fence();
-
-
---
--- Name: crypto_reorg_resolutions native_resolution_anchor_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER native_resolution_anchor_guard BEFORE INSERT ON public.crypto_reorg_resolutions FOR EACH ROW EXECUTE FUNCTION public.gw_native_review_anchor_guard();
 
-
---
--- Name: crypto_reorg_resolutions native_resolution_immutable; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER native_resolution_immutable BEFORE DELETE OR UPDATE ON public.crypto_reorg_resolutions FOR EACH ROW EXECUTE FUNCTION public.gw_native_review_immutable();
-
-
---
--- Name: crypto_reorg_resolutions native_resolution_journal_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER native_resolution_journal_guard BEFORE INSERT ON public.crypto_reorg_resolutions FOR EACH ROW EXECUTE FUNCTION public.gw_native_review_journal_guard();
 
-
---
--- Name: crypto_reorg_reviews native_review_anchor_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER native_review_anchor_guard BEFORE INSERT ON public.crypto_reorg_reviews FOR EACH ROW EXECUTE FUNCTION public.gw_native_review_anchor_guard();
-
-
---
--- Name: crypto_reorg_reviews native_review_immutable; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER native_review_immutable BEFORE DELETE OR UPDATE ON public.crypto_reorg_reviews FOR EACH ROW EXECUTE FUNCTION public.gw_native_review_immutable();
 
-
---
--- Name: crypto_reorg_reviews native_review_journal_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER native_review_journal_guard BEFORE INSERT ON public.crypto_reorg_reviews FOR EACH ROW EXECUTE FUNCTION public.gw_native_review_journal_guard();
-
-
---
--- Name: notifications notification_read_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER notification_read_guard BEFORE UPDATE ON public.notifications FOR EACH ROW EXECUTE FUNCTION public.gw_notification_view_guard();
 
-
---
--- Name: notification_views notification_seen_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER notification_seen_guard BEFORE INSERT OR UPDATE ON public.notification_views FOR EACH ROW EXECUTE FUNCTION public.gw_notification_view_guard();
-
-
---
--- Name: chain_observations observation_identity_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER observation_identity_guard BEFORE DELETE OR UPDATE ON public.chain_observations FOR EACH ROW EXECUTE FUNCTION public.gw_observation_identity_guard();
 
-
---
--- Name: operation_keys operation_key_append_only; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER operation_key_append_only BEFORE DELETE OR UPDATE ON public.operation_keys FOR EACH ROW EXECUTE FUNCTION public.gw_reject_ledger_mutation();
-
-
---
--- Name: crypto_obligations operational_recovery_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE CONSTRAINT TRIGGER operational_recovery_guard AFTER UPDATE ON public.crypto_obligations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_operational_recovery_guard();
 
-
---
--- Name: outbox outbox_identity_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER outbox_identity_guard BEFORE DELETE OR UPDATE ON public.outbox FOR EACH ROW EXECUTE FUNCTION public.gw_job_identity_guard();
-
-
---
--- Name: plan_versions plan_snapshot_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER plan_snapshot_guard BEFORE UPDATE ON public.plan_versions FOR EACH ROW EXECUTE FUNCTION public.gw_plan_snapshot_guard();
 
+CREATE TRIGGER plan_versions_pricing_guard BEFORE INSERT OR UPDATE ON public.plan_versions FOR EACH ROW EXECUTE FUNCTION public.gw_plan_pricing_guard();
 
---
--- Name: queue_entries queue_identity_guard; Type: TRIGGER; Schema: public; Owner: -
---
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.abuse_signals FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.alert_deliveries FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.appeals FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.archive_months FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.archive_record_keys FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.assets FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.audit_events FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.auth_factors FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.auth_flows FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.auth_recovery_codes FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.auth_refresh_tokens FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.auth_sessions FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.auth_totp_replays FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.bot_challenges FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.bot_token_uses FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.chain_checkpoints FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.chain_fee_claims FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.chain_observations FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.chain_recovery_runs FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.chain_scan_pages FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.crypto_events FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.crypto_invoices FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.crypto_obligations FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.crypto_reorg_resolutions FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.crypto_reorg_reviews FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.crypto_submissions FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.cycles FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.data_exports FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.database_binding_nonce FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.deployment_binding_challenges FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.environment_instances FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.export_chunks FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.financial_reconciliation_results FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.gift_invoices FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.help_articles FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.jobs FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.ledger_account_buckets FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.ledger_account_totals FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.ledger_accounts FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.ledger_asset_totals FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.ledger_counter_markers FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.ledger_counter_state FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.ledger_journal_audits FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.ledger_journals FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.ledger_postings FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.liability_recoveries FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.maintenance_results FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.native_reserve_inflows FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.notification_views FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.notifications FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.operation_keys FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.operational_alerts FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.operational_diagnostics FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.outbox FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.plan_versions FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.plans FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.point_events FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.price_quotes FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.profile_previews FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.provider_quota_reports FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.public_statistics FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.queue_entries FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.queue_partitions FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.queue_rank_nodes FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.rate_limits FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.receipt_allocations FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.recovery_outflow_resolutions FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.recovery_outflows FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.recovery_view_caps FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.referral_codes FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.reports FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.scheduler_nonces FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.scheduler_runs FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.schema_migrations FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.signed_attempts FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.signer_dispatch_cursor FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.signer_heartbeats FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.signer_reservations FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.signer_states FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.simulation_incoming_controls FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.simulation_incoming_events FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.simulation_incoming_refunds FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.simulation_reorg_resolutions FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.simulation_reorg_reviews FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.simulation_withdrawal_controls FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.slug_redirects FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.treasury_addresses FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.unallocated_inflows FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.unallocated_refund_claims FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.user_identities FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.users FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.wallet_challenges FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.wallet_links FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.withdrawals FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.worker_requests FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER production_write_fence BEFORE INSERT OR DELETE OR UPDATE ON public.x_manifest FOR EACH STATEMENT EXECUTE FUNCTION public.gw_production_write_fence();
+
+CREATE TRIGGER profile_previews_retained BEFORE DELETE OR UPDATE ON public.profile_previews FOR EACH ROW EXECUTE FUNCTION public.gw_profile_preview_guard();
+
+CREATE TRIGGER queue_entries_profile_revision AFTER INSERT OR UPDATE ON public.queue_entries FOR EACH ROW EXECUTE FUNCTION public.gw_queue_profile_revision();
 
 CREATE TRIGGER queue_identity_guard BEFORE DELETE OR UPDATE ON public.queue_entries FOR EACH ROW EXECUTE FUNCTION public.gw_queue_identity_guard();
 
-
---
--- Name: queue_entries queue_rank_maintain; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER queue_rank_maintain AFTER INSERT OR UPDATE OF status, priority_ticket ON public.queue_entries FOR EACH ROW EXECUTE FUNCTION public.gw_queue_rank_maintain();
-
-
---
--- Name: queue_partitions queue_sequence_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER queue_sequence_guard BEFORE UPDATE ON public.queue_partitions FOR EACH ROW EXECUTE FUNCTION public.gw_queue_sequence_guard();
 
-
---
--- Name: receipt_allocations receipt_allocation_append_only; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER receipt_allocation_append_only BEFORE DELETE OR UPDATE ON public.receipt_allocations FOR EACH ROW EXECUTE FUNCTION public.gw_reject_ledger_mutation();
-
-
---
--- Name: receipt_allocations receipt_allocation_valid; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE CONSTRAINT TRIGGER receipt_allocation_valid AFTER INSERT ON public.receipt_allocations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_validate_receipt_allocation();
 
-
---
--- Name: financial_reconciliation_results reconciliation_result_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER reconciliation_result_guard BEFORE INSERT ON public.financial_reconciliation_results FOR EACH ROW EXECUTE FUNCTION public.gw_reconciliation_result_guard();
-
-
---
--- Name: financial_reconciliation_results reconciliation_results_append_only; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER reconciliation_results_append_only BEFORE DELETE OR UPDATE ON public.financial_reconciliation_results FOR EACH ROW EXECUTE FUNCTION public.gw_reject_ledger_mutation();
 
-
---
--- Name: auth_recovery_codes recovery_history_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER recovery_history_guard BEFORE UPDATE ON public.auth_recovery_codes FOR EACH ROW EXECUTE FUNCTION public.gw_session_history_guard();
-
-
---
--- Name: recovery_outflow_resolutions recovery_loss_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE CONSTRAINT TRIGGER recovery_loss_guard AFTER INSERT ON public.recovery_outflow_resolutions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_recovery_loss_guard();
 
-
---
--- Name: recovery_outflow_resolutions recovery_outflow_resolution_retained; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER recovery_outflow_resolution_retained BEFORE DELETE OR UPDATE ON public.recovery_outflow_resolutions FOR EACH ROW EXECUTE FUNCTION public.gw_recovery_evidence_retained();
-
-
---
--- Name: recovery_outflows recovery_outflow_retained; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER recovery_outflow_retained BEFORE DELETE OR UPDATE ON public.recovery_outflows FOR EACH ROW EXECUTE FUNCTION public.gw_recovery_evidence_retained();
 
-
---
--- Name: chain_recovery_runs recovery_run_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER recovery_run_guard BEFORE DELETE OR UPDATE ON public.chain_recovery_runs FOR EACH ROW EXECUTE FUNCTION public.gw_recovery_run_guard();
-
-
---
--- Name: recovery_view_caps recovery_view_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER recovery_view_guard BEFORE DELETE OR UPDATE ON public.recovery_view_caps FOR EACH ROW EXECUTE FUNCTION public.gw_recovery_view_guard();
 
-
---
--- Name: auth_refresh_tokens refresh_history_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER refresh_history_guard BEFORE UPDATE ON public.auth_refresh_tokens FOR EACH ROW EXECUTE FUNCTION public.gw_session_history_guard();
-
-
---
--- Name: crypto_obligations refund_hold_obligation_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE CONSTRAINT TRIGGER refund_hold_obligation_guard AFTER INSERT OR UPDATE ON public.crypto_obligations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_refund_hold_guard();
 
-
---
--- Name: assets registry_binding_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER registry_binding_guard BEFORE UPDATE ON public.assets FOR EACH ROW EXECUTE FUNCTION public.gw_registry_binding_guard();
-
-
---
--- Name: assets registry_first_binding_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER registry_first_binding_guard BEFORE UPDATE ON public.assets FOR EACH ROW EXECUTE FUNCTION public.gw_registry_first_binding_guard();
 
-
---
--- Name: cycles reorg_admission_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE CONSTRAINT TRIGGER reorg_admission_guard AFTER INSERT ON public.cycles DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_reorg_admission_guard();
-
-
---
--- Name: point_events reorg_history_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER reorg_history_guard BEFORE DELETE OR UPDATE ON public.point_events FOR EACH ROW EXECUTE FUNCTION public.gw_reject_ledger_mutation();
 
-
---
--- Name: simulation_reorg_resolutions reorg_history_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER reorg_history_guard BEFORE DELETE OR UPDATE ON public.simulation_reorg_resolutions FOR EACH ROW EXECUTE FUNCTION public.gw_reject_ledger_mutation();
-
-
---
--- Name: simulation_reorg_reviews reorg_history_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER reorg_history_guard BEFORE DELETE OR UPDATE ON public.simulation_reorg_reviews FOR EACH ROW EXECUTE FUNCTION public.gw_reject_ledger_mutation();
 
-
---
--- Name: simulation_reorg_resolutions reorg_resolution_integrity; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE CONSTRAINT TRIGGER reorg_resolution_integrity AFTER INSERT ON public.simulation_reorg_resolutions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_reorg_resolution_integrity();
-
-
---
--- Name: simulation_reorg_reviews reorg_review_integrity; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE CONSTRAINT TRIGGER reorg_review_integrity AFTER INSERT ON public.simulation_reorg_reviews DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_reorg_review_integrity();
 
-
---
--- Name: reports report_history_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER report_history_guard BEFORE UPDATE ON public.reports FOR EACH ROW EXECUTE FUNCTION public.gw_case_guard();
-
-
---
--- Name: chain_scan_pages scan_page_retained; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER scan_page_retained BEFORE DELETE OR UPDATE ON public.chain_scan_pages FOR EACH ROW EXECUTE FUNCTION public.gw_recovery_evidence_retained();
 
-
---
--- Name: scheduler_nonces scheduler_nonce_retention_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER scheduler_nonce_retention_guard BEFORE DELETE OR UPDATE ON public.scheduler_nonces FOR EACH ROW EXECUTE FUNCTION public.gw_scheduler_retention_guard();
-
-
---
--- Name: scheduler_runs scheduler_run_retention_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER scheduler_run_retention_guard BEFORE DELETE OR UPDATE ON public.scheduler_runs FOR EACH ROW EXECUTE FUNCTION public.gw_scheduler_retention_guard();
 
-
---
--- Name: auth_sessions session_history_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER session_history_guard BEFORE UPDATE ON public.auth_sessions FOR EACH ROW EXECUTE FUNCTION public.gw_session_history_guard();
-
-
---
--- Name: signed_attempts signed_state_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER signed_state_guard BEFORE UPDATE ON public.signed_attempts FOR EACH ROW EXECUTE FUNCTION public.gw_financial_state_guard();
 
-
---
--- Name: simulation_withdrawal_controls simulation_withdrawal_controls_append; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER simulation_withdrawal_controls_append BEFORE DELETE OR UPDATE ON public.simulation_withdrawal_controls FOR EACH ROW EXECUTE FUNCTION public.gw_reject_ledger_mutation();
 
-
---
--- Name: ledger_journals treasury_sweep_journal_guard; Type: TRIGGER; Schema: public; Owner: -
---
+CREATE TRIGGER treasury_addresses_retained BEFORE DELETE OR UPDATE ON public.treasury_addresses FOR EACH ROW EXECUTE FUNCTION public.gw_treasury_inventory_guard();
 
 CREATE CONSTRAINT TRIGGER treasury_sweep_journal_guard AFTER INSERT ON public.ledger_journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_treasury_sweep_guard();
 
-
---
--- Name: crypto_obligations treasury_sweep_obligation_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE CONSTRAINT TRIGGER treasury_sweep_obligation_guard AFTER INSERT OR UPDATE ON public.crypto_obligations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_treasury_sweep_guard();
-
-
---
--- Name: ledger_postings treasury_sweep_posting_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE CONSTRAINT TRIGGER treasury_sweep_posting_guard AFTER INSERT ON public.ledger_postings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_treasury_sweep_guard();
 
-
---
--- Name: crypto_obligations unallocated_refund_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE CONSTRAINT TRIGGER unallocated_refund_guard AFTER INSERT OR UPDATE ON public.crypto_obligations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_unallocated_refund_guard();
-
-
---
--- Name: unallocated_refund_claims unmatched_claim_retained; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER unmatched_claim_retained BEFORE DELETE OR UPDATE ON public.unallocated_refund_claims FOR EACH ROW EXECUTE FUNCTION public.gw_recovery_evidence_retained();
 
-
---
--- Name: unallocated_inflows unmatched_custody_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE CONSTRAINT TRIGGER unmatched_custody_guard AFTER INSERT ON public.unallocated_inflows DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_unallocated_custody_guard();
-
-
---
--- Name: unallocated_inflows unmatched_retained; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER unmatched_retained BEFORE DELETE OR UPDATE ON public.unallocated_inflows FOR EACH ROW EXECUTE FUNCTION public.gw_recovery_evidence_retained();
 
-
---
--- Name: ledger_postings unmatched_source_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE CONSTRAINT TRIGGER unmatched_source_guard AFTER INSERT ON public.ledger_postings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_unallocated_source_guard();
-
-
---
--- Name: ledger_postings unmatched_source_lock; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER unmatched_source_lock BEFORE INSERT ON public.ledger_postings FOR EACH ROW EXECUTE FUNCTION public.gw_unallocated_source_lock();
 
-
---
--- Name: ledger_postings user_payable_lock; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER user_payable_lock BEFORE INSERT ON public.ledger_postings FOR EACH ROW EXECUTE FUNCTION public.gw_lock_user_payable();
-
-
---
--- Name: ledger_postings user_payable_nonnegative; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE CONSTRAINT TRIGGER user_payable_nonnegative AFTER INSERT ON public.ledger_postings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.gw_check_user_payable();
 
+CREATE TRIGGER users_publication_cache_epoch AFTER INSERT OR UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION public.gw_publication_cache_epoch();
 
---
--- Name: wallet_challenges wallet_challenge_guard; Type: TRIGGER; Schema: public; Owner: -
---
+CREATE TRIGGER users_publication_consent_guard BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION public.gw_publication_consent_guard();
 
 CREATE TRIGGER wallet_challenge_guard BEFORE DELETE OR UPDATE ON public.wallet_challenges FOR EACH ROW EXECUTE FUNCTION public.gw_financial_ephemeral_guard();
 
-
---
--- Name: wallet_links wallet_revision_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER wallet_revision_guard BEFORE UPDATE ON public.wallet_links FOR EACH ROW EXECUTE FUNCTION public.gw_wallet_revision_guard();
-
-
---
--- Name: withdrawals withdrawal_snapshot_guard; Type: TRIGGER; Schema: public; Owner: -
---
 
 CREATE TRIGGER withdrawal_snapshot_guard BEFORE DELETE OR UPDATE ON public.withdrawals FOR EACH ROW EXECUTE FUNCTION public.gw_withdrawal_snapshot_guard();
 
-
---
--- Name: worker_requests worker_nonce_guard; Type: TRIGGER; Schema: public; Owner: -
---
-
 CREATE TRIGGER worker_nonce_guard BEFORE DELETE OR UPDATE ON public.worker_requests FOR EACH ROW EXECUTE FUNCTION public.gw_financial_ephemeral_guard();
 
-
---
--- Name: abuse_signals abuse_signals_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
+CREATE TRIGGER x_manifest_profile_guard BEFORE DELETE OR UPDATE ON public.x_manifest FOR EACH ROW EXECUTE FUNCTION public.gw_profile_setting_guard();
 
 ALTER TABLE ONLY public.abuse_signals
     ADD CONSTRAINT abuse_signals_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: alert_deliveries alert_deliveries_alert_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.alert_deliveries
     ADD CONSTRAINT alert_deliveries_alert_id_fkey FOREIGN KEY (alert_id) REFERENCES public.operational_alerts(id) ON DELETE RESTRICT;
-
-
---
--- Name: appeals appeals_actor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.appeals
     ADD CONSTRAINT appeals_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: appeals appeals_report_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.appeals
     ADD CONSTRAINT appeals_report_id_fkey FOREIGN KEY (report_id) REFERENCES public.reports(id) ON DELETE RESTRICT;
 
-
---
--- Name: audit_events audit_events_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.audit_events
+ALTER TABLE public.audit_events
     ADD CONSTRAINT audit_events_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
-
-
---
--- Name: auth_factors auth_factors_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.auth_factors
     ADD CONSTRAINT auth_factors_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: auth_recovery_codes auth_recovery_codes_factor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.auth_recovery_codes
     ADD CONSTRAINT auth_recovery_codes_factor_id_fkey FOREIGN KEY (factor_id) REFERENCES public.auth_factors(id) ON DELETE RESTRICT;
-
-
---
--- Name: auth_refresh_tokens auth_refresh_tokens_session_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.auth_refresh_tokens
     ADD CONSTRAINT auth_refresh_tokens_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.auth_sessions(id) ON DELETE RESTRICT;
 
-
---
--- Name: auth_sessions auth_sessions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.auth_sessions
     ADD CONSTRAINT auth_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
-
-
---
--- Name: auth_totp_replays auth_totp_replays_factor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.auth_totp_replays
     ADD CONSTRAINT auth_totp_replays_factor_id_fkey FOREIGN KEY (factor_id) REFERENCES public.auth_factors(id) ON DELETE RESTRICT;
 
-
---
--- Name: bot_challenges bot_challenges_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.bot_challenges
     ADD CONSTRAINT bot_challenges_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
-
-
---
--- Name: bot_token_uses bot_token_uses_challenge_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.bot_token_uses
     ADD CONSTRAINT bot_token_uses_challenge_id_fkey FOREIGN KEY (challenge_id) REFERENCES public.bot_challenges(id) ON DELETE RESTRICT;
 
-
---
--- Name: chain_checkpoints chain_checkpoints_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.chain_checkpoints
     ADD CONSTRAINT chain_checkpoints_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
-
-
---
--- Name: chain_checkpoints chain_checkpoints_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.chain_checkpoints
     ADD CONSTRAINT chain_checkpoints_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
 
-
---
--- Name: chain_fee_claims chain_fee_claims_gas_journal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.chain_fee_claims
     ADD CONSTRAINT chain_fee_claims_gas_journal_id_fkey FOREIGN KEY (gas_journal_id) REFERENCES public.ledger_journals(id) ON DELETE RESTRICT;
-
-
---
--- Name: chain_fee_claims chain_fee_claims_native_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.chain_fee_claims
     ADD CONSTRAINT chain_fee_claims_native_asset_id_fkey FOREIGN KEY (native_asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
 
-
---
--- Name: chain_fee_claims chain_fee_claims_setup_journal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.chain_fee_claims
     ADD CONSTRAINT chain_fee_claims_setup_journal_id_fkey FOREIGN KEY (setup_journal_id) REFERENCES public.ledger_journals(id) ON DELETE RESTRICT;
-
-
---
--- Name: chain_observations chain_observations_invoice_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.chain_observations
     ADD CONSTRAINT chain_observations_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES public.crypto_invoices(id) ON DELETE RESTRICT;
 
-
---
--- Name: chain_observations chain_observations_source_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.chain_observations
     ADD CONSTRAINT chain_observations_source_job_id_fkey FOREIGN KEY (source_job_id) REFERENCES public.jobs(id) ON DELETE RESTRICT;
-
-
---
--- Name: chain_observations chain_observations_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.chain_observations
     ADD CONSTRAINT chain_observations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: chain_recovery_runs chain_recovery_runs_checkpoint_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.chain_recovery_runs
     ADD CONSTRAINT chain_recovery_runs_checkpoint_id_fkey FOREIGN KEY (checkpoint_id) REFERENCES public.chain_checkpoints(id) ON DELETE RESTRICT;
 
-
---
--- Name: chain_scan_pages chain_scan_pages_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.chain_scan_pages
+ALTER TABLE public.chain_scan_pages
     ADD CONSTRAINT chain_scan_pages_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.chain_recovery_runs(id) ON DELETE RESTRICT;
-
-
---
--- Name: crypto_events crypto_events_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.crypto_events
     ADD CONSTRAINT crypto_events_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
 
-
---
--- Name: crypto_events crypto_events_invoice_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.crypto_events
     ADD CONSTRAINT crypto_events_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES public.crypto_invoices(id) ON DELETE RESTRICT;
-
-
---
--- Name: crypto_invoices crypto_invoices_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.crypto_invoices
     ADD CONSTRAINT crypto_invoices_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
 
-
---
--- Name: crypto_invoices crypto_invoices_plan_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.crypto_invoices
     ADD CONSTRAINT crypto_invoices_plan_version_id_fkey FOREIGN KEY (plan_version_id) REFERENCES public.plan_versions(id) ON DELETE RESTRICT;
-
-
---
--- Name: crypto_invoices crypto_invoices_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.crypto_invoices
     ADD CONSTRAINT crypto_invoices_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: crypto_invoices crypto_invoices_wallet_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.crypto_invoices
     ADD CONSTRAINT crypto_invoices_wallet_id_fkey FOREIGN KEY (wallet_id) REFERENCES public.wallet_links(id) ON DELETE RESTRICT;
-
-
---
--- Name: crypto_obligations crypto_obligations_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.crypto_obligations
     ADD CONSTRAINT crypto_obligations_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
 
-
---
--- Name: crypto_obligations crypto_obligations_previous_obligation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.crypto_obligations
     ADD CONSTRAINT crypto_obligations_previous_obligation_id_fkey FOREIGN KEY (previous_obligation_id) REFERENCES public.crypto_obligations(id) ON DELETE RESTRICT;
-
-
---
--- Name: crypto_obligations crypto_obligations_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.crypto_obligations
     ADD CONSTRAINT crypto_obligations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: crypto_reorg_resolutions crypto_reorg_resolutions_journal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.crypto_reorg_resolutions
     ADD CONSTRAINT crypto_reorg_resolutions_journal_id_fkey FOREIGN KEY (journal_id) REFERENCES public.ledger_journals(id) ON DELETE RESTRICT;
-
-
---
--- Name: crypto_reorg_resolutions crypto_reorg_resolutions_review_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.crypto_reorg_resolutions
     ADD CONSTRAINT crypto_reorg_resolutions_review_id_fkey FOREIGN KEY (review_id) REFERENCES public.crypto_reorg_reviews(id) ON DELETE RESTRICT;
 
-
---
--- Name: crypto_reorg_reviews crypto_reorg_reviews_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.crypto_reorg_reviews
     ADD CONSTRAINT crypto_reorg_reviews_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
-
-
---
--- Name: crypto_reorg_reviews crypto_reorg_reviews_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.crypto_reorg_reviews
     ADD CONSTRAINT crypto_reorg_reviews_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.crypto_events(id) ON DELETE RESTRICT;
 
-
---
--- Name: crypto_reorg_reviews crypto_reorg_reviews_loss_journal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.crypto_reorg_reviews
     ADD CONSTRAINT crypto_reorg_reviews_loss_journal_id_fkey FOREIGN KEY (loss_journal_id) REFERENCES public.ledger_journals(id) ON DELETE RESTRICT;
-
-
---
--- Name: crypto_submissions crypto_submissions_invoice_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.crypto_submissions
     ADD CONSTRAINT crypto_submissions_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES public.crypto_invoices(id) ON DELETE RESTRICT;
 
-
---
--- Name: cycles cycles_plan_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.cycles
     ADD CONSTRAINT cycles_plan_version_id_fkey FOREIGN KEY (plan_version_id) REFERENCES public.plan_versions(id) ON DELETE RESTRICT;
-
-
---
--- Name: cycles cycles_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.cycles
     ADD CONSTRAINT cycles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: data_exports data_exports_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.data_exports
     ADD CONSTRAINT data_exports_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
-
-
---
--- Name: export_chunks export_chunks_export_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.export_chunks
     ADD CONSTRAINT export_chunks_export_id_fkey FOREIGN KEY (export_id) REFERENCES public.data_exports(id) ON DELETE RESTRICT;
 
-
---
--- Name: financial_reconciliation_results financial_reconciliation_results_source_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.financial_reconciliation_results
     ADD CONSTRAINT financial_reconciliation_results_source_job_id_fkey FOREIGN KEY (source_job_id) REFERENCES public.jobs(id) ON DELETE RESTRICT;
-
-
---
--- Name: gift_invoices gift_invoices_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.gift_invoices
     ADD CONSTRAINT gift_invoices_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
 
-
---
--- Name: gift_invoices gift_invoices_plan_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.gift_invoices
     ADD CONSTRAINT gift_invoices_plan_version_id_fkey FOREIGN KEY (plan_version_id) REFERENCES public.plan_versions(id) ON DELETE RESTRICT;
-
-
---
--- Name: gift_invoices gift_invoices_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.gift_invoices
     ADD CONSTRAINT gift_invoices_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: help_articles help_articles_edited_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.help_articles
     ADD CONSTRAINT help_articles_edited_by_fkey FOREIGN KEY (edited_by) REFERENCES public.users(id) ON DELETE RESTRICT;
-
-
---
--- Name: jobs jobs_outbox_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.jobs
     ADD CONSTRAINT jobs_outbox_id_fkey FOREIGN KEY (outbox_id) REFERENCES public.outbox(id) ON DELETE RESTRICT;
 
-
---
--- Name: ledger_account_buckets ledger_account_buckets_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.ledger_account_buckets
     ADD CONSTRAINT ledger_account_buckets_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.ledger_accounts(id) ON DELETE RESTRICT;
-
-
---
--- Name: ledger_account_totals ledger_account_totals_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.ledger_account_totals
     ADD CONSTRAINT ledger_account_totals_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.ledger_accounts(id) ON DELETE RESTRICT;
 
-
---
--- Name: ledger_account_totals ledger_account_totals_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.ledger_account_totals
     ADD CONSTRAINT ledger_account_totals_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
-
-
---
--- Name: ledger_accounts ledger_accounts_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.ledger_accounts
     ADD CONSTRAINT ledger_accounts_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
 
-
---
--- Name: ledger_accounts ledger_accounts_owner_user_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.ledger_accounts
     ADD CONSTRAINT ledger_accounts_owner_user_fk FOREIGN KEY (owner_id) REFERENCES public.users(id) ON DELETE RESTRICT;
-
-
---
--- Name: ledger_asset_totals ledger_asset_totals_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.ledger_asset_totals
     ADD CONSTRAINT ledger_asset_totals_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
 
-
---
--- Name: ledger_journal_audits ledger_journal_audits_journal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.ledger_journal_audits
     ADD CONSTRAINT ledger_journal_audits_journal_id_fkey FOREIGN KEY (journal_id) REFERENCES public.ledger_journals(id) ON DELETE RESTRICT;
 
-
---
--- Name: ledger_postings ledger_postings_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.ledger_postings
+ALTER TABLE public.ledger_postings
     ADD CONSTRAINT ledger_postings_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.ledger_accounts(id) ON DELETE RESTRICT;
 
-
---
--- Name: ledger_postings ledger_postings_journal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.ledger_postings
+ALTER TABLE public.ledger_postings
     ADD CONSTRAINT ledger_postings_journal_id_fkey FOREIGN KEY (journal_id) REFERENCES public.ledger_journals(id) ON DELETE RESTRICT;
-
-
---
--- Name: liability_recoveries liability_recoveries_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.liability_recoveries
     ADD CONSTRAINT liability_recoveries_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: liability_recoveries liability_recoveries_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.liability_recoveries
     ADD CONSTRAINT liability_recoveries_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
-
-
---
--- Name: liability_recoveries liability_recoveries_obligation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.liability_recoveries
     ADD CONSTRAINT liability_recoveries_obligation_id_fkey FOREIGN KEY (obligation_id) REFERENCES public.crypto_obligations(id) ON DELETE RESTRICT;
 
-
---
--- Name: liability_recoveries liability_recoveries_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.liability_recoveries
     ADD CONSTRAINT liability_recoveries_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
-
-
---
--- Name: maintenance_results maintenance_results_source_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.maintenance_results
     ADD CONSTRAINT maintenance_results_source_job_id_fkey FOREIGN KEY (source_job_id) REFERENCES public.jobs(id) ON DELETE RESTRICT;
 
-
---
--- Name: native_reserve_inflows native_reserve_inflows_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.native_reserve_inflows
     ADD CONSTRAINT native_reserve_inflows_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
-
-
---
--- Name: native_reserve_inflows native_reserve_inflows_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.native_reserve_inflows
     ADD CONSTRAINT native_reserve_inflows_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
 
-
---
--- Name: native_reserve_inflows native_reserve_inflows_journal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.native_reserve_inflows
     ADD CONSTRAINT native_reserve_inflows_journal_id_fkey FOREIGN KEY (journal_id) REFERENCES public.ledger_journals(id) ON DELETE RESTRICT;
-
-
---
--- Name: notification_views notification_views_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.notification_views
     ADD CONSTRAINT notification_views_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
-
---
--- Name: notifications notifications_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.notifications
     ADD CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
-
-
---
--- Name: operational_alerts operational_alerts_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.operational_alerts
     ADD CONSTRAINT operational_alerts_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
 
-
---
--- Name: plan_versions plan_versions_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
+ALTER TABLE ONLY public.plan_versions
+    ADD CONSTRAINT plan_versions_activation_price_id_fkey FOREIGN KEY (activation_price_id) REFERENCES public.price_quotes(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.plan_versions
     ADD CONSTRAINT plan_versions_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
 
-
---
--- Name: plan_versions plan_versions_plan_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.plan_versions
     ADD CONSTRAINT plan_versions_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.plans(id) ON DELETE RESTRICT;
-
-
---
--- Name: point_events point_events_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.point_events
     ADD CONSTRAINT point_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: price_quotes price_quotes_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.price_quotes
     ADD CONSTRAINT price_quotes_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
 
-
---
--- Name: provider_quota_reports provider_quota_reports_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
+ALTER TABLE ONLY public.profile_previews
+    ADD CONSTRAINT profile_previews_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.provider_quota_reports
     ADD CONSTRAINT provider_quota_reports_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: queue_entries queue_entries_beneficiary_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.queue_entries
     ADD CONSTRAINT queue_entries_beneficiary_user_id_fkey FOREIGN KEY (beneficiary_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
-
-
---
--- Name: queue_entries queue_entries_cycle_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.queue_entries
     ADD CONSTRAINT queue_entries_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES public.cycles(id) ON DELETE RESTRICT;
 
-
---
--- Name: queue_entries queue_entries_partition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.queue_entries
     ADD CONSTRAINT queue_entries_partition_id_fkey FOREIGN KEY (partition_id) REFERENCES public.queue_partitions(id) ON DELETE RESTRICT;
-
-
---
--- Name: queue_partitions queue_partitions_plan_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.queue_partitions
     ADD CONSTRAINT queue_partitions_plan_version_id_fkey FOREIGN KEY (plan_version_id) REFERENCES public.plan_versions(id) ON DELETE RESTRICT;
 
-
---
--- Name: queue_rank_nodes queue_rank_nodes_partition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.queue_rank_nodes
     ADD CONSTRAINT queue_rank_nodes_partition_id_fkey FOREIGN KEY (partition_id) REFERENCES public.queue_partitions(id) ON DELETE RESTRICT;
-
-
---
--- Name: receipt_allocations receipt_allocations_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.receipt_allocations
     ADD CONSTRAINT receipt_allocations_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
 
-
---
--- Name: receipt_allocations receipt_allocations_beneficiary_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.receipt_allocations
     ADD CONSTRAINT receipt_allocations_beneficiary_user_id_fkey FOREIGN KEY (beneficiary_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
-
-
---
--- Name: receipt_allocations receipt_allocations_credit_journal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.receipt_allocations
     ADD CONSTRAINT receipt_allocations_credit_journal_id_fkey FOREIGN KEY (credit_journal_id) REFERENCES public.ledger_journals(id) ON DELETE RESTRICT;
 
-
---
--- Name: receipt_allocations receipt_allocations_payer_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.receipt_allocations
     ADD CONSTRAINT receipt_allocations_payer_user_id_fkey FOREIGN KEY (payer_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
-
-
---
--- Name: receipt_allocations receipt_allocations_receiver_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.receipt_allocations
     ADD CONSTRAINT receipt_allocations_receiver_account_id_fkey FOREIGN KEY (receiver_account_id) REFERENCES public.ledger_accounts(id) ON DELETE RESTRICT;
 
-
---
--- Name: receipt_allocations receipt_allocations_receiver_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.receipt_allocations
     ADD CONSTRAINT receipt_allocations_receiver_entry_id_fkey FOREIGN KEY (receiver_entry_id) REFERENCES public.queue_entries(id) ON DELETE RESTRICT;
-
-
---
--- Name: receipt_allocations receipt_allocations_source_cycle_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.receipt_allocations
     ADD CONSTRAINT receipt_allocations_source_cycle_id_fkey FOREIGN KEY (source_cycle_id) REFERENCES public.cycles(id) ON DELETE RESTRICT;
 
-
---
--- Name: receipt_allocations receipt_source_operation_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.receipt_allocations
     ADD CONSTRAINT receipt_source_operation_fk FOREIGN KEY (source_operation_key) REFERENCES public.operation_keys(business_key) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: recovery_outflow_resolutions recovery_outflow_resolutions_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.recovery_outflow_resolutions
     ADD CONSTRAINT recovery_outflow_resolutions_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: recovery_outflow_resolutions recovery_outflow_resolutions_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.recovery_outflow_resolutions
     ADD CONSTRAINT recovery_outflow_resolutions_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
-
-
---
--- Name: recovery_outflow_resolutions recovery_outflow_resolutions_gas_journal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.recovery_outflow_resolutions
     ADD CONSTRAINT recovery_outflow_resolutions_gas_journal_id_fkey FOREIGN KEY (gas_journal_id) REFERENCES public.ledger_journals(id) ON DELETE RESTRICT;
 
-
---
--- Name: recovery_outflow_resolutions recovery_outflow_resolutions_native_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.recovery_outflow_resolutions
     ADD CONSTRAINT recovery_outflow_resolutions_native_asset_id_fkey FOREIGN KEY (native_asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
-
-
---
--- Name: recovery_outflow_resolutions recovery_outflow_resolutions_outflow_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.recovery_outflow_resolutions
     ADD CONSTRAINT recovery_outflow_resolutions_outflow_id_fkey FOREIGN KEY (outflow_id) REFERENCES public.recovery_outflows(id) ON DELETE RESTRICT;
 
-
---
--- Name: recovery_outflow_resolutions recovery_outflow_resolutions_principal_journal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.recovery_outflow_resolutions
     ADD CONSTRAINT recovery_outflow_resolutions_principal_journal_id_fkey FOREIGN KEY (principal_journal_id) REFERENCES public.ledger_journals(id) ON DELETE RESTRICT;
-
-
---
--- Name: recovery_outflow_resolutions recovery_outflow_resolutions_setup_journal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.recovery_outflow_resolutions
     ADD CONSTRAINT recovery_outflow_resolutions_setup_journal_id_fkey FOREIGN KEY (setup_journal_id) REFERENCES public.ledger_journals(id) ON DELETE RESTRICT;
 
-
---
--- Name: recovery_outflows recovery_outflows_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.recovery_outflows
     ADD CONSTRAINT recovery_outflows_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
-
-
---
--- Name: recovery_outflows recovery_outflows_obligation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.recovery_outflows
     ADD CONSTRAINT recovery_outflows_obligation_id_fkey FOREIGN KEY (obligation_id) REFERENCES public.crypto_obligations(id) ON DELETE RESTRICT;
 
-
---
--- Name: recovery_outflows recovery_outflows_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.recovery_outflows
     ADD CONSTRAINT recovery_outflows_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.chain_recovery_runs(id) ON DELETE RESTRICT;
-
-
---
--- Name: recovery_view_caps recovery_view_caps_recovery_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.recovery_view_caps
     ADD CONSTRAINT recovery_view_caps_recovery_id_fkey FOREIGN KEY (recovery_id) REFERENCES public.liability_recoveries(id) ON DELETE RESTRICT;
 
-
---
--- Name: referral_codes referral_codes_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.referral_codes
     ADD CONSTRAINT referral_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
-
-
---
--- Name: reports reports_actor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.reports
     ADD CONSTRAINT reports_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: reports reports_target_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.reports
     ADD CONSTRAINT reports_target_id_fkey FOREIGN KEY (target_id) REFERENCES public.users(id) ON DELETE RESTRICT;
-
-
---
--- Name: signed_attempts signed_attempts_obligation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.signed_attempts
     ADD CONSTRAINT signed_attempts_obligation_id_fkey FOREIGN KEY (obligation_id) REFERENCES public.crypto_obligations(id) ON DELETE RESTRICT;
 
-
---
--- Name: signed_attempts signed_attempts_previous_attempt_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.signed_attempts
     ADD CONSTRAINT signed_attempts_previous_attempt_id_fkey FOREIGN KEY (previous_attempt_id) REFERENCES public.signed_attempts(id) ON DELETE RESTRICT;
-
-
---
--- Name: signer_reservations signer_reservations_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.signer_reservations
     ADD CONSTRAINT signer_reservations_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
 
-
---
--- Name: signer_reservations signer_reservations_obligation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.signer_reservations
     ADD CONSTRAINT signer_reservations_obligation_id_fkey FOREIGN KEY (obligation_id) REFERENCES public.crypto_obligations(id) ON DELETE RESTRICT;
-
-
---
--- Name: simulation_incoming_controls simulation_incoming_controls_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_incoming_controls
     ADD CONSTRAINT simulation_incoming_controls_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: simulation_incoming_controls simulation_incoming_controls_invoice_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_incoming_controls
     ADD CONSTRAINT simulation_incoming_controls_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES public.gift_invoices(id) ON DELETE RESTRICT;
-
-
---
--- Name: simulation_incoming_controls simulation_incoming_controls_operation_key_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_incoming_controls
     ADD CONSTRAINT simulation_incoming_controls_operation_key_fkey FOREIGN KEY (operation_key) REFERENCES public.operation_keys(business_key) ON DELETE RESTRICT;
 
-
---
--- Name: simulation_incoming_events simulation_incoming_events_accept_journal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_incoming_events
     ADD CONSTRAINT simulation_incoming_events_accept_journal_id_fkey FOREIGN KEY (accept_journal_id) REFERENCES public.ledger_journals(id) ON DELETE RESTRICT;
-
-
---
--- Name: simulation_incoming_events simulation_incoming_events_gift_operation_key_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_incoming_events
     ADD CONSTRAINT simulation_incoming_events_gift_operation_key_fkey FOREIGN KEY (gift_operation_key) REFERENCES public.operation_keys(business_key) ON DELETE RESTRICT;
 
-
---
--- Name: simulation_incoming_events simulation_incoming_events_hold_journal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_incoming_events
     ADD CONSTRAINT simulation_incoming_events_hold_journal_id_fkey FOREIGN KEY (hold_journal_id) REFERENCES public.ledger_journals(id) ON DELETE RESTRICT;
-
-
---
--- Name: simulation_incoming_events simulation_incoming_events_invoice_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_incoming_events
     ADD CONSTRAINT simulation_incoming_events_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES public.gift_invoices(id) ON DELETE RESTRICT;
 
-
---
--- Name: simulation_incoming_events simulation_incoming_events_refund_journal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_incoming_events
     ADD CONSTRAINT simulation_incoming_events_refund_journal_id_fkey FOREIGN KEY (refund_journal_id) REFERENCES public.ledger_journals(id) ON DELETE RESTRICT;
-
-
---
--- Name: simulation_incoming_refunds simulation_incoming_refunds_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_incoming_refunds
     ADD CONSTRAINT simulation_incoming_refunds_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: simulation_incoming_refunds simulation_incoming_refunds_invoice_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_incoming_refunds
     ADD CONSTRAINT simulation_incoming_refunds_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES public.gift_invoices(id) ON DELETE RESTRICT;
-
-
---
--- Name: simulation_incoming_refunds simulation_incoming_refunds_journal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_incoming_refunds
     ADD CONSTRAINT simulation_incoming_refunds_journal_id_fkey FOREIGN KEY (journal_id) REFERENCES public.ledger_journals(id) ON DELETE RESTRICT;
 
-
---
--- Name: simulation_incoming_refunds simulation_incoming_refunds_operation_key_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_incoming_refunds
     ADD CONSTRAINT simulation_incoming_refunds_operation_key_fkey FOREIGN KEY (operation_key) REFERENCES public.operation_keys(business_key) ON DELETE RESTRICT;
-
-
---
--- Name: simulation_reorg_resolutions simulation_reorg_resolutions_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_reorg_resolutions
     ADD CONSTRAINT simulation_reorg_resolutions_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: simulation_reorg_resolutions simulation_reorg_resolutions_journal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_reorg_resolutions
     ADD CONSTRAINT simulation_reorg_resolutions_journal_id_fkey FOREIGN KEY (journal_id) REFERENCES public.ledger_journals(id) ON DELETE RESTRICT;
-
-
---
--- Name: simulation_reorg_resolutions simulation_reorg_resolutions_operation_key_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_reorg_resolutions
     ADD CONSTRAINT simulation_reorg_resolutions_operation_key_fkey FOREIGN KEY (operation_key) REFERENCES public.operation_keys(business_key) ON DELETE RESTRICT;
 
-
---
--- Name: simulation_reorg_resolutions simulation_reorg_resolutions_review_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_reorg_resolutions
     ADD CONSTRAINT simulation_reorg_resolutions_review_id_fkey FOREIGN KEY (review_id) REFERENCES public.simulation_reorg_reviews(id) ON DELETE RESTRICT;
-
-
---
--- Name: simulation_reorg_reviews simulation_reorg_reviews_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_reorg_reviews
     ADD CONSTRAINT simulation_reorg_reviews_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: simulation_reorg_reviews simulation_reorg_reviews_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_reorg_reviews
     ADD CONSTRAINT simulation_reorg_reviews_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
-
-
---
--- Name: simulation_reorg_reviews simulation_reorg_reviews_loss_journal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_reorg_reviews
     ADD CONSTRAINT simulation_reorg_reviews_loss_journal_id_fkey FOREIGN KEY (loss_journal_id) REFERENCES public.ledger_journals(id) ON DELETE RESTRICT;
 
-
---
--- Name: simulation_reorg_reviews simulation_reorg_reviews_operation_key_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_reorg_reviews
     ADD CONSTRAINT simulation_reorg_reviews_operation_key_fkey FOREIGN KEY (operation_key) REFERENCES public.operation_keys(business_key) ON DELETE RESTRICT;
-
-
---
--- Name: simulation_reorg_reviews simulation_reorg_reviews_partition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_reorg_reviews
     ADD CONSTRAINT simulation_reorg_reviews_partition_id_fkey FOREIGN KEY (partition_id) REFERENCES public.queue_partitions(id) ON DELETE RESTRICT;
 
-
---
--- Name: simulation_reorg_reviews simulation_reorg_reviews_payer_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_reorg_reviews
     ADD CONSTRAINT simulation_reorg_reviews_payer_user_id_fkey FOREIGN KEY (payer_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
-
-
---
--- Name: simulation_reorg_reviews simulation_reorg_reviews_receiver_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_reorg_reviews
     ADD CONSTRAINT simulation_reorg_reviews_receiver_entry_id_fkey FOREIGN KEY (receiver_entry_id) REFERENCES public.queue_entries(id) ON DELETE RESTRICT;
 
-
---
--- Name: simulation_reorg_reviews simulation_reorg_reviews_source_allocation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_reorg_reviews
     ADD CONSTRAINT simulation_reorg_reviews_source_allocation_id_fkey FOREIGN KEY (source_allocation_id) REFERENCES public.receipt_allocations(id) ON DELETE RESTRICT;
-
-
---
--- Name: simulation_reorg_reviews simulation_reorg_reviews_source_cycle_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_reorg_reviews
     ADD CONSTRAINT simulation_reorg_reviews_source_cycle_id_fkey FOREIGN KEY (source_cycle_id) REFERENCES public.cycles(id) ON DELETE RESTRICT;
 
-
---
--- Name: simulation_reorg_reviews simulation_reorg_reviews_source_operation_key_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_reorg_reviews
     ADD CONSTRAINT simulation_reorg_reviews_source_operation_key_fkey FOREIGN KEY (source_operation_key) REFERENCES public.operation_keys(business_key) ON DELETE RESTRICT;
-
-
---
--- Name: simulation_withdrawal_controls simulation_withdrawal_controls_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_withdrawal_controls
     ADD CONSTRAINT simulation_withdrawal_controls_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: simulation_withdrawal_controls simulation_withdrawal_controls_operation_key_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.simulation_withdrawal_controls
     ADD CONSTRAINT simulation_withdrawal_controls_operation_key_fkey FOREIGN KEY (operation_key) REFERENCES public.operation_keys(business_key) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: simulation_withdrawal_controls simulation_withdrawal_controls_withdrawal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.simulation_withdrawal_controls
     ADD CONSTRAINT simulation_withdrawal_controls_withdrawal_id_fkey FOREIGN KEY (withdrawal_id) REFERENCES public.withdrawals(id) ON DELETE RESTRICT;
 
-
---
--- Name: slug_redirects slug_redirects_article_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.slug_redirects
     ADD CONSTRAINT slug_redirects_article_id_fkey FOREIGN KEY (article_id) REFERENCES public.help_articles(id) ON DELETE RESTRICT;
 
-
---
--- Name: unallocated_inflows unallocated_inflows_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
+ALTER TABLE ONLY public.treasury_addresses
+    ADD CONSTRAINT treasury_addresses_asset_id_assets_id_fk FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.unallocated_inflows
     ADD CONSTRAINT unallocated_inflows_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
 
-
---
--- Name: unallocated_inflows unallocated_inflows_journal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.unallocated_inflows
     ADD CONSTRAINT unallocated_inflows_journal_id_fkey FOREIGN KEY (journal_id) REFERENCES public.ledger_journals(id) ON DELETE RESTRICT;
-
-
---
--- Name: unallocated_refund_claims unallocated_refund_claims_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.unallocated_refund_claims
     ADD CONSTRAINT unallocated_refund_claims_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: unallocated_refund_claims unallocated_refund_claims_inflow_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.unallocated_refund_claims
     ADD CONSTRAINT unallocated_refund_claims_inflow_id_fkey FOREIGN KEY (inflow_id) REFERENCES public.unallocated_inflows(id) ON DELETE RESTRICT;
-
-
---
--- Name: user_identities user_identities_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.user_identities
     ADD CONSTRAINT user_identities_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: users users_referrer_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_referrer_user_id_fkey FOREIGN KEY (referrer_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
-
-
---
--- Name: wallet_challenges wallet_challenges_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.wallet_challenges
     ADD CONSTRAINT wallet_challenges_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
 
-
---
--- Name: wallet_links wallet_links_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.wallet_links
     ADD CONSTRAINT wallet_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
-
-
---
--- Name: withdrawals withdrawals_asset_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.withdrawals
     ADD CONSTRAINT withdrawals_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE RESTRICT;
 
-
---
--- Name: withdrawals withdrawals_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.withdrawals
     ADD CONSTRAINT withdrawals_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
-
-
---
--- Name: x_manifest x_manifest_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 ALTER TABLE ONLY public.x_manifest
     ADD CONSTRAINT x_manifest_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
-
---
--- Name: abuse_signals; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.abuse_signals ENABLE ROW LEVEL SECURITY;
 
---
--- Name: alert_deliveries adapter_service; Type: POLICY; Schema: public; Owner: -
---
+CREATE POLICY active_payment_environment ON public.abuse_signals AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.alert_deliveries AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.appeals AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.archive_months AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.archive_record_keys AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.assets AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.audit_events AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.auth_factors AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.auth_flows AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.auth_recovery_codes AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.auth_refresh_tokens AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.auth_sessions AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.auth_totp_replays AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.bot_challenges AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.bot_token_uses AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.chain_checkpoints AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = chain_checkpoints.asset_id) AND (a.environment = current_setting('gw.environment'::text, true))))))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = chain_checkpoints.asset_id) AND (a.environment = current_setting('gw.environment'::text, true)))))));
+
+CREATE POLICY active_payment_environment ON public.chain_fee_claims AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.chain_observations AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.chain_recovery_runs AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.chain_scan_pages AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.crypto_events AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.crypto_invoices AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.crypto_obligations AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.crypto_reorg_resolutions AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.crypto_reorg_reviews AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = crypto_reorg_reviews.asset_id) AND (a.environment = current_setting('gw.environment'::text, true))))))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = crypto_reorg_reviews.asset_id) AND (a.environment = current_setting('gw.environment'::text, true)))))));
+
+CREATE POLICY active_payment_environment ON public.crypto_submissions AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.cycles AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.data_exports AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.database_binding_nonce AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.deployment_binding_challenges AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.environment_instances AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.export_chunks AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.financial_reconciliation_results AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.gift_invoices AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.help_articles AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.jobs AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.ledger_account_buckets AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.ledger_account_totals AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = ledger_account_totals.asset_id) AND (a.environment = current_setting('gw.environment'::text, true))))))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = ledger_account_totals.asset_id) AND (a.environment = current_setting('gw.environment'::text, true)))))));
+
+CREATE POLICY active_payment_environment ON public.ledger_accounts AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = ledger_accounts.asset_id) AND (a.environment = current_setting('gw.environment'::text, true))))))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = ledger_accounts.asset_id) AND (a.environment = current_setting('gw.environment'::text, true)))))));
+
+CREATE POLICY active_payment_environment ON public.ledger_asset_totals AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = ledger_asset_totals.asset_id) AND (a.environment = current_setting('gw.environment'::text, true))))))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = ledger_asset_totals.asset_id) AND (a.environment = current_setting('gw.environment'::text, true)))))));
+
+CREATE POLICY active_payment_environment ON public.ledger_counter_markers AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.ledger_counter_state AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.ledger_journal_audits AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.ledger_journals AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.ledger_postings AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.liability_recoveries AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = liability_recoveries.asset_id) AND (a.environment = current_setting('gw.environment'::text, true))))))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = liability_recoveries.asset_id) AND (a.environment = current_setting('gw.environment'::text, true)))))));
+
+CREATE POLICY active_payment_environment ON public.maintenance_results AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.native_reserve_inflows AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.notification_views AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.notifications AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.operation_keys AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.operational_alerts AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.operational_diagnostics AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.outbox AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.plan_versions AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = plan_versions.asset_id) AND (a.environment = current_setting('gw.environment'::text, true))))))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = plan_versions.asset_id) AND (a.environment = current_setting('gw.environment'::text, true)))))));
+
+CREATE POLICY active_payment_environment ON public.plans AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.point_events AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.price_quotes AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = price_quotes.asset_id) AND (a.environment = current_setting('gw.environment'::text, true))))))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = price_quotes.asset_id) AND (a.environment = current_setting('gw.environment'::text, true)))))));
+
+CREATE POLICY active_payment_environment ON public.profile_previews AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.provider_quota_reports AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.public_statistics AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.queue_entries AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.queue_partitions AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.queue_rank_nodes AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.rate_limits AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.receipt_allocations AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.recovery_outflow_resolutions AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = recovery_outflow_resolutions.asset_id) AND (a.environment = current_setting('gw.environment'::text, true))))))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = recovery_outflow_resolutions.asset_id) AND (a.environment = current_setting('gw.environment'::text, true)))))));
+
+CREATE POLICY active_payment_environment ON public.recovery_outflows AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = recovery_outflows.asset_id) AND (a.environment = current_setting('gw.environment'::text, true))))))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = recovery_outflows.asset_id) AND (a.environment = current_setting('gw.environment'::text, true)))))));
+
+CREATE POLICY active_payment_environment ON public.recovery_view_caps AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.referral_codes AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.reports AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.scheduler_nonces AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.scheduler_runs AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.schema_migrations AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.signed_attempts AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.signer_dispatch_cursor AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.signer_heartbeats AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.signer_reservations AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = signer_reservations.asset_id) AND (a.environment = current_setting('gw.environment'::text, true))))))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = signer_reservations.asset_id) AND (a.environment = current_setting('gw.environment'::text, true)))))));
+
+CREATE POLICY active_payment_environment ON public.signer_states AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.simulation_incoming_controls AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.simulation_incoming_events AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.simulation_incoming_refunds AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.simulation_reorg_resolutions AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.simulation_reorg_reviews AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.simulation_withdrawal_controls AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.slug_redirects AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.treasury_addresses AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = treasury_addresses.asset_id) AND (a.environment = current_setting('gw.environment'::text, true))))))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = treasury_addresses.asset_id) AND (a.environment = current_setting('gw.environment'::text, true)))))));
+
+CREATE POLICY active_payment_environment ON public.unallocated_inflows AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.unallocated_refund_claims AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.user_identities AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.users AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
+
+CREATE POLICY active_payment_environment ON public.wallet_challenges AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.wallet_links AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.withdrawals AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = withdrawals.asset_id) AND (a.environment = current_setting('gw.environment'::text, true))))))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = withdrawals.asset_id) AND (a.environment = current_setting('gw.environment'::text, true)))))));
+
+CREATE POLICY active_payment_environment ON public.worker_requests AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true)))) WITH CHECK ((public.gw_runtime_environment_allowed() AND (environment = current_setting('gw.environment'::text, true))));
+
+CREATE POLICY active_payment_environment ON public.x_manifest AS RESTRICTIVE TO gw_read, gw_service, gw_signer USING (public.gw_runtime_environment_allowed()) WITH CHECK (public.gw_runtime_environment_allowed());
 
 CREATE POLICY adapter_service ON public.alert_deliveries TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: crypto_events adapter_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY adapter_service ON public.crypto_events TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: crypto_invoices adapter_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY adapter_service ON public.crypto_invoices TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: crypto_obligations adapter_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY adapter_service ON public.crypto_obligations TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: crypto_submissions adapter_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY adapter_service ON public.crypto_submissions TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: operational_alerts adapter_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY adapter_service ON public.operational_alerts TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: price_quotes adapter_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY adapter_service ON public.price_quotes TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: signed_attempts adapter_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY adapter_service ON public.signed_attempts TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: signer_reservations adapter_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY adapter_service ON public.signer_reservations TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: signer_states adapter_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY adapter_service ON public.signer_states TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: wallet_challenges adapter_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY adapter_service ON public.wallet_challenges TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: worker_requests adapter_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY adapter_service ON public.worker_requests TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: alert_deliveries; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.alert_deliveries ENABLE ROW LEVEL SECURITY;
 
---
--- Name: appeals appeal_reader; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY appeal_reader ON public.appeals FOR SELECT TO gw_read USING ((public.gw_owns(actor_id) OR public.gw_staff_reader()));
-
-
---
--- Name: appeals appeal_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY appeal_service ON public.appeals TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: appeals; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.appeals ENABLE ROW LEVEL SECURITY;
 
---
--- Name: assets; Type: ROW SECURITY; Schema: public; Owner: -
---
+ALTER TABLE public.archive_months ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY archive_months_service ON public.archive_months FOR SELECT TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text));
+
+ALTER TABLE public.archive_record_keys ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.assets ENABLE ROW LEVEL SECURITY;
 
---
--- Name: audit_events; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.audit_events ENABLE ROW LEVEL SECURITY;
-
---
--- Name: auth_factors; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.auth_factors ENABLE ROW LEVEL SECURITY;
 
---
--- Name: auth_flows; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.auth_flows ENABLE ROW LEVEL SECURITY;
-
---
--- Name: auth_recovery_codes; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.auth_recovery_codes ENABLE ROW LEVEL SECURITY;
 
---
--- Name: auth_refresh_tokens; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.auth_refresh_tokens ENABLE ROW LEVEL SECURITY;
-
---
--- Name: auth_sessions; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.auth_sessions ENABLE ROW LEVEL SECURITY;
 
---
--- Name: auth_totp_replays; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.auth_totp_replays ENABLE ROW LEVEL SECURITY;
-
---
--- Name: bot_challenges; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.bot_challenges ENABLE ROW LEVEL SECURITY;
 
---
--- Name: abuse_signals bot_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY bot_service ON public.abuse_signals TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: bot_challenges bot_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY bot_service ON public.bot_challenges TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: bot_token_uses bot_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY bot_service ON public.bot_token_uses TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: bot_token_uses; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.bot_token_uses ENABLE ROW LEVEL SECURITY;
 
---
--- Name: chain_checkpoints; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.chain_checkpoints ENABLE ROW LEVEL SECURITY;
-
---
--- Name: chain_fee_claims; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.chain_fee_claims ENABLE ROW LEVEL SECURITY;
 
---
--- Name: chain_fee_claims chain_fee_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY chain_fee_service ON public.chain_fee_claims TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: chain_observations; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.chain_observations ENABLE ROW LEVEL SECURITY;
 
---
--- Name: chain_recovery_runs; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.chain_recovery_runs ENABLE ROW LEVEL SECURITY;
-
---
--- Name: chain_scan_pages; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.chain_scan_pages ENABLE ROW LEVEL SECURITY;
 
---
--- Name: crypto_events; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.crypto_events ENABLE ROW LEVEL SECURITY;
-
---
--- Name: crypto_invoices; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.crypto_invoices ENABLE ROW LEVEL SECURITY;
 
---
--- Name: crypto_obligations; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.crypto_obligations ENABLE ROW LEVEL SECURITY;
-
---
--- Name: crypto_reorg_resolutions; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.crypto_reorg_resolutions ENABLE ROW LEVEL SECURITY;
 
---
--- Name: crypto_reorg_reviews; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.crypto_reorg_reviews ENABLE ROW LEVEL SECURITY;
-
---
--- Name: crypto_submissions; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.crypto_submissions ENABLE ROW LEVEL SECURITY;
 
---
--- Name: cycles; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.cycles ENABLE ROW LEVEL SECURITY;
-
---
--- Name: data_exports data_export_reader; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY data_export_reader ON public.data_exports FOR SELECT TO gw_read USING (public.gw_owns(user_id));
 
-
---
--- Name: data_exports data_export_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY data_export_service ON public.data_exports TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: data_exports; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.data_exports ENABLE ROW LEVEL SECURITY;
 
---
--- Name: database_binding_nonce; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.database_binding_nonce ENABLE ROW LEVEL SECURITY;
-
---
--- Name: deployment_binding_challenges; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.deployment_binding_challenges ENABLE ROW LEVEL SECURITY;
 
---
--- Name: environment_instances; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.environment_instances ENABLE ROW LEVEL SECURITY;
-
---
--- Name: export_chunks export_chunk_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY export_chunk_service ON public.export_chunks TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: export_chunks; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.export_chunks ENABLE ROW LEVEL SECURITY;
-
---
--- Name: financial_reconciliation_results; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.financial_reconciliation_results ENABLE ROW LEVEL SECURITY;
 
---
--- Name: gift_invoices; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.gift_invoices ENABLE ROW LEVEL SECURITY;
-
---
--- Name: assets gw_assets_read; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_assets_read ON public.assets FOR SELECT TO gw_read USING ((environment = current_setting('gw.environment'::text, true)));
 
-
---
--- Name: audit_events gw_audit_read; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_audit_read ON public.audit_events FOR SELECT TO gw_read USING (public.gw_staff_reader());
-
-
---
--- Name: deployment_binding_challenges gw_binding_read; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_binding_read ON public.deployment_binding_challenges FOR SELECT TO gw_service USING (((environment = current_setting('gw.environment'::text, true)) AND (expires_at > clock_timestamp())));
 
-
---
--- Name: ledger_account_buckets gw_counter_service_read; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_counter_service_read ON public.ledger_account_buckets FOR SELECT TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: ledger_account_totals gw_counter_service_read; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_counter_service_read ON public.ledger_account_totals FOR SELECT TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: ledger_asset_totals gw_counter_service_read; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_counter_service_read ON public.ledger_asset_totals FOR SELECT TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: ledger_counter_markers gw_counter_service_read; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_counter_service_read ON public.ledger_counter_markers FOR SELECT TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: ledger_counter_state gw_counter_service_read; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_counter_service_read ON public.ledger_counter_state FOR SELECT TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: ledger_journal_audits gw_counter_service_read; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_counter_service_read ON public.ledger_journal_audits FOR SELECT TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text));
 
+CREATE POLICY gw_identity_service ON public.auth_factors TO gw_service USING (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text))) WITH CHECK (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text)));
 
---
--- Name: auth_factors gw_identity_service; Type: POLICY; Schema: public; Owner: -
---
+CREATE POLICY gw_identity_service ON public.auth_flows TO gw_service USING (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text))) WITH CHECK (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text)));
 
-CREATE POLICY gw_identity_service ON public.auth_factors TO gw_service USING (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text))) WITH CHECK (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text)));
+CREATE POLICY gw_identity_service ON public.auth_recovery_codes TO gw_service USING (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text))) WITH CHECK (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text)));
 
+CREATE POLICY gw_identity_service ON public.auth_refresh_tokens TO gw_service USING (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text))) WITH CHECK (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text)));
 
---
--- Name: auth_flows gw_identity_service; Type: POLICY; Schema: public; Owner: -
---
+CREATE POLICY gw_identity_service ON public.auth_sessions TO gw_service USING (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text))) WITH CHECK (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text)));
 
-CREATE POLICY gw_identity_service ON public.auth_flows TO gw_service USING (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text))) WITH CHECK (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text)));
+CREATE POLICY gw_identity_service ON public.auth_totp_replays TO gw_service USING (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text))) WITH CHECK (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text)));
 
+CREATE POLICY gw_identity_service ON public.rate_limits TO gw_service USING (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text))) WITH CHECK (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text)));
 
---
--- Name: auth_recovery_codes gw_identity_service; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY gw_identity_service ON public.auth_recovery_codes TO gw_service USING (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text))) WITH CHECK (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text)));
-
-
---
--- Name: auth_refresh_tokens gw_identity_service; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY gw_identity_service ON public.auth_refresh_tokens TO gw_service USING (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text))) WITH CHECK (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text)));
-
-
---
--- Name: auth_sessions gw_identity_service; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY gw_identity_service ON public.auth_sessions TO gw_service USING (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text))) WITH CHECK (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text)));
-
-
---
--- Name: auth_totp_replays gw_identity_service; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY gw_identity_service ON public.auth_totp_replays TO gw_service USING (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text))) WITH CHECK (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text)));
-
-
---
--- Name: rate_limits gw_identity_service; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY gw_identity_service ON public.rate_limits TO gw_service USING (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text))) WITH CHECK (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text)));
-
-
---
--- Name: user_identities gw_identity_service; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY gw_identity_service ON public.user_identities TO gw_service USING (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text))) WITH CHECK (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text)));
-
-
---
--- Name: gift_invoices gw_incoming_service; Type: POLICY; Schema: public; Owner: -
---
+CREATE POLICY gw_identity_service ON public.user_identities TO gw_service USING (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text))) WITH CHECK (((current_setting('gw.environment'::text, true) = ANY (ARRAY['simulation'::text, 'testnet'::text, 'mainnet'::text])) AND (current_setting('gw.access'::text, true) = 'service'::text)));
 
 CREATE POLICY gw_incoming_service ON public.gift_invoices TO gw_service USING ((environment = current_setting('gw.environment'::text, true))) WITH CHECK ((environment = current_setting('gw.environment'::text, true)));
 
-
---
--- Name: simulation_incoming_controls gw_incoming_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_incoming_service ON public.simulation_incoming_controls TO gw_service USING ((environment = current_setting('gw.environment'::text, true))) WITH CHECK ((environment = current_setting('gw.environment'::text, true)));
-
-
---
--- Name: simulation_incoming_events gw_incoming_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_incoming_service ON public.simulation_incoming_events TO gw_service USING ((environment = current_setting('gw.environment'::text, true))) WITH CHECK ((environment = current_setting('gw.environment'::text, true)));
 
-
---
--- Name: simulation_incoming_refunds gw_incoming_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_incoming_service ON public.simulation_incoming_refunds TO gw_service USING ((environment = current_setting('gw.environment'::text, true))) WITH CHECK ((environment = current_setting('gw.environment'::text, true)));
-
-
---
--- Name: environment_instances gw_instance_read; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_instance_read ON public.environment_instances FOR SELECT TO gw_service USING ((environment = current_setting('gw.environment'::text, true)));
 
-
---
--- Name: gift_invoices gw_invoice_owned; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_invoice_owned ON public.gift_invoices FOR SELECT TO gw_read USING (((environment = current_setting('gw.environment'::text, true)) AND public.gw_owns(user_id)));
 
-
---
--- Name: maintenance_results gw_maintenance_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_maintenance_service ON public.maintenance_results TO gw_service USING ((environment = current_setting('gw.environment'::text, true))) WITH CHECK ((environment = current_setting('gw.environment'::text, true)));
-
-
---
--- Name: cycles gw_owned_read; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_owned_read ON public.cycles FOR SELECT TO gw_read USING ((public.gw_owns(user_id) AND (EXISTS ( SELECT 1
    FROM (public.plan_versions v
      JOIN public.assets a ON ((a.id = v.asset_id)))
   WHERE ((v.id = cycles.plan_version_id) AND (a.environment = current_setting('gw.environment'::text, true)))))));
 
-
---
--- Name: notifications gw_owned_read; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_owned_read ON public.notifications FOR SELECT TO gw_read USING (public.gw_owns(user_id));
 
-
---
--- Name: point_events gw_owned_read; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_owned_read ON public.point_events FOR SELECT TO gw_read USING (public.gw_owns(user_id));
-
-
---
--- Name: queue_entries gw_owned_read; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_owned_read ON public.queue_entries FOR SELECT TO gw_read USING ((public.gw_owns(beneficiary_user_id) AND (EXISTS ( SELECT 1
    FROM public.queue_partitions
   WHERE (queue_partitions.id = queue_entries.partition_id)))));
 
-
---
--- Name: referral_codes gw_owned_read; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_owned_read ON public.referral_codes FOR SELECT TO gw_read USING (public.gw_owns(user_id));
-
-
---
--- Name: users gw_owned_read; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_owned_read ON public.users FOR SELECT TO gw_read USING (public.gw_owns(id));
 
-
---
--- Name: wallet_links gw_owned_read; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_owned_read ON public.wallet_links FOR SELECT TO gw_read USING ((public.gw_owns(user_id) AND (environment = current_setting('gw.environment'::text, true))));
-
-
---
--- Name: withdrawals gw_owned_read; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_owned_read ON public.withdrawals FOR SELECT TO gw_read USING ((public.gw_owns(user_id) AND (EXISTS ( SELECT 1
    FROM public.assets
   WHERE ((assets.id = withdrawals.asset_id) AND (assets.environment = current_setting('gw.environment'::text, true)))))));
 
+ALTER TABLE public.gw_part_au_default ENABLE ROW LEVEL SECURITY;
 
---
--- Name: queue_partitions gw_partitions_read; Type: POLICY; Schema: public; Owner: -
---
+ALTER TABLE public.gw_part_cs_default ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.gw_part_lp_default ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY gw_partitions_read ON public.queue_partitions FOR SELECT TO gw_read USING ((EXISTS ( SELECT 1
    FROM public.plan_versions
   WHERE (plan_versions.id = queue_partitions.plan_version_id))));
 
-
---
--- Name: plans gw_plans_read; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_plans_read ON public.plans FOR SELECT TO gw_read USING (true);
-
-
---
--- Name: queue_rank_nodes gw_rank_service_read; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_rank_service_read ON public.queue_rank_nodes FOR SELECT TO gw_service USING (true);
 
-
---
--- Name: receipt_allocations gw_receipt_owned; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_receipt_owned ON public.receipt_allocations FOR SELECT TO gw_read USING (((environment = current_setting('gw.environment'::text, true)) AND (public.gw_owns(beneficiary_user_id) OR (payer_user_id = public.gw_actor_id()))));
-
-
---
--- Name: receipt_allocations gw_receipt_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_receipt_service ON public.receipt_allocations TO gw_service USING (true) WITH CHECK (true);
 
-
---
--- Name: financial_reconciliation_results gw_reconciliation_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_reconciliation_service ON public.financial_reconciliation_results TO gw_service USING ((environment = current_setting('gw.environment'::text, true))) WITH CHECK ((environment = current_setting('gw.environment'::text, true)));
-
-
---
--- Name: simulation_reorg_resolutions gw_reorg_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_reorg_service ON public.simulation_reorg_resolutions TO gw_service USING ((environment = current_setting('gw.environment'::text, true))) WITH CHECK ((environment = current_setting('gw.environment'::text, true)));
 
-
---
--- Name: simulation_reorg_reviews gw_reorg_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_reorg_service ON public.simulation_reorg_reviews TO gw_service USING ((environment = current_setting('gw.environment'::text, true))) WITH CHECK ((environment = current_setting('gw.environment'::text, true)));
-
-
---
--- Name: assets gw_service_access; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_service_access ON public.assets TO gw_service USING (true) WITH CHECK (true);
 
-
---
--- Name: audit_events gw_service_access; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_service_access ON public.audit_events TO gw_service USING (true) WITH CHECK (true);
-
-
---
--- Name: cycles gw_service_access; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_service_access ON public.cycles TO gw_service USING (true) WITH CHECK (true);
 
-
---
--- Name: ledger_accounts gw_service_access; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_service_access ON public.ledger_accounts TO gw_service USING (true) WITH CHECK (true);
-
-
---
--- Name: ledger_journals gw_service_access; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_service_access ON public.ledger_journals TO gw_service USING (true) WITH CHECK (true);
 
-
---
--- Name: ledger_postings gw_service_access; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_service_access ON public.ledger_postings TO gw_service USING (true) WITH CHECK (true);
-
-
---
--- Name: notifications gw_service_access; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_service_access ON public.notifications TO gw_service USING (true) WITH CHECK (true);
 
-
---
--- Name: operation_keys gw_service_access; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_service_access ON public.operation_keys TO gw_service USING (true) WITH CHECK (true);
-
-
---
--- Name: plan_versions gw_service_access; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_service_access ON public.plan_versions TO gw_service USING (true) WITH CHECK (true);
 
-
---
--- Name: plans gw_service_access; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_service_access ON public.plans TO gw_service USING (true) WITH CHECK (true);
-
-
---
--- Name: point_events gw_service_access; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_service_access ON public.point_events TO gw_service USING (true) WITH CHECK (true);
 
-
---
--- Name: queue_entries gw_service_access; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_service_access ON public.queue_entries TO gw_service USING (true) WITH CHECK (true);
-
-
---
--- Name: queue_partitions gw_service_access; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_service_access ON public.queue_partitions TO gw_service USING (true) WITH CHECK (true);
 
-
---
--- Name: referral_codes gw_service_access; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_service_access ON public.referral_codes TO gw_service USING (true) WITH CHECK (true);
-
-
---
--- Name: users gw_service_access; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_service_access ON public.users TO gw_service USING (true) WITH CHECK (true);
 
-
---
--- Name: wallet_links gw_service_access; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_service_access ON public.wallet_links TO gw_service USING (true) WITH CHECK (true);
-
-
---
--- Name: withdrawals gw_service_access; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_service_access ON public.withdrawals TO gw_service USING (true) WITH CHECK (true);
 
-
---
--- Name: x_manifest gw_service_access; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_service_access ON public.x_manifest TO gw_service USING (true) WITH CHECK (true);
 
-
---
--- Name: simulation_withdrawal_controls gw_simulation_withdrawal_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_simulation_withdrawal_service ON public.simulation_withdrawal_controls TO gw_service USING ((environment = current_setting('gw.environment'::text, true))) WITH CHECK ((environment = current_setting('gw.environment'::text, true)));
-
-
---
--- Name: plan_versions gw_versions_read; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_versions_read ON public.plan_versions FOR SELECT TO gw_read USING ((EXISTS ( SELECT 1
    FROM public.assets
   WHERE (assets.id = plan_versions.asset_id))));
 
-
---
--- Name: jobs gw_work_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_work_service ON public.jobs TO gw_service USING ((environment = current_setting('gw.environment'::text, true))) WITH CHECK ((environment = current_setting('gw.environment'::text, true)));
-
-
---
--- Name: outbox gw_work_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_work_service ON public.outbox TO gw_service USING ((environment = current_setting('gw.environment'::text, true))) WITH CHECK ((environment = current_setting('gw.environment'::text, true)));
 
-
---
--- Name: scheduler_nonces gw_work_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY gw_work_service ON public.scheduler_nonces TO gw_service USING ((environment = current_setting('gw.environment'::text, true))) WITH CHECK ((environment = current_setting('gw.environment'::text, true)));
-
-
---
--- Name: scheduler_runs gw_work_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY gw_work_service ON public.scheduler_runs TO gw_service USING ((environment = current_setting('gw.environment'::text, true))) WITH CHECK ((environment = current_setting('gw.environment'::text, true)));
 
-
---
--- Name: help_articles; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.help_articles ENABLE ROW LEVEL SECURITY;
 
---
--- Name: help_articles help_read; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY help_read ON public.help_articles FOR SELECT TO gw_read USING ((published OR public.gw_staff_reader()));
-
-
---
--- Name: slug_redirects help_redirect_read; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY help_redirect_read ON public.slug_redirects FOR SELECT TO gw_read USING ((EXISTS ( SELECT 1
    FROM public.help_articles
   WHERE ((help_articles.id = slug_redirects.article_id) AND help_articles.published))));
 
-
---
--- Name: slug_redirects help_redirect_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY help_redirect_service ON public.slug_redirects TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: help_articles help_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY help_service ON public.help_articles TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
+CREATE POLICY isolated_signer ON public.signed_attempts TO gw_signer USING ((environment = current_setting('gw.environment'::text, true))) WITH CHECK ((environment = current_setting('gw.environment'::text, true)));
 
---
--- Name: signed_attempts isolated_signer; Type: POLICY; Schema: public; Owner: -
---
+CREATE POLICY isolated_signer ON public.signer_reservations TO gw_signer USING ((EXISTS ( SELECT 1
+   FROM public.crypto_obligations o
+  WHERE ((o.id = signer_reservations.obligation_id) AND (o.environment = current_setting('gw.environment'::text, true)))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM public.crypto_obligations o
+  WHERE ((o.id = signer_reservations.obligation_id) AND (o.environment = current_setting('gw.environment'::text, true))))));
 
-CREATE POLICY isolated_signer ON public.signed_attempts TO gw_signer USING ((current_setting('gw.environment'::text, true) = 'testnet'::text)) WITH CHECK ((current_setting('gw.environment'::text, true) = 'testnet'::text));
-
-
---
--- Name: signer_reservations isolated_signer; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY isolated_signer ON public.signer_reservations TO gw_signer USING ((current_setting('gw.environment'::text, true) = 'testnet'::text)) WITH CHECK ((current_setting('gw.environment'::text, true) = 'testnet'::text));
-
-
---
--- Name: signer_states isolated_signer; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY isolated_signer ON public.signer_states TO gw_signer USING ((current_setting('gw.environment'::text, true) = 'testnet'::text)) WITH CHECK ((current_setting('gw.environment'::text, true) = 'testnet'::text));
-
-
---
--- Name: jobs; Type: ROW SECURITY; Schema: public; Owner: -
---
+CREATE POLICY isolated_signer ON public.signer_states TO gw_signer USING ((environment = current_setting('gw.environment'::text, true))) WITH CHECK ((environment = current_setting('gw.environment'::text, true)));
 
 ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
 
---
--- Name: ledger_account_buckets; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.ledger_account_buckets ENABLE ROW LEVEL SECURITY;
-
---
--- Name: ledger_account_totals; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.ledger_account_totals ENABLE ROW LEVEL SECURITY;
 
---
--- Name: ledger_accounts; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.ledger_accounts ENABLE ROW LEVEL SECURITY;
-
---
--- Name: ledger_asset_totals; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.ledger_asset_totals ENABLE ROW LEVEL SECURITY;
 
---
--- Name: ledger_counter_markers; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.ledger_counter_markers ENABLE ROW LEVEL SECURITY;
-
---
--- Name: ledger_counter_state; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.ledger_counter_state ENABLE ROW LEVEL SECURITY;
 
---
--- Name: ledger_journal_audits; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.ledger_journal_audits ENABLE ROW LEVEL SECURITY;
-
---
--- Name: ledger_journals; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.ledger_journals ENABLE ROW LEVEL SECURITY;
 
---
--- Name: ledger_postings; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.ledger_postings ENABLE ROW LEVEL SECURITY;
-
---
--- Name: liability_recoveries; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.liability_recoveries ENABLE ROW LEVEL SECURITY;
 
---
--- Name: maintenance_results; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.maintenance_results ENABLE ROW LEVEL SECURITY;
-
---
--- Name: native_reserve_inflows; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.native_reserve_inflows ENABLE ROW LEVEL SECURITY;
 
---
--- Name: crypto_reorg_resolutions native_resolution_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY native_resolution_service ON public.crypto_reorg_resolutions TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: crypto_reorg_reviews native_review_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY native_review_service ON public.crypto_reorg_reviews TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: notification_views; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.notification_views ENABLE ROW LEVEL SECURITY;
-
---
--- Name: notification_views notification_views_owned; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY notification_views_owned ON public.notification_views TO gw_read USING (public.gw_owns(user_id));
 
-
---
--- Name: notification_views notification_views_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY notification_views_service ON public.notification_views TO gw_service USING ((user_id = public.gw_actor_id())) WITH CHECK ((user_id = public.gw_actor_id()));
-
-
---
--- Name: notifications; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
---
--- Name: chain_observations observation_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY observation_service ON public.chain_observations TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: operation_keys; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.operation_keys ENABLE ROW LEVEL SECURITY;
 
---
--- Name: operational_alerts; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.operational_alerts ENABLE ROW LEVEL SECURITY;
-
---
--- Name: operational_diagnostics; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.operational_diagnostics ENABLE ROW LEVEL SECURITY;
 
---
--- Name: operational_diagnostics operational_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY operational_service ON public.operational_diagnostics TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: provider_quota_reports operational_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY operational_service ON public.provider_quota_reports TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: outbox; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.outbox ENABLE ROW LEVEL SECURITY;
-
---
--- Name: recovery_outflow_resolutions outflow_resolution_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY outflow_resolution_service ON public.recovery_outflow_resolutions TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: plan_versions; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.plan_versions ENABLE ROW LEVEL SECURITY;
-
---
--- Name: plans; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.plans ENABLE ROW LEVEL SECURITY;
 
---
--- Name: point_events; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.point_events ENABLE ROW LEVEL SECURITY;
 
---
--- Name: price_quotes; Type: ROW SECURITY; Schema: public; Owner: -
---
+CREATE POLICY preview_assets ON public.assets FOR SELECT TO gw_preview USING ((environment = current_setting('gw.environment'::text, true)));
+
+CREATE POLICY preview_help ON public.help_articles FOR SELECT TO gw_preview USING (published);
+
+CREATE POLICY preview_plans ON public.plans FOR SELECT TO gw_preview USING (true);
+
+CREATE POLICY preview_public_manifest ON public.x_manifest FOR SELECT TO gw_preview USING ((scope = 'public'::text));
+
+CREATE POLICY preview_redirects ON public.slug_redirects FOR SELECT TO gw_preview USING ((EXISTS ( SELECT 1
+   FROM public.help_articles h
+  WHERE ((h.id = slug_redirects.article_id) AND h.published))));
+
+CREATE POLICY preview_versions ON public.plan_versions FOR SELECT TO gw_preview USING ((EXISTS ( SELECT 1
+   FROM public.assets a
+  WHERE ((a.id = plan_versions.asset_id) AND (a.environment = current_setting('gw.environment'::text, true))))));
 
 ALTER TABLE public.price_quotes ENABLE ROW LEVEL SECURITY;
 
---
--- Name: provider_quota_reports; Type: ROW SECURITY; Schema: public; Owner: -
---
+CREATE POLICY profile_preview_admin ON public.profile_previews TO gw_service USING (((actor_user_id = (NULLIF(current_setting('gw.actor_id'::text, true), ''::text))::uuid) AND (EXISTS ( SELECT 1
+   FROM public.users
+  WHERE ((users.id = profile_previews.actor_user_id) AND (users.role = 'admin'::text) AND (users.status = 'active'::text)))))) WITH CHECK (((actor_user_id = (NULLIF(current_setting('gw.actor_id'::text, true), ''::text))::uuid) AND (EXISTS ( SELECT 1
+   FROM public.users
+  WHERE ((users.id = profile_previews.actor_user_id) AND (users.role = 'admin'::text) AND (users.status = 'active'::text))))));
+
+ALTER TABLE public.profile_previews ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.provider_quota_reports ENABLE ROW LEVEL SECURITY;
 
---
--- Name: public_statistics; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.public_statistics ENABLE ROW LEVEL SECURITY;
-
---
--- Name: queue_entries; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.queue_entries ENABLE ROW LEVEL SECURITY;
 
---
--- Name: queue_partitions; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.queue_partitions ENABLE ROW LEVEL SECURITY;
-
---
--- Name: queue_rank_nodes; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.queue_rank_nodes ENABLE ROW LEVEL SECURITY;
 
---
--- Name: rate_limits; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.rate_limits ENABLE ROW LEVEL SECURITY;
-
---
--- Name: receipt_allocations; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.receipt_allocations ENABLE ROW LEVEL SECURITY;
 
---
--- Name: recovery_outflow_resolutions; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.recovery_outflow_resolutions ENABLE ROW LEVEL SECURITY;
-
---
--- Name: recovery_outflows; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.recovery_outflows ENABLE ROW LEVEL SECURITY;
 
---
--- Name: chain_checkpoints recovery_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY recovery_service ON public.chain_checkpoints TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: chain_recovery_runs recovery_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY recovery_service ON public.chain_recovery_runs TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: chain_scan_pages recovery_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY recovery_service ON public.chain_scan_pages TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: liability_recoveries recovery_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY recovery_service ON public.liability_recoveries TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: recovery_outflows recovery_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY recovery_service ON public.recovery_outflows TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: unallocated_inflows recovery_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY recovery_service ON public.unallocated_inflows TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: recovery_view_caps; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.recovery_view_caps ENABLE ROW LEVEL SECURITY;
-
---
--- Name: recovery_view_caps recovery_view_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY recovery_view_service ON public.recovery_view_caps TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: referral_codes; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.referral_codes ENABLE ROW LEVEL SECURITY;
-
---
--- Name: reports report_reader; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY report_reader ON public.reports FOR SELECT TO gw_read USING ((public.gw_owns(actor_id) OR public.gw_owns(target_id) OR public.gw_staff_reader()));
 
-
---
--- Name: reports report_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY report_service ON public.reports TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: reports; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 
---
--- Name: native_reserve_inflows reserve_inflow_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY reserve_inflow_service ON public.native_reserve_inflows TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
-
-
---
--- Name: scheduler_nonces; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.scheduler_nonces ENABLE ROW LEVEL SECURITY;
 
---
--- Name: scheduler_runs; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.scheduler_runs ENABLE ROW LEVEL SECURITY;
-
---
--- Name: schema_migrations; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.schema_migrations ENABLE ROW LEVEL SECURITY;
 
---
--- Name: signed_attempts; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.signed_attempts ENABLE ROW LEVEL SECURITY;
-
---
--- Name: ledger_accounts signer_account_read; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY signer_account_read ON public.ledger_accounts FOR SELECT TO gw_signer USING ((asset_id IN ( SELECT assets.id
    FROM public.assets
-  WHERE (assets.environment = 'testnet'::text))));
+  WHERE (assets.environment = current_setting('gw.environment'::text, true)))));
 
+CREATE POLICY signer_alert_read ON public.operational_alerts FOR SELECT TO gw_signer USING ((environment = current_setting('gw.environment'::text, true)));
 
---
--- Name: operational_alerts signer_alert_read; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY signer_alert_read ON public.operational_alerts FOR SELECT TO gw_signer USING ((environment = 'testnet'::text));
-
-
---
--- Name: assets signer_assets; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY signer_assets ON public.assets FOR SELECT TO gw_signer USING ((environment = 'testnet'::text));
-
-
---
--- Name: alert_deliveries signer_delivery_read; Type: POLICY; Schema: public; Owner: -
---
+CREATE POLICY signer_assets ON public.assets FOR SELECT TO gw_signer USING ((environment = current_setting('gw.environment'::text, true)));
 
 CREATE POLICY signer_delivery_read ON public.alert_deliveries FOR SELECT TO gw_signer USING ((alert_id IN ( SELECT operational_alerts.id
    FROM public.operational_alerts
-  WHERE (operational_alerts.environment = 'testnet'::text))));
-
-
---
--- Name: signer_dispatch_cursor; Type: ROW SECURITY; Schema: public; Owner: -
---
+  WHERE (operational_alerts.environment = current_setting('gw.environment'::text, true)))));
 
 ALTER TABLE public.signer_dispatch_cursor ENABLE ROW LEVEL SECURITY;
 
---
--- Name: signer_dispatch_cursor signer_dispatch_scope; Type: POLICY; Schema: public; Owner: -
---
+CREATE POLICY signer_dispatch_scope ON public.signer_dispatch_cursor TO gw_signer USING ((current_setting('gw.environment'::text, true) = ANY (ARRAY['testnet'::text, 'mainnet'::text]))) WITH CHECK ((current_setting('gw.environment'::text, true) = ANY (ARRAY['testnet'::text, 'mainnet'::text])));
 
-CREATE POLICY signer_dispatch_scope ON public.signer_dispatch_cursor TO gw_signer USING ((current_setting('gw.environment'::text, true) = 'testnet'::text)) WITH CHECK ((current_setting('gw.environment'::text, true) = 'testnet'::text));
-
-
---
--- Name: signer_heartbeats signer_heartbeat_worker; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY signer_heartbeat_worker ON public.signer_heartbeats TO gw_signer USING (((environment = 'testnet'::text) AND (current_setting('gw.environment'::text, true) = 'testnet'::text))) WITH CHECK (((environment = 'testnet'::text) AND (current_setting('gw.environment'::text, true) = 'testnet'::text)));
-
-
---
--- Name: signer_heartbeats; Type: ROW SECURITY; Schema: public; Owner: -
---
+CREATE POLICY signer_heartbeat_worker ON public.signer_heartbeats TO gw_signer USING (((environment = current_setting('gw.environment'::text, true)) AND (current_setting('gw.environment'::text, true) = ANY (ARRAY['testnet'::text, 'mainnet'::text])))) WITH CHECK (((environment = current_setting('gw.environment'::text, true)) AND (current_setting('gw.environment'::text, true) = ANY (ARRAY['testnet'::text, 'mainnet'::text]))));
 
 ALTER TABLE public.signer_heartbeats ENABLE ROW LEVEL SECURITY;
 
---
--- Name: x_manifest signer_manifest_read; Type: POLICY; Schema: public; Owner: -
---
+CREATE POLICY signer_manifest_read ON public.x_manifest FOR SELECT TO gw_signer USING ((current_setting('gw.environment'::text, true) = ANY (ARRAY['testnet'::text, 'mainnet'::text])));
 
-CREATE POLICY signer_manifest_read ON public.x_manifest FOR SELECT TO gw_signer USING ((current_setting('gw.environment'::text, true) = 'testnet'::text));
+CREATE POLICY signer_obligation_transition ON public.crypto_obligations FOR UPDATE TO gw_signer USING (((environment = current_setting('gw.environment'::text, true)) AND (status = ANY (ARRAY['approved'::text, 'signing'::text, 'broadcast'::text])))) WITH CHECK (((environment = current_setting('gw.environment'::text, true)) AND (status = ANY (ARRAY['signing'::text, 'broadcast'::text, 'exception'::text, 'awaiting_requote'::text]))));
 
-
---
--- Name: crypto_obligations signer_obligation_transition; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY signer_obligation_transition ON public.crypto_obligations FOR UPDATE TO gw_signer USING (((environment = 'testnet'::text) AND (status = ANY (ARRAY['approved'::text, 'signing'::text, 'broadcast'::text])))) WITH CHECK (((environment = 'testnet'::text) AND (status = ANY (ARRAY['signing'::text, 'broadcast'::text, 'exception'::text, 'awaiting_requote'::text]))));
-
-
---
--- Name: crypto_obligations signer_obligations; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY signer_obligations ON public.crypto_obligations FOR SELECT TO gw_signer USING (((environment = 'testnet'::text) AND (status = ANY (ARRAY['approved'::text, 'signing'::text, 'broadcast'::text, 'awaiting_requote'::text, 'exception'::text, 'settled'::text]))));
-
-
---
--- Name: ledger_postings signer_posting_read; Type: POLICY; Schema: public; Owner: -
---
+CREATE POLICY signer_obligations ON public.crypto_obligations FOR SELECT TO gw_signer USING (((environment = current_setting('gw.environment'::text, true)) AND (status = ANY (ARRAY['approved'::text, 'signing'::text, 'broadcast'::text, 'awaiting_requote'::text, 'exception'::text, 'settled'::text]))));
 
 CREATE POLICY signer_posting_read ON public.ledger_postings FOR SELECT TO gw_signer USING ((account_id IN ( SELECT ledger_accounts.id
    FROM public.ledger_accounts)));
 
-
---
--- Name: price_quotes signer_prices; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY signer_prices ON public.price_quotes FOR SELECT TO gw_signer USING (true);
-
-
---
--- Name: signer_reservations; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.signer_reservations ENABLE ROW LEVEL SECURITY;
 
---
--- Name: signer_states; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.signer_states ENABLE ROW LEVEL SECURITY;
-
---
--- Name: simulation_incoming_controls; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.simulation_incoming_controls ENABLE ROW LEVEL SECURITY;
 
---
--- Name: simulation_incoming_events; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.simulation_incoming_events ENABLE ROW LEVEL SECURITY;
-
---
--- Name: simulation_incoming_refunds; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.simulation_incoming_refunds ENABLE ROW LEVEL SECURITY;
 
---
--- Name: simulation_reorg_resolutions; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.simulation_reorg_resolutions ENABLE ROW LEVEL SECURITY;
-
---
--- Name: simulation_reorg_reviews; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.simulation_reorg_reviews ENABLE ROW LEVEL SECURITY;
 
---
--- Name: simulation_withdrawal_controls; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.simulation_withdrawal_controls ENABLE ROW LEVEL SECURITY;
-
---
--- Name: slug_redirects; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.slug_redirects ENABLE ROW LEVEL SECURITY;
 
---
--- Name: public_statistics stats_service; Type: POLICY; Schema: public; Owner: -
---
-
 CREATE POLICY stats_service ON public.public_statistics TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
+ALTER TABLE public.treasury_addresses ENABLE ROW LEVEL SECURITY;
 
---
--- Name: unallocated_inflows; Type: ROW SECURITY; Schema: public; Owner: -
---
+CREATE POLICY treasury_addresses_service ON public.treasury_addresses TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text));
 
 ALTER TABLE public.unallocated_inflows ENABLE ROW LEVEL SECURITY;
 
---
--- Name: unallocated_refund_claims; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.unallocated_refund_claims ENABLE ROW LEVEL SECURITY;
-
---
--- Name: unallocated_refund_claims unmatched_claim_service; Type: POLICY; Schema: public; Owner: -
---
 
 CREATE POLICY unmatched_claim_service ON public.unallocated_refund_claims TO gw_service USING ((current_setting('gw.access'::text, true) = 'service'::text)) WITH CHECK ((current_setting('gw.access'::text, true) = 'service'::text));
 
-
---
--- Name: user_identities; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.user_identities ENABLE ROW LEVEL SECURITY;
-
---
--- Name: users; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
---
--- Name: wallet_challenges; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.wallet_challenges ENABLE ROW LEVEL SECURITY;
-
---
--- Name: wallet_links; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.wallet_links ENABLE ROW LEVEL SECURITY;
 
---
--- Name: withdrawals; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.withdrawals ENABLE ROW LEVEL SECURITY;
-
---
--- Name: worker_requests; Type: ROW SECURITY; Schema: public; Owner: -
---
 
 ALTER TABLE public.worker_requests ENABLE ROW LEVEL SECURITY;
 
---
--- Name: x_manifest; Type: ROW SECURITY; Schema: public; Owner: -
---
-
 ALTER TABLE public.x_manifest ENABLE ROW LEVEL SECURITY;
-
---
--- PostgreSQL database dump complete
---
 
 
 -- Supabase Data API grants: exact final role/column/function permissions.
+-- Archive identity and physical partitions are owner/function-only infrastructure.
+REVOKE ALL ON TABLE public.archive_record_keys, public.gw_part_au_default, public.gw_part_cs_default, public.gw_part_lp_default FROM PUBLIC, gw_read, gw_service, gw_signer, gw_preview;
 -- New objects must not inherit broad target-owner default grants. Extension
 -- objects and unrelated provider schemas are excluded from this normalization.
 DO $normalize_new_acl$
@@ -9285,24 +5950,39 @@ GRANT EXECUTE ON FUNCTION public.gw_account_bucket(target uuid, bucket text) TO 
 GRANT EXECUTE ON FUNCTION public.gw_account_bucket(target uuid, bucket text) TO "gw_service";
 GRANT EXECUTE ON FUNCTION public.gw_actor_id() TO "gw_read";
 GRANT EXECUTE ON FUNCTION public.gw_actor_id() TO "gw_service";
+GRANT EXECUTE ON FUNCTION public.gw_advance_monthly_archive(maximum integer) TO "gw_service";
 GRANT EXECUTE ON FUNCTION public.gw_asset_balance(target uuid, purposes text[]) TO "gw_service";
 GRANT EXECUTE ON FUNCTION public.gw_counter_advance(batch_size integer) TO "gw_service";
 GRANT EXECUTE ON FUNCTION public.gw_counter_ready() TO "gw_service";
 GRANT EXECUTE ON FUNCTION public.gw_database_binding() TO "gw_read";
 GRANT EXECUTE ON FUNCTION public.gw_database_binding() TO "gw_service";
 GRANT EXECUTE ON FUNCTION public.gw_database_binding() TO "gw_signer";
+GRANT EXECUTE ON FUNCTION public.gw_expire_profile_previews(maximum integer) TO "gw_service";
 GRANT EXECUTE ON FUNCTION public.gw_native_asset_fence(asset uuid) TO "gw_service";
 GRANT EXECUTE ON FUNCTION public.gw_native_asset_fence(asset uuid) TO "gw_signer";
+GRANT EXECUTE ON FUNCTION public.gw_next_treasury_monitor(target uuid, current_address text) TO "gw_service";
 GRANT EXECUTE ON FUNCTION public.gw_owns(target uuid) TO "gw_read";
 GRANT EXECUTE ON FUNCTION public.gw_owns(target uuid) TO "gw_service";
+GRANT EXECUTE ON FUNCTION public.gw_partition_transfer_allowed(target regclass, operation text) TO "gw_read";
+GRANT EXECUTE ON FUNCTION public.gw_partition_transfer_allowed(target regclass, operation text) TO "gw_service";
+GRANT EXECUTE ON FUNCTION public.gw_partition_transfer_allowed(target regclass, operation text) TO "gw_signer";
+GRANT EXECUTE ON FUNCTION public.gw_public_queue_disclosure(version uuid) TO "gw_read";
+GRANT EXECUTE ON FUNCTION public.gw_public_queue_disclosure(version uuid) TO "gw_service";
+GRANT EXECUTE ON FUNCTION public.gw_queue_disclosure(entry uuid) TO "gw_read";
+GRANT EXECUTE ON FUNCTION public.gw_queue_disclosure(entry uuid) TO "gw_service";
 GRANT EXECUTE ON FUNCTION public.gw_queue_rank(entry uuid, mode text) TO "gw_read";
 GRANT EXECUTE ON FUNCTION public.gw_queue_rank(entry uuid, mode text) TO "gw_service";
 GRANT EXECUTE ON FUNCTION public.gw_record_verified_expiry(attempt uuid) TO "gw_service";
+GRANT EXECUTE ON FUNCTION public.gw_retire_ephemeral_batch(maximum integer) TO "gw_service";
+GRANT EXECUTE ON FUNCTION public.gw_runtime_environment_allowed() TO "gw_read";
+GRANT EXECUTE ON FUNCTION public.gw_runtime_environment_allowed() TO "gw_service";
+GRANT EXECUTE ON FUNCTION public.gw_runtime_environment_allowed() TO "gw_signer";
 GRANT EXECUTE ON FUNCTION public.gw_signer_asset_balance(target uuid, purposes text[]) TO "gw_signer";
 GRANT EXECUTE ON FUNCTION public.gw_signer_owner_fence(obligation uuid) TO "gw_signer";
 GRANT EXECUTE ON FUNCTION public.gw_staff_reader() TO "gw_read";
 GRANT EXECUTE ON FUNCTION public.gw_staff_reader() TO "gw_service";
 GRANT USAGE ON SCHEMA public TO PUBLIC;
+GRANT USAGE ON SCHEMA public TO "gw_preview";
 GRANT USAGE ON SCHEMA public TO "gw_read";
 GRANT USAGE ON SCHEMA public TO "gw_service";
 GRANT USAGE ON SCHEMA public TO "gw_signer";
@@ -9317,6 +5997,8 @@ GRANT SELECT ON TABLE public.appeals TO "gw_read";
 GRANT INSERT ON TABLE public.appeals TO "gw_service";
 GRANT SELECT ON TABLE public.appeals TO "gw_service";
 GRANT UPDATE ON TABLE public.appeals TO "gw_service";
+GRANT SELECT ON TABLE public.archive_months TO "gw_service";
+GRANT SELECT ON TABLE public.assets TO "gw_preview";
 GRANT SELECT ON TABLE public.assets TO "gw_read";
 GRANT INSERT ON TABLE public.assets TO "gw_service";
 GRANT SELECT ON TABLE public.assets TO "gw_service";
@@ -9407,13 +6089,13 @@ GRANT SELECT ON TABLE public.gw_sim_accounts TO "gw_read";
 GRANT SELECT ON TABLE public.gw_user_account_balances TO "gw_read";
 GRANT SELECT ON TABLE public.gw_user_financial_reviews TO "gw_read";
 GRANT SELECT ON TABLE public.gw_user_financial_reviews TO "gw_service";
+GRANT SELECT ON TABLE public.help_articles TO "gw_preview";
 GRANT SELECT ON TABLE public.help_articles TO "gw_read";
 GRANT INSERT ON TABLE public.help_articles TO "gw_service";
 GRANT SELECT ON TABLE public.help_articles TO "gw_service";
 GRANT UPDATE ON TABLE public.help_articles TO "gw_service";
 GRANT INSERT ON TABLE public.jobs TO "gw_service";
 GRANT SELECT ON TABLE public.jobs TO "gw_service";
-GRANT UPDATE ON TABLE public.jobs TO "gw_service";
 GRANT SELECT ON TABLE public.ledger_account_buckets TO "gw_service";
 GRANT SELECT ON TABLE public.ledger_account_totals TO "gw_service";
 GRANT INSERT ON TABLE public.ledger_accounts TO "gw_service";
@@ -9453,11 +6135,12 @@ GRANT SELECT ON TABLE public.operational_diagnostics TO "gw_service";
 GRANT UPDATE ON TABLE public.operational_diagnostics TO "gw_service";
 GRANT INSERT ON TABLE public.outbox TO "gw_service";
 GRANT SELECT ON TABLE public.outbox TO "gw_service";
-GRANT UPDATE ON TABLE public.outbox TO "gw_service";
+GRANT SELECT ON TABLE public.plan_versions TO "gw_preview";
 GRANT SELECT ON TABLE public.plan_versions TO "gw_read";
 GRANT INSERT ON TABLE public.plan_versions TO "gw_service";
 GRANT SELECT ON TABLE public.plan_versions TO "gw_service";
 GRANT UPDATE ON TABLE public.plan_versions TO "gw_service";
+GRANT SELECT ON TABLE public.plans TO "gw_preview";
 GRANT SELECT ON TABLE public.plans TO "gw_read";
 GRANT INSERT ON TABLE public.plans TO "gw_service";
 GRANT SELECT ON TABLE public.plans TO "gw_service";
@@ -9468,6 +6151,9 @@ GRANT SELECT ON TABLE public.point_events TO "gw_service";
 GRANT INSERT ON TABLE public.price_quotes TO "gw_service";
 GRANT SELECT ON TABLE public.price_quotes TO "gw_service";
 GRANT SELECT ON TABLE public.price_quotes TO "gw_signer";
+GRANT DELETE ON TABLE public.profile_previews TO "gw_service";
+GRANT INSERT ON TABLE public.profile_previews TO "gw_service";
+GRANT SELECT ON TABLE public.profile_previews TO "gw_service";
 GRANT INSERT ON TABLE public.provider_quota_reports TO "gw_service";
 GRANT SELECT ON TABLE public.provider_quota_reports TO "gw_service";
 GRANT UPDATE ON TABLE public.provider_quota_reports TO "gw_service";
@@ -9538,9 +6224,11 @@ GRANT INSERT ON TABLE public.simulation_reorg_reviews TO "gw_service";
 GRANT SELECT ON TABLE public.simulation_reorg_reviews TO "gw_service";
 GRANT INSERT ON TABLE public.simulation_withdrawal_controls TO "gw_service";
 GRANT SELECT ON TABLE public.simulation_withdrawal_controls TO "gw_service";
+GRANT SELECT ON TABLE public.slug_redirects TO "gw_preview";
 GRANT SELECT ON TABLE public.slug_redirects TO "gw_read";
 GRANT INSERT ON TABLE public.slug_redirects TO "gw_service";
 GRANT SELECT ON TABLE public.slug_redirects TO "gw_service";
+GRANT SELECT ON TABLE public.treasury_addresses TO "gw_service";
 GRANT INSERT ON TABLE public.unallocated_inflows TO "gw_service";
 GRANT SELECT ON TABLE public.unallocated_inflows TO "gw_service";
 GRANT INSERT ON TABLE public.unallocated_refund_claims TO "gw_service";
@@ -9566,6 +6254,7 @@ GRANT UPDATE ON TABLE public.withdrawals TO "gw_service";
 GRANT DELETE ON TABLE public.worker_requests TO "gw_service";
 GRANT INSERT ON TABLE public.worker_requests TO "gw_service";
 GRANT SELECT ON TABLE public.worker_requests TO "gw_service";
+GRANT SELECT ON TABLE public.x_manifest TO "gw_preview";
 GRANT INSERT ON TABLE public.x_manifest TO "gw_service";
 GRANT SELECT ON TABLE public.x_manifest TO "gw_service";
 GRANT UPDATE ON TABLE public.x_manifest TO "gw_service";
@@ -9588,123 +6277,58 @@ GRANT UPDATE ("scan_progress") ON TABLE public."chain_recovery_runs" TO "gw_serv
 GRANT UPDATE ("state") ON TABLE public."chain_recovery_runs" TO "gw_service";
 GRANT UPDATE ("status") ON TABLE public."crypto_obligations" TO "gw_signer";
 GRANT UPDATE ("part") ON TABLE public."export_chunks" TO "gw_service";
+GRANT UPDATE ("attempts") ON TABLE public."jobs" TO "gw_service";
+GRANT UPDATE ("completed_at") ON TABLE public."jobs" TO "gw_service";
+GRANT UPDATE ("due_at") ON TABLE public."jobs" TO "gw_service";
+GRANT UPDATE ("last_error_code") ON TABLE public."jobs" TO "gw_service";
+GRANT UPDATE ("lease_generation") ON TABLE public."jobs" TO "gw_service";
+GRANT UPDATE ("lease_token") ON TABLE public."jobs" TO "gw_service";
+GRANT UPDATE ("lease_until") ON TABLE public."jobs" TO "gw_service";
+GRANT UPDATE ("payload") ON TABLE public."jobs" TO "gw_service";
+GRANT UPDATE ("redacted_at") ON TABLE public."jobs" TO "gw_service";
+GRANT UPDATE ("redacted_payload_hash") ON TABLE public."jobs" TO "gw_service";
+GRANT UPDATE ("retry_limit") ON TABLE public."jobs" TO "gw_service";
+GRANT UPDATE ("status") ON TABLE public."jobs" TO "gw_service";
+GRANT UPDATE ("updated_at") ON TABLE public."jobs" TO "gw_service";
 GRANT UPDATE ("body") ON TABLE public."notifications" TO "gw_service";
 GRANT UPDATE ("read_at") ON TABLE public."notifications" TO "gw_service";
 GRANT UPDATE ("redacted_at") ON TABLE public."notifications" TO "gw_service";
 GRANT UPDATE ("redacted_body_hash") ON TABLE public."notifications" TO "gw_service";
+GRANT UPDATE ("dispatched_at") ON TABLE public."outbox" TO "gw_service";
+GRANT UPDATE ("payload") ON TABLE public."outbox" TO "gw_service";
+GRANT UPDATE ("redacted_at") ON TABLE public."outbox" TO "gw_service";
+GRANT UPDATE ("redacted_payload_hash") ON TABLE public."outbox" TO "gw_service";
+GRANT UPDATE ("committed_at") ON TABLE public."profile_previews" TO "gw_service";
 GRANT UPDATE ("last_created_at") ON TABLE public."signer_dispatch_cursor" TO "gw_signer";
 GRANT UPDATE ("last_id") ON TABLE public."signer_dispatch_cursor" TO "gw_signer";
+GRANT UPDATE ("activity_opt_in") ON TABLE public."users" TO "gw_service";
+GRANT UPDATE ("activity_revision") ON TABLE public."users" TO "gw_service";
 GRANT UPDATE ("address") ON TABLE public."wallet_links" TO "gw_service";
 GRANT UPDATE ("cooling_until") ON TABLE public."wallet_links" TO "gw_service";
 GRANT UPDATE ("revision") ON TABLE public."wallet_links" TO "gw_service";
 GRANT UPDATE ("verified_at") ON TABLE public."wallet_links" TO "gw_service";
 GRANT UPDATE ("nonce") ON TABLE public."worker_requests" TO "gw_service";
 
--- Server-only relation classifications; ACLs above are authoritative.
--- public.gift_invoices
--- public.simulation_reorg_reviews
--- public.abuse_signals
--- public.alert_deliveries
--- public.appeals
--- public.assets
--- public.audit_events
--- public.auth_factors
--- public.auth_flows
--- public.auth_recovery_codes
--- public.auth_refresh_tokens
--- public.auth_sessions
--- public.auth_totp_replays
--- public.bot_challenges
--- public.bot_token_uses
--- public.chain_checkpoints
--- public.chain_fee_claims
--- public.chain_observations
--- public.chain_recovery_runs
--- public.chain_scan_pages
--- public.crypto_events
--- public.crypto_invoices
--- public.crypto_obligations
--- public.crypto_reorg_resolutions
--- public.crypto_reorg_reviews
--- public.crypto_submissions
--- public.cycles
--- public.data_exports
--- public.database_binding_nonce
--- public.deployment_binding_challenges
--- public.environment_instances
--- public.export_chunks
--- public.financial_reconciliation_results
--- public.queue_entries
--- public.simulation_reorg_resolutions
--- public.signed_attempts
--- public.signer_heartbeats
--- public.signer_reservations
--- public.signer_states
--- public.users
--- public.ledger_accounts
--- public.help_articles
--- public.jobs
--- public.ledger_account_buckets
--- public.ledger_account_totals
--- public.ledger_asset_totals
--- public.ledger_counter_markers
--- public.ledger_counter_state
--- public.ledger_journal_audits
--- public.ledger_journals
--- public.ledger_postings
--- public.liability_recoveries
--- public.maintenance_results
--- public.native_reserve_inflows
--- public.notification_views
--- public.notifications
--- public.operation_keys
--- public.operational_alerts
--- public.operational_diagnostics
--- public.outbox
--- public.plan_versions
--- public.plans
--- public.point_events
--- public.price_quotes
--- public.provider_quota_reports
--- public.public_statistics
--- public.queue_partitions
--- public.queue_rank_nodes
--- public.rate_limits
--- public.receipt_allocations
--- public.recovery_outflow_resolutions
--- public.recovery_outflows
--- public.recovery_view_caps
--- public.referral_codes
--- public.reports
--- public.scheduler_nonces
--- public.scheduler_runs
--- public.schema_migrations
--- public.signer_dispatch_cursor
--- public.simulation_incoming_controls
--- public.simulation_incoming_events
--- public.simulation_incoming_refunds
--- public.simulation_withdrawal_controls
--- public.slug_redirects
--- public.unallocated_inflows
--- public.unallocated_refund_claims
--- public.user_identities
--- public.wallet_challenges
--- public.wallet_links
--- public.withdrawals
--- public.worker_requests
--- public.x_manifest
-
--- New-database identity and empty-ledger coverage; no financial/user history.
+-- Fresh identities and empty-ledger coverage; never import user/financial rows.
 INSERT INTO public.environment_instances(environment) VALUES('simulation');
 INSERT INTO public.database_binding_nonce(singleton) VALUES(true);
-INSERT INTO public.ledger_counter_state(id,postings_complete,journals_complete,complete,sealed_at)
-VALUES('global',true,true,true,clock_timestamp());
--- Retain the published implementation-specific test notices. db:seed supplies
--- the remaining manifest/help/catalog content and never replaces operator text.
--- Publish implementation-specific test notice without replacing operator text.
-INSERT INTO public.help_articles(locale,slug,title,body,published,version) VALUES ('en','privacy','Test privacy notice','Version 1 — simulation and test networks. The app records account identity, consent, sessions and security information; linked public wallet addresses; gifts, ledger and payout history; points, referrals and messages. Account deletion removes or redacts personal information while required financial and audit evidence is retained. Public blockchain transactions cannot be erased. Own-data downloads require your session and expire at the displayed time. The configured authentication, database, wallet and RPC providers process relevant requests. This notice describes the test implementation; the operator must review the notice and selected providers before a real-money launch.',true,1) ON CONFLICT (locale,slug) DO NOTHING;
-INSERT INTO public.help_articles(locale,slug,title,body,published,version) VALUES ('fr','privacy','Notice de confidentialité de test','Version 1 — simulation et réseaux de test. L’application conserve l’identité du compte, le consentement, les sessions et les informations de sécurité ; les adresses publiques associées ; les dons, mouvements et retraits ; les points, parrainages et messages. La suppression du compte efface ou masque les données personnelles tout en conservant les preuves financières et d’audit requises. Les transactions publiques sur une chaîne ne peuvent être effacées. Les exports nécessitent votre session et expirent à la date indiquée. Les fournisseurs configurés d’authentification, de base de données, de portefeuille et de RPC traitent les requêtes concernées. Cette notice décrit l’implémentation de test ; l’opérateur doit la revoir ainsi que les fournisseurs avant un lancement avec de l’argent réel.',true,1) ON CONFLICT (locale,slug) DO NOTHING;
+INSERT INTO public.ledger_counter_state(id,postings_complete,journals_complete,complete,sealed_at) VALUES('global',true,true,true,clock_timestamp());
+INSERT INTO public.x_manifest(key,value,type,scope,description) VALUES('activity_epoch','1'::jsonb,'number','private','Phase Two activity_epoch');
+INSERT INTO public.x_manifest(key,value,type,scope,description) VALUES('activity_presentation','"fixtures"'::jsonb,'string','public','Phase Two activity_presentation');
+INSERT INTO public.x_manifest(key,value,type,scope,description) VALUES('bootstrap_presentation','"legacy"'::jsonb,'string','public','Phase Two bootstrap_presentation');
+INSERT INTO public.x_manifest(key,value,type,scope,description) VALUES('feature_transparency','false'::jsonb,'boolean','public','Phase Two feature_transparency');
+INSERT INTO public.x_manifest(key,value,type,scope,description) VALUES('financial_readiness_record','{"status": "not_reviewed", "evidence_refs": []}'::jsonb,'json','staff','Phase Two financial_readiness_record');
+INSERT INTO public.x_manifest(key,value,type,scope,description) VALUES('priority_presentation','"legacy"'::jsonb,'string','public','Phase Two priority_presentation');
+INSERT INTO public.x_manifest(key,value,type,scope,description) VALUES('profile_revision','1'::jsonb,'number','public','Phase Two profile_revision');
+INSERT INTO public.x_manifest(key,value,type,scope,description) VALUES('public_receipt_policy','{"show_time": true, "show_asset": true, "show_network": true, "mask_identity": true, "show_environment": true}'::jsonb,'json','public','Phase Two public_receipt_policy');
+INSERT INTO public.x_manifest(key,value,type,scope,description) VALUES('queue_disclosure_policy','{"show_system_ahead": true, "show_snapshot_time": true, "show_priority_ahead": true}'::jsonb,'json','public','Phase Two queue_disclosure_policy');
+INSERT INTO public.x_manifest(key,value,type,scope,description) VALUES('transparency_content','{"en": {"fees": "You pay incoming network gas. A withdrawal deducts only the charges you approve, including any account setup charge. Platform reserves pay business settlement fees. Internal credits are separate from transfers to your wallet.", "risk": "Receipts depend on later participants and are not guaranteed. You may receive less than you send.", "slots": "Each gift adds its configured receipt target to the queue while funding one receiver allocation. At a target of two, one new unfunded conditional slot remains per gift. Money for all future receipts is not already held.", "example": "At the default 85% receiver share, a $200-equivalent gift may receive two $170-equivalent internal credits: $340 gross only if both later gifts confirm. Withdrawal charges reduce any amount sent to your wallet. This is a conditional example, not a promised return.", "mechanics": "Send a crypto gift, join its receiver queue, and become eligible for allocations from later participants.", "empty_queue": "When no receiver is waiting, the selected startup rule either blocks checkout or credits the first receiver share to the disclosed developer/marketing role. That business allocation is not a member payout.", "priority_label": "Administrative priority applies to this queue", "bootstrap_label": "Platform-controlled position"}, "fr": {"fees": "Vous payez le coût réseau du don entrant. Un retrait déduit uniquement les frais approuvés, y compris la création éventuelle d’un compte. Les réserves de la plateforme paient les règlements professionnels. Un crédit interne est distinct d’un transfert vers votre portefeuille.", "risk": "Les réceptions dépendent de participants ultérieurs et ne sont pas garanties. Vous pouvez recevoir moins que votre don.", "slots": "Chaque don ajoute son objectif de réceptions à la file tout en finançant une allocation. Avec un objectif de deux, chaque don laisse une place conditionnelle supplémentaire non financée. L’argent de toutes les réceptions futures n’est pas déjà détenu.", "example": "Avec la part destinataire par défaut de 85 %, un don équivalent à 200 $ peut recevoir deux crédits internes de 170 $, soit 340 $ bruts uniquement si les deux dons ultérieurs sont confirmés. Les frais de retrait réduisent le montant envoyé au portefeuille. Cet exemple est conditionnel, sans rendement promis.", "mechanics": "Envoyez un don en crypto, rejoignez sa file de réception et devenez admissible aux allocations de participants ultérieurs.", "empty_queue": "Si personne n’attend, la règle de démarrage bloque le paiement ou crédite la première part destinataire au rôle développeur/marketing annoncé. Cette allocation professionnelle n’est pas un paiement à un membre.", "priority_label": "Une priorité administrative s’applique à cette file", "bootstrap_label": "Position contrôlée par la plateforme"}, "version": "transparency-1"}'::jsonb,'json','public','Phase Two transparency_content');
+INSERT INTO public.x_manifest(key,value,type,scope,description) VALUES('transparency_snapshot_policy','{"client_poll_seconds": 60, "preview_ttl_minutes": 15}'::jsonb,'json','private','Phase Two transparency_snapshot_policy');
+INSERT INTO public.x_manifest(key,value,type,scope,description) VALUES('verified_activity_policy','{"max_records": 50, "exclude_test": true, "max_age_hours": 24, "exclude_system": true, "require_opt_in": true}'::jsonb,'json','private','Phase Two verified_activity_policy');
+INSERT INTO public.help_articles(locale,slug,title,body,published,version) VALUES('en','privacy','Test privacy notice','Version 1 — simulation and test networks. The app records account identity, consent, sessions and security information; linked public wallet addresses; gifts, ledger and payout history; points, referrals and messages. Account deletion removes or redacts personal information while required financial and audit evidence is retained. Public blockchain transactions cannot be erased. Own-data downloads require your session and expire at the displayed time. The configured authentication, database, wallet and RPC providers process relevant requests. This notice describes the test implementation; the operator must review the notice and selected providers before a real-money launch.',true,1);
+INSERT INTO public.help_articles(locale,slug,title,body,published,version) VALUES('fr','privacy','Notice de confidentialité de test','Version 1 — simulation et réseaux de test. L’application conserve l’identité du compte, le consentement, les sessions et les informations de sécurité ; les adresses publiques associées ; les dons, mouvements et retraits ; les points, parrainages et messages. La suppression du compte efface ou masque les données personnelles tout en conservant les preuves financières et d’audit requises. Les transactions publiques sur une chaîne ne peuvent être effacées. Les exports nécessitent votre session et expirent à la date indiquée. Les fournisseurs configurés d’authentification, de base de données, de portefeuille et de RPC traitent les requêtes concernées. Cette notice décrit l’implémentation de test ; l’opérateur doit la revoir ainsi que les fournisseurs avant un lancement avec de l’argent réel.',true,1);
+DO $initial_archive_months$ DECLARE source_name text; BEGIN FOREACH source_name IN ARRAY ARRAY['ledger_postings','chain_scan_pages','audit_events'] LOOP PERFORM public.gw_create_archive_month(source_name,date_trunc('month',clock_timestamp() AT TIME ZONE 'UTC')::date);PERFORM public.gw_create_archive_month(source_name,(date_trunc('month',clock_timestamp() AT TIME ZONE 'UTC')+interval '1 month')::date);END LOOP;END $initial_archive_months$;
 
 -- Baseline receipt: SHA256 of every preceding byte; generated, do not edit.
-INSERT INTO public.schema_migrations(name,sha256) VALUES('000_initial_schema.sql','fabb6e5958ff029a9895f248d6b96a4c'||'f8f59959e893c1bbfadce75e071d8cfe');
+INSERT INTO public.schema_migrations(name,sha256) VALUES('000_initial_schema.sql','6302f7a2d873089c93d32173b40447c5'||'66169da4cdfe15e5bc0353c748b5a213');
 COMMIT;

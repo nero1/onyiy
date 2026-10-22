@@ -18,6 +18,7 @@ const historyRow=z.object({id:text,
  direction:text.optional(),
  environment:text.optional(),
  network:text.optional(),
+ explorer:text.nullable().optional(),
  tx_hash:text.nullable().optional()});
 const receipt=z.object({id:text,
  asset:text,
@@ -28,6 +29,7 @@ const receipt=z.object({id:text,
  fee_base_units:amount,
  refunded_fee_base_units:amount.optional(),
  settled_at:text,
+ explorer:text.nullable().optional(),
  tx_hash:text.nullable().optional()});
 const schemas={
  data:z.array(z.object({id:text,

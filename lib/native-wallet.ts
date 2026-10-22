@@ -8,6 +8,7 @@ export type NativeCurrency = {
   network: string;
   decimals: number;
   kind: "native" | "token";
+  explorer?: string;
   contract?: string;
   mint?: string;
   enabled: boolean;
@@ -123,6 +124,7 @@ async function signOwnership(
 }
 
 export type PreparedPayment = {
+  explorer?:string;
   profile_revision?:number;presentation?:ProfilePresentation;queue_disclosure?:PublicQueueDisclosure|null;plan?:PlanFinancialPresentation;
   environment: "testnet"|"mainnet";
   energy_fee_native?:string;
