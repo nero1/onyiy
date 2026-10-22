@@ -2,7 +2,7 @@ import {queueAdjustmentCopy} from '../lib/notification-copy';
 import crypto from 'node:crypto';
 import {and,isNull,desc,eq,lt,or,sql} from 'drizzle-orm';
 import {z} from 'zod';
-import {outbox,users,queueEntries,notifications,notificationViews,readManifest,type DbExecutor} from '@gifters/db';
+import {outbox,users,queueEntries,queuePartitions,cycles,notifications,notificationViews,readManifest,type DbExecutor} from '@gifters/db';
 import {databaseNow} from './auth';
 import {environmentKey,equalText} from './auth-crypto';
 const cursorSchema=z.object({user:z.string().uuid(),at:z.string().datetime(),id:z.string().uuid(),limit:z.number().int().positive().max(100),exp:z.number().int()}).strict();
@@ -11,24 +11,31 @@ function encode(value:z.infer<typeof cursorSchema>){const data=Buffer.from(JSON.
 function decode(value:string,user:string,limit:number){try{if(value.length>1024)throw Error();const [body,signature,...rest]=value.split('.');if(rest.length||!equalText(signature??'',sign(body)))throw Error();const row=cursorSchema.parse(JSON.parse(Buffer.from(body,'base64url').toString()));if(row.user!==user||row.limit!==limit||row.exp<=Date.now()/1000)throw Error();return row}catch{throw new Error('INVALID_INPUT')}}
 export async function notificationPage(tx:DbExecutor,user:string,requested?:number,cursor?:string){const manifest=await readManifest(tx);if(!manifest.feature_notifications)throw new Error('FEATURE_DISABLED');const limit=requested??manifest.notification_page_size;if(!Number.isSafeInteger(limit)||limit<1||limit>manifest.pagination_policy.max_size)throw new Error('INVALID_INPUT');const after=cursor?decode(cursor,user,limit):undefined;
  const rows=await tx.select({id:notifications.id,title_key:notifications.titleKey,body:notifications.body,created_at:notifications.createdAt,read_at:notifications.readAt,stamp:sql<string>`to_char(${notifications.createdAt} at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`}).from(notifications).where(and(eq(notifications.userId,user),isNull(notifications.retiredAt),after?or(lt(notifications.createdAt,sql`${after.at}::text::timestamptz`),and(eq(notifications.createdAt,sql`${after.at}::text::timestamptz`),lt(notifications.id,after.id))):undefined)).orderBy(desc(notifications.createdAt),desc(notifications.id)).limit(limit+1);const more=rows.length>limit;const page=rows.slice(0,limit),last=page.at(-1);return {items:page.map(({stamp,...item})=>item),has_more:more,next_cursor:more&&last?encode({user,at:last.stamp,id:last.id,limit,exp:Math.floor(Date.now()/1000)+3600}):null};}
-export async function notificationBadge(tx:DbExecutor,user:string){const [row]=await tx.select({has_new:sql<boolean>`bool_or(${notificationViews.userId} is null or (${notifications.createdAt},${notifications.id})>(${notificationViews.seenAt},${notificationViews.seenId}))`,seen_at:sql<Date|null>`max(${notificationViews.seenAt})`}).from(notifications).leftJoin(notificationViews,eq(notificationViews.userId,notifications.userId)).where(and(eq(notifications.userId,user),isNull(notifications.retiredAt)));return {has_new:!!row?.has_new,seen_at:row?.seen_at??null};}
+export async function notificationBadge(tx:DbExecutor,user:string){
+ const [seen]=await tx.select({at:sql<string>`${notificationViews.seenAt}::text`,seenAt:notificationViews.seenAt,id:notificationViews.seenId}).from(notificationViews).where(eq(notificationViews.userId,user)).limit(1);
+ const [latest]=await tx.select({id:notifications.id}).from(notifications).where(and(eq(notifications.userId,user),isNull(notifications.retiredAt),seen?sql`(${notifications.createdAt},${notifications.id})>(${seen.at}::timestamptz,${seen.id}::uuid)`:undefined)).orderBy(desc(notifications.createdAt),desc(notifications.id)).limit(1);
+ return {has_new:!!latest,seen_at:seen?.seenAt??null};
+}
 export async function seeNotifications(tx:DbExecutor,user:string,newestId:string){const manifest=await readManifest(tx);if(!manifest.feature_notifications)throw new Error('FEATURE_DISABLED');const [row]=await tx.select({at:notifications.createdAt}).from(notifications).where(and(eq(notifications.id,newestId),eq(notifications.userId,user),isNull(notifications.retiredAt))).limit(1);if(!row)throw new Error('NOT_FOUND');
  // The timestamp originates only from an owned loaded notice, never client time.
  await tx.insert(notificationViews).select(tx.select({userId:notifications.userId,seenAt:notifications.createdAt,seenId:notifications.id,updatedAt:sql<Date>`clock_timestamp()`.as('updated_at')}).from(notifications).where(and(eq(notifications.id,newestId),eq(notifications.userId,user),isNull(notifications.retiredAt))).limit(1)).onConflictDoUpdate({target:notificationViews.userId,set:{seenAt:sql`excluded.seen_at`,seenId:sql`excluded.seen_id`,updatedAt:sql`excluded.updated_at`},setWhere:sql`(${notificationViews.seenAt},${notificationViews.seenId})<(excluded.seen_at,excluded.seen_id)`});return notificationBadge(tx,user);}
 export async function readNotification(tx:DbExecutor,user:string,id:string){if(!(await readManifest(tx)).feature_notifications)throw new Error('FEATURE_DISABLED');const [row]=await tx.update(notifications).set({readAt:sql`coalesce(${notifications.readAt},clock_timestamp())`}).where(and(eq(notifications.userId,user),eq(notifications.id,id),isNull(notifications.retiredAt))).returning({id:notifications.id,read_at:notifications.readAt,stamp:sql<string>`to_char(${notifications.createdAt} at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`});if(!row)throw new Error('NOT_FOUND');return row;}
 
-/** Queue one safe notice per waiting member in the changed partition. The
- * caller holds its partition lock; durable identities make retries harmless. */
+export const queueNoticePage=z.object({partition_id:z.string().uuid(),change_id:z.string().min(1).max(200),ceiling:z.number().int().min(0).max(1099511627775),after:z.number().int().min(-1).max(1099511627775),anchor:z.string().datetime()}).strict();
+/** Persist one change boundary under the partition lock, never its full audience. */
 export async function queueAdjustmentNotices(tx:DbExecutor,partitionId:string,changeId:string){
  const policy=await readManifest(tx);if(policy.deployment_profile!=='transparent'||policy.priority_presentation!=='disclosed')return;
- const prefix=`queue-adjustment:${changeId}:`,environment=process.env.APP_ENV??'simulation';
- await tx.execute(sql`insert into ${outbox} (business_key,environment,kind,payload)
-  select ${prefix}||${users.id}::text,${environment},'notification',jsonb_build_object(
-   'user_id',${users.id},'title_key','account_update','body',case when ${users.locale}='fr'
-    then ${queueAdjustmentCopy.fr}
-    else ${queueAdjustmentCopy.en} end)
-  from ${users} where ${users.status}<>'deleted' and exists(select 1 from ${queueEntries}
-   where ${queueEntries.partitionId}=${partitionId}::uuid and ${queueEntries.beneficiaryUserId}=${users.id}
-    and ${queueEntries.kind}='member' and ${queueEntries.status}='waiting')
-  on conflict (business_key) do nothing`);
+ const [first]=await tx.select({ticket:queueEntries.ticket}).from(queueEntries).where(and(eq(queueEntries.partitionId,partitionId),eq(queueEntries.kind,'member'),eq(queueEntries.status,'waiting'))).orderBy(queueEntries.ticket).limit(1);if(!first)return;
+ const [boundary]=await tx.select({ceiling:sql<number>`${queuePartitions.nextTicket}-1`.mapWith(Number),anchor:sql<string>`to_char(clock_timestamp() at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`}).from(queuePartitions).where(eq(queuePartitions.id,partitionId)).limit(1);if(!boundary)throw new Error('NOT_FOUND');
+ const payload=queueNoticePage.parse({partition_id:partitionId,change_id:changeId,ceiling:boundary.ceiling,after:first.ticket-1,anchor:boundary.anchor});
+ await tx.insert(outbox).values({businessKey:`queue-adjustment:${changeId}:page:${payload.after}`,environment:process.env.APP_ENV??'simulation',kind:'notification',payload:{queue_adjustment:payload}}).onConflictDoNothing({target:outbox.businessKey});
+}
+/** Page visited tickets, including completed/deleted rows, so every dispatch is
+ * bounded even when the retained interval has few eligible recipients. */
+export async function deliverQueueAdjustmentPage(tx:DbExecutor,input:z.infer<typeof queueNoticePage>){
+ const rows=await tx.select({ticket:queueEntries.ticket,kind:queueEntries.kind,userId:users.id,locale:users.locale,userStatus:users.status,completedAt:sql<string|null>`${cycles.completedAt}::text`,eligible:sql<boolean>`${cycles.completedAt} is null or ${cycles.completedAt}>${input.anchor}::timestamptz`}).from(queueEntries).leftJoin(cycles,eq(cycles.id,queueEntries.cycleId)).leftJoin(users,eq(users.id,queueEntries.beneficiaryUserId)).where(and(eq(queueEntries.partitionId,input.partition_id),sql`${queueEntries.ticket}>${input.after} and ${queueEntries.ticket}<=${input.ceiling}`)).orderBy(queueEntries.ticket).limit(101);
+ const page=rows.slice(0,100),environment=process.env.APP_ENV??'simulation';
+ const recipients=new Map(page.filter(row=>row.kind==='member'&&row.userId&&row.userStatus!=='deleted'&&row.eligible).map(row=>[row.userId!,row]));
+ if(recipients.size)await tx.insert(outbox).values([...recipients.values()].map(row=>({businessKey:`queue-adjustment:${input.change_id}:${row.userId}`,environment,kind:'notification',payload:{user_id:row.userId,title_key:'account_update',body:row.locale==='fr'?queueAdjustmentCopy.fr:queueAdjustmentCopy.en}}))).onConflictDoNothing({target:outbox.businessKey});
+ if(rows.length>100&&page.length){const next={...input,after:page.at(-1)!.ticket};await tx.insert(outbox).values({businessKey:`queue-adjustment:${input.change_id}:page:${next.after}`,environment,kind:'notification',payload:{queue_adjustment:next}}).onConflictDoNothing({target:outbox.businessKey});}
 }

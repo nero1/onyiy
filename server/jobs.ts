@@ -1,3 +1,4 @@
+import {queueNoticePage,deliverQueueAdjustmentPage} from './notifications';
 import {applicationError} from './errors';
 import {recordProofFailure} from './bot-check';
 import {observationPayload,observationForJob,deferObservation} from "./crypto-observer";
@@ -95,7 +96,9 @@ async function executeJobWithinContext(id:string,token:string,generation:number,
     await fence(database,run);
     const [row]=await database.select().from(jobs).where(and(eq(jobs.id,id),eq(jobs.status,'running'),eq(jobs.leaseToken,token),eq(jobs.leaseGeneration,generation),sql`${jobs.leaseUntil}>clock_timestamp()`)).limit(1).for('update');
     if (!row) throw new Error('LEASE_LOST');
-    if (row.kind==='notification') {
+    if (row.kind==='notification'&&row.payload&&typeof row.payload==='object'&&'queue_adjustment' in row.payload){
+      const payload=z.object({queue_adjustment:queueNoticePage}).strict().safeParse(row.payload);if(!payload.success)throw new Error('INVALID_JOB');await deliverQueueAdjustmentPage(database,payload.data.queue_adjustment);
+    } else if (row.kind==='notification') {
       const payload=notificationPayload.safeParse(row.payload);
       if (!payload.success) throw new Error('INVALID_JOB');
       const [recipient]=await database.select({status:users.status}).from(users).where(eq(users.id,payload.data.user_id)).limit(1);

@@ -1,4 +1,5 @@
 "use client";
+import type {NativeAdminObligationPage,NativeAdminAlerts,NativeAdminReviews,NativeAdminPlans,NativeAdminRecovery,NativeAdminRecoveryLink,NativeAdminSweep,NativeAdminSweepConfirmation,NativeAdminSweepRecovery} from '@/lib/financial-contracts';
 import CopyButton from './copy-button';
 import {useLocalizedNotice} from './use-localized-notice';
 import AdminTimeZone from './admin-time-zone';
@@ -23,26 +24,26 @@ export default function NativeAdmin({
   const [target, setTarget] = useState(""),
     [recoveryGross, setRecoveryGross] = useState(""),
     [proofReference, setProofReference] = useState(""),
-    [recovery, setRecovery] = useState<any>(null),
+    [recovery, setRecovery] = useState<NativeAdminRecovery|null>(null),
     [approval, setApproval] = useState(""),
     [link, setLink] = useState("");
   const [previousId, setPreviousId] = useState("");
   const [pricingMode,setPricingMode]=useState<'usd_at_activation'|'fixed_token'>('usd_at_activation');
   const [fixedAmount,setFixedAmount]=useState(''),[launchAt,setLaunchAt]=useState('');
-  const [obligations, setObligations] = useState<any[]>([]),
+  const [obligations, setObligations] = useState<NativeAdminObligationPage['rows']>([]),
     [obligationCursor, setObligationCursor] = useState<string | null>(null);
   const [sweepGross, setSweepGross] = useState(""),
-    [sweep, setSweep] = useState<any>(null);
+    [sweep, setSweep] = useState<NativeAdminSweep|null>(null);
   const [eventId, setEventId] = useState(""),
-    [reviews, setReviews] = useState<any[]>([]),[reviewCursor,setReviewCursor]=useState<string|null>(null),[reviewView,setReviewView]=useState<'current'|'history'>('current');
-  async function loadReviews(cursor?:string){const query=new URLSearchParams({view:reviewView});if(cursor)query.set('cursor',cursor);const page=await api<any>('/admin/crypto/reorg?'+query,owner);setReviews(page.rows);setReviewCursor(page.next_cursor);}
+    [reviews, setReviews] = useState<NativeAdminReviews['rows']>([]),[reviewCursor,setReviewCursor]=useState<string|null>(null),[reviewView,setReviewView]=useState<'current'|'history'>('current');
+  async function loadReviews(cursor?:string){const query=new URLSearchParams({view:reviewView});if(cursor)query.set('cursor',cursor);const page=await api<NativeAdminReviews>('/admin/crypto/reorg?'+query,owner);setReviews(page.rows);setReviewCursor(page.next_cursor);}
   const fr = locale === "fr",
     [reason, setReason] = useState(""),
     [currency, setCurrency] = useState(assets[0]?.key ?? "bnb"),
     [plan, setPlan] = useState(""),
     [revision, setRevision] = useState("1"),
-    [plans, setPlans] = useState<any[]>([]),
-    [alerts, setAlerts] = useState<any[]>([]),
+    [plans, setPlans] = useState<NativeAdminPlans>([]),
+    [alerts, setAlerts] = useState<NativeAdminAlerts['rows']>([]),
     [alertCursor,setAlertCursor]=useState<string|null>(null),[alertView,setAlertView]=useState<'current'|'history'>('current'),
     [role, setRole] = useState("developer"),
     [obligation, setObligation] = useState(""),
@@ -86,10 +87,10 @@ export default function NativeAdmin({
         disabled={busy}
         onClick={() =>
           void run(async () => {
-            setPlans(await api<any[]>("/admin/plans", owner));
-            const alertPage=await api<any>("/admin/crypto/alerts?view="+alertView,owner);setAlerts(alertPage.rows);setAlertCursor(alertPage.next_cursor);
+            setPlans(await api<NativeAdminPlans>("/admin/plans", owner));
+            const alertPage=await api<NativeAdminAlerts>("/admin/crypto/alerts?view="+alertView,owner);setAlerts(alertPage.rows);setAlertCursor(alertPage.next_cursor);
             await loadReviews();
-            const page = await api<any>("/admin/crypto/obligations", owner);
+            const page = await api<NativeAdminObligationPage>("/admin/crypto/obligations", owner);
             setObligations(page.rows);
             setObligationCursor(page.next_after);
           })
@@ -193,7 +194,7 @@ export default function NativeAdmin({
         <p>{fr?'Enregistrez d’abord un plan désactivé. Ajoutez chaque monnaie avec la même date. Le prix et les autorisations seront vérifiés au lancement.':'Save a disabled plan first. Add each currency with the same date. Price and approvals will be checked at launch.'}</p>
         <button disabled={!plan||!launchAt||currency==='trx'||pricingMode==='fixed_token'&&!fixedAmount.trim()} onClick={()=>void run(async()=>{
           const result=await mutation<{revision:number}>('/admin/crypto/plans/schedule',owner,{plan_id:plan,revision:Number(revision),
-          asset_key:currency,launch_at:new Date(launchAt+'Z').toISOString(),pricing_mode:pricingMode,...(pricingMode==='fixed_token'?{amount_base_units:decimalToBaseUnits(fixedAmount.trim(),assets.find(asset=>asset.key===currency)?.decimals??-1).toString()}:{}),reason});setRevision(String(result.revision));setPlans(await api<any[]>('/admin/plans',owner));
+          asset_key:currency,launch_at:new Date(launchAt+'Z').toISOString(),pricing_mode:pricingMode,...(pricingMode==='fixed_token'?{amount_base_units:decimalToBaseUnits(fixedAmount.trim(),assets.find(asset=>asset.key===currency)?.decimals??-1).toString()}:{}),reason});setRevision(String(result.revision));setPlans(await api<NativeAdminPlans>('/admin/plans',owner));
         })}>{fr?'Programmer cette monnaie':'Schedule this currency'}</button>
         <button disabled={!plan} onClick={()=>void run(()=>mutation('/admin/crypto/plans',owner,{asset_key:currency,plan_id:plan,resume_only:true,reason}))}>{fr?'Reprendre le prix existant sans le modifier':'Resume the existing price unchanged'}</button>
       </fieldset>
@@ -329,7 +330,7 @@ export default function NativeAdmin({
             void run(async () => {
               const asset = assets.find((v) => v.key === currency);
               if (!asset) throw new Error("CURRENCY_NOT_PROVISIONED");
-              const value = await mutation<any>(
+              const value = await mutation<NativeAdminRecovery>(
                 "/admin/crypto/recovery/quote",
                 owner,
                 {
@@ -359,7 +360,7 @@ export default function NativeAdmin({
             <button
               onClick={() =>
                 void run(async () => {
-                  const value = await mutation<any>(
+                  const value = await mutation<NativeAdminRecoveryLink>(
                     "/admin/crypto/recovery/link",
                     owner,
                     { recovery_id: recovery.recovery_id },
@@ -521,7 +522,7 @@ export default function NativeAdmin({
             void run(async () => {
               const asset = assets.find((a) => a.key === currency);
               if (!asset) throw new Error("CURRENCY_NOT_PROVISIONED");
-              const value = await mutation<any>(
+              const value = await mutation<NativeAdminSweep>(
                 "/admin/crypto/sweeps/quote",
                 owner,
                 {
@@ -559,12 +560,12 @@ export default function NativeAdmin({
               disabled={sweep.status !== "quoted"}
               onClick={() =>
                 void run(async () => {
-                  const value = await mutation<any>(
+                  const value = await mutation<NativeAdminSweepConfirmation>(
                     "/admin/crypto/sweeps/confirm",
                     owner,
                     { obligation_id: sweep.id, reason },
                   );
-                  setSweep((old: any) => ({ ...old, ...value }));
+                  setSweep(old => old?({ ...old, ...value }):null);
                 })
               }
             >
@@ -580,12 +581,12 @@ export default function NativeAdmin({
               }
               onClick={() =>
                 void run(async () => {
-                  const value = await mutation<any>(
+                  const value = await mutation<NativeAdminSweepRecovery>(
                     "/admin/crypto/sweeps/recover",
                     owner,
                     { obligation_id: sweep.id, reason },
                   );
-                  setSweep((old: any) => ({ ...old, ...value }));
+                  setSweep(old => old?({ ...old, ...value }):null);
                 })
               }
             >
@@ -619,7 +620,7 @@ export default function NativeAdmin({
                       obligation_id: row.id,
                       reason,
                     });
-                    const page = await api<any>(
+                    const page = await api<NativeAdminObligationPage>(
                       "/admin/crypto/obligations",
                       owner,
                     );
@@ -640,7 +641,7 @@ export default function NativeAdmin({
             disabled={busy}
             onClick={() =>
               void run(async () => {
-                const page = await api<any>(
+                const page = await api<NativeAdminObligationPage>(
                   "/admin/crypto/obligations?after=" +
                     encodeURIComponent(obligationCursor),
                   owner,
@@ -655,8 +656,8 @@ export default function NativeAdmin({
         )}
       </section>
       <label>{fr?'Vue des alertes':'Alert view'}<select value={alertView} disabled={busy} onChange={event=>{setAlertView(event.target.value as 'current'|'history');setAlerts([]);setAlertCursor(null);}}><option value="current">{fr?'Non résolues':'Unresolved'}</option><option value="history">{fr?'Tout l’historique':'All history'}</option></select></label>
-      <button disabled={busy} onClick={()=>void run(async()=>{const page=await api<any>('/admin/crypto/alerts?view='+alertView,owner);setAlerts(page.rows);setAlertCursor(page.next_cursor);})}>{fr?'Actualiser les alertes / première page':'Refresh alerts / first page'}</button>
-      {alertCursor&&<button disabled={busy} onClick={()=>void run(async()=>{const page=await api<any>('/admin/crypto/alerts?view='+alertView+'&cursor='+encodeURIComponent(alertCursor),owner);setAlerts(page.rows);setAlertCursor(page.next_cursor);})}>{fr?'Alertes suivantes':'Next alerts'}</button>}
+      <button disabled={busy} onClick={()=>void run(async()=>{const page=await api<NativeAdminAlerts>('/admin/crypto/alerts?view='+alertView,owner);setAlerts(page.rows);setAlertCursor(page.next_cursor);})}>{fr?'Actualiser les alertes / première page':'Refresh alerts / first page'}</button>
+      {alertCursor&&<button disabled={busy} onClick={()=>void run(async()=>{const page=await api<NativeAdminAlerts>('/admin/crypto/alerts?view='+alertView+'&cursor='+encodeURIComponent(alertCursor),owner);setAlerts(page.rows);setAlertCursor(page.next_cursor);})}>{fr?'Alertes suivantes':'Next alerts'}</button>}
       {alerts.map((row) => (
         <article key={row.id}>
           <p>

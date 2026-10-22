@@ -147,11 +147,13 @@ export type PreparedPayment = {
   expires_at: string;
   valid_until_height?: string;
 };
-export async function sendNativePayment(currency:NativeCurrency,prepared:PreparedPayment,isCurrent:()=>boolean=()=>true){return withWalletInteraction(()=>sendPayment(currency,prepared,isCurrent));}
+export type WalletSendGuard={authorize:()=>Promise<void>;reject:(reason:'not_dispatched'|'user_rejected')=>Promise<void>};
+export async function sendNativePayment(currency:NativeCurrency,prepared:PreparedPayment,isCurrent:()=>boolean=()=>true,guard?:WalletSendGuard){return withWalletInteraction(()=>sendPayment(currency,prepared,isCurrent,guard));}
 async function sendPayment(
   currency: NativeCurrency,
   prepared: PreparedPayment,
   isCurrent: () => boolean = () => true,
+  guard?:WalletSendGuard,
 ) {
   try{currency=structuredClone(currency);prepared=structuredClone(prepared)}catch{throw new Error("SIGNED_INTENT_INVALID")}
   const assertCurrent = () => {
@@ -161,6 +163,14 @@ async function sendPayment(
       !Number.isFinite(Date.parse(prepared.expires_at)) ||
       Date.now() >= Date.parse(prepared.expires_at)
     ) throw new Error("QUOTE_EXPIRED");
+  };
+  const dispatch=async<T>(send:()=>Promise<T>):Promise<T>=>{
+    if(!guard)throw new Error('FINANCIAL_SAFETY_PAUSE');
+    try{await guard.authorize();assertCurrent();}catch(error){await guard.reject('not_dispatched').catch(()=>{});throw error;}
+    try{return await send()}catch(error){
+      if(error&&typeof error==='object'&&'code' in error&&error.code===4001){await guard.reject('user_rejected').catch(()=>{});throw error;}
+      throw new Error('BROADCAST_AMBIGUOUS');
+    }
   };
   assertCurrent();
   if (
@@ -218,7 +228,7 @@ async function sendPayment(
     if (BigInt(currentNetwork) !== BigInt(currency.network)) throw new Error("WRONG_NETWORK");
     assertCurrent();
     const quantity = (v: string) => "0x" + BigInt(v).toString(16),
-      hash = await provider.request({
+      hash = await dispatch(()=>provider.request({
         method: "eth_sendTransaction",
         params: [
           {
@@ -231,7 +241,7 @@ async function sendPayment(
             gasPrice: quantity(p.gasPrice),
           },
         ],
-      });
+      }));
     if (typeof hash !== "string" || !/^0x[0-9a-f]{64}$/i.test(hash))
       throw new Error("BROADCAST_AMBIGUOUS");
     return hash.toLowerCase();
@@ -270,14 +280,13 @@ async function sendPayment(
     }
     if(!expected.serializeMessage().equals(tx.serializeMessage()))throw new Error("SIGNED_INTENT_INVALID");
     assertCurrent();
-    const result = await (
+    const result = await dispatch(()=> (
       window.solana as Solana & {
         signAndSendTransaction(tx: unknown): Promise<{ signature: string }>;
       }
-    ).signAndSendTransaction(tx);
+    ).signAndSendTransaction(tx));
     const { base58 } = await import("@scure/base");
-    if (base58.decode(result.signature).length !== 64)
-      throw new Error("BROADCAST_AMBIGUOUS");
+    try{if(base58.decode(result.signature).length!==64)throw Error();}catch{throw new Error("BROADCAST_AMBIGUOUS");}
     return result.signature;
   }
   const wallet = window.tronWeb as Tron & {
@@ -339,7 +348,7 @@ async function sendPayment(
     signed.txID !== expectedHash
   )
     throw new Error("SIGNED_INTENT_INVALID");
-  const result = await wallet.trx.sendRawTransaction(signed);
-  if (!result.result) throw new Error("BROADCAST_AMBIGUOUS");
+  const result = await dispatch(()=>wallet.trx.sendRawTransaction(signed));
+  if (!result?.result) throw new Error("BROADCAST_AMBIGUOUS");
   return expectedHash as string;
 }

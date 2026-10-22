@@ -3,7 +3,7 @@ import {presentationFromManifest,planFinancialPresentation,type QueueDisclosure,
 import {planConfigSchema} from '../packages/config/src/policies';
 import {publicManifest} from '@gifters/config';
 import {notificationPage,notificationBadge} from './notifications';
-import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, or, sql } from "drizzle-orm";
 import {
   cryptoReorgReviews,cryptoReorgResolutions,
   assets,
@@ -275,4 +275,9 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
   const notices=policy.feature_notifications?await notificationPage(tx,userId):null;
   const badge=policy.feature_notifications?await notificationBadge(tx,userId):{has_new:false};
   return { user,manifest:{...publicManifest(policy),presentation:presentationFromManifest(policy),configuration_available:true},notifications:notices?.items??[],notification_badge:badge,balances, summary, wallets:policy.entitlements_member.wallet_link?wallets:[], invoices:policy.entitlements_member.history?invoices:[], withdrawals:policy.entitlements_member.history?withdrawals:[], cycles: active,has_active_cycles:!!openCycle };
+}
+
+export async function nativeAdminObligations(tx:DbExecutor,after?:string){
+ const {cryptoObligations,assets}=await import('@gifters/db');
+ const rows=await tx.select({id:cryptoObligations.id,user_id:cryptoObligations.userId,asset:assets.symbol,decimals:assets.decimals,network:assets.chainId,kind:cryptoObligations.kind,status:cryptoObligations.status,source_purpose:cryptoObligations.sourcePurpose,gross_base_units:cryptoObligations.grossBaseUnits,charge_base_units:cryptoObligations.chargeBaseUnits,net_base_units:cryptoObligations.netBaseUnits,destination:sql<string>`left(${cryptoObligations.destination},6)||'…'||right(${cryptoObligations.destination},4)`,created_at:cryptoObligations.createdAt,completed_at:cryptoObligations.completedAt}).from(cryptoObligations).innerJoin(assets,eq(assets.id,cryptoObligations.assetId)).where(after?gt(cryptoObligations.id,after):undefined).orderBy(asc(cryptoObligations.id)).limit(100);return {rows,next_after:rows.length===100?rows.at(-1)!.id:null}
 }

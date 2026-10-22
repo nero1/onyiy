@@ -1,3 +1,4 @@
+import {claimWalletSend,rejectWalletSend} from './native-wallet-attempts';
 import {presentationFromManifest,planFinancialPresentation,type PublicQueueDisclosure} from './presentation';
 import { and, eq, sql } from "drizzle-orm";
 import {
@@ -89,8 +90,9 @@ async function validatedNativeInvoice(
     throw new Error("PLAN_UNAVAILABLE");
   return {policy,invoice,asset,registry,version:plan.version};
 }
-export async function validateNativeInvoiceReview(tx:DbExecutor,userId:string,generation:string,invoiceId:string){
+export async function validateNativeInvoiceReview(tx:DbExecutor,userId:string,generation:string,invoiceId:string,attemptId:string){
  const {policy,invoice}=await validatedNativeInvoice(tx,userId,generation,invoiceId);
+ await claimWalletSend(tx,invoiceId,attemptId);
  return {invoice_id:invoice.id,profile_revision:policy.profile_revision,sender:invoice.sender,destination:invoice.treasury,amount_base_units:invoice.expectedBaseUnits,expires_at:invoice.expiresAt.toISOString()};
 }
 export async function prepareNativeInvoice(tx:DbExecutor,userId:string,generation:string,invoiceId:string){
@@ -148,4 +150,11 @@ export async function prepareNativeInvoice(tx:DbExecutor,userId:string,generatio
     expires_at: invoice.expiresAt.toISOString(),
     valid_until_height: prepared.validUntilHeight?.toString(),
   };
+}
+
+export async function rejectNativeWalletSend(tx:DbExecutor,userId:string,invoiceId:string,attemptId:string){
+ await financialEnvironmentIn(tx);await lockUser(tx,userId);
+ const [invoice]=await tx.select({id:cryptoInvoices.id}).from(cryptoInvoices).where(and(eq(cryptoInvoices.id,invoiceId),eq(cryptoInvoices.userId,userId))).for('update');
+ if(!invoice)throw new Error('NOT_FOUND');
+ await rejectWalletSend(tx,invoiceId,attemptId);return {invoice_id:invoiceId};
 }

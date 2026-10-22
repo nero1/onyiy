@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import {financialEnvironmentIn,operationalEnvironmentIn} from './financial-environment';
 import { and, asc, eq, sql } from "drizzle-orm";
 import {
@@ -12,7 +13,8 @@ import { readRegistry } from "@gifters/chains";
 import {businessSettlementRoles} from '@gifters/domain';
 import { holdBusinessSettlement } from "./crypto-business";
 import { lockUser } from "./core";
-import {enqueueAlertDelivery} from './financial-alerts';
+import {applicationError} from './errors';
+import {enqueueAlertDelivery,openFinancialAlert} from './financial-alerts';
 /** At most 100 due reminders per invocation; each ordinal is permanent. */
 export async function enqueueFinancialReminders(tx: DbExecutor) {
   const environment=await operationalEnvironmentIn(tx);
@@ -148,55 +150,32 @@ export async function financialAlertList(tx: DbExecutor) {
     )
     .limit(100);
 }
-/** One asset/role per call avoids a long serverless RPC batch. The UTC daily
- * key and source lock are the same as manual settlement. */
-export async function scheduleDailyBusiness() {
-  const registry = readRegistry().filter(
-    (v) => v.enabled && v.verified && v.key !== "trx",
-  );
-  return withContext({ access: "service" }, async (tx) => {
-    const environment=await financialEnvironmentIn(tx);
-    if (!(await readManifest(tx)).business_settlement_policy.daily_enabled)
-      return { status: "disabled" };
-    const { assets, operationKeys } = await import("@gifters/db");
-    const [clock] = await tx.execute<{ day: string }>(
-      sql`select (clock_timestamp() at time zone 'UTC')::date::text as day`,
-    );
-    for (const item of registry.filter(row=>row.environment===environment)) {
-      const [asset] = await tx
-        .select({ id: assets.id })
-        .from(assets)
-        .where(
-          and(
-            eq(assets.environment, environment),
-            eq(assets.symbol, item.key.toUpperCase()),
-            eq(assets.chainId, item.network),
-            eq(assets.enabled, true),
-          ),
-        )
-        .limit(1);
-      if (!asset) continue;
-      for (const role of businessSettlementRoles) {
-        const [previous] = await tx
-          .select({ key: operationKeys.businessKey })
-          .from(operationKeys)
-          .where(
-            eq(
-              operationKeys.businessKey,
-              `business-daily:${environment}:${asset.id}:${role}:${clock.day}`,
-            ),
-          )
-          .limit(1);
-        if (previous) continue;
-        return holdBusinessSettlement(
-          tx,
-          null,
-          { asset_key: item.key, role, reason: "UTC daily settlement" },
-          clock.day,
-          true,
-        );
-      }
-    }
-    return { status: "done" };
-  });
+/** A committed daily attempt advances admission even if its RPC transaction
+ * fails or the process exits. Failed work remains payable and can be retried
+ * manually; daily dispatch gives every other account its own turn. */
+export async function scheduleDailyBusiness(){
+ const registry=readRegistry().filter(row=>row.enabled&&row.verified&&row.key!=='trx');
+ const candidate=await withContext({access:'service'},async tx=>{
+  const environment=await financialEnvironmentIn(tx);if(!(await readManifest(tx)).business_settlement_policy.daily_enabled)return null;
+  const {assets,operationKeys}=await import('@gifters/db');
+  const [clock]=await tx.execute<{day:string}>(sql`select (clock_timestamp() at time zone 'UTC')::date::text as day`);
+  for(const item of registry.filter(row=>row.environment===environment)){
+   const [asset]=await tx.select({id:assets.id}).from(assets).where(and(eq(assets.environment,environment),eq(assets.symbol,item.key.toUpperCase()),eq(assets.chainId,item.network),eq(assets.enabled,true))).limit(1);if(!asset)continue;
+   for(const role of businessSettlementRoles){
+    const daily=`business-daily:${environment}:${asset.id}:${role}:${clock.day}`,attempt=`business-daily-attempt:${environment}:${asset.id}:${role}:${clock.day}`;
+    const previous=await tx.select({key:operationKeys.businessKey}).from(operationKeys).where(sql`${operationKeys.businessKey} in (${daily},${attempt})`).limit(1);if(previous.length)continue;
+    const [claimed]=await tx.insert(operationKeys).values({businessKey:attempt,requestHash:crypto.createHash('sha256').update(attempt).digest('hex'),result:{status:'attempted',asset_key:item.key,role,day:clock.day}}).onConflictDoNothing({target:operationKeys.businessKey}).returning({key:operationKeys.businessKey});
+    if(claimed)return {environment,assetId:asset.id,assetKey:item.key,role,day:clock.day};
+   }
+  }
+  return null;
+ });
+ if(!candidate)return {status:'done'};
+ try{return await withContext({access:'service'},tx=>holdBusinessSettlement(tx,null,{asset_key:candidate.assetKey,role:candidate.role,reason:'UTC daily settlement'},candidate.day,true));}
+ catch(error){
+  const code=applicationError(error).code;
+  await withContext({access:'service'},tx=>openFinancialAlert(tx,`business-settlement:${candidate.environment}:${candidate.assetId}:${candidate.role}`,'chain_exception','warning',{asset_key:candidate.assetKey,reason:code},candidate.environment));
+  if(['DB_CAPACITY_EXCEEDED','DB_DEADLINE_EXCEEDED','INTERNAL_ERROR'].includes(code))throw error;
+  return {status:'deferred',asset_key:candidate.assetKey,role:candidate.role,reason:code};
+ }
 }

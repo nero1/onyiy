@@ -1,100 +1,42 @@
+import {ok,current,admin,moderator,json,idempotencyKey,resourceId} from './api-context';
+import {handleFinancialApi} from './api-financial';
+import {adminQueueInput,adminQueuePage} from './admin-queue';
 import {APP_WIRE_VERSION,APP_MINIMUM_CLIENT_VERSION,appCompatibility,requestPeerCompatible} from '@gifters/domain';
 import {ownPreferences,preferencesInput} from './preferences';
 import {assertMinimumAge} from '@gifters/domain';
 import {profilePreviewInput,profileStageInput,profileCommitInput,readinessInput,publicationInput,releaseProfile,stageProfile,commitProfile,recordReadiness,publicationConsent,assertProfileRevision} from './transparency';
 import {retentionInput,retentionStatus,manualArchiveStep} from './retention';
 import {isReadOnlyPreview,runtimeProviders} from '@gifters/config';
-import {staffReorgs,staffAlerts,staffAlertsInput,staffUsers,staffCases,staffJobs,staffRecovery,staffUsersInput,staffCasesInput,staffJobsInput,staffRecoveryInput} from './staff-reads';
+import {staffReorgs,staffAlertsInput,staffUsers,staffCases,staffJobs,staffUsersInput,staffCasesInput,staffJobsInput} from './staff-reads';
 import {ownMemberRecords,memberRecordInput} from './member-records';
 import {applicationError} from './errors';
 import {admitPublicMiss} from './public-admission';
 import {readStaffOperations,reportProviderQuota,quotaReportInput} from './operational-diagnostics';
-import {selectedUserExport,selectedExportInput,portabilityStatus,prepareSiteSnapshot,siteSnapshotResponse,stageSnapshot} from './portability';
-import {boundedJson} from './request-body';
-import {registerCheckpoint,startRecoveryScan,recoverScanPage,checkpointInput,resolveRecoveryOutflow,outflowResolutionInput,listTreasuries} from './chain-recovery';
-import {unmatchedRefundStatement,reserveUnmatchedRefund,unmatchedRefundInput} from './unallocated-refunds';
-import {recoverOperationalObligation} from './crypto-operational-recovery';
-import {quoteTreasurySweep,confirmTreasurySweep,recoverTreasurySweep,sweepInput} from './treasury-sweeps';
 import {ownNativeReceipts} from './native-receipts';
-import {recordNativeReorg,reconfirmNativeReorg,nativeReorgHistory,nativeReviewInput,nativeResolutionInput} from './crypto-reorg';
-import {quoteLiabilityRecovery,confirmLiabilityRecovery,cancelLiabilityRecovery,issueRecoveryView,recoveryQuote,recoveryProof} from './liability-recovery';
-import {beginBotCheck,verifyBotCheck,botProof} from './bot-check';
-import {verifySignedExpiry} from './crypto-expiry';
-import {enqueueFinancialReminders,controlFinancialAlert,financialAlertList,scheduleDailyBusiness} from './financial-operations';
-import {prepareNativeInvoice,validateNativeInvoiceReview} from './crypto-checkout';
-import {nativeFundingStatement,bookNativeFunding,nativeFundingInput} from './native-funding';
-import {nativeCatalog,ownNativePortfolio} from './crypto-reads';
-import {provisionNativeAsset,activateNativePlan,nativeProvision,nativePlanActivation} from './crypto-provisioning';
-import {reserveOriginalRefund,refundInput} from './crypto-refunds';
-import {monitorFinancials} from './financial-monitor';
-import {cleanupFinancialEphemeral} from './financial-cleanup';
-import {holdBusinessSettlement,businessInput} from './crypto-business';
-import {ingestSignedPrice,signedPriceInput} from './crypto-prices';
-import {challengeWallet,proveWallet,walletChallengeInput,walletProofInput} from './crypto-wallets';
-import {cancelNativeInvoice,quoteCryptoInvoice,submitCryptoDeposit,verifyCryptoDeposit,cryptoInvoiceInput,cryptoSubmission} from './crypto-incoming';
+import {verifyBotCheck,botProof} from './bot-check';
+import {ownNativePortfolio} from './crypto-reads';
 import {withExecutionBudget} from '@gifters/db';
-import {nativeWithdrawalQuote} from './financial-transport';
-import {quoteCryptoWithdrawal,confirmCryptoWithdrawal,cancelCryptoWithdrawal,requoteCryptoWithdrawal,approveCryptoObligation,cryptoWithdrawal} from './crypto-payouts';
-import {authenticateWorker,authenticatePriceFeed} from './worker-auth';
-import {priceFeedInput,priceFeedOperation} from './price-feed';
-import {settleCryptoAttempt} from './crypto-settlement';
-import {openFinancialAlert,deliverFinancialAlert} from './financial-alerts';
-import {assertFinancialEnvironment,registryAsset,financialConfiguration} from './financial-config';
-import {nativePlanSchedule,scheduleNativePlan,planEdit,editPlan,planState,changePlanState,planList,bootstrapEdit,editBootstrap} from './plans';
+import {assertFinancialEnvironment} from './financial-config';
+import {planEdit,editPlan,planState,changePlanState,planList,bootstrapEdit,editBootstrap} from './plans';
 import {exportsList,requestExport,downloadExport,readOwnSection,ownRows,ownHistoryRows} from './own-data';
 import {accountAction,accountChange,reportInput,createReport,caseList,ownCasesInput,caseToken,appealInput,createAppeal,resolveCaseInput,resolveCase,changeOwnStatus,messageInput,sendAdminMessage} from './moderation';
 import {editSetting,editPriority,editHelp,settings,settingInput,priorityInput,helpInput} from './administration';
 import {notificationPage,seeNotifications,readNotification} from './notifications';
 import crypto from 'node:crypto';
 import {currentRequestId as requestId,withRequestContext} from '@gifters/db';
-import { and, asc, desc, eq, gt, sql } from 'drizzle-orm';
-import { z } from 'zod';
-import {
-  financialReconciliationResults,
-  maintenanceResults,
-  jobs,
-  planVersions,
-  queueEntries,
-  queuePartitions,
-  users,
-  userAccountBalances,
-  pointEvents,assets,withdrawals,operationKeys,
-  withContext,
-  withMemberSnapshot,
-  withSessionScope,
-  authSessions,
-  helpArticles,
-  simulationAccounts,
-  readManifest,
-} from '@gifters/db';
-import {
-  activatePlan,
-  cancelWithdrawal,
-  controlSimulationWithdrawal,
-  resolveSimulationWithdrawal,
-  confirmWithdrawal,
-  consentUser,
-  dashboard,
-  getUser,
-  linkSimulationWallet,
-  quoteWithdrawal,
-  sendGift,
-} from './core';
-import { reconcile } from './reconcile';
-import { schedulerTick } from './scheduler';
-import { replayDeadJob } from './jobs';
-import {recordReorg,reconfirmReorg,reorgHistory} from './reorg';
+import {and,asc,desc,eq,gt,sql} from 'drizzle-orm';
+import {z} from 'zod';
+import {financialReconciliationResults,maintenanceResults,users,userAccountBalances,pointEvents,assets,withdrawals,operationKeys,withContext,withMemberSnapshot,withSessionScope,authSessions,helpArticles,simulationAccounts,readManifest} from '@gifters/db';
+import {activatePlan,cancelWithdrawal,controlSimulationWithdrawal,resolveSimulationWithdrawal,confirmWithdrawal,consentUser,dashboard,linkSimulationWallet,quoteWithdrawal,sendGift} from './core';
+import {reconcile} from './reconcile';
+import {schedulerTick} from './scheduler';
+import {replayDeadJob} from './jobs';
+import {recordReorg,reconfirmReorg} from './reorg';
 import {quoteIncoming,reviewIncoming,submitIncoming,controlIncoming,resolveIncoming,ownInvoices,cancelIncomingQuote} from './incoming';
-
-import { getPublicStatistics,getPublicActivity,getPublicManifest,getPublicCatalog,getPublicNativeCatalog,getPublicHelp,getPublicHelpSearch,publicHelpSlug,invalidatePublicReads } from './public-reads';
-import { authenticate,csrf,requireStepUp,requireWithdrawalAuth,issueSession,validateUsername,databaseNow,clearCookies } from './auth';
-import { handleAuthRequest } from './auth-api';
-import { enforceRate } from './rate-limits';
-
-
-function ok(data: unknown, status = 200) {
-  return Response.json({ data, meta: { request_id: requestId() } }, { status, headers: { 'Cache-Control': 'private, no-store' } });
-}
+import {getPublicStatistics,getPublicActivity,getPublicManifest,getPublicCatalog,getPublicNativeCatalog,getPublicHelp,getPublicHelpSearch,publicHelpSlug,invalidatePublicReads} from './public-reads';
+import {authenticate,csrf,requireWithdrawalAuth,issueSession,validateUsername,databaseNow} from './auth';
+import {handleAuthRequest} from './auth-api';
+import {enforceRate} from './rate-limits';
 
 function publicOk(data:unknown,ttlSeconds:number,request:Request) {
   const etag=`W/"${crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex')}"`;
@@ -110,29 +52,6 @@ function fail(error:unknown){
  return Response.json({error:{code:typed.code,message_key:'errors.'+typed.code.toLowerCase(),help_slug:'errors',retryable:typed.retryable},meta:{request_id:id}},{status:typed.status,headers:{'Cache-Control':'private, no-store'}});
 }
 
-async function current(request:Request){return (await authenticate(request)).user;}
-async function admin(request:Request,preview=false){const identity=await authenticate(request);if(identity.user.role!=='admin'||identity.user.status!=='active')throw new Error('FORBIDDEN');await requireStepUp(identity);const policy=await readManifest();if(!policy.feature_admin&&request.method!=='GET'&&!preview)throw new Error('FEATURE_DISABLED');return identity.user;}
-
-async function moderator(request:Request){const identity=await authenticate(request);if(!['admin','moderator'].includes(identity.user.role)||identity.user.status!=='active')throw new Error('FORBIDDEN');await requireStepUp(identity);return identity.user;}
-
-async function json(request: Request) {
-  return boundedJson(request);
-}
-
-function idempotencyKey(request: Request) {
-  const key = request.headers.get('Idempotency-Key');
-  if (!key) throw new Error('INVALID_INPUT');
-  return z.string().uuid().parse(key).toLowerCase();
-}
-
-// Route Handlers can retain the public URL after a rewrite. Resolve the public
-// path first so a caller's query cannot override the ID in that path.
-function resourceId(request: Request, queryKey: string, publicPath: RegExp) {
-  const url = new URL(request.url);
-  const match = publicPath.exec(url.pathname);
-  return z.string().uuid().parse(match?.[1] ?? url.searchParams.get(queryKey));
-}
-
 async function dispatchApiRequest(method: string, path: string[], request: Request) {
   try {
     const route = `/${path.join('/')}`;
@@ -142,65 +61,7 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
     if(method==='GET'&&route==='/crypto/catalog'){const value=await getPublicNativeCatalog(request);return publicOk(value.data,value.ttlSeconds,request);}
     if(method==='GET'&&route==='/me/records'){const actor=await current(request),params=new URL(request.url).searchParams,input=memberRecordInput.parse(Object.fromEntries(params));return ok(await withContext({access:'service',actorId:actor.id,reportSnapshot:true},tx=>ownMemberRecords(tx,actor.id,input)));}
     if(method==='GET'&&route==='/me/crypto'){const actor=await current(request);return ok(await withContext({access:'service',actorId:actor.id,reportSnapshot:true},tx=>ownNativePortfolio(tx,actor.id)));}
-    if(method==='POST'&&route==='/internal/prices'){const input=priceFeedInput.parse(await authenticatePriceFeed(request));return ok(await withContext({access:'service'},tx=>priceFeedOperation(tx,input)));}
-    if(method==='POST'&&route==='/internal/financial'){
-      const input=z.discriminatedUnion('action',[z.object({action:z.literal('scan'),run_id:z.string().uuid()}).strict(),z.object({action:z.literal('expiry'),attempt_id:z.string().uuid()}).strict(),z.object({action:z.literal('settle'),attempt_id:z.string().uuid(),event_index:z.number().int().min(0).max(1000)}).strict(),z.object({action:z.literal('verify'),user_id:z.string().uuid(),invoice_id:z.string().uuid(),tx_hash:z.string().min(20).max(128),event_index:z.number().int().min(-1).max(1000)}).strict(),z.object({action:z.literal('alerts')}).strict(),z.object({action:z.literal('cleanup')}).strict(),z.object({action:z.literal('monitor_inventory')}).strict(),z.object({action:z.literal('monitor'),asset_key:z.string().max(30).optional()}).strict(),z.object({action:z.literal('business_daily')}).strict(),z.object({action:z.literal('reminders')}).strict()]).parse(await authenticateWorker(request,'financial'));
-      if(input.action==='scan')return ok(await withContext({access:'service'},tx=>recoverScanPage(tx,input.run_id)));
-      if(input.action==='expiry')return ok(await withContext({access:'service'},tx=>verifySignedExpiry(tx,input.attempt_id)));
-      if(input.action==='monitor_inventory'){const {readRegistry}=await import('@gifters/chains');return ok({asset_keys:readRegistry().filter(v=>v.enabled&&v.verified).map(v=>v.key).slice(0,8)})}
-      if(input.action==='monitor')return ok(await monitorFinancials(input.asset_key));
-      if(input.action==='business_daily')return ok(await scheduleDailyBusiness());
-      if(input.action==='reminders')return ok(await withContext({access:'service'},enqueueFinancialReminders));
-      if(input.action==='cleanup')return ok(await withContext({access:'service'},cleanupFinancialEphemeral));
-      if(input.action==='alerts')return ok(await deliverFinancialAlert());
-      return ok(await withContext<unknown>({access:'service'},tx=>input.action==='settle'?settleCryptoAttempt(tx,input.attempt_id,input.event_index):verifyCryptoDeposit(tx,input.user_id,input)));
-    }
-    if(method==='GET'&&route==='/admin/crypto/obligations'){const actor=await admin(request),params=new URL(request.url).searchParams,after=params.has('after')?z.string().uuid().parse(params.get('after')):undefined;return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},async tx=>{const {cryptoObligations,assets}=await import('@gifters/db');const rows=await tx.select({id:cryptoObligations.id,user_id:cryptoObligations.userId,asset:assets.symbol,decimals:assets.decimals,network:assets.chainId,kind:cryptoObligations.kind,status:cryptoObligations.status,source_purpose:cryptoObligations.sourcePurpose,gross_base_units:cryptoObligations.grossBaseUnits,charge_base_units:cryptoObligations.chargeBaseUnits,net_base_units:cryptoObligations.netBaseUnits,destination:sql<string>`left(${cryptoObligations.destination},6)||'…'||right(${cryptoObligations.destination},4)`,created_at:cryptoObligations.createdAt,completed_at:cryptoObligations.completedAt}).from(cryptoObligations).innerJoin(assets,eq(assets.id,cryptoObligations.assetId)).where(after?gt(cryptoObligations.id,after):undefined).orderBy(asc(cryptoObligations.id)).limit(100);return {rows,next_after:rows.length===100?rows.at(-1)!.id:null}}));}
-    if(method==='GET'&&route==='/admin/portability'){const actor=await admin(request);return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},portabilityStatus));}
-    if(method==='POST'&&route==='/admin/portability/users'){const actor=await admin(request),input=selectedExportInput.parse(await json(request));return withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>selectedUserExport(tx,actor.id,input));}
-    if(method==='POST'&&route==='/admin/portability/site'){const actor=await admin(request),input=z.object({confirmation:z.literal('download-encrypted-site'),reason:z.string().trim().min(10).max(500)}).strict().parse(await json(request));const snapshot=await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>prepareSiteSnapshot(tx,actor.id,input.reason));return siteSnapshotResponse(snapshot);}
-    if(method==='POST'&&route==='/admin/portability/stage'){const actor=await admin(request);return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>stageSnapshot(tx,actor.id,request)));}
-    if(method==='GET'&&route==='/admin/crypto/recovery-state'){const actor=await admin(request),input=staffRecoveryInput.parse(Object.fromEntries(new URL(request.url).searchParams));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>staffRecovery(tx,actor.id,input)));}
-    if(method==='POST'&&route==='/admin/crypto/scans/resolve'){const actor=await admin(request),input=outflowResolutionInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>resolveRecoveryOutflow(tx,actor.id,input)));}
-    if(method==='GET'&&route==='/admin/crypto/checkpoints'){const actor=await admin(request),input=z.object({asset_key:z.string().min(1).max(30),after:z.string().min(1).max(128).optional()}).strict().parse(Object.fromEntries(new URL(request.url).searchParams));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>listTreasuries(tx,actor.id,input.asset_key,input.after)));}
-    if(method==='POST'&&route==='/admin/crypto/checkpoints'){const actor=await admin(request),input=checkpointInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>registerCheckpoint(tx,actor.id,input,idempotencyKey(request))));}
-    if(method==='POST'&&route==='/admin/crypto/scans/start'){const actor=await admin(request),input=z.object({checkpoint_id:z.string().uuid(),through_height:z.string().regex(/^(0|[1-9][0-9]{0,77})$/)}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>startRecoveryScan(tx,actor.id,input.checkpoint_id,input.through_height,idempotencyKey(request))));}
-    if(method==='POST'&&route==='/admin/crypto/scans/page'){const actor=await admin(request),input=z.object({run_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>recoverScanPage(tx,input.run_id)));}
-    if(method==='POST'&&route==='/admin/crypto/unmatched/statement'){const actor=await admin(request),input=z.object({inflow_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>unmatchedRefundStatement(tx,actor.id,input.inflow_id)));}
-    if(method==='POST'&&route==='/admin/crypto/unmatched/refund'){const actor=await admin(request),input=unmatchedRefundInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>reserveUnmatchedRefund(tx,actor.id,input)));}
-    if(method==='POST'&&route==='/admin/crypto/operational/recover'){const actor=await admin(request),input=z.object({obligation_id:z.string().uuid(),reason:z.string().trim().min(10).max(500)}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>recoverOperationalObligation(tx,actor.id,input.obligation_id,input.reason)));}
-    if(method==='POST'&&route==='/admin/crypto/sweeps/quote'){const actor=await admin(request),input=sweepInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>quoteTreasurySweep(tx,actor.id,input,idempotencyKey(request))));}
-    if(method==='POST'&&(route==='/admin/crypto/sweeps/confirm'||route==='/admin/crypto/sweeps/recover')){const actor=await admin(request),input=z.object({obligation_id:z.string().uuid(),reason:z.string().trim().min(10).max(500)}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>route.endsWith('/confirm')?confirmTreasurySweep(tx,actor.id,input.obligation_id,input.reason):recoverTreasurySweep(tx,actor.id,input.obligation_id,input.reason)));}
-    if(method==='GET'&&route==='/admin/crypto/reorg'){const actor=await admin(request),input=staffAlertsInput.parse(Object.fromEntries(new URL(request.url).searchParams));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>staffReorgs(tx,actor.id,assertFinancialEnvironment(),input)));}
-    if(method==='POST'&&route==='/admin/crypto/reorg'){const actor=await admin(request),input=nativeReviewInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>recordNativeReorg(tx,actor.id,input,idempotencyKey(request))));}
-    if(method==='POST'&&route==='/admin/crypto/reorg/reconfirm'){const actor=await admin(request),input=nativeResolutionInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>reconfirmNativeReorg(tx,actor.id,input,idempotencyKey(request))));}
-    if(method==='POST'&&route==='/admin/crypto/recovery/link'){const actor=await admin(request),input=z.object({recovery_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>issueRecoveryView(tx,actor.id,input.recovery_id)));}
-    if(method==='POST'&&route==='/admin/crypto/recovery/cancel'){const actor=await admin(request),input=z.object({recovery_id:z.string().uuid(),reason:z.string().trim().min(10).max(500)}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>cancelLiabilityRecovery(tx,actor.id,input.recovery_id,input.reason)));}
-    if(method==='POST'&&route==='/admin/crypto/recovery/quote'){const actor=await admin(request),input=recoveryQuote.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>quoteLiabilityRecovery(tx,actor.id,input,idempotencyKey(request))));}
-    if(method==='POST'&&route==='/admin/crypto/recovery/confirm'){const actor=await admin(request),input=recoveryProof.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>confirmLiabilityRecovery(tx,actor.id,input)));}
-    if(method==='GET'&&route==='/admin/crypto/alerts'){const actor=await admin(request),input=staffAlertsInput.parse(Object.fromEntries(new URL(request.url).searchParams));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>staffAlerts(tx,actor.id,input)));}
-    if(method==='POST'&&route==='/admin/crypto/alerts'){const actor=await admin(request),input=z.object({alert_id:z.string().uuid(),action:z.enum(['acknowledge','resolve']),reason:z.string().trim().min(5).max(500)}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>controlFinancialAlert(tx,actor.id,input.alert_id,input.action,input.reason)));}
-    if(method==='POST'&&route==='/admin/crypto/funding/statement'){const actor=await admin(request),input=nativeFundingInput.omit({signature:true,reason:true}).parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},async tx=>{const value=await nativeFundingStatement(tx,actor.id,input,idempotencyKey(request));return {message:value.message,hash:value.hash,sender:value.sender,destination:value.destination}}));}
-    if(method==='POST'&&route==='/admin/crypto/funding'){const actor=await admin(request),input=nativeFundingInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>bookNativeFunding(tx,actor.id,input,idempotencyKey(request))));}
-    if(method==='POST'&&route==='/admin/crypto/assets'){const actor=await admin(request),input=nativeProvision.parse(await json(request));const result=await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>provisionNativeAsset(tx,actor.id,input,idempotencyKey(request)));invalidatePublicReads();return ok(result);}
-    if(method==='POST'&&route==='/admin/crypto/plans/schedule'){const actor=await admin(request),input=nativePlanSchedule.parse(await json(request));const result=await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>scheduleNativePlan(tx,actor.id,input,idempotencyKey(request)));invalidatePublicReads();return ok(result);}
-    if(method==='POST'&&route==='/admin/crypto/plans'){const actor=await admin(request),input=nativePlanActivation.parse(await json(request));const result=await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>activateNativePlan(tx,actor.id,input,idempotencyKey(request)));invalidatePublicReads();return ok(result);}
-    if(method==='POST'&&route==='/admin/crypto/refunds'){const actor=await admin(request),input=refundInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>reserveOriginalRefund(tx,actor.id,input)));}
-    if(method==='POST'&&route==='/admin/crypto/business'){const actor=await admin(request),input=businessInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>holdBusinessSettlement(tx,actor.id,input,idempotencyKey(request))));}
-    if(method==='POST'&&route==='/admin/crypto/prices'){const actor=await admin(request),input=signedPriceInput.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>ingestSignedPrice(tx,input)));}
-    if(method==='POST'&&route==='/admin/crypto/alert-probe'){const actor=await admin(request),body=z.object({asset_key:z.string().max(30)}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},async tx=>{const config=await financialConfiguration(tx,registryAsset(body.asset_key));const alert=await openFinancialAlert(tx,`activation:${config.hash}`,'activation_probe','critical',{configuration_hash:config.hash});return {alert_id:alert.id,configuration_hash:config.hash}}));}
-    if(method==='POST'&&route==='/me/bot-check'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=z.object({surface:z.enum(['consent','suspicious_checkout'])}).strict().parse(await json(request));if(identity.user.status==='pending_consent'&&input.surface!=='consent')throw new Error('CONSENT_REQUIRED');return ok(await withContext({access:'service',actorId:identity.user.id},tx=>beginBotCheck(tx,identity.user.id,identity.session!.generation,input.surface)));}
-    if(method==='POST'&&route==='/me/wallets/challenge'){const identity=await authenticate(request);await requireWithdrawalAuth(identity);const input=walletChallengeInput.parse(await json(request));if(input.session_generation!==identity.session?.generation)throw new Error('VERSION_CONFLICT');return ok(await withContext({access:'service',actorId:identity.user.id},tx=>challengeWallet(tx,identity.user.id,input)));}
-    if(method==='POST'&&route==='/me/wallets/proof'){const identity=await authenticate(request);await requireWithdrawalAuth(identity);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=walletProofInput.parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},tx=>proveWallet(tx,identity.user.id,identity.session!.generation,input)));}
-    if(method==='POST'&&route==='/gifts/crypto/invoices'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=cryptoInvoiceInput.extend({profile_revision:z.number().int().positive().optional(),bot_proof:botProof.optional()}).parse(await json(request)),key=idempotencyKey(request);return ok(await withContext({access:'service',actorId:identity.user.id},async tx=>{await assertProfileRevision(tx,input.profile_revision);await verifyBotCheck(tx,identity.user.id,identity.session!.generation,'suspicious_checkout',input.bot_proof,key);return quoteCryptoInvoice(tx,identity.user.id,identity.session!.generation,{asset_key:input.asset_key,plan_id:input.plan_id},key)}));}
-    if(method==='POST'&&route==='/gifts/crypto/cancel'){const actor=await current(request);const input=z.object({invoice_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id},tx=>cancelNativeInvoice(tx,actor.id,input.invoice_id)));}
-    if(method==='POST'&&route==='/gifts/crypto/validate'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=z.object({invoice_id:z.string().uuid(),profile_revision:z.number().int().positive().optional()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},async tx=>{await assertProfileRevision(tx,input.profile_revision);return validateNativeInvoiceReview(tx,identity.user.id,identity.session!.generation,input.invoice_id)}));}
-    if(method==='POST'&&route==='/gifts/crypto/prepare'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=z.object({invoice_id:z.string().uuid(),profile_revision:z.number().int().positive().optional()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},async tx=>{await assertProfileRevision(tx,input.profile_revision);return prepareNativeInvoice(tx,identity.user.id,identity.session!.generation,input.invoice_id)}));}
-    if(method==='POST'&&route==='/gifts/crypto/transaction'){const actor=await current(request),input=cryptoSubmission.parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id},tx=>submitCryptoDeposit(tx,actor.id,input)));}
-    if(method==='POST'&&route==='/me/withdrawals/crypto/requote'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=z.object({obligation_id:z.string().uuid()}).strict().parse(await json(request));return ok(nativeWithdrawalQuote(await withContext({access:'service',actorId:identity.user.id},tx=>requoteCryptoWithdrawal(tx,identity.user.id,identity.session!.generation,input.obligation_id,idempotencyKey(request)))));}
-    if(method==='POST'&&route==='/me/withdrawals/crypto/quotes'){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');const input=cryptoWithdrawal.parse(await json(request));return ok(nativeWithdrawalQuote(await withContext({access:'service',actorId:identity.user.id},tx=>quoteCryptoWithdrawal(tx,identity.user.id,identity.session!.generation,input,idempotencyKey(request)))));}
-    if(method==='POST'&&['/me/withdrawals/crypto/confirm','/me/withdrawals/crypto/cancel'].includes(route)){const identity=await authenticate(request);if(!identity.session)throw new Error('UNAUTHENTICATED');await requireWithdrawalAuth(identity);const input=z.object({obligation_id:z.string().uuid()}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:identity.user.id},tx=>route.endsWith('/confirm')?confirmCryptoWithdrawal(tx,identity.user.id,identity.session!.generation,input.obligation_id):cancelCryptoWithdrawal(tx,identity.user.id,input.obligation_id)));}
-    if(method==='POST'&&route==='/admin/crypto/approve'){const actor=await admin(request),input=z.object({obligation_id:z.string().uuid(),reason:z.string().min(5).max(500)}).strict().parse(await json(request));return ok(await withContext({access:'service',actorId:actor.id,requireAdmin:true},tx=>approveCryptoObligation(tx,actor.id,input.obligation_id,input.reason)));}
+    const financial=await handleFinancialApi(method,route,request);if(financial)return financial;
 
     if (method === 'POST' && route === '/internal/tick') return ok(await schedulerTick(request));
 
@@ -443,36 +304,11 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
     }
 
     if (method === 'GET' && route === '/admin/queue') {
-      const actor = await admin(request);
-      const planId = resourceId(request, 'plan_id', /^\/api\/v1\/admin\/queue\/([^/]+)\/?$/);
-      const manifest = await readManifest();
-      const params = new URL(request.url).searchParams;
-      const limit = params.has('limit') ? z.string().regex(/^[1-9][0-9]*$/).transform(Number).pipe(z.number().int().max(manifest.pagination_policy.max_size)).parse(params.get('limit')) : Math.min(manifest.pagination_policy.default_size,manifest.pagination_policy.max_size);
-      const partition = params.has('partition_id') ? z.string().uuid().parse(params.get('partition_id')) : undefined;
-      const after = params.has('after_ticket') ? z.string().max(13).regex(/^[0-9]+$/).transform(Number).pipe(z.number().int().max(1099511627775)).parse(params.get('after_ticket')) : undefined;
-      if (after !== undefined && !partition) throw new Error('INVALID_INPUT');
-      const rows = await withContext({access:'staff',actorId:actor.id},(tx) => tx.select({
-        id: queueEntries.id,
-        partition_id: queueEntries.partitionId,
-        partition_revision:queuePartitions.revision,
-        ticket: queueEntries.ticket,
-        kind: queueEntries.kind,
-        status: queueEntries.status,
-        credited_count: queueEntries.creditedCount,
-        required_count: queueEntries.requiredCount,
-        beneficiary_user_id: queueEntries.beneficiaryUserId,
-        username: users.username,
-        platform_role: queueEntries.platformRole,
-        priority_ticket: queueEntries.priorityTicket,
-        priority_revision:queueEntries.priorityRevision,
-        serving_position: sql<number>`public.gw_queue_rank(${queueEntries.id},'serving')`.mapWith((value) => value === null ? null : Number(value)),
-      }).from(queueEntries)
-        .innerJoin(queuePartitions, eq(queuePartitions.id, queueEntries.partitionId))
-        .innerJoin(planVersions, eq(planVersions.id, queuePartitions.planVersionId))
-        .leftJoin(users, eq(users.id, queueEntries.beneficiaryUserId))
-        .where(and(eq(planVersions.planId, planId),partition ? eq(queueEntries.partitionId,partition) : undefined,after !== undefined ? gt(queueEntries.ticket,after) : undefined))
-        .orderBy(asc(queueEntries.partitionId),asc(queueEntries.ticket)).limit(limit));
-      return ok(rows);
+      const actor=await admin(request),params=Object.fromEntries(new URL(request.url).searchParams);
+      const planId=resourceId(request,'plan_id',/^\/api\/v1\/admin\/queue\/([^/]+)\/?$/);
+      const input=adminQueueInput.parse({...params,plan_id:planId});
+      const page=await withContext({access:'staff',actorId:actor.id},tx=>adminQueuePage(tx,actor.id,input));
+      return ok(input.page==='1'?page:page.rows);
     }
 
     if (method === 'GET' && route === '/admin/reconcile') {
@@ -486,7 +322,6 @@ async function dispatchApiRequest(method: string, path: string[], request: Reque
     return fail(error);
   }
 }
-
 
 async function routeApiRequest(method:string,path:string[],request:Request){
  try{
