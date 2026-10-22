@@ -1,4 +1,4 @@
-# LLM handover v119
+# LLM handover v120
 
 ## Owner instructions
 
@@ -14,11 +14,11 @@
 
 ## Resume
 
-Repository `/workspace/onyiy` (`nero1/onyiy`). Audit report PR117 merged at `5de55ed4997fe410417b273cb419165c1924ab29`. PR118 merged at `2f59f6d5a53c133e93536f45d0490957817d666e`. Current branch `fix/audit-wallet-and-queue`. The owner authorized fixing all reported and newly confirmed bugs, updating necessary docs, and creating/merging checked PRs without approval pauses. Do not resume the earlier report-only pause.
+Repository `/workspace/onyiy` (`nero1/onyiy`). Audit report PR117 merged at `5de55ed4997fe410417b273cb419165c1924ab29`. PR118 merged at `2f59f6d5a53c133e93536f45d0490957817d666e`. PR119 merged at `222021ad0b765217b92df3576e80e9df3a62aeaf`. Current branch `fix/audit-portal-contracts`. The owner authorized fixing all reported and newly confirmed bugs, updating necessary docs, and creating/merging checked PRs without approval pauses. Do not resume the earlier report-only pause.
 
-Audit:33 fixed, AUD-021 open, AUD-014 withdrawn. Finish the remaining shared session lifecycle and typed member/account feature responses; follow the [root report](../custom-bugs-report.md). Continue after this batch merges. Keep reports concise and retain the requested root filename. Isolated checks are not hosted acceptance.
+Audit:35 fixed, zero open, AUD-014 withdrawn. See the [root report](../custom-bugs-report.md). Financial route/guard separation and typed native administration landed in PR119. The final batch shares session acceptance/invalidation, validates member/account responses, separates payment review/recovery/sweep/receipt rendering, and clears currency-bound reviews on currency changes. Preserve financial authorization and session generation checks when extending these modules.
 
-Preserve `/workspace/work/audit-remediation-20261022/batch1` and `batch2`, original forensic roots and all failed scratch databases. Batch2 catalog check matches the previous installer plus007 against the direct final installer and actual Drizzle model. Named wallet, queue paging/intent, notification boundary/replay/microsecond and daily-dispatch checks use generated dependencies/data. Scratch PostgreSQL55458 (`followup-r2/pgdata`, user `audit`) is separate from financial sources; never reset those sources.
+Preserve `/workspace/work/audit-remediation-20261022/batch1`, `batch2`, `batch3`, original forensic roots and all failed scratch databases. Named checks use generated data/dependencies; they are not hosted acceptance. Scratch PostgreSQL55458 (`followup-r2/pgdata`, user `audit`) is separate from financial sources. Batch2 catalog verification matched the prior installer plus007 against the direct installer and actual Drizzle model. No new DDL in the final portal batch.
 
 ## Environment
 
@@ -38,4 +38,4 @@ Preserve `/workspace/work/audit-remediation-20261022/batch1` and `batch2`, origi
 - Four mainnets/eight protocols; seven member currencies, TRX operating-only. Real JAGA stays disabled without provenance. Generated providers/contracts/keys are not live evidence.
 - Mainnet needs transparent settings, reviewed readiness, verified registry, configuration approvals and recent signed alert acknowledgement. Client wire1/min-client0/min-server1; do not weaken compatibility or financial gates.
 
-v119
+v120

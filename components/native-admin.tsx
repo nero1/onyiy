@@ -1,6 +1,7 @@
 "use client";
-import type {NativeAdminObligationPage,NativeAdminAlerts,NativeAdminReviews,NativeAdminPlans,NativeAdminRecovery,NativeAdminRecoveryLink,NativeAdminSweep,NativeAdminSweepConfirmation,NativeAdminSweepRecovery} from '@/lib/financial-contracts';
-import CopyButton from './copy-button';
+import NativeSweepControls from './native-sweep-controls';
+import NativeRecoveryControls from './native-recovery-controls';
+import type {NativeAdminObligationPage,NativeAdminAlerts,NativeAdminReviews,NativeAdminPlans} from '@/lib/financial-contracts';
 import {useLocalizedNotice} from './use-localized-notice';
 import AdminTimeZone from './admin-time-zone';
 
@@ -21,19 +22,11 @@ export default function NativeAdmin({
   assets: NativeCurrency[];
   enabled: boolean;
 }) {
-  const [target, setTarget] = useState(""),
-    [recoveryGross, setRecoveryGross] = useState(""),
-    [proofReference, setProofReference] = useState(""),
-    [recovery, setRecovery] = useState<NativeAdminRecovery|null>(null),
-    [approval, setApproval] = useState(""),
-    [link, setLink] = useState("");
   const [previousId, setPreviousId] = useState("");
   const [pricingMode,setPricingMode]=useState<'usd_at_activation'|'fixed_token'>('usd_at_activation');
   const [fixedAmount,setFixedAmount]=useState(''),[launchAt,setLaunchAt]=useState('');
   const [obligations, setObligations] = useState<NativeAdminObligationPage['rows']>([]),
     [obligationCursor, setObligationCursor] = useState<string | null>(null);
-  const [sweepGross, setSweepGross] = useState(""),
-    [sweep, setSweep] = useState<NativeAdminSweep|null>(null);
   const [eventId, setEventId] = useState(""),
     [reviews, setReviews] = useState<NativeAdminReviews['rows']>([]),[reviewCursor,setReviewCursor]=useState<string|null>(null),[reviewView,setReviewView]=useState<'current'|'history'>('current');
   async function loadReviews(cursor?:string){const query=new URLSearchParams({view:reviewView});if(cursor)query.set('cursor',cursor);const page=await api<NativeAdminReviews>('/admin/crypto/reorg?'+query,owner);setReviews(page.rows);setReviewCursor(page.next_cursor);}
@@ -291,152 +284,7 @@ export default function NativeAdmin({
         </button>
         {activationProbe&&<section aria-label={fr?'Configuration à vérifier':'Configuration to review'}><p>{activationProbe.asset_key} · {fr?'Alerte':'Alert'}: {activationProbe.alert_id}</p><label>{fr?'Empreinte de configuration':'Configuration hash'}<input readOnly value={activationProbe.configuration_hash} onFocus={event=>event.currentTarget.select()}/></label><p>{fr?'Attendez l’accusé de réception signé avant de copier cette empreinte dans les approbations du déploiement.':'Wait for the signed delivery acknowledgement before copying this hash into the deployment approvals.'}</p></section>}
       </fieldset>
-      <fieldset disabled={busy || !enabled || reason.trim().length < 10}>
-        <legend>
-          {fr
-            ? "Récupération d’un solde conservé"
-            : "Retained balance recovery"}
-        </legend>
-        <p>
-          {fr
-            ? "Examinez l’identité du demandeur et son dossier. Le paiement utilise uniquement son portefeuille vérifié d’origine et n’accorde aucun accès au compte."
-            : "Review the claimant’s identity and case. Payment uses only the original verified wallet and grants no account access."}
-        </p>
-        <label>
-          {fr ? "Identifiant financier du membre" : "Member financial ID"}
-          <input value={target} onChange={(e) => setTarget(e.target.value)} />
-        </label>
-        <label>
-          {fr ? "Référence du dossier vérifié" : "Verified case reference"}
-          <input
-            maxLength={200}
-            value={proofReference}
-            onChange={(e) => setProofReference(e.target.value)}
-          />
-        </label>
-        <label>
-          {fr
-            ? "Montant brut dans la monnaie sélectionnée"
-            : "Gross amount in selected currency"}
-          <input
-            inputMode="decimal"
-            value={recoveryGross}
-            onChange={(e) => setRecoveryGross(e.target.value)}
-          />
-        </label>
-        <button
-          disabled={!target || !proofReference || !recoveryGross}
-          onClick={() =>
-            void run(async () => {
-              const asset = assets.find((v) => v.key === currency);
-              if (!asset) throw new Error("CURRENCY_NOT_PROVISIONED");
-              const value = await mutation<NativeAdminRecovery>(
-                "/admin/crypto/recovery/quote",
-                owner,
-                {
-                  user_id: target,
-                  asset_key: currency,
-                  gross_base_units: decimalToBaseUnits(
-                    recoveryGross,
-                    asset.decimals,
-                  ).toString(),
-                  proof_reference: proofReference,
-                  reason,
-                },
-              );
-              setRecovery(value);
-              setApproval("");
-              setLink("");
-            })
-          }
-        >
-          {fr
-            ? "Préparer le devis et l’approbation"
-            : "Prepare quote and approval"}
-        </button>
-        {recovery && (
-          <>
-            <pre className="recovery-statement">{recovery.statement}</pre>
-            <button
-              onClick={() =>
-                void run(async () => {
-                  const value = await mutation<NativeAdminRecoveryLink>(
-                    "/admin/crypto/recovery/link",
-                    owner,
-                    { recovery_id: recovery.recovery_id },
-                  );
-                  setLink(
-                    location.origin +
-                      "/recover#id=" +
-                      encodeURIComponent(value.recovery_id) +
-                      "&token=" +
-                      encodeURIComponent(value.view_token),
-                  );
-                })
-              }
-            >
-              {fr
-                ? "Créer un lien temporaire pour le demandeur"
-                : "Create temporary claimant link"}
-            </button>
-            {link && (
-              <>
-                <input
-                  aria-label={fr ? "Lien temporaire" : "Temporary link"}
-                  readOnly
-                  value={link}
-                />
-                <CopyButton text={link} locale={locale}>
-                  {fr ? "Copier le lien" : "Copy link"}
-                </CopyButton>
-              </>
-            )}
-            <label>
-              {fr
-                ? "Approbation signée par le portefeuille d’origine"
-                : "Approval signed by original wallet"}
-              <textarea
-                value={approval}
-                onChange={(e) => setApproval(e.target.value)}
-                maxLength={2048}
-              />
-            </label>
-            <button
-              disabled={!approval}
-              onClick={() =>
-                void run(async () => {
-                  await mutation("/admin/crypto/recovery/confirm", owner, {
-                    recovery_id: recovery.recovery_id,
-                    signature: approval,
-                    reason,
-                  });
-                  setApproval("");
-                  setLink("");
-                })
-              }
-            >
-              {fr ? "Confirmer la demande prouvée" : "Confirm proven request"}
-            </button>
-            <button
-              onClick={() =>
-                void run(async () => {
-                  await mutation("/admin/crypto/recovery/cancel", owner, {
-                    recovery_id: recovery.recovery_id,
-                    reason,
-                  });
-                  setRecovery(null);
-                  setApproval("");
-                  setLink("");
-                })
-              }
-            >
-              {fr
-                ? "Annuler si aucune signature de transfert n’existe"
-                : "Cancel if no transfer was signed"}
-            </button>
-          </>
-        )}
-      </fieldset>
+      <NativeRecoveryControls key={'recovery:'+owner+':'+currency} owner={owner} locale={locale} assets={assets} currency={currency} reason={reason} busy={busy} enabled={enabled} run={run}/>
       <label>{fr?'Vue des révisions de finalité':'Finality review view'}<select value={reviewView} disabled={busy} onChange={event=>{setReviewView(event.target.value as 'current'|'history');setReviews([]);setReviewCursor(null);}}><option value="current">{fr?'Non résolues':'Unresolved'}</option><option value="history">{fr?'Tout l’historique':'All history'}</option></select></label>
       <button disabled={busy} onClick={()=>void run(()=>loadReviews())}>{fr?'Actualiser les révisions / première page':'Refresh reviews / first page'}</button>
       {reviewCursor&&<button disabled={busy} onClick={()=>void run(()=>loadReviews(reviewCursor))}>{fr?'Révisions suivantes':'Next reviews'}</button>}
@@ -495,108 +343,7 @@ export default function NativeAdmin({
           </article>
         ))}
       </fieldset>
-      <fieldset disabled={busy || !enabled || reason.trim().length < 10}>
-        <legend>
-          {fr
-            ? "Transfert de réserve de la plateforme"
-            : "Platform reserve sweep"}
-        </legend>
-        <p>
-          {fr
-            ? "Le montant doit provenir du surplus comptabilisé. Les obligations et la réserve de gaz restent protégées. La destination est configurée par l’opérateur."
-            : "The amount must come from recorded surplus. Beneficiary liabilities and gas reserves remain protected. The operator configures the destination."}
-        </p>
-        <label>
-          {fr
-            ? "Montant dans la monnaie sélectionnée"
-            : "Amount in selected currency"}
-          <input
-            inputMode="decimal"
-            value={sweepGross}
-            onChange={(e) => setSweepGross(e.target.value)}
-          />
-        </label>
-        <button
-          disabled={!sweepGross}
-          onClick={() =>
-            void run(async () => {
-              const asset = assets.find((a) => a.key === currency);
-              if (!asset) throw new Error("CURRENCY_NOT_PROVISIONED");
-              const value = await mutation<NativeAdminSweep>(
-                "/admin/crypto/sweeps/quote",
-                owner,
-                {
-                  asset_key: currency,
-                  amount_base_units: decimalToBaseUnits(
-                    sweepGross,
-                    asset.decimals,
-                  ).toString(),
-                  reason,
-                },
-              );
-              setSweep(value);
-            })
-          }
-        >
-          {fr ? "Examiner le transfert" : "Review sweep"}
-        </button>
-        {sweep && (
-          <>
-            <p>
-              {sweep.status} ·{" "}
-              {formatBaseUnits(BigInt(sweep.amount_base_units), sweep.decimals)}{" "}
-              {sweep.asset}
-            </p>
-            <p className="wallet-address">{sweep.destination}</p>
-            <p>
-              {fr ? "Frais natifs approuvés" : "Approved native fee"}:{" "}
-              {formatBaseUnits(
-                BigInt(sweep.native_fee_base_units),
-                sweep.native_decimals,
-              )}{" "}
-              {sweep.native_asset}
-            </p>
-            <button
-              disabled={sweep.status !== "quoted"}
-              onClick={() =>
-                void run(async () => {
-                  const value = await mutation<NativeAdminSweepConfirmation>(
-                    "/admin/crypto/sweeps/confirm",
-                    owner,
-                    { obligation_id: sweep.id, reason },
-                  );
-                  setSweep(old => old?({ ...old, ...value }):null);
-                })
-              }
-            >
-              {fr
-                ? "Confirmer la destination et le montant"
-                : "Confirm destination and amount"}
-            </button>
-            <button
-              disabled={
-                sweep.status === "settled" ||
-                sweep.status === "cancelled" ||
-                sweep.status === "failed_closed"
-              }
-              onClick={() =>
-                void run(async () => {
-                  const value = await mutation<NativeAdminSweepRecovery>(
-                    "/admin/crypto/sweeps/recover",
-                    owner,
-                    { obligation_id: sweep.id, reason },
-                  );
-                  setSweep(old => old?({ ...old, ...value }):null);
-                })
-              }
-            >
-              {fr
-                ? "Annuler si non signé ou positivement résolu"
-                : "Cancel if unsigned or positively resolved"}
-            </button>
-          </>
-        )}
-      </fieldset>
+      <NativeSweepControls key={'sweep:'+owner+':'+currency} owner={owner} locale={locale} assets={assets} currency={currency} reason={reason} busy={busy} enabled={enabled} run={run}/>
       <section className="card">
         <h3>{fr ? "Demandes financières" : "Financial requests"}</h3>
         {obligations.map((row) => (

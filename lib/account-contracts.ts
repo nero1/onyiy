@@ -1,0 +1,12 @@
+import {z} from 'zod';
+const text=z.string(),integer=z.number().int();
+export const simulationAccounts=z.array(z.object({username:text}));
+export const staffUser=z.object({id:text,username:text,status:text,role:text,revision:integer});
+export const staffUserPage=z.object({rows:z.array(staffUser),next_cursor:text.nullable()});
+export const accountProfile=z.object({id:text,username:text,status:text,role:text,revision:integer,suspension_until:text.nullable(),balances:z.array(z.object({asset_id:text,purpose:text,balance:text.regex(/^-?[0-9]+$/),asset:text,decimals:integer,environment:text,chain_id:text}))});
+const report=z.object({id:text,body:text,status:text,revision:integer,target_id:text.nullable().optional()});
+const appeal=z.object({id:text,body:text,status:text,revision:integer});
+export const accountCases=z.object({reports:z.array(report),appeals:z.array(appeal),next_reports:text.nullable(),next_appeals:text.nullable()});
+export type AccountProfile=z.infer<typeof accountProfile>;
+export type StaffUser=z.infer<typeof staffUser>;
+export type AccountCases=z.infer<typeof accountCases>;
