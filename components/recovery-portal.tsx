@@ -1,5 +1,6 @@
 "use client";
 import CopyButton from './copy-button';
+import {useOnline} from './use-online';
 import { useEffect, useRef, useState } from "react";
 import { api, mutation } from "@/lib/api-client";
 import {useAppearance} from './appearance-provider';
@@ -7,6 +8,7 @@ import {useLocalizedNotice} from './use-localized-notice';
 import type { NativeCurrency } from "@/lib/native-wallet";
 export default function RecoveryPortal() {
   const {locale,setLocale}=useAppearance(),fr=locale==='fr';
+  const online=useOnline();
   const [helpEnabled,setHelpEnabled]=useState(false);
   const [message,setMessage]=useLocalizedNotice(locale);
   const [data, setData] = useState<{
@@ -46,7 +48,7 @@ export default function RecoveryPortal() {
   }, []);
   useEffect(()=>{let active=true;void api<{feature_help:boolean}>('/manifest','').then(value=>{if(active)setHelpEnabled(value.feature_help===true)}).catch(()=>{});return()=>{active=false;};},[]);
   async function prove() {
-    if (!data || busy) return;
+    if (!data || busy || !navigator.onLine) return;
     setBusy(true);
     setMessage("");
     try {
@@ -100,7 +102,7 @@ export default function RecoveryPortal() {
         <section className="card">
           <pre className="recovery-statement">{data.statement}</pre>
           <button
-            disabled={busy || !navigator.onLine}
+            disabled={busy || !online}
             onClick={() => void prove()}
           >
             {fr

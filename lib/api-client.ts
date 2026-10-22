@@ -22,7 +22,8 @@ async function request(path:string,username:string,init:RequestInit){
  // Separate current public responses from older unversioned CDN entries.
  const target=new URL(BASE+path,'https://gw.invalid');
  if((init.method??'GET').toUpperCase()==='GET'&&['/manifest','/plans','/crypto/catalog','/activity','/statistics','/transparency','/help'].includes(path.split('?')[0]))target.searchParams.set('_gw_wire',String(APP_WIRE_VERSION));
- const response=await fetch(target.pathname+target.search,{...init,headers,credentials:'same-origin',cache:'no-store'});
+ const deadline=AbortSignal.timeout(mutating?30000:10000),signal=init.signal?AbortSignal.any([init.signal,deadline]):deadline;
+ const response=await fetch(target.pathname+target.search,{...init,signal,headers,credentials:'same-origin',cache:'no-store'});
  if(!observeServerVersion(response.headers)&&response.status!==401&&path!=='/auth/logout'){await response.body?.cancel();throw new ApiError('CLIENT_UPDATE_REQUIRED');}
  return response;
 }
@@ -30,6 +31,7 @@ async function coordinatedRefresh(){
  if(!refreshing){refreshing=withRefreshLock(async()=>{
   const signal=AbortSignal.timeout(8000),present=await request('/auth/session','',{signal});
   const snapshot=await present.json().catch(()=>null);
+  if(!present.ok)throw responseError(snapshot,present.status===401?'UNAUTHENTICATED':'PROVIDER_UNAVAILABLE');
   if(present.ok&&snapshot?.data?.user&&!snapshot.data.requires_mfa)return snapshot.data;
   const r=await request('/auth/refresh','',{method:'POST',body:'{}',signal});const body=await r.json().catch(()=>null);
   if(!r.ok)throw responseError(body,'UNAUTHENTICATED');return body.data;
@@ -44,7 +46,7 @@ export async function api<T>(path:string,username:string,init:RequestInit={}){
  let response=await request(path,username,init);
  try{assertScope()}catch(error){await response.body?.cancel();throw error;}
  if(response.status===401&&!path.startsWith('/auth/')){
-  try{const refreshed=await coordinatedRefresh();assertScope();if(username&&(refreshed.user?.username!==username||(generation&&refreshed.generation!==generation)))throw new ApiError('VERSION_CONFLICT');response=await request(path,username,init);}catch(error){if(username&&revision===scopeRevision)clearActiveUserScope(username,generation??undefined);throw error;}
+  try{const refreshed=await coordinatedRefresh();assertScope();if(username&&(refreshed.user?.username!==username||(generation&&refreshed.generation!==generation)))throw new ApiError('VERSION_CONFLICT');response=await request(path,username,init);}catch(error){if(username&&revision===scopeRevision&&error instanceof ApiError&&error.code==='UNAUTHENTICATED')clearActiveUserScope(username,generation??undefined);throw error;}
  }
  assertScope();if(response.status===401&&username)clearActiveUserScope(username,generation??undefined);const body=await response.json().catch(()=>null);assertScope();if(!response.ok)throw responseError(body,response.status===401?'UNAUTHENTICATED':'INTERNAL_ERROR');if(!body)throw new ApiError('INTERNAL_ERROR');return body.data as T;
 }

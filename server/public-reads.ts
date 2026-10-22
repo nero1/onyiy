@@ -19,7 +19,7 @@ const seed=loadManifest();
 let budget={maxEntries:seed.cache_policy.max_memory_entries,maxBytes:seed.cache_policy.max_memory_mb*1024*1024};
 let memory=new MemoryCache(budget);
 let generation=0;
-type PublicKey=`activity:${number}:${number}`|'manifest'|'catalog'|'native-catalog'|'statistics'|'help:en'|'help:fr'|'slugs:en'|'slugs:fr'|`search:${'en'|'fr'}:${string}`;
+type PublicKey=`activity:${number}:${number}`|'manifest'|'catalog'|'native-catalog'|'statistics'|'help:en'|'help:fr'|`slug:${'en'|'fr'}:${string}`|`search:${'en'|'fr'}:${string}`;
 const pending=new Map<PublicKey,Promise<Entry>>();
 
 function captured(data:unknown,manifest:Pick<Manifest,'cache_policy'>,publicSeconds:number,fallback=false):Loaded {
@@ -102,12 +102,11 @@ export async function publicHelpSlug(locale:'en'|'fr',slug:string,request?:Reque
  const published=await getPublicHelp(locale,request);
  if((published.data as {slug:string}[]).some(article=>article.slug===slug))return slug;
  if(isReadOnlyPreview())return previewHelpRedirect(locale,slug);
- const inventory=await read(`slugs:${locale}`,async()=>{
+ const inventory=await read(`slug:${locale}:${slug}`,async()=>{
  const policy=await withContext({access:'service',snapshot:true},tx=>readManifest(tx));
  return withContext({access:'public',snapshot:true},async tx=>{
   await tx.execute(sql`set local statement_timeout='5000ms'`);
-  const rows=await tx.select({old_slug:slugRedirects.oldSlug,slug:helpArticles.slug}).from(slugRedirects).innerJoin(helpArticles,eq(helpArticles.id,slugRedirects.articleId)).where(and(eq(slugRedirects.locale,locale),eq(helpArticles.published,true))).orderBy(asc(slugRedirects.oldSlug)).limit(1001);
-  if(rows.length>1000)throw new Error('CONFIGURATION_INVALID');
+  const rows=await tx.select({old_slug:slugRedirects.oldSlug,slug:helpArticles.slug}).from(slugRedirects).innerJoin(helpArticles,eq(helpArticles.id,slugRedirects.articleId)).where(and(eq(slugRedirects.locale,locale),eq(slugRedirects.oldSlug,slug),eq(helpArticles.published,true))).limit(1);
   return captured(rows,policy,policy.cache_policy.catalog_seconds);
  });},request);
  const redirected=(inventory.data as {old_slug:string;slug:string}[]).find(row=>row.old_slug===slug);

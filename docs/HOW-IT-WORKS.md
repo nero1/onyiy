@@ -1,6 +1,6 @@
 # How Gifters World works
 
-Use [SETUP](SETUP.md) to install, [PRD](PRD.md) for requirements and [status](PROJECT-STATUS_v117.md) for remaining work.
+Use [SETUP](SETUP.md) to install, [PRD](PRD.md) for requirements and [status](PROJECT-STATUS_v118.md) for remaining work.
 
 ## Code map
 

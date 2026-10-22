@@ -12,6 +12,7 @@ const DisplayZone=createContext<string|null>(null);
 export default function AppearanceProvider({ locale: initialLocale, children }: { locale: Locale; children: ReactNode }) {
   const router = useRouter();
   const [locale, setLocale] = useState(initialLocale), [theme, setTheme] = useState<Theme>('light'), [ready, setReady] = useState(false);
+  const activeLocale=useRef(locale);activeLocale.current=locale;
   const [navigationUser, setNavigationUser] = useState<NavigationUser>(null);
   const [timeZone,setTimeZone]=useState(defaultTimeZone);
   const languageChoice=useRef({initialized:false,explicit:false,identity:null as string|null});
@@ -32,12 +33,18 @@ export default function AppearanceProvider({ locale: initialLocale, children }: 
     } catch { /* Browser preference persistence is optional. */ }
     setReady(true);
     const changed = (event: StorageEvent) => {
-      if (event.key === 'locale'){languageChoice.current.explicit=true;setLocale(event.newValue === 'fr' ? 'fr' : 'en');}
+      if (event.key === 'locale'){
+        const next=event.newValue==='fr'?'fr':'en';languageChoice.current.explicit=true;setLocale(next);
+        const url=new URL(location.href);url.searchParams.set('locale',next);
+        if(url.href!==location.href&&navigator.onLine)router.replace(url.pathname+url.search+url.hash,{scroll:false});
+      }
       if(event.key==='display_time_zone')setTimeZone(event.newValue&&validTimeZone(event.newValue)?event.newValue:defaultTimeZone);
       if (event.key === 'theme') setTheme(event.newValue === 'dark' ? 'dark' : 'light');
     };
     window.addEventListener('storage', changed);
-    return () => window.removeEventListener('storage', changed);
+    const connected=()=>{const next=activeLocale.current;const url=new URL(location.href);url.searchParams.set('locale',next);router.replace(url.pathname+url.search+url.hash,{scroll:false});};
+    window.addEventListener('online',connected);
+    return () => {window.removeEventListener('storage', changed);window.removeEventListener('online',connected);};
   }, [initialLocale, router]);
   useEffect(()=>{
     if(!ready)return;

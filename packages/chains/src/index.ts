@@ -40,7 +40,12 @@ function readFacet(adapter:ChainAdapter):ChainObservationAdapter{return {
 export async function chainPreparationAdapter(asset:AssetRegistry,options:RpcOptions):Promise<ChainPreparationAdapter>{
  if(options.observationOnly)throw new Error('RPC_CONFIGURATION_INVALID');
  const adapter=await chainAdapter(asset,{...options,observationOnly:false,preparationOnly:true});
- return Object.freeze({...readFacet(adapter),estimateFee:adapter.estimateFee.bind(adapter),buildTransfer:adapter.buildTransfer.bind(adapter)});
+ return preparationFacet(adapter);
+}
+
+export function preparationFacet(adapter:ChainAdapter):ChainPreparationAdapter{
+ const nonce='pendingNonce' in adapter&&typeof adapter.pendingNonce==='function'?{pendingNonce:(adapter.pendingNonce as (address:string)=>Promise<bigint>).bind(adapter)}:{};
+ return Object.freeze({...readFacet(adapter),...nonce,estimateFee:adapter.estimateFee.bind(adapter),buildTransfer:adapter.buildTransfer.bind(adapter)});
 }
 
 export * from "./hash";

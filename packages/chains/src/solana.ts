@@ -41,6 +41,19 @@ function transactionCosts(tx: any, payer: string) {
   if(outer.some((instruction:any)=>!allowed.has(instruction.programId)))throw new Error('FEE_ATTRIBUTION_REVIEW_REQUIRED');
   const instructions=[...outer,...inner];
   const targets=new Set(instructions.filter((instruction:any)=>instruction.programId===token&&['transfer','transferChecked'].includes(instruction.parsed?.type)).map((instruction:any)=>instruction.parsed.info.destination));
+  const rentTopups=new Set<any>();
+  for(const group of tx.meta.innerInstructions??[]){
+    if(outer[group.index]?.programId!==ASSOCIATED_TOKEN_PROGRAM_ID.toBase58())continue;
+    for(const instruction of group.instructions??[]){
+      if(instruction.programId!==system||instruction.parsed?.type!=='transfer')continue;
+      const info=instruction.parsed.info,index=keys.indexOf(info.destination);
+      const balance=tx.meta.postTokenBalances?.find((row:any)=>row.accountIndex===index);
+      if(info.source!==payer||index<0||!targets.has(info.destination)||!balance?.owner||!balance?.mint||
+        getAssociatedTokenAddressSync(new PublicKey(balance.mint),new PublicKey(balance.owner)).toBase58()!==info.destination||
+        integer(tx.meta.postBalances[index])-integer(tx.meta.preBalances[index])!==integer(info.lamports))throw new Error('FEE_ATTRIBUTION_REVIEW_REQUIRED');
+      rentTopups.add(instruction);
+    }
+  }
   let principal=0n,setup=0n;
   for(const instruction of instructions){
     if(instruction.programId!==system)continue;
@@ -48,6 +61,7 @@ function transactionCosts(tx: any, payer: string) {
     if(!info)throw new Error('FEE_ATTRIBUTION_REVIEW_REQUIRED');
     if(type==='transfer'||type==='transferWithSeed'){
       const value=integer(info.lamports);
+      if(rentTopups.has(instruction)){setup+=value;continue;}
       if(info.source===payer)principal+=value;
       if(info.destination===payer)principal-=value;
     }else if(type==='createAccount'||type==='createAccountWithSeed'){
@@ -657,46 +671,12 @@ export class SolanaAdapter implements ChainAdapter {
       throw new Error("TRANSFER_MISMATCH");
     return result;
   }
-  async proveExpiry(
-    hash: string,
-    validity: { lastValidHeight?: bigint; expiresAt?: Date },
-  ) {
-    hash = canonicalTransactionHash("sol", hash);
-    if (validity.lastValidHeight === undefined || validity.lastValidHeight < 0n)
-      return false;
-    // Absence is stronger than ordinary availability failover: both independent
-    // providers must positively respond from the pinned finalized network.
-    const observations = await Promise.all(
-      ([0, 1] as const).map(async (side) => {
-        const [identity, status, transaction, height] = await Promise.all([
-          this.rpc.request(side, "getGenesisHash", []),
-          this.rpc.request(side, "getSignatureStatuses", [
-            [hash],
-            { searchTransactionHistory: true },
-          ]),
-          this.rpc.request(side, "getTransaction", [
-            hash,
-            {
-              encoding: "jsonParsed",
-              commitment: "finalized",
-              maxSupportedTransactionVersion,
-            },
-          ]),
-          this.rpc.request(side, "getBlockHeight", [
-            { commitment: "finalized" },
-          ]),
-        ]);
-        return (
-          identity === solanaGenesis(this.asset.environment) &&
-          Array.isArray(status?.value) &&
-          status.value.length === 1 &&
-          status.value[0] === null &&
-          transaction === null &&
-          integer(height) > validity.lastValidHeight!
-        );
-      }),
-    );
-    return observations.every(Boolean);
+  async proveExpiry(hash: string, _validity: { lastValidHeight?: bigint; expiresAt?: Date }) {
+    canonicalTransactionHash("sol", hash);
+    // These RPCs do not attest complete historical coverage. An expired
+    // validity window plus a missing transaction cannot exclude earlier inclusion.
+    // Keep the signed packet and holds until positive canonical resolution.
+    return false;
   }
   async getTransactionStatus(asset: AssetRegistry, signed: SignedTransfer) {
     const tx = Transaction.from(Buffer.from(signed.bytes, "base64"));

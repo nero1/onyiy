@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import {boundedResponseText} from '../packages/config/src/response-body.mjs';
 import {scheduledBackupPolicy} from '../packages/db/src/backup-schedule';
 
 async function main(){
@@ -9,7 +10,7 @@ async function main(){
  async function api(path:string){
   const response=await fetch('https://api.github.com/repos/nero1/onyiy/'+path,{headers:{Authorization:'Bearer '+env.GH_TOKEN,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},redirect:'error',signal:AbortSignal.timeout(10000)});
   if(!response.ok)throw Error('BACKUP_SCHEDULE_HISTORY_UNAVAILABLE');
-  const text=await response.text();if(Buffer.byteLength(text)>1048576)throw Error('BACKUP_SCHEDULE_HISTORY_UNAVAILABLE');return JSON.parse(text);
+  const text=await boundedResponseText(response,1048576);return JSON.parse(text);
  }
  const history=await api('actions/artifacts?per_page=100&name='+encodeURIComponent(name));
  if(!Array.isArray(history.artifacts)||history.artifacts.length>100)throw Error('BACKUP_SCHEDULE_HISTORY_UNAVAILABLE');

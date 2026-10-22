@@ -12,12 +12,12 @@ async function body(request:Request){return boundedJson(request)}
 export async function handleAuthRequest(method:string,path:string,request:Request):Promise<Response>{
  if(method==='GET'&&path==='/auth/session'){
   await enforceRate(request,'auth','session-bootstrap');
-  origin(request);let identity;try{identity=await authenticate(request)}catch{/* An anonymous bootstrap has no authority. */}
+  origin(request);let identity;try{identity=await authenticate(request)}catch(error){if(!(error instanceof Error)||error.message!=='UNAUTHENTICATED')throw error;}
   const response=authResponse(identity?{user:userDto(identity.user),generation:identity.session?.generation??'tool',requires_mfa:false,provider:runtimeProviders().AUTH_PROVIDER}:{user:null,requires_mfa:!!cookie(request,'gw_pre_auth'),provider:runtimeProviders().AUTH_PROVIDER,can_refresh:!!cookie(request,'gw_refresh')});
   if(!identity&&!cookie(request,'gw_csrf'))setCookie(response,request,'gw_csrf',randomToken(),'/',300,false);
   return response;
  }
- if(method==='GET'&&path==='/auth/2fa/status'){const identity=await authenticate(request);const [factor]=await withContext({access:'service'},tx=>tx.select({active:authFactors.active}).from(authFactors).where(eq(authFactors.userId,identity.user.id)).limit(1));return authResponse({enrolled:!!factor?.active,step_up_at:identity.session?.stepUpAt??null});}
+ if(method==='GET'&&path==='/auth/2fa/status'){await enforceRate(request,'auth','factor-status');const identity=await authenticate(request);const [factor]=await withContext({access:'service'},tx=>tx.select({active:authFactors.active}).from(authFactors).where(eq(authFactors.userId,identity.user.id)).limit(1));return authResponse({enrolled:!!factor?.active,step_up_at:identity.session?.stepUpAt??null});}
  if(method==='GET'&&path==='/auth/google/start')return startGoogle(request);
  if(method==='GET'&&path==='/auth/google/callback')return finishGoogle(request);
  if(method!=='POST')throw new Error('NOT_FOUND');

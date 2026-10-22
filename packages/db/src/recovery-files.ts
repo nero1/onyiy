@@ -43,10 +43,10 @@ async function nativeEnvironment(directory:string) {
   if(!value) throw new Error('DATABASE_MIGRATION_URL_REQUIRED');
   const options=databaseConnectionOptions(value);
   const url=new URL(value);
-  const environment={...process.env};
-  for(const name of Object.keys(environment)) if(name.startsWith('PG')) delete environment[name];
-  // Native tools need the selected owner connection, never application keys.
-  for(const name of ['SIGNER_DATABASE_URL','SIGNER_KEY_FILE','SIGNER_DECRYPTION_SECRET','SIGNED_PAYLOAD_ENCRYPTION_KEY','FINANCIAL_WORKER_AUTH_KEY','ALERT_WEBHOOK_KEY','DATA_EXPORT_KEY','EXPORT_ENCRYPTION_KEY','SCHEDULER_HMAC_KEY','SCHEDULER_HMAC_PREVIOUS_KEY','AUTH_ACCESS_KEY','AUTH_ACCESS_PREVIOUS_KEY','MFA_ENCRYPTION_KEY','GOOGLE_CLIENT_SECRET','SIMULATION_TOOL_AUTH_KEY','CAPTCHA_SECRET_KEY']) delete environment[name];
+  const environment:NodeJS.ProcessEnv={NODE_ENV:process.env.NODE_ENV};
+  for(const name of ['PATH','HOME','TMPDIR','TEMP','TMP','SYSTEMROOT','WINDIR','LANG','LC_ALL','HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','NO_PROXY','http_proxy','https_proxy','all_proxy','no_proxy','NODE_EXTRA_CA_CERTS','SSL_CERT_FILE','SSL_CERT_DIR']){
+    if(process.env[name]!==undefined)environment[name]=process.env[name];
+  }
   environment.PGHOST=url.hostname.replace(/^\[|\]$/g,'');
   environment.PGPORT=url.port||'5432';
   environment.PGUSER=decodeURIComponent(url.username);

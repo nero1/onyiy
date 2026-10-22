@@ -1,4 +1,5 @@
 import {withExecutionScope} from '../../packages/db/src/execution-budget';
+import {boundedResponseText} from '../../packages/config/src/response-body.mjs';
 import {withRpcCancellation} from '../../packages/chains/src/rpc';
 import {financialConfigurationApproved,nativePaymentExecutionSupported} from '../../packages/config/src/index';
 import {performance} from 'node:perf_hooks';
@@ -67,9 +68,7 @@ async function report(
         signal: AbortSignal.any([AbortSignal.timeout(20000),shutdown.signal]),
       });
     if (!response.ok) throw new Error("WORKLOAD_UNAVAILABLE");
-    const content = await response.text();
-    if (Buffer.byteLength(content) > 16384)
-      throw new Error("WORKLOAD_UNAVAILABLE");
+    const content = await boundedResponseText(response,16384);
     return JSON.parse(content).data as {
       status: string;
       attempt_state?: string;

@@ -1,7 +1,7 @@
 import {coinMarketCapIds,nativePriceKey,runtimeProviders} from '@gifters/config';
 import {chainEnvironmentSuffix} from './network';
 import crypto from "node:crypto";
-import { chainAdapter } from "./index";
+import { chainAdapter, preparationFacet } from "./index";
 import { readRegistry, registryFingerprint } from "./registry";
 import type { AssetRegistry } from "./types";
 export const addressRoles = [
@@ -12,12 +12,12 @@ export const addressRoles = [
   "SWEEP",
 ] as const;
 export const chainSuffix = chainEnvironmentSuffix;
-export function runtimeAdapter(asset: AssetRegistry) {
+function runtimeOptions(asset:AssetRegistry){
   const label = chainSuffix(asset.chain,asset.environment),
     primary = process.env[`RPC_PRIMARY_${label}`],
     secondary = process.env[`RPC_SECONDARY_${label}`];
   if (!primary || !secondary) throw new Error("RPC_UNAVAILABLE");
-  return chainAdapter(asset, {
+  return {
     primary,
     secondary,
     timeoutMs: 5000,
@@ -25,8 +25,10 @@ export function runtimeAdapter(asset: AssetRegistry) {
     fixture:
       process.env.CHAIN_FIXTURE_MODE === "isolated" &&
       process.env.VERCEL !== "1",
-  });
+  };
 }
+export function runtimeAdapter(asset:AssetRegistry){return chainAdapter(asset,runtimeOptions(asset));}
+export async function runtimePreparationAdapter(asset:AssetRegistry){return preparationFacet(await runtimeAdapter(asset));}
 export async function configurationSnapshot(
   asset: AssetRegistry,
   effective: unknown,

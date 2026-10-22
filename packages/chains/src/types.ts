@@ -147,4 +147,4 @@ export type RpcOptions = {
 };
 export type ChainObservationAdapter=Omit<ChainAdapter,'buildTransfer'|'broadcastSigned'|'estimateFee'>;
 
-export type ChainPreparationAdapter=Omit<ChainAdapter,'broadcastSigned'>;
+export type ChainPreparationAdapter=Omit<ChainAdapter,'broadcastSigned'>&{pendingNonce?:(address:string)=>Promise<bigint>};
