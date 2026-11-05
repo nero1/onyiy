@@ -1,3 +1,4 @@
+import {redactedPresentation} from '@gifters/config';
 import {nativeGiftReadiness} from './native-eligibility';
 import {nativeSendDisplayStatus,nativeSendTransactionHash} from './native-send-state';
 import {presentationFromManifest,planFinancialPresentation,type QueueDisclosure,type PublicQueueDisclosure} from './presentation';
@@ -83,7 +84,7 @@ export async function nativeCatalog(tx: DbExecutor) {
       receipts_required: planVersions.receiptsRequired,
       status: plans.status,
       receiver_bps: planVersions.receiverBps,marketing_bps:planVersions.marketingBps,referral_bps:planVersions.referralBps,developer_bps:planVersions.developerBps,reserve_bps:planVersions.reserveBps,
-      queue_disclosure:sql<PublicQueueDisclosure|null>`public.gw_public_queue_disclosure(${planVersions.id})`,
+      queue_disclosure:redactedPresentation(manifest)?sql<PublicQueueDisclosure|null>`null::jsonb`:sql<PublicQueueDisclosure|null>`public.gw_public_queue_disclosure(${planVersions.id})`,
     })
     .from(planVersions)
     .innerJoin(plans, eq(plans.id, planVersions.planId))
@@ -251,8 +252,8 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
       credited_count: cycles.creditedCount,
       receipts_required: cycles.receiptsRequired,
       ticket: queueEntries.ticket,
-      queue_disclosure:sql<QueueDisclosure|null>`public.gw_queue_disclosure(${queueEntries.id})`,
-      display_position: sql<string>`public.gw_queue_rank(${queueEntries.id},${policy.deployment_profile==='transparent'?'public_serving':'display'})::text`,
+      queue_disclosure:redactedPresentation(policy)?sql<QueueDisclosure|null>`null::jsonb`:sql<QueueDisclosure|null>`public.gw_queue_disclosure(${queueEntries.id})`,
+      display_position: sql<string>`public.gw_queue_rank(${queueEntries.id},${policy.deployment_profile==='transparent'&&!redactedPresentation(policy)?'public_serving':'display'})::text`,
     })
     .from(cycles)
     .innerJoin(planVersions, eq(planVersions.id, cycles.planVersionId))
@@ -274,7 +275,7 @@ export async function ownNativePortfolio(tx: DbExecutor, userId: string) {
     ))).limit(1);
   const [user]=await tx.select({id:users.id,username:users.username,status:users.status,role:users.role,locale:users.locale,time_zone:users.timeZone}).from(users).where(eq(users.id,userId)).limit(1);
   const notices=policy.feature_notifications?await notificationPage(tx,userId):null;
-  const badge=policy.feature_notifications?await notificationBadge(tx,userId):{has_new:false};
+  const badge=policy.feature_notifications?await notificationBadge(tx,userId,policy):{has_new:false};
   const gift_readiness=await nativeGiftReadiness(tx,userId,environment);
   return { gift_readiness,user,manifest:{...publicManifest(policy),presentation:presentationFromManifest(policy),configuration_available:true},notifications:notices?.items??[],notification_badge:badge,balances, summary, wallets:policy.entitlements_member.wallet_link?wallets:[], invoices:policy.entitlements_member.history?invoices:[], withdrawals:policy.entitlements_member.history?withdrawals:[], cycles: active,has_active_cycles:!!openCycle };
 }

@@ -1,4 +1,4 @@
-# LLM handover v121
+# LLM handover v122
 
 ## Owner instructions
 
@@ -12,9 +12,9 @@
 
 ## Current work
 
-Repository `/workspace/onyiy` (`nero1/onyiy`), branch `feat/phase-completion`, based on PR120/main `178e814977bad46a0a718085658e90c346db2718`. Code scope is complete; [status](PROJECT-STATUS_v121.md) distinguishes implementation from owner-dependent acceptance. PRD is authoritative; do not turn setup-dependent work into a coding approval pause.
+Repository `/workspace/onyiy` (`nero1/onyiy`), branch `feat/phase-three-internal-presentation`, based on PR121/main `50d8cea3749708fc5b9606a69427b9c1c7bc24fb`. Phase One/Two code scope is complete; Phase Three is implemented and locally verified; [status](PROJECT-STATUS_v122.md) distinguishes implementation from owner-dependent acceptance. PRD is authoritative; do not turn setup-dependent work into a coding approval pause.
 
-The batch closes remaining eligibility/navigation/explorer/copy/feature-visibility gaps, consolidates all schema definitions into the single migration, removes duplicate Drizzle output and both reports, and updates the five guides. Migration contract `schema-contract_v121.json`:96 tables/897 columns/301 checks/122 indexes, one receipt. Full owner/security metadata, direct/CLI installation and generated Drizzle congruence were verified; recovery contract remains4 with the new baseline fingerprint.
+The batch adds the internal presentation toggle, hides disclosure panels/queue notices in that test mode, preserves admin audit and financial state, and updates the five guides. The unchanged migration contract is `schema-contract_v121.json`:96 tables/897 columns/301 checks/122 indexes, one receipt; recovery contract remains4. Phase Three requires no DDL.
 
 ## Verification environment
 
@@ -25,6 +25,13 @@ The batch closes remaining eligibility/navigation/explorer/copy/feature-visibili
 - Listeners/builds need additional network access; Git mutations need `.git` write access. Git push/fetch and connected GitHub PR/merge tools work. Verify remote/reviewed trees and both exact-head CI events before merging.
 - Never print secret env/cookies/keys. Generated private files stay0600; web children receive no owner/signer keys. Preserve proxy and CA trust.
 
+## Phase Three instructions
+
+- Approved internal Disclosure/Redacted comparison only. Disclosure defaults; Redacted needs `INTERNAL_PRESENTATION_PREVIEW=true` on simulation/testnet. Mainnet rejects it. Keep a persistent internal-demo banner; never disguise real-money behavior.
+- Mode lives in existing `queue_disclosure_policy.presentation_mode`; no schema change/new migration. Reuse existing DTOs, Zod, release staging/commit, styles, indexed ranks and paginated notices. Preserve financial state, bootstrap/priority availability and admin-only audit. Hide retained queue notices without deleting them; restore on Disclosure.
+- Surgical changes to five guides only. SETUP remains detailed browser steps without justification/terminal text. User explicitly asks to reuse patterns/libraries and build for scale. No subagents or broad automated suite.
+- Current evidence: `/workspace/phase3-evidence`: `database-r4.log`, `roles-r1.log`, `queue-dto-r5.log`, `browser-r8.log`, `check-all-r6.log`, `build-r3.log`, `bundle-r2.log` pass. Node22: `/workspace/tooling/node_modules/.bin`; fresh isolated PostgreSQL17 container `gw-phase3-pg`, loopback55460. Preserve failed generated runs/databases. Earlier evidence paths below belong to the prior environment; do not assume they are mounted or start protected clusters.
+
 ## Financial boundaries
 
 - Four mainnets/eight asset protocols; seven member currencies, TRX operating-only. Unverified JAGA stays disabled. Generated providers/contracts/keys are not live evidence.
@@ -32,4 +39,4 @@ The batch closes remaining eligibility/navigation/explorer/copy/feature-visibili
 - Recovery needs a matching backup release, empty private target, disabled signing/scheduling, exact verification and fresh database-bound approvals. Preserve original MFA/custody/payload/archive keys; rotate request/auth keys. The new baseline does not promise compatibility with old development archive receipts.
 - Unknown sends retain holds until positive canonical resolution. Missing Solana/TRON history is not non-inclusion proof. New UI eligibility is advisory; locked transaction checks remain authoritative.
 
-v121
+v122

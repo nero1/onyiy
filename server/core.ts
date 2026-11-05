@@ -1,7 +1,8 @@
+import {redactedPresentation} from '@gifters/config';
 import {presentationFromManifest,type QueueDisclosure} from './presentation';
 import {publicManifest,nativePaymentEnvironment} from '@gifters/config';
 import {activeRequestId} from '@gifters/db';
-import {notificationBadge} from './notifications';
+import {notificationBadge,notificationVisibility} from './notifications';
 import crypto from 'node:crypto';
 import { and, asc, desc, eq, inArray, isNull, isNotNull, gte, lt, sql } from 'drizzle-orm';
 import {
@@ -668,8 +669,8 @@ export async function dashboard(database: DbExecutor, user: UserRow, manifest: M
     name: plans.name,
     slug: plans.slug,
     ticket: queueEntries.ticket,
-    queue_disclosure:sql<QueueDisclosure|null>`public.gw_queue_disclosure(${queueEntries.id})`,
-    display_position: sql<number>`public.gw_queue_rank(${queueEntries.id},${manifest.deployment_profile==='transparent'?'public_serving':'display'})`.mapWith((value) => value === null ? null : Number(value)),
+    queue_disclosure:redactedPresentation(manifest)?sql<QueueDisclosure|null>`null::jsonb`:sql<QueueDisclosure|null>`public.gw_queue_disclosure(${queueEntries.id})`,
+    display_position: sql<number>`public.gw_queue_rank(${queueEntries.id},${manifest.deployment_profile==='transparent'&&!redactedPresentation(manifest)?'public_serving':'display'})`.mapWith((value) => value === null ? null : Number(value)),
   }).from(cycles)
     .innerJoin(planVersions, eq(planVersions.id, cycles.planVersionId))
     .innerJoin(plans, eq(plans.id, planVersions.planId))
@@ -683,7 +684,7 @@ export async function dashboard(database: DbExecutor, user: UserRow, manifest: M
   const pointRows = await database.select({ total: sql<number>`coalesce(sum(${pointEvents.points}),0)::int` }).from(pointEvents).where(eq(pointEvents.userId, user.id));
   // Retain the original camelCase aliases while adding the documented UI DTO.
   const pendingWithdrawals=await database.select({id:withdrawals.id,status:withdrawals.status,gross_base_units:withdrawals.grossBaseUnits}).from(withdrawals).where(and(eq(withdrawals.userId,user.id),eq(withdrawals.assetId,asset.id),eq(withdrawals.status,'held'))).orderBy(desc(withdrawals.createdAt),desc(withdrawals.id)).limit(manifest.pagination_policy.max_size);
-  const notices = manifest.feature_notifications?await database.select({id:notifications.id,userId:notifications.userId,titleKey:notifications.titleKey,createdAt:notifications.createdAt,readAt:notifications.readAt,title_key:notifications.titleKey,body:notifications.body,created_at:notifications.createdAt,read_at:notifications.readAt}).from(notifications).where(and(eq(notifications.userId,user.id),isNull(notifications.retiredAt))).orderBy(desc(notifications.createdAt),desc(notifications.id)).limit(manifest.notification_page_size):[];
+  const notices = manifest.feature_notifications?await database.select({id:notifications.id,userId:notifications.userId,titleKey:notifications.titleKey,createdAt:notifications.createdAt,readAt:notifications.readAt,title_key:notifications.titleKey,body:notifications.body,created_at:notifications.createdAt,read_at:notifications.readAt}).from(notifications).where(and(eq(notifications.userId,user.id),isNull(notifications.retiredAt),notificationVisibility(manifest))).orderBy(desc(notifications.createdAt),desc(notifications.id)).limit(manifest.notification_page_size):[];
   const wallet = (await database.select().from(walletLinks).where(and(eq(walletLinks.userId, user.id), eq(walletLinks.environment, 'simulation'), eq(walletLinks.chainId, 'giv'))).limit(1))[0];
   const withdrawnRows = await database.select({ total: sql<string>`coalesce(sum(${withdrawals.netBaseUnits}),0)::text` }).from(withdrawals)
     .where(and(eq(withdrawals.userId, user.id), eq(withdrawals.assetId, asset.id), eq(withdrawals.status, 'settled')));
@@ -698,7 +699,7 @@ export async function dashboard(database: DbExecutor, user: UserRow, manifest: M
     financial_review:!!financialReview,
     cycles: userCycles.map(cycle=>({...cycle,status:cycle.financial_review?'exception':cycle.status})),
     notifications: notices,
-    notification_badge:manifest.feature_notifications?await notificationBadge(database,user.id):{has_new:false,seen_at:null},
+    notification_badge:manifest.feature_notifications?await notificationBadge(database,user.id,manifest):{has_new:false,seen_at:null},
     pending_invoices:pendingInvoices,
     pending_withdrawals:pendingWithdrawals,
     wallet: wallet ?? null,

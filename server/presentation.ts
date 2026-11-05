@@ -1,12 +1,12 @@
-import {selectedPaymentEnvironment} from '@gifters/config';
+import {redactedPresentation,selectedPaymentEnvironment} from '@gifters/config';
 import type {Manifest} from '@gifters/config';
 export function presentationFromManifest(manifest:Manifest){
  if(selectedPaymentEnvironment()==='mainnet'&&(manifest.deployment_profile!=='transparent'||!manifest.feature_transparency||!['verified','disabled'].includes(manifest.activity_presentation)||manifest.feature_simulation))throw new Error('CONFIGURATION_INVALID');
- const transparent=manifest.deployment_profile==='transparent';
- return {revision:manifest.profile_revision,profile:manifest.deployment_profile,enabled:manifest.feature_transparency,transparent,
+ const redacted=redactedPresentation(manifest),transparent=manifest.deployment_profile==='transparent'&&!redacted;
+ return {mode:redacted?'redacted' as const:'disclosure' as const,revision:manifest.profile_revision,profile:manifest.deployment_profile,enabled:manifest.feature_transparency,transparent,
   bootstrap:transparent?(!manifest.feature_bootstrap?'disabled':manifest.bootstrap_presentation):'legacy',
   priority:transparent?(!manifest.feature_priority?'disabled':manifest.priority_presentation):'legacy',
-  activity:!manifest.feature_activity?'disabled':manifest.activity_presentation,content:manifest.transparency_content,
+  activity:!manifest.feature_activity?'disabled':redacted?'fixtures':manifest.activity_presentation,content:manifest.transparency_content,
   queue:manifest.queue_disclosure_policy,receipt:manifest.public_receipt_policy,
   split_bps:manifest.payment_split_bps,empty_queue:manifest.empty_queue_policy,
   payment_environment:selectedPaymentEnvironment(),

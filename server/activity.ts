@@ -1,4 +1,4 @@
-import {selectedPaymentEnvironment} from '@gifters/config';
+import {redactedPresentation,selectedPaymentEnvironment} from '@gifters/config';
 import crypto from 'node:crypto';
 import {and,desc,eq,gte,inArray,lte,sql} from 'drizzle-orm';
 import {alias} from 'drizzle-orm/pg-core';
@@ -19,9 +19,9 @@ async function now(tx:DbExecutor){return new Date((await tx.execute<{value:Date}
 export async function activitySnapshot(tx:DbExecutor,policy:Manifest,dedicated=false){
  const source=!policy.feature_activity?'disabled':policy.activity_presentation,revision=policy.profile_revision;
  if(source==='disabled'){if(dedicated)throw new Error('FEATURE_DISABLED');return {enabled:false,source:'disabled' as const,profile_revision:revision,records:[] as ActivityRecord[],statements:[] as string[]};}
- if(policy.deployment_profile==='test_iteration'||source==='labelled_demo'){
+ if(redactedPresentation(policy)||policy.deployment_profile==='test_iteration'||source==='labelled_demo'){
   if(process.env.APP_ENV==='mainnet')throw new Error('FEATURE_DISABLED');
-  return {enabled:true,source:policy.deployment_profile==='test_iteration'?'fixtures' as const:'labelled_demo' as const,profile_revision:revision,records:[] as ActivityRecord[],statements:policy.activity_statements.slice(0,policy.activity_policy.max_records)};
+  return {enabled:true,source:redactedPresentation(policy)||policy.deployment_profile==='test_iteration'?'fixtures' as const:'labelled_demo' as const,profile_revision:revision,records:[] as ActivityRecord[],statements:policy.activity_statements.slice(0,policy.activity_policy.max_records)};
  }
  if(process.env.APP_ENV!=='mainnet')return {enabled:true,source:'verified' as const,profile_revision:revision,records:[] as ActivityRecord[],statements:[] as string[],empty_reason:'NO_REAL_EVENTS'};
  const clock=await now(tx),cutoff=new Date(clock.getTime()-policy.verified_activity_policy.max_age_hours*3600000),maximum=policy.verified_activity_policy.max_records;

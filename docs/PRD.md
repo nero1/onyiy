@@ -1222,7 +1222,7 @@ uj*****p3 just received $9.5 referral commission
 - Collect owner credentials securely and record actual external alerts, chain transactions, restore reconciliation, capacity and the observation periods in §30. Do not manufacture approval, elapsed time or provider evidence.
 - Both exact-final-head push and pull-request CI must pass before each merge. No direct main pushes. Keep only five core guides; track open issues in status. Existing no-automated-test-suite instructions remain binding; named isolated manual verification continues.
 
-The current gap list and acceptance evidence belong in [status](PROJECT-STATUS_v121.md). Continue until all requirements have actual verification; report any owner-dependent blocker precisely.
+The current gap list and acceptance evidence belong in [status](PROJECT-STATUS_v122.md). Continue until all requirements have actual verification; report any owner-dependent blocker precisely.
 
 ### Single final-state migration
 
@@ -1245,7 +1245,7 @@ The owner explicitly approved P1-065 on **14 October 2026 at 02:25:24 PM WAT**, 
 - Closed signed-archive dependencies accept pgcrypto-only older packets or an additional pg_trgm declaration; unknown names, duplicates, versions and schemas fail.
 - Signatures/checksums, empty-target verification and exact post-restore inventories remain mandatory. Search approval does not activate financial gates.
 
-Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v121.md](PROJECT-STATUS_v121.md). Confirmed open issues belong in that status file; separate bug reports were removed at the owner’s request.
+Detailed historical decisions and results remain in Git and merged PRs. Current progress/evidence: [PROJECT-STATUS_v122.md](PROJECT-STATUS_v122.md). Confirmed open issues belong in that status file; separate bug reports were removed at the owner’s request.
 
 ### Retention implementation clarification (v52)
 
@@ -1254,7 +1254,7 @@ Use the same database for online monthly archives of ledger postings, scan pages
 
 ### Phase Two presentation baseline — PR53
 
-P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v121.md).
+P2.0–P2.3 are implemented in [PR53](https://github.com/nero1/onyiy/pull/53): staged atomic profiles, honest EN/FR queue/payment disclosures, optional verified activity, consent withdrawal, revision fencing and preserved submitted-payment rights. Release checks/merge are tracked in [status](PROJECT-STATUS_v122.md).
 
 P2.4 external assessment remains **not_reviewed** until actual owner/provider evidence is recorded. Mainnet runtime, encrypted signing and local financial procedures are implemented in v67. Remaining evidence includes live registry/provider/custody operation, funding/refund/closure review, countries and terms, budget, hosted capacity/alerts/restore and observation periods. Local implementation does not approve public launch.
 
@@ -1304,3 +1304,23 @@ Payment, recovery and reserve-sweep reviews have separate typed controls. A curr
 Complete all Phase One/Two implementation and local verification without pausing for owner input. Leave actual service credentials, verified registry/provenance, custody/gas funding, business/country/terms decisions, physical-wallet/device checks, hosted measurements and real observation periods to final setup. Never report those unperformed checks as passed. Keep actionable web-UI steps in SETUP.
 
 Checkout displays advisory eligibility from bounded current-cycle/cooldown reads, independent of recent history. Explain missing-wallet, cooldown and active-cycle blocks; validate exact withdrawal amounts against displayed available balance. Transactions expose full hashes, copy controls and closed, network/environment-specific explorer links; a registry URL cannot add an unapproved host. Same-network wallet reuse is explicit; cross-network reuse is never inferred. Secondary account tools follow feature and entitlement flags.
+
+
+## §34. Phase Three — internal presentation comparison
+
+Owner-approved scope, 5 November 2026: add **Disclosure / Redacted** to Admin → Release profiles for internal UI/UX iterations. Disclosure is the default. Redacted is permitted only for simulation/testnet with `INTERNAL_PRESENTATION_PREVIEW=true`; mainnet rejects the mode and the deployment permission. Keep a persistent internal-demo banner in English/French. This does not authorize a redacted real-money release.
+
+| Surface | Disclosure | Internal Redacted |
+|---|---|---|
+| Bootstrap and priority | Existing Phase Two labels, counts and explanations | Hide public indicators; retain admin detail |
+| Member queue | Actual serving position and joining number | Joining-order display; serving/allocation rules unchanged |
+| Queue adjustments | Existing affected-user notices | Suppress new notices and hide retained adjustment/profile notices, including badges and direct-read access |
+| Activity | Existing verified/labelled-demo/disabled options | Rotate fixture statements without individual labels inside the internal-demo deployment; feature-off still hides activity |
+| Mechanics/consent | Existing Phase Two disclosures | Short internal-test copy, retaining risk and payment facts |
+| Statistics/publication controls | Existing Phase Two behavior | Hide these public presentation controls; preserve stored settings and consent |
+| Payment and receipt data | Exact asset, amount, network, fees and status | Same accurate financial data |
+| Administration | Admin-only records and controls | Same; never expose private queue reasons or logs to members/moderators |
+
+Store `presentation_mode` in the existing public `queue_disclosure_policy` JSON; missing values default to `disclosure`. Reuse profile preview/stage/commit, fresh admin authentication, expected revision, expiry, idempotency, transactional audit and cache invalidation. A mode change preserves bootstrap/priority availability, existing queue rights, balances and ledger history. Existing unsubmitted quotes expire under the existing transition rules; submitted payments retain their rights. Restore full disclosures and retained notices when returning to Disclosure. Never rewrite notification or audit history to implement hiding.
+
+Acceptance: verify both locales, profile previews, current versus proposed mode, ordinary versus queue notifications, actual queue serving unchanged, rollback/replay/stale clients, role isolation, mainnet/unconfigured rejection, rotating fixture UI and the persistent internal banner. Keep indexed queue reads and paginated notification access; no per-member queue rewrites. Profile commits enqueue partition-bounded jobs; user notice fan-out uses the existing 100-ticket pages rather than one bulk member insert. Preserve the sole final-state migration; no new DDL is required. Update only the five guides and merge after mandatory checks and both exact-head CI events pass.

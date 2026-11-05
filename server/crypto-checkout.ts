@@ -1,3 +1,4 @@
+import {redactedPresentation} from '@gifters/config';
 import {claimWalletSend,rejectWalletSend} from './native-wallet-attempts';
 import {presentationFromManifest,planFinancialPresentation,type PublicQueueDisclosure} from './presentation';
 import { and, eq, sql } from "drizzle-orm";
@@ -122,7 +123,7 @@ export async function prepareNativeInvoice(tx:DbExecutor,userId:string,generatio
       fee,
     });
   return {
-    presentation:presentationFromManifest(policy),plan:planFinancialPresentation(version,asset),queue_disclosure:(await tx.execute<{value:PublicQueueDisclosure|null}>(sql`select public.gw_public_queue_disclosure(${version.id}::uuid) as value`))[0].value,
+    presentation:presentationFromManifest(policy),plan:planFinancialPresentation(version,asset),queue_disclosure:redactedPresentation(policy)?null:(await tx.execute<{value:PublicQueueDisclosure|null}>(sql`select public.gw_public_queue_disclosure(${version.id}::uuid) as value`))[0].value,
     profile_revision:policy.profile_revision,
     environment:registry.environment,
     energy_fee_native:registry.chain==="tron"?(fee.gasLimit*fee.unitPrice).toString():undefined,

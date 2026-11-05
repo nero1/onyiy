@@ -1,3 +1,4 @@
+import {redactedPresentation} from '@gifters/config';
 import {selectedPaymentEnvironment} from '@gifters/config';
 import {previewManifest,previewCatalog,previewHelp,previewHelpRedirect,previewHelpSearch} from './preview-reads';
 import {activitySnapshot} from './activity';
@@ -54,7 +55,7 @@ async function catalogLoader():Promise<Loaded> {
   const rows=await tx.select({id:plans.id,name:plans.name,slug:plans.slug,usd_reference:planVersions.usdReference,
    receipts_required:planVersions.receiptsRequired,receiver_bps:planVersions.receiverBps,marketing_bps:planVersions.marketingBps,referral_bps:planVersions.referralBps,developer_bps:planVersions.developerBps,reserve_bps:planVersions.reserveBps,status:plans.status,
    bootstrap_enabled:plans.bootstrapEnabled,bootstrap_count:plans.bootstrapCount,amount_base_units:planVersions.amountBaseUnits,
-   plan_version_id:planVersions.id,symbol:assets.symbol,decimals:assets.decimals,network:assets.chainId,environment:assets.environment,queue_disclosure:sql<PublicQueueDisclosure|null>`public.gw_public_queue_disclosure(${planVersions.id})`}).from(plans).innerJoin(planVersions,eq(planVersions.planId,plans.id))
+   plan_version_id:planVersions.id,symbol:assets.symbol,decimals:assets.decimals,network:assets.chainId,environment:assets.environment,queue_disclosure:redactedPresentation(manifest)?sql<PublicQueueDisclosure|null>`null::jsonb`:sql<PublicQueueDisclosure|null>`public.gw_public_queue_disclosure(${planVersions.id})`}).from(plans).innerJoin(planVersions,eq(planVersions.planId,plans.id))
    .innerJoin(assets,eq(assets.id,planVersions.assetId)).where(and(eq(assets.environment,'simulation'),eq(planVersions.version,sql`(select max(latest.version) from public.plan_versions latest where latest.plan_id=${planVersions.planId} and latest.asset_id=${planVersions.assetId})`))).orderBy(asc(plans.usdReference)).limit(1001);
   if(rows.length>1000)throw new Error('CONFIGURATION_INVALID');
   return captured(rows.map(row=>({...row,plan:planFinancialPresentation({amountBaseUnits:row.amount_base_units,usdReference:row.usd_reference,receiverBps:row.receiver_bps,marketingBps:row.marketing_bps,referralBps:row.referral_bps,developerBps:row.developer_bps,reserveBps:row.reserve_bps,receiptsRequired:row.receipts_required},{symbol:row.symbol,decimals:row.decimals,chainId:row.network,environment:row.environment}),profile_revision:manifest.profile_revision,amount_giv:formatBaseUnits(BigInt(row.amount_base_units)),expected_giv:formatBaseUnits((BigInt(row.amount_base_units)*BigInt(row.receiver_bps)/10000n)*BigInt(row.receipts_required))})),manifest,manifest.cache_policy.catalog_seconds);

@@ -1,4 +1,4 @@
-# Project status v121
+# Project status v122
 
 **Phase One/Two implementation is complete for the agreed code scope. Production acceptance awaits owner setup.** No known implementation task is being deferred for credentials. This does not claim a bug-free system or a verified public launch.
 
@@ -15,6 +15,10 @@
 
 Mandatory source/config/schema/docs/secret checks, production build and focused 360px Chromium procedures pass. Homepage JavaScript is184.81 KiB gzip (200 KiB limit); API trace maximum1.370 MiB gzip (3 MiB limit). These are local bounds, not hosted measurements. Both push and pull-request CI must pass the exact final head before merge. Broad automated suites remain deferred by owner instruction.
 
+## Phase Three
+
+Internal Disclosure/Redacted presentation is implemented using the existing release-profile flow. Permission, mainnet rejection, notification filtering, fixture activity and EN/FR controls are included. Fresh PostgreSQL17 procedures pass: restricted-role GIV gift, queue/ledger preservation, audit privacy, notice suppression/restoration, paginated delivery, rollback/replay/stale-stage rejection and mainnet/unconfigured rejection. Actual member dashboard/history rank projection and 360px EN/FR component checks pass. Mandatory checks, production build and bundle budgets pass; both final-head CI events are required before merge. No DDL change; one migration remains.
+
 ## Owner setup and external acceptance only
 
 1. Configure the existing hosting/database/cache accounts, Google/CAPTCHA, deployment origins and protected credentials; verify hosted permissions and promotion.
@@ -25,4 +29,4 @@ Mandatory source/config/schema/docs/secret checks, production build and focused 
 
 SETUP lists the protected fields and acceptance steps. Never remove a safety gate to bypass missing setup. Unknown sends retain their reservations until positive canonical resolution; missing transaction history alone never authorizes another send.
 
-v121
+v122

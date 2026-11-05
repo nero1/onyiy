@@ -42,6 +42,7 @@ jobs:
       - name: Observe retained attempts and run one bounded signing pass
         env:
           NODE_ENV: production
+          INTERNAL_PRESENTATION_PREVIEW: ${{ vars.INTERNAL_PRESENTATION_PREVIEW || 'false' }}
           SIGNER_DECRYPTION_SECRET: ${{ secrets.SIGNER_DECRYPTION_SECRET }}
           SIGNER_DATABASE_URL: ${{ secrets.SIGNER_DATABASE_URL }}
           SIGNED_PAYLOAD_ENCRYPTION_KEY: ${{ secrets.SIGNED_PAYLOAD_ENCRYPTION_KEY }}

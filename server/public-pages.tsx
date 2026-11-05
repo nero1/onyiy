@@ -79,6 +79,7 @@ export async function PublicCatalog({ locale }: { locale: Locale }) {
 export async function PublishedPage({ locale, slug }: { locale: Locale; slug: string }) {
   const policy = await publicPolicy();
   if (!policy.feature_help) notFound();
+  if(slug==='mechanics'&&policy.presentation?.mode==='redacted')return <main className="public-page" lang={locale}><h1>{locale==='fr'?'Comment ça marche':'How It Works'}</h1><p>{policy.presentation.content[locale].mechanics}</p><p>{policy.presentation.content[locale].risk}</p></main>;
   if(slug==='mechanics'&&policy.presentation?.transparent)return <main className="public-page" lang={locale}><h1>{locale==='fr'?'Comment ça marche':'How It Works'}</h1><ProfileDisclosure presentation={policy.presentation} locale={locale} mode="mechanics"/></main>;
   const article = slug==='terms'?{title:locale==='fr'?'Conditions publiées':'Published terms',version:policy.terms_content.version,body:policy.terms_content.body[locale]}:(await publishedArticles(locale)).find(row => row.slug === slug);
   if (!article) notFound();

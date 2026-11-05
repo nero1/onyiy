@@ -15,7 +15,7 @@ async function main(){
  if(!temporary||!path.isAbsolute(temporary)||/[\r\n\0]/.test(temporary))throw Error('RECOVERY_WORKFLOW_INVALID');
  const directory=await fs.mkdtemp(path.join(temporary,'gw-financial-recovery-'));await fs.chmod(directory,0o700);
  const file=path.join(directory,'financial.gwbackup');
- const runEnvironment={PATH:env.PATH,LANG:'C.UTF-8',APP_ENV:payment,MAINNET_ENABLED:'false',SIGNER_PROVIDER:'disabled',DB_PROVIDER:'postgres',RECOVERY_CONFIRM:'isolated-'+payment,DATABASE_URL:env.DATABASE_URL,DATABASE_MIGRATION_URL:env.DATABASE_MIGRATION_URL,DATABASE_TLS_CA_PEM:env.DATABASE_TLS_CA_PEM,EXPORT_ENCRYPTION_KEY:env.EXPORT_ENCRYPTION_KEY};
+ const runEnvironment={PATH:env.PATH,LANG:'C.UTF-8',INTERNAL_PRESENTATION_PREVIEW:env.INTERNAL_PRESENTATION_PREVIEW??'false',APP_ENV:payment,MAINNET_ENABLED:'false',SIGNER_PROVIDER:'disabled',DB_PROVIDER:'postgres',RECOVERY_CONFIRM:'isolated-'+payment,DATABASE_URL:env.DATABASE_URL,DATABASE_MIGRATION_URL:env.DATABASE_MIGRATION_URL,DATABASE_TLS_CA_PEM:env.DATABASE_TLS_CA_PEM,EXPORT_ENCRYPTION_KEY:env.EXPORT_ENCRYPTION_KEY};
  if(mode!=='backup'){
   const fromRelease=!!env.RECOVERY_ARCHIVE_RELEASE;
   if(fromRelease?(!/^recovery-[a-z0-9][a-z0-9._-]{0,79}$/.test(env.RECOVERY_ARCHIVE_RELEASE)||!!env.RECOVERY_ARCHIVE_RUN_ID):!/^[1-9][0-9]{0,19}$/.test(env.RECOVERY_ARCHIVE_RUN_ID??''))throw Error('RECOVERY_ARCHIVE_SOURCE_INVALID');

@@ -1,3 +1,4 @@
+import {redactedPresentation} from '@gifters/config';
 import {presentationFromManifest,planFinancialPresentation,type PublicQueueDisclosure} from './presentation';
 import crypto from 'node:crypto';
 import {and,desc,eq,exists,inArray,isNull,lte,sql} from 'drizzle-orm';
@@ -11,7 +12,7 @@ async function clock(tx:DbExecutor){const rows=await tx.execute<{now:Date}>(sql`
 function dto(item:Invoice){return {id:item.id,plan_version_id:item.planVersionId,expected_base_units:item.expectedBaseUnits,actual_base_units:item.actualBaseUnits,refundable_base_units:item.refundableBaseUnits,status:item.status,profile_revision:item.profileRevision,expires_at:item.quoteExpiresAt,submitted_at:item.submittedAt}}
 async function quotedDto(tx:DbExecutor,item:Invoice,version:typeof planVersions.$inferSelect,asset:{symbol:string;decimals:number;chainId:string;environment:string},policy:Awaited<ReturnType<typeof readManifest>>){
  const [row]=await tx.execute<{value:PublicQueueDisclosure|null}>(sql`select public.gw_public_queue_disclosure(${item.planVersionId}::uuid) as value`);
- return {...dto(item),presentation:presentationFromManifest(policy),queue_disclosure:row.value,plan:planFinancialPresentation(version,asset)};
+ return {...dto(item),presentation:presentationFromManifest(policy),queue_disclosure:redactedPresentation(policy)?null:row.value,plan:planFinancialPresentation(version,asset)};
 }
 async function invoice(tx:DbExecutor,id:string,owner?:string){
  const [item]=await tx.select().from(giftInvoices).where(owner?and(eq(giftInvoices.id,id),eq(giftInvoices.userId,owner)):eq(giftInvoices.id,id)).limit(1).for('update');
