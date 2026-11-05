@@ -175,7 +175,7 @@ Do not approve preview runs before configuring preview credentials. To stop futu
 5. Select `sim_admin` through the simulation controls. Complete any consent/two-factor prompts and inspect admin screens. Treat this as a demo: simulated identity is not a secure production login.
 6. Check Vercel **Logs**, then Supabase and Upstash usage screens before inviting testers.
 
-Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v121.md](PROJECT-STATUS_v121.md).
+Health passing does not prove financial readiness. All three named bug rounds are merged. Phase Two release evidence is tracked separately. See [PROJECT-STATUS_v122.md](PROJECT-STATUS_v122.md).
 
 ## 10. Read-only preview using the same database
 
@@ -422,7 +422,7 @@ Code supports Ethereum `1`, BNB `56`, Solana `mainnet-beta` and TRON `mainnet`. 
 17. Redeploy Production, then run the isolated signer workflow once. Check its run result and the site's signer heartbeat. A changed policy, registry, address or alert binding needs new hashes/probes; never reuse an unrelated approval.
 18. With the owner present, fund only the approved treasury/reserve amounts, activate the intended per-currency plans and perform the final tests with small limits. Confirm actual wallet approval, chain receipts, balances, fees, refunds, alerts and restore reconciliation. Complete the required observation periods before public launch.
 
-Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v121.md).
+Official references: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments). Current remaining acceptance work is in [status](PROJECT-STATUS_v122.md).
 
 ### Financial actions that need review
 
@@ -751,3 +751,19 @@ When changing **Currency** in Payment administration, prepare a new retained-bal
 6. In withdrawals, try zero, a malformed amount and an amount above the displayed available balance. They must remain disabled. Enter an affordable positive amount, review the exact fee and recipient, then approve.
 7. Perform the previously listed Google/CAPTCHA/MFA, physical-wallet/mobile, signed-alert, provider-failover, backup/restore and incident checks with your actual services. Measure quotas/latency/costs and complete the required observation periods; local checks do not substitute for these.
 8. Before real-money activation, provide the reviewed countries/terms, funding/refund/closure model, custody/recovery choices, gas budget, actual addresses, independent RPCs and verified contracts/mints. JAGA stays disabled until provenance is supplied. Follow the protected environment settings above; do not put private keys in the website or repository.
+
+
+### Phase Three: compare internal presentations
+
+1. Use your existing simulation or testnet deployment. Keep `APP_ENV` as `simulation` or `testnet`.
+2. In Vercel, open your project → **Settings → Environment Variables → Add Environment Variable**.
+3. Enter `INTERNAL_PRESENTATION_PREVIEW` as the name and `true` as the value. Select only the environment used for internal testing. Save.
+4. Open **Deployments**, open the deployment menu and choose **Redeploy**. For the GitHub signer/recovery workflows, open the repository → **Settings → Environments** → the protected test environment → **Environment variables → Add variable**. Add `INTERNAL_PRESENTATION_PREVIEW=true` there too. Keep this setting on any other worker reading the same test database.
+5. Open the site. Confirm the **Internal demo — simulation/test networks only** banner appears.
+6. Sign in as an administrator, complete two-factor authentication, and open **Administration → Release profiles**.
+7. In **Presentation**, choose **Redacted — internal testing only**. Keep the **Transparent** profile selected.
+8. Enter a reason of at least ten characters. Click **Preview without saving**, inspect the current/proposed modes, then click **Stage complete profile**.
+9. Review the staged preview. Click **Commit this preview** before it expires. If the queue/configuration changed, refresh and stage again.
+10. Refresh a member session. Confirm special-position panels and queue-adjustment notices are hidden, ordinary notifications still work, and activity statements rotate inside the internal demo. Check the administrator's queue details and logs separately.
+11. To restore full disclosure, repeat steps 6–9 with **Presentation → Disclosure**. Retained queue notices become visible again. Accept the updated terms if prompted.
+12. Before mainnet setup, restore **Disclosure** first. Change `INTERNAL_PRESENTATION_PREVIEW` to `false` in the relevant deployment/worker settings and redeploy. Mainnet rejects Redacted mode. Do not change database records manually to bypass this restriction.

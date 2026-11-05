@@ -1,7 +1,7 @@
 import {isReadOnlyPreview,publicPreviewRuntime} from './public-preview';
 export {isReadOnlyPreview} from './public-preview';
-import {transparencyFields,validateTransparentConfiguration} from './transparency';
-export {transparencyDefaults,transparencySettingKeys} from './transparency';
+import {redactedPresentation,transparencyFields,validateTransparentConfiguration} from './transparency';
+export {redactedPresentation,internalPresentationAllowed,transparencyDefaults,transparencySettingKeys} from './transparency';
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
@@ -119,12 +119,14 @@ export function publicManifest(input: PublicManifest & Record<string, unknown>):
   }
   if(input.deployment_profile==='transparent'){
     publicValues.product_content={...input.product_content,tagline:{en:input.transparency_content.en.mechanics,fr:input.transparency_content.fr.mechanics},short_description:{en:input.transparency_content.en.mechanics+' '+input.transparency_content.en.risk,fr:input.transparency_content.fr.mechanics+' '+input.transparency_content.fr.risk}};
-    if(input.activity_presentation!=='labelled_demo')publicValues.activity_statements=[];
+    if(input.activity_presentation!=='labelled_demo'&&!redactedPresentation(input))publicValues.activity_statements=[];
+    if(redactedPresentation(input))publicValues.public_stats_policy={...input.public_stats_policy,enabled:false};
   }
   return publicValues as PublicManifest & Record<string,unknown>;
 }
 
 export function validateSecurityCeilings(manifest: Manifest, env = process.env) {
+  redactedPresentation(manifest,env);
   const hard = (name: string, fallback: number) => {
     const raw = env[name] ?? String(fallback);
     if (!/^[1-9][0-9]*$/.test(raw) || !Number.isSafeInteger(Number(raw))) throw new Error('CONFIGURATION_INVALID');
@@ -157,7 +159,7 @@ export function selectedPaymentEnvironment(env:NodeJS.ProcessEnv=process.env):'s
 // configuration approval and an independently acknowledged alert receipt.
 export const nativePaymentExecutionSupported=true;
 export function assertFinancialActivationPolicy(policy:Manifest,environment:'testnet'|'mainnet'){
- if(environment==='mainnet'&&(!policy.mainnet_enabled||policy.deployment_profile!=='transparent'||!policy.feature_transparency||policy.feature_simulation||!['verified','disabled'].includes(policy.activity_presentation)||policy.financial_readiness_record.status!=='approved'||!policy.financial_readiness_record.evidence_refs.length))throw new Error('FINANCIAL_SAFETY_PAUSE');
+ if(environment==='mainnet'&&(policy.queue_disclosure_policy.presentation_mode==='redacted'||!policy.mainnet_enabled||policy.deployment_profile!=='transparent'||!policy.feature_transparency||policy.feature_simulation||!['verified','disabled'].includes(policy.activity_presentation)||policy.financial_readiness_record.status!=='approved'||!policy.financial_readiness_record.evidence_refs.length))throw new Error('FINANCIAL_SAFETY_PAUSE');
 }
 /** Several enabled networks have distinct configuration hashes. Each needs its
  * own reviewed approval and independently acknowledged alert fingerprint. */
@@ -207,6 +209,8 @@ export function runtimeProviders(env: NodeJS.ProcessEnv = process.env) {
 export function validateRuntimeEnv(env = process.env) {
   if(isReadOnlyPreview(env))return publicPreviewRuntime(env);
   const appEnv = selectedPaymentEnvironment(env);
+  if(env.INTERNAL_PRESENTATION_PREVIEW!==undefined&&!['true','false'].includes(env.INTERNAL_PRESENTATION_PREVIEW))throw new Error('CONFIGURATION_INVALID');
+  if(appEnv==='mainnet'&&env.INTERNAL_PRESENTATION_PREVIEW==='true')throw new Error('CONFIGURATION_INVALID');
   const providers = runtimeProviders(env);
   const simulationSelectors = {
     PAYMENT_PROVIDER: 'giv_simulation',

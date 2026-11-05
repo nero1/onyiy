@@ -158,6 +158,7 @@ jobs:
           MAINNET_ENABLED: 'false'
           SIGNER_PROVIDER: disabled
           RECOVERY_CONFIRM: isolated-${{ vars.AUTOMATIC_BACKUP_ENVIRONMENT }}
+          INTERNAL_PRESENTATION_PREVIEW: ${{ vars.INTERNAL_PRESENTATION_PREVIEW || 'false' }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
           DATABASE_TLS_CA_PEM: ${{ secrets.DATABASE_TLS_CA_PEM }}
@@ -173,6 +174,7 @@ jobs:
           RECOVERY_ARCHIVE_RELEASE: ${{ inputs.archive_release }}
           RECOVERY_ARCHIVE_COMMIT: ${{ steps.release.outputs.commit }}
           RECOVERY_TARGET_DATABASE: ${{ inputs.target_database }}
+          INTERNAL_PRESENTATION_PREVIEW: ${{ vars.INTERNAL_PRESENTATION_PREVIEW || 'false' }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
           DATABASE_TLS_CA_PEM: ${{ secrets.DATABASE_TLS_CA_PEM }}

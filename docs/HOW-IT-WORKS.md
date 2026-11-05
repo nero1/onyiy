@@ -1,6 +1,6 @@
 # How Gifters World works
 
-Use [SETUP](SETUP.md) to install, [PRD](PRD.md) for requirements and [status](PROJECT-STATUS_v121.md) for remaining work.
+Use [SETUP](SETUP.md) to install, [PRD](PRD.md) for requirements and [status](PROJECT-STATUS_v122.md) for remaining work.
 
 ## Code map
 
@@ -76,3 +76,8 @@ Verified activity uses consenting real members and eligible immutable events; te
 ## Native reference prices
 
 CoinMarketCap v3 is the native default. A separate protected worker validates exact decimal USD quotes and signs them; the website verifies signatures and five-minute freshness. Provider throttling persists across runs. Reviewed manual signed rates remain available. Website and signer share reviewed market IDs/public key; neither receives the pricing private key. Follow SETUP for key preparation, matching approvals and scheduled refreshes.
+
+
+## Internal presentation testing
+
+Admin → Release profiles adds Disclosure (default) and Redacted. Redacted needs explicit simulation/testnet deployment permission and keeps an internal-demo banner. It hides special-position explanations, queue notices, statistics and publication controls; fixture statements rotate without individual labels. It changes presentation, not allocation, balances, fees or transaction facts. Admin audit remains private. Returning to Disclosure restores retained notices. Mainnet rejects Redacted. See SETUP for browser steps.

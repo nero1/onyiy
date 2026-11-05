@@ -22,7 +22,7 @@ export const transparencyDefaults={
   empty_queue:'Si personne n’attend, la règle de démarrage bloque le paiement ou crédite la première part destinataire au rôle développeur/marketing annoncé. Cette allocation professionnelle n’est pas un paiement à un membre.',
  }},
  verified_activity_policy:{require_opt_in:true as const,max_records:50,max_age_hours:24,exclude_system:true as const,exclude_test:true as const},
- queue_disclosure_policy:{show_system_ahead:true,show_priority_ahead:true,show_snapshot_time:true},
+ queue_disclosure_policy:{presentation_mode:'disclosure' as const,show_system_ahead:true,show_priority_ahead:true,show_snapshot_time:true},
  public_receipt_policy:{show_asset:true,show_network:true,show_time:true,mask_identity:true,show_environment:true},
  transparency_snapshot_policy:{preview_ttl_minutes:15,client_poll_seconds:60},
  financial_readiness_record:{status:'not_reviewed' as const,evidence_refs:[] as string[]},
@@ -32,7 +32,7 @@ export const transparencyFields={
  bootstrap_presentation:z.enum(['legacy','labelled','disabled']).default('legacy'),priority_presentation:z.enum(['legacy','disclosed','disabled']).default('legacy'),activity_presentation:z.enum(['fixtures','verified','labelled_demo','disabled']).default('fixtures'),
  transparency_content:z.object({version:z.string().regex(/^[A-Za-z0-9._-]{1,80}$/),en:content,fr:content}).strict().default(transparencyDefaults.transparency_content),
  verified_activity_policy:z.object({require_opt_in:z.literal(true),max_records:positive.max(50),max_age_hours:positive.max(720),exclude_system:z.literal(true),exclude_test:z.literal(true)}).strict().default(transparencyDefaults.verified_activity_policy),
- queue_disclosure_policy:z.object({show_system_ahead:z.boolean(),show_priority_ahead:z.boolean(),show_snapshot_time:z.boolean()}).strict().default(transparencyDefaults.queue_disclosure_policy),
+ queue_disclosure_policy:z.object({presentation_mode:z.enum(['disclosure','redacted']).default('disclosure'),show_system_ahead:z.boolean(),show_priority_ahead:z.boolean(),show_snapshot_time:z.boolean()}).strict().default(transparencyDefaults.queue_disclosure_policy),
  public_receipt_policy:z.object({show_asset:z.boolean(),show_network:z.boolean(),show_time:z.boolean(),mask_identity:z.boolean(),show_environment:z.boolean()}).strict().default(transparencyDefaults.public_receipt_policy),
  transparency_snapshot_policy:z.object({preview_ttl_minutes:positive.max(15),client_poll_seconds:positive.min(15).max(300)}).strict().default(transparencyDefaults.transparency_snapshot_policy),
  financial_readiness_record:z.object({status:z.enum(['not_reviewed','approved','rejected']),evidence_refs:z.array(z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/)).max(50)}).strict().refine(value=>value.status!=='approved'||value.evidence_refs.length>0).default(transparencyDefaults.financial_readiness_record),
@@ -41,4 +41,14 @@ export const transparencySettingKeys=new Set(['deployment_profile',...Object.key
 export function validateTransparentConfiguration(value:{deployment_profile:string;feature_transparency:boolean;bootstrap_presentation:string;priority_presentation:string;activity_presentation:string;queue_disclosure_policy:{show_system_ahead:boolean;show_priority_ahead:boolean;show_snapshot_time:boolean};public_receipt_policy:{show_asset:boolean;show_network:boolean;show_time:boolean;mask_identity:boolean;show_environment:boolean}}){
  if(value.deployment_profile!=='transparent')return;
  if(!value.feature_transparency||!['labelled','disabled'].includes(value.bootstrap_presentation)||!['disclosed','disabled'].includes(value.priority_presentation)||!['verified','labelled_demo','disabled'].includes(value.activity_presentation)||Object.values(value.queue_disclosure_policy).some(flag=>!flag)||Object.values(value.public_receipt_policy).some(flag=>!flag))throw new Error('CONFIGURATION_INVALID');
+}
+
+/** Deployment permission is separate from the audited presentation selection. */
+export function internalPresentationAllowed(env:NodeJS.ProcessEnv=process.env){
+ return env.INTERNAL_PRESENTATION_PREVIEW==='true'&&['simulation','testnet'].includes(env.APP_ENV??'simulation')&&env.MAINNET_ENABLED!=='true';
+}
+export function redactedPresentation(policy:{queue_disclosure_policy:{presentation_mode?:string}},env:NodeJS.ProcessEnv=process.env){
+ const redacted=policy.queue_disclosure_policy.presentation_mode==='redacted';
+ if(redacted&&!internalPresentationAllowed(env))throw new Error('CONFIGURATION_INVALID');
+ return redacted;
 }
